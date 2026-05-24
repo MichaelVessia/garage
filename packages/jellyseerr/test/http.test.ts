@@ -65,7 +65,9 @@ it.effect('JellyseerrApiLive sends authenticated status requests', () =>
     const records = yield* Ref.get(fake.requestsRef)
 
     assert.strictEqual(result.version, '2.0.0')
-    assert.deepStrictEqual(records, [{ method: 'GET', url: 'http://jellyseerr.example.test/api/v1/status', apiKey: 'secret' }])
+    assert.deepStrictEqual(records, [
+      { method: 'GET', url: 'http://jellyseerr.example.test/api/v1/status', apiKey: 'secret' },
+    ])
   })
 )
 

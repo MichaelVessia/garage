@@ -63,7 +63,9 @@ const makeApiLayer = Effect.gen(function* () {
       Effect.succeed({
         count: 1,
         totalRecords: 1,
-        records: [{ id: 1, email: 'user@example.test', displayName: 'Test User', username: 'fixture-user', permissions: 1 }],
+        records: [
+          { id: 1, email: 'user@example.test', displayName: 'Test User', username: 'fixture-user', permissions: 1 },
+        ],
       }),
     issues: () =>
       Effect.succeed({

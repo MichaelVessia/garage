@@ -32,7 +32,10 @@ const makeApiLayer = Effect.gen(function* () {
     }),
     books: (options) =>
       Ref.update(bookOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ id: 42, title: 'Fixture Novel One', authors: ['Fixture Author'], libraryId: 1 }] })
+        Effect.as({
+          count: 1,
+          records: [{ id: 42, title: 'Fixture Novel One', authors: ['Fixture Author'], libraryId: 1 }],
+        })
       ),
     bookInfo: (options) =>
       Ref.update(bookInfoOptions, (records) => [...records, options]).pipe(

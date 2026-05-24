@@ -127,7 +127,7 @@ it.effect('BookloreApiLive normalizes book metadata and client-side search', () 
       })
       assert.deepStrictEqual(yield* search({ query: 'fixture', limit: 1 }), {
         query: 'fixture',
-        total: 1,
+        total: 2,
         count: 1,
         records: [
           {

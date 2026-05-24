@@ -64,7 +64,7 @@ it.effect('bounded commands pass limits and search args', () =>
 
     yield* executeBooklore(['books', '--limit', '3']).pipe(Effect.provide(layer))
     yield* executeBooklore(['book-info', '42']).pipe(Effect.provide(layer))
-    yield* executeBooklore(['search', 'project', 'fixture', '--limit', '5']).pipe(Effect.provide(layer))
+    yield* executeBooklore(['search', 'fixture', 'query', '--limit', '5']).pipe(Effect.provide(layer))
 
     assert.deepStrictEqual(yield* Ref.get(fake.bookOptions), [{ limit: 3 }])
     assert.deepStrictEqual(yield* Ref.get(fake.bookInfoOptions), [{ id: '42' }])

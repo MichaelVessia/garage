@@ -92,7 +92,13 @@ it.effect('TubeArchivist HTTP adapter logs in, caches cookies, and sends CSRF fo
     }).pipe(Effect.provide(layer))
 
     assert.deepStrictEqual(yield* Ref.get(fake.requests), [
-      { method: 'POST', url: 'http://tubearchivist.example.test/api/user/login/', cookie: undefined, csrf: undefined, referer: undefined },
+      {
+        method: 'POST',
+        url: 'http://tubearchivist.example.test/api/user/login/',
+        cookie: undefined,
+        csrf: undefined,
+        referer: undefined,
+      },
       {
         method: 'GET',
         url: 'http://tubearchivist.example.test/api/channel/',

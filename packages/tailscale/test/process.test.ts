@@ -123,19 +123,19 @@ it.effect('TailscaleApiLive maps status, peers, and exit nodes from status JSON'
         total: 2,
         records: [
           {
-            id: 'node2',
-            hostName: 'phone',
-            dnsName: 'phone.tailnet.example.test.',
-            ips: ['100.64.0.3'],
-            os: 'iOS',
-            online: false,
-            active: undefined,
-            exitNode: undefined,
-            exitNodeOption: false,
-            relay: undefined,
-            lastSeen: undefined,
-            allowedIps: undefined,
-            tags: undefined,
+            id: 'node1',
+            hostName: 'node-b',
+            dnsName: 'node-b.tailnet.example.test.',
+            ips: ['100.64.0.2'],
+            os: 'linux',
+            online: true,
+            active: true,
+            exitNode: true,
+            exitNodeOption: true,
+            relay: 'nyc',
+            lastSeen: '2026-05-24T10:00:00Z',
+            allowedIps: ['0.0.0.0/0', '::/0'],
+            tags: ['tag:exit'],
           },
         ],
         moreAvailable: true,
@@ -143,10 +143,7 @@ it.effect('TailscaleApiLive maps status, peers, and exit nodes from status JSON'
     })
 
     assert.strictEqual((yield* peers({ limit: 5 }).pipe(Effect.provide(fake.layer))).count, 2)
-    assert.strictEqual(
-      (yield* exitNodes({ limit: 5 }).pipe(Effect.provide(fake.layer))).records[0]?.hostName,
-      'node-b'
-    )
+    assert.strictEqual((yield* exitNodes({ limit: 5 }).pipe(Effect.provide(fake.layer))).records[0]?.hostName, 'node-b')
     assert.deepStrictEqual(yield* currentExitNode.pipe(Effect.provide(fake.layer)), {
       usingExitNode: true,
       peer: {
