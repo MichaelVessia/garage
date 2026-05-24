@@ -35,7 +35,7 @@
 
           nativeBuildInputs = [
             bun2nix'.hook
-            pkgs.makeBinaryWrapper
+            pkgs.bun
           ];
 
           bunDeps = bun2nix'.fetchBunDeps {
@@ -47,15 +47,18 @@
           dontUseBunInstall = true;
           dontRunLifecycleScripts = true;
 
+          buildPhase = ''
+            runHook preBuild
+
+            bun build ${entrypoint} --compile --outfile ${name}
+
+            runHook postBuild
+          '';
+
           installPhase = ''
             runHook preInstall
 
-            mkdir -p "$out/lib/${name}"
-            cp -r . "$out/lib/${name}"
-
-            mkdir -p "$out/bin"
-            makeBinaryWrapper ${pkgs.bun}/bin/bun "$out/bin/${name}" \
-              --add-flags "run $out/lib/${name}/${entrypoint}"
+            install -Dm755 ${name} "$out/bin/${name}"
 
             runHook postInstall
           '';
