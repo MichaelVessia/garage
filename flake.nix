@@ -115,6 +115,11 @@
           entrypoint = "apps/booklore-cli/src/main.ts";
         };
 
+        autocaliweb = mkBunCli {
+          name = "autocaliweb";
+          entrypoint = "apps/autocaliweb-cli/src/main.ts";
+        };
+
         tubearchivist = mkBunCli {
           name = "tubearchivist";
           entrypoint = "apps/tubearchivist-cli/src/main.ts";
