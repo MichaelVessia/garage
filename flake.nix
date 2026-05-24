@@ -46,6 +46,9 @@
           dontUseBunCheck = true;
           dontUseBunInstall = true;
           dontRunLifecycleScripts = true;
+          # Bun --compile appends the JS bundle to the executable; stripping it
+          # leaves a plain Bun runtime that cannot dispatch CLI subcommands.
+          dontStrip = true;
 
           buildPhase = ''
             runHook preBuild
