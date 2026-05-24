@@ -1,0 +1,304 @@
+import { assert, it } from '@effect/vitest'
+import { Effect, Layer, Option, Ref } from 'effect'
+import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
+
+import { AutocaliwebApiLive, AutocaliwebConfig, bookInfo, books, catalog, search, status } from '../src/index.js'
+
+interface RecordedRequest {
+  readonly method: string
+  readonly url: string
+  readonly authorization?: string | undefined
+  readonly accept?: string | undefined
+}
+
+interface FakeResponse {
+  readonly status: number
+  readonly body: string | Readonly<Record<string, unknown>>
+  readonly contentType: string
+}
+
+const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
+  get: Effect.succeed({ url: 'http://autocaliweb.example.test/', username: 'fixture-user', password: 'secret' }),
+})
+
+const basicAuth = `Basic ${btoa('fixture-user:secret')}`
+
+const atomResponse = (body: string): FakeResponse => ({ status: 200, body, contentType: 'application/atom+xml' })
+
+const jsonResponse = (body: Readonly<Record<string, unknown>>): FakeResponse => ({
+  status: 200,
+  body,
+  contentType: 'application/json',
+})
+
+const indexFeed = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Fixture Catalog</title>
+  <updated>2026-05-24T10:00:00+00:00</updated>
+  <entry>
+    <title>Alphabetical Books</title>
+    <id>/opds/books</id>
+    <link href="/opds/books" type="application/atom+xml;profile=opds-catalog"/>
+    <content type="text">Books sorted alphabetically</content>
+  </entry>
+  <entry>
+    <title>Shelves</title>
+    <id>/opds/shelfindex</id>
+    <link href="/opds/shelfindex" type="application/atom+xml;profile=opds-catalog"/>
+  </entry>
+</feed>`
+
+const bookEntry = (id: string, uuid: string, title: string): string => `<entry>
+  <title>${title}</title>
+  <id>urn:uuid:${uuid}</id>
+  <updated>2026-05-24T10:00:00+00:00</updated>
+  <author><name>Fixture Author</name></author>
+  <published>2026-01-01T00:00:00+00:00</published>
+  <dcterms:language>eng</dcterms:language>
+  <category term="Fiction" label="Fiction"/>
+  <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">Fixture summary</div></content>
+  <link type="image/jpeg" href="/opds/cover/${id}" rel="http://opds-spec.org/image"/>
+  <link rel="http://opds-spec.org/acquisition" href="/opds/download/${id}/epub/" length="123" title="EPUB" type="application/epub+zip"/>
+</entry>`
+
+const feedWithEntries = (entries: string, next = ''): string => `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:dcterms="http://purl.org/dc/terms/">
+  <title>Fixture Catalog</title>
+  ${next}
+  ${entries}
+</feed>`
+
+const firstBooksPage = feedWithEntries(
+  bookEntry('42', 'uuid-one', 'Fixture Novel One'),
+  '<link rel="next" href="/opds/books/letter/00?offset=1" type="application/atom+xml"/>'
+)
+
+const secondBooksPage = feedWithEntries(bookEntry('43', 'uuid-two', 'Fixture Novel Two'))
+
+const searchFeed = feedWithEntries(
+  `${bookEntry('42', 'uuid-one', 'Fixture Novel One')}${bookEntry('43', 'uuid-two', 'Fixture Novel Two')}`
+)
+
+const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
+  Effect.gen(function* () {
+    const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
+    const client = HttpClient.make((request, url) =>
+      Ref.update(requests, (records) => [
+        ...records,
+        {
+          method: request.method,
+          url: url.toString(),
+          authorization: Headers.get(request.headers, 'authorization').pipe(Option.getOrUndefined),
+          accept: Headers.get(request.headers, 'accept').pipe(Option.getOrUndefined),
+        },
+      ]).pipe(
+        Effect.map(() => {
+          const response = respond(request.method, url)
+          const { body: responseBody, contentType, status: responseStatus } = response
+          let body = ''
+          if (contentType === 'application/json') {
+            body = JSON.stringify(responseBody)
+          } else if (typeof responseBody === 'string') {
+            body = responseBody
+          }
+          return HttpClientResponse.fromWeb(
+            request,
+            new Response(body, { status: responseStatus, headers: { 'content-type': contentType } })
+          )
+        })
+      )
+    )
+    return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
+  })
+
+it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer((method, url) => {
+      if (method === 'GET' && url.pathname === '/opds/stats') {
+        return jsonResponse({ books: 2, authors: 1, categories: 1, series: 0 })
+      }
+      return atomResponse(indexFeed)
+    })
+    const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    yield* Effect.gen(function* () {
+      assert.deepStrictEqual(yield* status, {
+        title: 'Fixture Catalog',
+        updated: '2026-05-24T10:00:00+00:00',
+        catalogCount: 2,
+        stats: { books: 2, authors: 1, categories: 1, series: 0 },
+      })
+      assert.deepStrictEqual(yield* catalog, {
+        count: 2,
+        records: [
+          {
+            title: 'Alphabetical Books',
+            id: '/opds/books',
+            href: 'http://autocaliweb.example.test/opds/books',
+            content: 'Books sorted alphabetically',
+          },
+          {
+            title: 'Shelves',
+            id: '/opds/shelfindex',
+            href: 'http://autocaliweb.example.test/opds/shelfindex',
+            content: undefined,
+          },
+        ],
+      })
+    }).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(yield* Ref.get(fake.requests), [
+      {
+        method: 'GET',
+        url: 'http://autocaliweb.example.test/opds',
+        authorization: basicAuth,
+        accept: 'application/atom+xml',
+      },
+      {
+        method: 'GET',
+        url: 'http://autocaliweb.example.test/opds/stats',
+        authorization: basicAuth,
+        accept: 'application/json',
+      },
+      {
+        method: 'GET',
+        url: 'http://autocaliweb.example.test/opds',
+        authorization: basicAuth,
+        accept: 'application/atom+xml',
+      },
+    ])
+  })
+)
+
+it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata JSON', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer((method, url) => {
+      if (method === 'GET' && url.pathname === '/opds/books/letter/00' && url.searchParams.get('offset') === '1') {
+        return atomResponse(secondBooksPage)
+      }
+      if (method === 'GET' && url.pathname === '/opds/books/letter/00') {
+        return atomResponse(firstBooksPage)
+      }
+      if (method === 'GET' && url.pathname === '/opds/search') {
+        return atomResponse(searchFeed)
+      }
+      if (method === 'GET' && url.pathname === '/ajax/book/uuid-one') {
+        return jsonResponse({
+          pubdate: '2026-01-01 00:00:00+00:00',
+          title: 'Fixture Novel One',
+          formats: ['EPUB'],
+          languages: ['eng'],
+          comments: 'Fixture summary',
+          tags: ['Fiction'],
+          application_id: 42,
+          last_modified: '2026-05-24 10:00:00+00:00',
+          author_sort: 'Fixture Author',
+          uuid: 'uuid-one',
+          rating: '0.0',
+          authors: ['Fixture Author'],
+          title_sort: 'Fixture Novel One',
+          main_format: { epub: '/opds/download/42/epub/' },
+          other_formats: {},
+        })
+      }
+      return atomResponse(indexFeed)
+    })
+    const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    yield* Effect.gen(function* () {
+      assert.deepStrictEqual(yield* books({ limit: 2 }), {
+        count: 2,
+        records: [
+          {
+            id: '42',
+            uuid: 'uuid-one',
+            urn: 'urn:uuid:uuid-one',
+            title: 'Fixture Novel One',
+            authors: ['Fixture Author'],
+            published: '2026-01-01T00:00:00+00:00',
+            updated: '2026-05-24T10:00:00+00:00',
+            languages: ['eng'],
+            categories: ['Fiction'],
+            summary: 'Fixture summary',
+            coverHref: 'http://autocaliweb.example.test/opds/cover/42',
+            downloads: [
+              {
+                href: 'http://autocaliweb.example.test/opds/download/42/epub/',
+                format: 'EPUB',
+                mediaType: 'application/epub+zip',
+                size: 123,
+              },
+            ],
+          },
+          {
+            id: '43',
+            uuid: 'uuid-two',
+            urn: 'urn:uuid:uuid-two',
+            title: 'Fixture Novel Two',
+            authors: ['Fixture Author'],
+            published: '2026-01-01T00:00:00+00:00',
+            updated: '2026-05-24T10:00:00+00:00',
+            languages: ['eng'],
+            categories: ['Fiction'],
+            summary: 'Fixture summary',
+            coverHref: 'http://autocaliweb.example.test/opds/cover/43',
+            downloads: [
+              {
+                href: 'http://autocaliweb.example.test/opds/download/43/epub/',
+                format: 'EPUB',
+                mediaType: 'application/epub+zip',
+                size: 123,
+              },
+            ],
+          },
+        ],
+      })
+      assert.deepStrictEqual(yield* search({ query: 'fixture query', limit: 1 }), {
+        query: 'fixture query',
+        total: 2,
+        count: 1,
+        records: [
+          {
+            id: '42',
+            uuid: 'uuid-one',
+            urn: 'urn:uuid:uuid-one',
+            title: 'Fixture Novel One',
+            authors: ['Fixture Author'],
+            published: '2026-01-01T00:00:00+00:00',
+            updated: '2026-05-24T10:00:00+00:00',
+            languages: ['eng'],
+            categories: ['Fiction'],
+            summary: 'Fixture summary',
+            coverHref: 'http://autocaliweb.example.test/opds/cover/42',
+            downloads: [
+              {
+                href: 'http://autocaliweb.example.test/opds/download/42/epub/',
+                format: 'EPUB',
+                mediaType: 'application/epub+zip',
+                size: 123,
+              },
+            ],
+          },
+        ],
+      })
+      assert.deepStrictEqual(yield* bookInfo({ uuid: 'uuid-one' }), {
+        id: '42',
+        uuid: 'uuid-one',
+        urn: 'urn:uuid:uuid-one',
+        title: 'Fixture Novel One',
+        authors: ['Fixture Author'],
+        published: '2026-01-01 00:00:00+00:00',
+        languages: ['eng'],
+        categories: ['Fiction'],
+        summary: 'Fixture summary',
+        downloads: [{ format: 'epub', href: '/opds/download/42/epub/' }],
+        formats: ['EPUB'],
+        tags: ['Fiction'],
+        rating: '0.0',
+        lastModified: '2026-05-24 10:00:00+00:00',
+        authorSort: 'Fixture Author',
+        titleSort: 'Fixture Novel One',
+      })
+    }).pipe(Effect.provide(layer))
+  })
+)

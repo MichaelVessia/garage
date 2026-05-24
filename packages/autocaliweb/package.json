@@ -1,0 +1,24 @@
+{
+  "name": "@garage/autocaliweb",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "bun run clean && tsgo -p tsconfig.build.json",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint --config ../../oxlint.config.mjs src/ test/",
+    "lint:fix": "oxlint --config ../../oxlint.config.mjs --fix src/ test/",
+    "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
+    "format:fix": "oxfmt --config ../../oxfmt.config.mjs src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.10",
+    "effect": "^4.0.0-beta.64"
+  }
+}
