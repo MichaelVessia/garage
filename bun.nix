@@ -194,7 +194,6 @@
     hash = "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w==";
   };
   "@garage/cli-protocol" = copyPathToStore ./packages/cli-protocol;
-  "@garage/core" = copyPathToStore ./packages/core;
   "@garage/sonarr" = copyPathToStore ./packages/sonarr;
   "@garage/sonarr-cli" = copyPathToStore ./apps/sonarr-cli;
   "@jridgewell/sourcemap-codec@1.5.5" = fetchurl {
