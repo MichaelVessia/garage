@@ -153,6 +153,18 @@
         "effect": "^4.0.0-beta.64",
       },
     },
+    "apps/tailscale-cli": {
+      "name": "@garage/tailscale-cli",
+      "version": "0.0.0",
+      "bin": {
+        "tailscale": "dist/tailscale",
+      },
+      "dependencies": {
+        "@garage/cli-protocol": "workspace:*",
+        "@garage/tailscale": "workspace:*",
+        "effect": "^4.0.0-beta.64",
+      },
+    },
     "apps/tubearchivist-cli": {
       "name": "@garage/tubearchivist-cli",
       "version": "0.0.0",
@@ -238,6 +250,13 @@
     },
     "packages/sonarr": {
       "name": "@garage/sonarr",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "^4.0.0-beta.64",
+      },
+    },
+    "packages/tailscale": {
+      "name": "@garage/tailscale",
       "version": "0.0.0",
       "dependencies": {
         "effect": "^4.0.0-beta.64",
@@ -386,6 +405,10 @@
     "@garage/sonarr": ["@garage/sonarr@workspace:packages/sonarr"],
 
     "@garage/sonarr-cli": ["@garage/sonarr-cli@workspace:apps/sonarr-cli"],
+
+    "@garage/tailscale": ["@garage/tailscale@workspace:packages/tailscale"],
+
+    "@garage/tailscale-cli": ["@garage/tailscale-cli@workspace:apps/tailscale-cli"],
 
     "@garage/tubearchivist": ["@garage/tubearchivist@workspace:packages/tubearchivist"],
 

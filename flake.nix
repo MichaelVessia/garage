@@ -120,6 +120,11 @@
           entrypoint = "apps/tubearchivist-cli/src/main.ts";
         };
 
+        tailscale = mkBunCli {
+          name = "tailscale";
+          entrypoint = "apps/tailscale-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 

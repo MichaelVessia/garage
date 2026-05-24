@@ -21,6 +21,7 @@ Bare Effect v4 monorepo scaffolded with Bun, Nix, TypeScript strictness, oxlint/
 - `bun run --filter @garage/radarr-cli build` builds the Radarr CLI binary.
 - `bun run --filter @garage/sabnzbd-cli build` builds the SABnzbd CLI binary.
 - `bun run --filter @garage/sonarr-cli build` builds the Sonarr CLI binary.
+- `bun run --filter @garage/tailscale-cli build` builds the Tailscale CLI binary.
 - `bun run --filter @garage/tubearchivist-cli build` builds the TubeArchivist CLI binary.
 
 ## Layout
@@ -35,6 +36,7 @@ Bare Effect v4 monorepo scaffolded with Bun, Nix, TypeScript strictness, oxlint/
 - `apps/radarr-cli` contains the `radarr` agent-first CLI entrypoint.
 - `apps/sabnzbd-cli` contains the `sabnzbd` agent-first CLI entrypoint.
 - `apps/sonarr-cli` contains the `sonarr` agent-first CLI entrypoint.
+- `apps/tailscale-cli` contains the `tailscale` agent-first CLI entrypoint.
 - `apps/tubearchivist-cli` contains the `tubearchivist` agent-first CLI entrypoint.
 - `packages/cli-protocol` contains shared JSON envelope and command metadata types.
 - `packages/adguard` contains the AdGuard Home config, API service, HTTP adapter, and domain operations.
@@ -47,6 +49,7 @@ Bare Effect v4 monorepo scaffolded with Bun, Nix, TypeScript strictness, oxlint/
 - `packages/radarr` contains the Radarr config, API service, HTTP adapter, and domain operations.
 - `packages/sabnzbd` contains the SABnzbd config, API service, HTTP adapter, and domain operations.
 - `packages/sonarr` contains the Sonarr config, API service, HTTP adapter, and domain operations.
+- `packages/tailscale` contains the Tailscale process service, status JSON adapter, and domain operations.
 - `packages/tubearchivist` contains the TubeArchivist config, API service, HTTP adapter, and domain operations.
 - `rules` contains ast-grep structural lint rules.
 - `rule-tests` contains ast-grep rule fixtures.
