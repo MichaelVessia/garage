@@ -36,7 +36,7 @@ const ApiLayer = Layer.succeed(SonarrApi, {
   queue: Effect.succeed([{ title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' }]),
   calendar: () => Effect.succeed([{ title: 'Tomorrow', seriesTitle: 'Severance', airDateUtc: '2026-05-24' }]),
   missing: Effect.succeed([{ title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' }]),
-  history: Effect.succeed([{ title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' }]),
+  history: () => Effect.succeed([{ title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' }]),
 })
 
 const LiveTestLayer = Layer.mergeAll(ConfigLayer, ApiLayer)

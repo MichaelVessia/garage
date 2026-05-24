@@ -172,7 +172,7 @@ export const history = (
     const sonarrConfig = yield* SonarrConfig
     yield* sonarrConfig.get
     const api = yield* SonarrApi
-    const records = take(yield* api.history, options.limit)
+    const records = take(yield* api.history(options.limit), options.limit)
     return { count: records.length, records }
   })
 

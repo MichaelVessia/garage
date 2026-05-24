@@ -63,7 +63,7 @@ const HistoryRecordSchema = Schema.Struct({
   eventType: Schema.String,
   sourceTitle: Schema.optional(Schema.String),
   episode: Schema.optional(Schema.Struct({ title: Schema.String, airDateUtc: Schema.optional(Schema.String) })),
-  series: Schema.Struct({ title: Schema.String }),
+  series: Schema.optional(Schema.Struct({ title: Schema.String })),
 })
 
 const HistoryResponseSchema = Schema.Struct({
@@ -187,7 +187,7 @@ const toEpisodeRecord = (record: typeof EpisodeRecordSchema.Type): EpisodeRecord
 
 const toHistoryRecord = (record: typeof HistoryRecordSchema.Type): HistoryRecord => ({
   title: record.episode?.title ?? record.sourceTitle ?? record.eventType,
-  seriesTitle: record.series.title,
+  seriesTitle: record.series?.title ?? 'Unknown Series',
   eventType: record.eventType,
 })
 
@@ -275,9 +275,10 @@ export const SonarrApiLive = Layer.effect(
           }))
         )
       ),
-      history: getJson(client, config, '/api/v3/history', HistoryResponseSchema).pipe(
-        Effect.map((response) => response.records.map(toHistoryRecord))
-      ),
+      history: (limit) =>
+        getJson(client, config, '/api/v3/history', HistoryResponseSchema, [['pageSize', limit]]).pipe(
+          Effect.map((response) => response.records.map(toHistoryRecord))
+        ),
     })
   })
 )

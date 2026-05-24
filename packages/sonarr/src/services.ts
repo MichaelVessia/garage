@@ -43,7 +43,7 @@ export class SonarrApi extends Context.Service<
     readonly queue: Effect.Effect<ReadonlyArray<QueueRecord>, SonarrError>
     readonly calendar: (days: number) => Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
     readonly missing: Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
-    readonly history: Effect.Effect<ReadonlyArray<HistoryRecord>, SonarrError>
+    readonly history: (limit: number) => Effect.Effect<ReadonlyArray<HistoryRecord>, SonarrError>
   }
 >()('@garage/sonarr/services/SonarrApi') {}
 

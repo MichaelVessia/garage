@@ -2,7 +2,7 @@ import { assert, it } from '@effect/vitest'
 import { Effect, Layer, Option, Ref } from 'effect'
 import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
-import { SonarrApiLive, SonarrConfig, queue, status } from '../src/index.js'
+import { SonarrApiLive, SonarrConfig, history, queue, status } from '../src/index.js'
 
 interface RecordedRequest {
   readonly method: string
@@ -88,5 +88,41 @@ it.effect('SonarrApiLive decodes queue records without expanded series objects',
         },
       ],
     })
+  })
+)
+
+it.effect('SonarrApiLive decodes history records without expanded series objects', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer(() => ({
+      records: [
+        {
+          eventType: 'downloadFolderImported',
+          sourceTitle: 'Peppa.Pig.2019.S07E49.1080p.WEB-DL.H264.AAC-CHDWEB',
+          seriesId: 12,
+        },
+      ],
+    }))
+    const layer = SonarrApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    const result = yield* history({ limit: 5 }).pipe(Effect.provide(layer))
+    const requests = yield* Ref.get(fake.requests)
+
+    assert.deepStrictEqual(result, {
+      count: 1,
+      records: [
+        {
+          title: 'Peppa.Pig.2019.S07E49.1080p.WEB-DL.H264.AAC-CHDWEB',
+          seriesTitle: 'Unknown Series',
+          eventType: 'downloadFolderImported',
+        },
+      ],
+    })
+    assert.deepStrictEqual(requests, [
+      {
+        method: 'GET',
+        url: 'http://sonarr.lan/api/v3/history?pageSize=5',
+        apiKey: 'secret',
+      },
+    ])
   })
 )

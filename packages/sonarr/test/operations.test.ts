@@ -37,6 +37,7 @@ const ConfigLayer = Layer.succeed(SonarrConfig, {
 const makeApiLayer = Effect.gen(function* () {
   const removedDeleteFiles = yield* Ref.make<ReadonlyArray<boolean>>([])
   const addedSearchFlags = yield* Ref.make<ReadonlyArray<boolean>>([])
+  const historyLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const api = SonarrApi.of({
     status: Effect.succeed({ appName: 'Sonarr', version: '4.0.0' }),
     rootFolders: Effect.succeed(rootFolders),
@@ -59,16 +60,20 @@ const makeApiLayer = Effect.gen(function* () {
       { title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' },
       { title: 'Missing 2', seriesTitle: 'Severance', airDateUtc: '2026-05-21' },
     ]),
-    history: Effect.succeed([
-      { title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' },
-      { title: 'Imported 1', seriesTitle: 'Severance', eventType: 'downloadFolderImported' },
-    ]),
+    history: (limit) =>
+      Ref.update(historyLimits, (limits) => [...limits, limit]).pipe(
+        Effect.as([
+          { title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' },
+          { title: 'Imported 1', seriesTitle: 'Severance', eventType: 'downloadFolderImported' },
+        ])
+      ),
   })
 
   return {
     layer: Layer.succeed(SonarrApi, api),
     removedDeleteFiles,
     addedSearchFlags,
+    historyLimits,
   }
 })
 
@@ -158,6 +163,7 @@ it.effect('bounds list operations at the requested limit', () =>
       count: 1,
       records: [{ title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' }],
     })
+    assert.deepStrictEqual(yield* Ref.get(fake.historyLimits), [1])
   })
 )
 
