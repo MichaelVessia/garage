@@ -90,6 +90,11 @@
           entrypoint = "apps/jellyseerr-cli/src/main.ts";
         };
 
+        jellyfin = mkBunCli {
+          name = "jellyfin";
+          entrypoint = "apps/jellyfin-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
