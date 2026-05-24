@@ -110,6 +110,11 @@
           entrypoint = "apps/caddy-cli/src/main.ts";
         };
 
+        booklore = mkBunCli {
+          name = "booklore";
+          entrypoint = "apps/booklore-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
