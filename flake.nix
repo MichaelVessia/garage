@@ -80,6 +80,11 @@
           entrypoint = "apps/prowlarr-cli/src/main.ts";
         };
 
+        sabnzbd = mkBunCli {
+          name = "sabnzbd";
+          entrypoint = "apps/sabnzbd-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
