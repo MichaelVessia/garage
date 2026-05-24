@@ -307,6 +307,32 @@ it.effect('exists false suggests adding the selected TVDB ID', () =>
   })
 )
 
+it.effect('add command parses quality overrides and search suppression', () =>
+  Effect.gen(function* () {
+    const envelope = yield* executeSonarr(['add', '371980', '--quality-profile', '7', '--no-search']).pipe(
+      Effect.provide(LiveTestLayer)
+    )
+
+    assert.strictEqual(envelope.ok, true)
+    if (!envelope.ok) {
+      assert.fail('expected success envelope')
+    }
+
+    assert.deepStrictEqual(envelope, {
+      ok: true,
+      command: 'sonarr add 371980 --quality-profile 7 --no-search',
+      result: {
+        added: true,
+        series: severanceSeries,
+        qualityProfileId: 7,
+        rootFolderPath: '/tv',
+        searchForMissingEpisodes: false,
+      },
+      next_actions: [],
+    })
+  })
+)
+
 it.effect('remove delete-files requires explicit confirmation', () =>
   Effect.gen(function* () {
     const envelope = yield* executeSonarr(['remove', '371980', '--delete-files']).pipe(Effect.provide(LiveTestLayer))
@@ -326,6 +352,38 @@ it.effect('remove delete-files requires explicit confirmation', () =>
           params: { 'tvdb-id': { value: 371_980, description: 'TVDB series ID' } },
         },
       ],
+    })
+  })
+)
+
+it.effect('confirmed remove delete-files reaches the domain operation', () =>
+  Effect.gen(function* () {
+    const envelope = yield* executeSonarr(['remove', '371980', '--delete-files', '--confirm-delete-files']).pipe(
+      Effect.provide(LiveTestLayer)
+    )
+
+    assert.deepStrictEqual(envelope, {
+      ok: true,
+      command: 'sonarr remove 371980 --delete-files --confirm-delete-files',
+      result: { removed: true, tvdbId: 371_980, deleteFiles: true },
+      next_actions: [],
+    })
+  })
+)
+
+it.effect('unknown flags render usage errors', () =>
+  Effect.gen(function* () {
+    const envelope = yield* executeSonarr(['queue', '--wat']).pipe(Effect.provide(LiveTestLayer))
+
+    assert.deepStrictEqual(envelope, {
+      ok: false,
+      command: 'sonarr queue --wat',
+      error: {
+        code: 'SONARR_CLI_USAGE',
+        message: 'Unknown flag --wat',
+      },
+      fix: 'Run sonarr to inspect available commands and required arguments.',
+      next_actions: [{ command: 'sonarr', description: 'Show available commands' }],
     })
   })
 )
