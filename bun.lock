@@ -23,6 +23,19 @@
         "vitest": "^4.1.0",
       },
     },
+    "apps/adguard-cli": {
+      "name": "@garage/adguard-cli",
+      "version": "0.0.0",
+      "bin": {
+        "adguard": "dist/adguard",
+      },
+      "dependencies": {
+        "@effect/platform-bun": "4.0.0-beta.64",
+        "@garage/adguard": "workspace:*",
+        "@garage/cli-protocol": "workspace:*",
+        "effect": "^4.0.0-beta.64",
+      },
+    },
     "apps/immich-cli": {
       "name": "@garage/immich-cli",
       "version": "0.0.0",
@@ -111,6 +124,13 @@
         "@effect/platform-bun": "4.0.0-beta.64",
         "@garage/cli-protocol": "workspace:*",
         "@garage/sonarr": "workspace:*",
+        "effect": "^4.0.0-beta.64",
+      },
+    },
+    "packages/adguard": {
+      "name": "@garage/adguard",
+      "version": "0.0.0",
+      "dependencies": {
         "effect": "^4.0.0-beta.64",
       },
     },
@@ -264,6 +284,10 @@
     "@emnapi/runtime": ["@emnapi/runtime@1.10.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA=="],
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
+
+    "@garage/adguard": ["@garage/adguard@workspace:packages/adguard"],
+
+    "@garage/adguard-cli": ["@garage/adguard-cli@workspace:apps/adguard-cli"],
 
     "@garage/cli-protocol": ["@garage/cli-protocol@workspace:packages/cli-protocol"],
 

@@ -100,6 +100,11 @@
           entrypoint = "apps/immich-cli/src/main.ts";
         };
 
+        adguard = mkBunCli {
+          name = "adguard";
+          entrypoint = "apps/adguard-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
