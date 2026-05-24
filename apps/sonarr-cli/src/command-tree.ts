@@ -1,4 +1,5 @@
 import type { CommandDescription, NextAction } from '@garage/cli-protocol'
+import { defaultCalendarDays, defaultLimit } from '@garage/sonarr'
 
 export interface RootHealth {
   readonly configured: boolean
@@ -15,53 +16,77 @@ export interface RootResult {
   readonly health: RootHealth
 }
 
+export const rootCommand = 'sonarr'
+export const statusCommandTemplate = `${rootCommand} status`
+export const configCommandTemplate = `${rootCommand} config`
+export const searchCommandTemplate = `${rootCommand} search <query>`
+export const existsCommandTemplate = `${rootCommand} exists <tvdb-id>`
+export const qualityProfileFlag = '--quality-profile'
+export const noSearchFlag = '--no-search'
+export const deleteFilesFlag = '--delete-files'
+export const confirmDeleteFilesFlag = '--confirm-delete-files'
+export const limitFlag = '--limit'
+export const daysFlag = '--days'
+export const qualityProfileFlagTemplate = `${qualityProfileFlag} <quality-profile-id>`
+export const addCommandTemplate = `${rootCommand} add <tvdb-id> [${qualityProfileFlagTemplate}] [${noSearchFlag}]`
+export const removeCommandTemplate = `${rootCommand} remove <tvdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`
+export const removeKeepFilesCommandTemplate = `${rootCommand} remove <tvdb-id>`
+export const queueCommandTemplate = `${rootCommand} queue [${limitFlag} <n>]`
+export const queueLimitCommandTemplate = `${rootCommand} queue ${limitFlag} <n>`
+export const calendarCommandTemplate = `${rootCommand} calendar [${daysFlag} <n>]`
+export const calendarDaysCommandTemplate = `${rootCommand} calendar ${daysFlag} <n>`
+export const missingCommandTemplate = `${rootCommand} missing [${limitFlag} <n>]`
+export const missingLimitCommandTemplate = `${rootCommand} missing ${limitFlag} <n>`
+export const historyCommandTemplate = `${rootCommand} history [${limitFlag} <n>]`
+export const historyLimitCommandTemplate = `${rootCommand} history ${limitFlag} <n>`
+
 export const commandTree: ReadonlyArray<CommandDescription> = [
-  { command: 'sonarr', description: 'Show this command tree and configuration health' },
-  { command: 'sonarr status', description: 'Return the Sonarr system status summary' },
-  { command: 'sonarr config', description: 'Return root folders and quality profiles' },
-  { command: 'sonarr search <query>', description: 'Search Sonarr lookup by series title' },
-  { command: 'sonarr exists <tvdb-id>', description: 'Check whether a TVDB ID is already in the library' },
+  { command: rootCommand, description: 'Show this command tree and configuration health' },
+  { command: statusCommandTemplate, description: 'Return the Sonarr system status summary' },
+  { command: configCommandTemplate, description: 'Return root folders and quality profiles' },
+  { command: searchCommandTemplate, description: 'Search Sonarr lookup by series title' },
+  { command: existsCommandTemplate, description: 'Check whether a TVDB ID is already in the library' },
   {
-    command: 'sonarr add <tvdb-id> [--quality-profile <quality-profile-id>] [--no-search]',
+    command: addCommandTemplate,
     description: 'Add a series by TVDB ID',
     flags: [
-      { name: '--quality-profile <quality-profile-id>', description: 'Override the default Sonarr quality profile' },
-      { name: '--no-search', description: 'Add without searching for missing episodes' },
+      { name: qualityProfileFlagTemplate, description: 'Override the default Sonarr quality profile' },
+      { name: noSearchFlag, description: 'Add without searching for missing episodes' },
     ],
   },
   {
-    command: 'sonarr remove <tvdb-id> [--delete-files] [--confirm-delete-files]',
+    command: removeCommandTemplate,
     description: 'Remove a series by TVDB ID',
     flags: [
-      { name: '--delete-files', description: 'Request media file deletion' },
-      { name: '--confirm-delete-files', description: 'Confirm media file deletion' },
+      { name: deleteFilesFlag, description: 'Request media file deletion' },
+      { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
     ],
   },
   {
-    command: 'sonarr queue [--limit <n>]',
+    command: queueCommandTemplate,
     description: 'Return active queue records',
-    flags: [{ name: '--limit <n>', description: 'Maximum records to return', default: 10 }],
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
   },
   {
-    command: 'sonarr calendar [--days <n>]',
+    command: calendarCommandTemplate,
     description: 'Return upcoming episodes',
-    flags: [{ name: '--days <n>', description: 'Number of days to include', default: 14 }],
+    flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
   },
   {
-    command: 'sonarr missing [--limit <n>]',
+    command: missingCommandTemplate,
     description: 'Return monitored missing episodes',
-    flags: [{ name: '--limit <n>', description: 'Maximum records to return', default: 10 }],
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
   },
   {
-    command: 'sonarr history [--limit <n>]',
+    command: historyCommandTemplate,
     description: 'Return recent history records',
-    flags: [{ name: '--limit <n>', description: 'Maximum records to return', default: 10 }],
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
   },
 ]
 
 export const envNextAction: NextAction = {
-  command: 'sonarr',
+  command: rootCommand,
   description: 'Open a fresh shell after SONARR_URL and SONARR_API_KEY are exported',
 }
 
-export const showCommandsAction: NextAction = { command: 'sonarr', description: 'Show available commands' }
+export const showCommandsAction: NextAction = { command: rootCommand, description: 'Show available commands' }

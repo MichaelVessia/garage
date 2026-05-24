@@ -35,7 +35,25 @@ import type {
 } from '@garage/sonarr'
 import { Effect, Option } from 'effect'
 
-import { commandTree, envNextAction, showCommandsAction } from './command-tree.js'
+import {
+  addCommandTemplate,
+  calendarDaysCommandTemplate,
+  commandTree,
+  confirmDeleteFilesFlag,
+  daysFlag,
+  deleteFilesFlag,
+  envNextAction,
+  existsCommandTemplate,
+  historyLimitCommandTemplate,
+  limitFlag,
+  missingLimitCommandTemplate,
+  noSearchFlag,
+  qualityProfileFlag,
+  queueLimitCommandTemplate,
+  removeKeepFilesCommandTemplate,
+  rootCommand,
+  showCommandsAction,
+} from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
 export type SonarrCliResult =
@@ -60,7 +78,7 @@ interface ParsedFlags {
 }
 
 const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? 'sonarr' : `sonarr ${args.join(' ')}`
+  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
 
 const errorToEnvelope = (command: string, error: SonarrError, nextActions: ReadonlyArray<NextAction>): ErrorEnvelope =>
   errorEnvelope({
@@ -144,7 +162,7 @@ const defaultQualityProfileAction = (
     const values = yield* sonarrConfig.get
 
     return {
-      command: 'sonarr add <tvdb-id> [--quality-profile <quality-profile-id>] [--no-search]',
+      command: addCommandTemplate,
       description,
       params: {
         'tvdb-id': { value: tvdbId, description: 'TVDB series ID' },
@@ -167,7 +185,7 @@ const searchNextActions = (result: SearchResult): Effect.Effect<ReadonlyArray<Ne
       defaultQualityProfileAction(tvdbId).pipe(
         Effect.map((addAction) => [
           {
-            command: 'sonarr exists <tvdb-id>',
+            command: existsCommandTemplate,
             description: 'Check whether a selected series is already in the library',
             params: { 'tvdb-id': { value: tvdbId, description: 'TVDB series ID' } },
           },
@@ -248,12 +266,12 @@ const addCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, ['--quality-profile'], ['--no-search'])
+      const parsed = yield* parseFlags(args, [qualityProfileFlag], [noSearchFlag])
       const tvdbId = yield* parseInteger(parsed.positionals[0], 'tvdb-id')
-      const qualityProfileValue = parsed.values.get('--quality-profile')
+      const qualityProfileValue = parsed.values.get(qualityProfileFlag)
       const qualityProfileId =
         qualityProfileValue === undefined ? undefined : yield* parseInteger(qualityProfileValue, 'quality-profile-id')
-      const searchForMissingEpisodes = !parsed.booleans.has('--no-search')
+      const searchForMissingEpisodes = !parsed.booleans.has(noSearchFlag)
       const options =
         qualityProfileId === undefined ? { searchForMissingEpisodes } : { qualityProfileId, searchForMissingEpisodes }
 
@@ -264,7 +282,7 @@ const addCommand = (command: string, args: ReadonlyArray<string>) =>
 const removeDeleteConfirmationEnvelope = (command: string, tvdbId: number): ErrorEnvelope =>
   errorToEnvelope(command, deleteConfirmationRequired(), [
     {
-      command: 'sonarr remove <tvdb-id>',
+      command: removeKeepFilesCommandTemplate,
       description: 'Remove the series from Sonarr while keeping files on disk',
       params: { 'tvdb-id': { value: tvdbId, description: 'TVDB series ID' } },
     },
@@ -274,11 +292,11 @@ const removeCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [], ['--delete-files', '--confirm-delete-files'])
+      const parsed = yield* parseFlags(args, [], [deleteFilesFlag, confirmDeleteFilesFlag])
       const tvdbId = yield* parseInteger(parsed.positionals[0], 'tvdb-id')
-      const deleteFiles = parsed.booleans.has('--delete-files')
+      const deleteFiles = parsed.booleans.has(deleteFilesFlag)
 
-      if (deleteFiles && !parsed.booleans.has('--confirm-delete-files')) {
+      if (deleteFiles && !parsed.booleans.has(confirmDeleteFilesFlag)) {
         return removeDeleteConfirmationEnvelope(command, tvdbId)
       }
 
@@ -301,10 +319,10 @@ const limitFromArgs = (
 const queueCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
-    limitFromArgs(args, '--limit', defaultLimit).pipe(
+    limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
         wrap(command, queue({ limit }), () =>
-          Effect.succeed(listNextAction('sonarr queue --limit <n>', 'Return more active queue records'))
+          Effect.succeed(listNextAction(queueLimitCommandTemplate, 'Return more active queue records'))
         )
       )
     )
@@ -313,12 +331,12 @@ const queueCommand = (command: string, args: ReadonlyArray<string>) =>
 const calendarCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
-    limitFromArgs(args, '--days', defaultCalendarDays).pipe(
+    limitFromArgs(args, daysFlag, defaultCalendarDays).pipe(
       Effect.flatMap((days) =>
         wrap(command, calendar({ days }), () =>
           Effect.succeed([
             {
-              command: 'sonarr calendar --days <n>',
+              command: calendarDaysCommandTemplate,
               description: 'Change the upcoming episode day window',
               params: { days: { default: defaultCalendarDays, description: 'Number of days to include' } },
             },
@@ -331,10 +349,10 @@ const calendarCommand = (command: string, args: ReadonlyArray<string>) =>
 const missingCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
-    limitFromArgs(args, '--limit', defaultLimit).pipe(
+    limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
         wrap(command, missing({ limit }), () =>
-          Effect.succeed(listNextAction('sonarr missing --limit <n>', 'Return more missing episode records'))
+          Effect.succeed(listNextAction(missingLimitCommandTemplate, 'Return more missing episode records'))
         )
       )
     )
@@ -343,10 +361,10 @@ const missingCommand = (command: string, args: ReadonlyArray<string>) =>
 const historyCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
-    limitFromArgs(args, '--limit', defaultLimit).pipe(
+    limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
         wrap(command, history({ limit }), () =>
-          Effect.succeed(listNextAction('sonarr history --limit <n>', 'Return more history records'))
+          Effect.succeed(listNextAction(historyLimitCommandTemplate, 'Return more history records'))
         )
       )
     )
