@@ -70,6 +70,11 @@
           entrypoint = "apps/sonarr-cli/src/main.ts";
         };
 
+        radarr = mkBunCli {
+          name = "radarr";
+          entrypoint = "apps/radarr-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
