@@ -12,7 +12,7 @@
         "@effect/platform-bun": "4.0.0-beta.64",
         "@effect/tsgo": "^0.7.2",
         "@effect/vitest": "^4.0.0-beta.64",
-        "@types/bun": "latest",
+        "@types/bun": "1.3.14",
         "@typescript/native-preview": "^7.0.0-dev.20260516.1",
         "effect": "^4.0.0-beta.64",
         "lefthook": "^2.1.6",
@@ -23,8 +23,35 @@
         "vitest": "^4.1.0",
       },
     },
+    "apps/sonarr-cli": {
+      "name": "@garage/sonarr-cli",
+      "version": "0.0.0",
+      "bin": {
+        "sonarr": "dist/sonarr",
+      },
+      "dependencies": {
+        "@effect/platform-bun": "4.0.0-beta.64",
+        "@garage/cli-protocol": "workspace:*",
+        "@garage/sonarr": "workspace:*",
+        "effect": "^4.0.0-beta.64",
+      },
+    },
+    "packages/cli-protocol": {
+      "name": "@garage/cli-protocol",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "^4.0.0-beta.64",
+      },
+    },
     "packages/core": {
       "name": "@garage/core",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "^4.0.0-beta.64",
+      },
+    },
+    "packages/sonarr": {
+      "name": "@garage/sonarr",
       "version": "0.0.0",
       "dependencies": {
         "effect": "^4.0.0-beta.64",
@@ -125,7 +152,13 @@
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
 
+    "@garage/cli-protocol": ["@garage/cli-protocol@workspace:packages/cli-protocol"],
+
     "@garage/core": ["@garage/core@workspace:packages/core"],
+
+    "@garage/sonarr": ["@garage/sonarr@workspace:packages/sonarr"],
+
+    "@garage/sonarr-cli": ["@garage/sonarr-cli@workspace:apps/sonarr-cli"],
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
