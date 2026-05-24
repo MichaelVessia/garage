@@ -1,0 +1,8 @@
+id: no-effect-run-in-tests
+
+valid:
+  - |
+    it.effect('runs', () => Effect.succeed(1));
+
+invalid:
+  - "Effect.runPromise(Effect.succeed(1))"

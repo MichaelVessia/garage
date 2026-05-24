@@ -1,0 +1,10 @@
+id: no-runpromise-in-effect
+
+valid:
+  - |
+    Effect.gen(function* () {
+      return yield* program;
+    });
+
+invalid:
+  - "Effect.runPromise(program)"

@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-fetch-in-effect
+language: tsx
+severity: error
+message: "Use @effect/platform HttpClient instead of raw fetch wrapped in Effect.tryPromise"
+
+rule:
+  any:
+    - pattern: "Effect.tryPromise({ try: () => fetch($$$) })"
+    - pattern: "Effect.tryPromise({ try: () => fetch($$$), $$$REST })"
+    - pattern: "Effect.tryPromise(() => fetch($$$))"
+    - all:
+        - any:
+            - pattern: "Effect.tryPromise({ $$$ARGS })"
+            - pattern: "Effect.tryPromise($CALLBACK)"
+        - has:
+            pattern: fetch($$$FETCH_ARGS)
+            stopBy: end
+
+files:
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"

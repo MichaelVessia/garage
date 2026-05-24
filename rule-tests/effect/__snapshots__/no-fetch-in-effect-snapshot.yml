@@ -1,0 +1,8 @@
+id: no-fetch-in-effect
+snapshots:
+  Effect.tryPromise(() => fetch(url)):
+    labels:
+    - source: Effect.tryPromise(() => fetch(url))
+      style: primary
+      start: 0
+      end: 35

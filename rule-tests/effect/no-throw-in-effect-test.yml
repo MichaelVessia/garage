@@ -1,0 +1,13 @@
+id: no-throw-in-effect-generator
+
+valid:
+  - |
+    Effect.gen(function* () {
+      return yield* Effect.fail(new DomainError());
+    });
+
+invalid:
+  - |
+    Effect.gen(function* () {
+      throw new Error('boom');
+    });

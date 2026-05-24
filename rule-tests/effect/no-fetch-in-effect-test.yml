@@ -1,0 +1,7 @@
+id: no-fetch-in-effect
+
+valid:
+  - "yield* httpClient.get(url)"
+
+invalid:
+  - "Effect.tryPromise(() => fetch(url))"

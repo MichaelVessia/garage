@@ -1,0 +1,39 @@
+{
+  "name": "garage-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "oxlint --config oxlint.config.mjs packages/*/src packages/*/test",
+    "lint:fix": "oxlint --config oxlint.config.mjs --fix packages/*/src packages/*/test",
+    "format": "bun run --filter '*' format",
+    "format:fix": "bun run --filter '*' format:fix",
+    "test": "bun run --filter '*' test",
+    "ast-grep": "ast-grep scan",
+    "ast-grep:test": "ast-grep test",
+    "validate": "bun run typecheck && bun run lint && bun run format && bun run ast-grep && bun run ast-grep:test && bun run test",
+    "postinstall": "effect-language-service patch && effect-tsgo patch",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@ast-grep/cli": "^0.42.2",
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@effect/language-service": "^0.85.1",
+    "@effect/platform-bun": "4.0.0-beta.64",
+    "@effect/tsgo": "^0.7.2",
+    "@effect/vitest": "^4.0.0-beta.64",
+    "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20260516.1",
+    "effect": "^4.0.0-beta.64",
+    "lefthook": "^2.1.6",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "typescript": "^5.8.0",
+    "ultracite": "7.6.5",
+    "vitest": "^4.1.0"
+  },
+  "trustedDependencies": ["@ast-grep/cli"]
+}

@@ -1,0 +1,7 @@
+id: no-console-log
+
+valid:
+  - "yield* Effect.log('hello')"
+
+invalid:
+  - "console.log('hello')"

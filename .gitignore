@@ -1,0 +1,18 @@
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+**/coverage/
+.direnv/
+result
+
+# Local agent/session artifacts
+docs/superpowers/
+docs/plans/
+.scratch/
+.claude/
+.codex/
+.ralph/
+tmp/
+.lefthook-local.yml

@@ -1,0 +1,8 @@
+id: no-foreach
+snapshots:
+  items.forEach((item) => process(item)):
+    labels:
+    - source: items.forEach((item) => process(item))
+      style: primary
+      start: 0
+      end: 38

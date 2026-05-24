@@ -1,0 +1,12 @@
+id: no-foreach
+
+valid:
+  - |
+    for (const item of items) {
+      process(item);
+    }
+  - |
+    const results = yield* Effect.forEach(items, (item) => processItem(item));
+
+invalid:
+  - "items.forEach((item) => process(item))"

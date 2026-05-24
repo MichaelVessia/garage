@@ -1,0 +1,22 @@
+commit-msg:
+  commands:
+    commitlint:
+      run: bunx commitlint --edit {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    format-fix:
+      priority: 1
+      glob: "*.{ts,tsx,mjs,js,jsx}"
+      run: bunx oxfmt --config oxfmt.config.mjs {staged_files}
+      stage_fixed: true
+    lint-fix:
+      priority: 1
+      glob: "*.{ts,tsx,mjs,js,jsx}"
+      run: bunx oxlint --config oxlint.config.mjs --fix {staged_files}
+      stage_fixed: true
+    validate:
+      priority: 2
+      glob: "*.{ts,tsx}"
+      run: bun run validate

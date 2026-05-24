@@ -1,0 +1,17 @@
+id: no-else-after-return
+
+valid:
+  - |
+    if (enabled) {
+      return true;
+    }
+
+    return false;
+
+invalid:
+  - |
+    if (enabled) {
+      return true;
+    } else {
+      return false;
+    }

@@ -1,0 +1,8 @@
+id: no-runpromise-in-effect
+snapshots:
+  Effect.runPromise(program):
+    labels:
+    - source: Effect.runPromise(program)
+      style: primary
+      start: 0
+      end: 26

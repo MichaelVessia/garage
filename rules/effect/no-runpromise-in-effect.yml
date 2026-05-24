@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-runpromise-in-effect
+language: tsx
+severity: error
+message: "Avoid Effect.runPromise/runSync inside packages; use yield* in Effect.gen or run at app boundaries"
+
+rule:
+  any:
+    - pattern: Effect.runPromise($$$ARGS)
+    - pattern: Effect.runSync($$$ARGS)
+
+files:
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"

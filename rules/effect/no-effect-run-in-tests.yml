@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-effect-run-in-tests
+language: tsx
+severity: error
+message: "Use it.effect from @effect/vitest instead of Effect.run* in tests"
+
+rule:
+  any:
+    - pattern: Effect.runSync($$$ARGS)
+    - pattern: Effect.runPromise($$$ARGS)
+    - pattern: Effect.runSyncExit($$$ARGS)
+    - pattern: Effect.runPromiseExit($$$ARGS)
+
+files:
+  - "packages/*/test/**/*.ts"
+  - "packages/*/test/**/*.tsx"

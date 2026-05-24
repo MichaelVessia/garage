@@ -1,0 +1,8 @@
+id: no-effect-run-in-tests
+snapshots:
+  Effect.runPromise(Effect.succeed(1)):
+    labels:
+    - source: Effect.runPromise(Effect.succeed(1))
+      style: primary
+      start: 0
+      end: 36

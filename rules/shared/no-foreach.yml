@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-foreach
+language: tsx
+severity: error
+message: "Prefer for...of over forEach for better performance"
+
+rule:
+  pattern: $ARRAY.forEach($$$ARGS)
+  not:
+    any:
+      - pattern: Effect.forEach($$$ARGS)
+      - pattern: Sink.forEach($$$ARGS)
+      - pattern: Stream.forEach($$$ARGS)
+      - pattern: Chunk.forEach($$$ARGS)
+      - pattern: ReadonlyArray.forEach($$$ARGS)
+      - pattern: Array.forEach($$$ARGS)
+      - pattern: HashMap.forEach($$$ARGS)
+      - pattern: HashSet.forEach($$$ARGS)
+      - pattern: Record.forEach($$$ARGS)
+
+files:
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"
