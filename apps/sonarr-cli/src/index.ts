@@ -1,10 +1,16 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  NextAction,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import {
   SonarrConfig,
   addSeries,
   calendar,
-  cliUsageError,
   config,
   defaultCalendarDays,
   defaultLimit,
@@ -38,7 +44,7 @@ import { Effect, Option } from 'effect'
 import {
   addCommandTemplate,
   calendarDaysCommandTemplate,
-  commandTree,
+  configCommandTemplate,
   confirmDeleteFilesFlag,
   daysFlag,
   deleteFilesFlag,
@@ -52,7 +58,9 @@ import {
   queueLimitCommandTemplate,
   removeKeepFilesCommandTemplate,
   rootCommand,
+  searchCommandTemplate,
   showCommandsAction,
+  statusCommandTemplate,
 } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
@@ -70,88 +78,9 @@ export type SonarrCliResult =
   | ListResult<HistoryRecord>
 
 export type SonarrCliEnvelope = SuccessEnvelope<SonarrCliResult> | ErrorEnvelope
-
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-  readonly booleans: ReadonlySet<string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (command: string, error: SonarrError, nextActions: ReadonlyArray<NextAction>): ErrorEnvelope =>
-  errorEnvelope({
-    command,
-    error: { code: error.code, message: error.message },
-    fix: error.fix,
-    nextActions,
-  })
-
-const wrap = <Result>(
-  command: string,
-  program: Effect.Effect<Result, SonarrError, SonarrApi | SonarrConfig>,
-  nextActions: (
-    result: Result
-  ) => Effect.Effect<ReadonlyArray<NextAction>, SonarrError, SonarrApi | SonarrConfig> = () => Effect.succeed([])
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, SonarrApi | SonarrConfig> =>
-  program.pipe(
-    Effect.flatMap((result) =>
-      nextActions(result).pipe(Effect.map((actions) => successEnvelope({ command, result, nextActions: actions })))
-    ),
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, SonarrError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return Effect.fail(cliUsageError(`${label} must be a positive integer`))
-  }
-
-  return Effect.succeed(parsed)
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>,
-  booleanFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, SonarrError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  const booleans = new Set<string>()
-
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('--')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (booleanFlags.includes(token)) {
-      booleans.add(token)
-      index += 1
-    } else if (token.startsWith('--')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-
-  return Effect.succeed({ positionals, values, booleans })
-}
+type SonarrCliError = SonarrError | CliUsageError
+type SonarrCliContext = SonarrApi | SonarrConfig
+type SonarrInvocation = CommandInvocation<SonarrCliResult, SonarrCliError, SonarrCliContext>
 
 const defaultQualityProfileAction = (
   tvdbId: number,
@@ -202,18 +131,10 @@ const listNextAction = (command: string, description: string): ReadonlyArray<Nex
   },
 ]
 
-const recoverEnvelope = (
+const root = (
   command: string,
-  program: Effect.Effect<SonarrCliEnvelope, SonarrError, SonarrApi | SonarrConfig>
-): Effect.Effect<SonarrCliEnvelope, never, SonarrApi | SonarrConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, SonarrApi | SonarrConfig> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, SonarrCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) => {
@@ -246,94 +167,73 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const statusCommand = (command: string) => wrap(command, status)
-const configCommand = (command: string) => wrap(command, config)
-
-const searchCommand = (command: string, args: ReadonlyArray<string>) => {
+const searchCommand = ({ args, usageError, wrap }: SonarrInvocation) => {
   const query = args.join(' ').trim()
   return query.length === 0
-    ? wrap(command, Effect.fail(cliUsageError('search query is required')))
-    : wrap(command, search(query, { limit: defaultLimit }), searchNextActions)
+    ? wrap(Effect.fail(usageError('search query is required')))
+    : wrap(search(query, { limit: defaultLimit }), searchNextActions)
 }
 
-const existsCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
-    parseInteger(args[0], 'tvdb-id').pipe(Effect.flatMap((tvdbId) => wrap(command, exists(tvdbId), existsNextActions)))
+const existsCommand = ({ args, parsePositiveInteger, recover, wrap }: SonarrInvocation) =>
+  recover(
+    parsePositiveInteger(args[0], 'tvdb-id').pipe(Effect.flatMap((tvdbId) => wrap(exists(tvdbId), existsNextActions)))
   )
 
-const addCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const addCommand = ({ args, parseFlags, parsePositiveInteger, recover, wrap }: SonarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [qualityProfileFlag], [noSearchFlag])
-      const tvdbId = yield* parseInteger(parsed.positionals[0], 'tvdb-id')
+      const parsed = yield* parseFlags(args, { valueFlags: [qualityProfileFlag], booleanFlags: [noSearchFlag] })
+      const tvdbId = yield* parsePositiveInteger(parsed.positionals[0], 'tvdb-id')
       const qualityProfileValue = parsed.values.get(qualityProfileFlag)
       const qualityProfileId =
-        qualityProfileValue === undefined ? undefined : yield* parseInteger(qualityProfileValue, 'quality-profile-id')
+        qualityProfileValue === undefined
+          ? undefined
+          : yield* parsePositiveInteger(qualityProfileValue, 'quality-profile-id')
       const searchForMissingEpisodes = !parsed.booleans.has(noSearchFlag)
       const options =
         qualityProfileId === undefined ? { searchForMissingEpisodes } : { qualityProfileId, searchForMissingEpisodes }
 
-      return yield* wrap(command, addSeries(tvdbId, options))
+      return yield* wrap(addSeries(tvdbId, options))
     })
   )
 
-const removeDeleteConfirmationEnvelope = (command: string, tvdbId: number): ErrorEnvelope =>
-  errorToEnvelope(command, deleteConfirmationRequired(), [
-    {
-      command: removeKeepFilesCommandTemplate,
-      description: 'Remove the series from Sonarr while keeping files on disk',
-      params: { 'tvdb-id': { value: tvdbId, description: 'TVDB series ID' } },
-    },
-  ])
-
-const removeCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const removeCommand = ({ args, errorToEnvelope, parseFlags, parsePositiveInteger, recover, wrap }: SonarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [], [deleteFilesFlag, confirmDeleteFilesFlag])
-      const tvdbId = yield* parseInteger(parsed.positionals[0], 'tvdb-id')
+      const parsed = yield* parseFlags(args, { booleanFlags: [deleteFilesFlag, confirmDeleteFilesFlag] })
+      const tvdbId = yield* parsePositiveInteger(parsed.positionals[0], 'tvdb-id')
       const deleteFiles = parsed.booleans.has(deleteFilesFlag)
 
       if (deleteFiles && !parsed.booleans.has(confirmDeleteFilesFlag)) {
-        return removeDeleteConfirmationEnvelope(command, tvdbId)
+        return errorToEnvelope(deleteConfirmationRequired(), [
+          {
+            command: removeKeepFilesCommandTemplate,
+            description: 'Remove the series from Sonarr while keeping files on disk',
+            params: { 'tvdb-id': { value: tvdbId, description: 'TVDB series ID' } },
+          },
+        ])
       }
 
-      return yield* wrap(command, removeSeries(tvdbId, { deleteFiles }))
+      return yield* wrap(removeSeries(tvdbId, { deleteFiles }))
     })
   )
 
-const limitFromArgs = (
-  args: ReadonlyArray<string>,
-  flagName: string,
-  defaultValue: number
-): Effect.Effect<number, SonarrError> =>
-  parseFlags(args, [flagName], []).pipe(
-    Effect.flatMap((parsed) => {
-      const value = parsed.values.get(flagName)
-      return value === undefined ? Effect.succeed(defaultValue) : parseInteger(value, flagName)
-    })
-  )
-
-const queueCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const queueCommand = ({ args, limitFromArgs, recover, wrap }: SonarrInvocation) =>
+  recover(
     limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
-        wrap(command, queue({ limit }), () =>
+        wrap(queue({ limit }), () =>
           Effect.succeed(listNextAction(queueLimitCommandTemplate, 'Return more active queue records'))
         )
       )
     )
   )
 
-const calendarCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const calendarCommand = ({ args, limitFromArgs, recover, wrap }: SonarrInvocation) =>
+  recover(
     limitFromArgs(args, daysFlag, defaultCalendarDays).pipe(
       Effect.flatMap((days) =>
-        wrap(command, calendar({ days }), () =>
+        wrap(calendar({ days }), () =>
           Effect.succeed([
             {
               command: calendarDaysCommandTemplate,
@@ -346,75 +246,124 @@ const calendarCommand = (command: string, args: ReadonlyArray<string>) =>
     )
   )
 
-const missingCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const missingCommand = ({ args, limitFromArgs, recover, wrap }: SonarrInvocation) =>
+  recover(
     limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
-        wrap(command, missing({ limit }), () =>
+        wrap(missing({ limit }), () =>
           Effect.succeed(listNextAction(missingLimitCommandTemplate, 'Return more missing episode records'))
         )
       )
     )
   )
 
-const historyCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const historyCommand = ({ args, limitFromArgs, recover, wrap }: SonarrInvocation) =>
+  recover(
     limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
-        wrap(command, history({ limit }), () =>
+        wrap(history({ limit }), () =>
           Effect.succeed(listNextAction(historyLimitCommandTemplate, 'Return more history records'))
         )
       )
     )
   )
 
-const dispatch = (args: ReadonlyArray<string>): Effect.Effect<SonarrCliEnvelope, never, SonarrApi | SonarrConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return statusCommand(command)
-    }
-    case 'config': {
-      return configCommand(command)
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    case 'exists': {
-      return existsCommand(command, rest)
-    }
-    case 'add': {
-      return addCommand(command, rest)
-    }
-    case 'remove': {
-      return removeCommand(command, rest)
-    }
-    case 'queue': {
-      return queueCommand(command, rest)
-    }
-    case 'calendar': {
-      return calendarCommand(command, rest)
-    }
-    case 'missing': {
-      return missingCommand(command, rest)
-    }
-    case 'history': {
-      return historyCommand(command, rest)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const commandDefinitions: ReadonlyArray<CommandDefinition<SonarrCliResult, SonarrCliError, SonarrCliContext>> = [
+  {
+    name: 'status',
+    description: { command: statusCommandTemplate, description: 'Return the Sonarr system status summary' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'config',
+    description: { command: configCommandTemplate, description: 'Return root folders and quality profiles' },
+    handle: ({ wrap }) => wrap(config),
+  },
+  {
+    name: 'search',
+    description: { command: searchCommandTemplate, description: 'Search Sonarr lookup by series title' },
+    handle: searchCommand,
+  },
+  {
+    name: 'exists',
+    description: { command: existsCommandTemplate, description: 'Check whether a TVDB ID is already in the library' },
+    handle: existsCommand,
+  },
+  {
+    name: 'add',
+    description: {
+      command: addCommandTemplate,
+      description: 'Add a series by TVDB ID',
+      flags: [
+        {
+          name: `${qualityProfileFlag} <quality-profile-id>`,
+          description: 'Override the default Sonarr quality profile',
+        },
+        { name: noSearchFlag, description: 'Add without searching for missing episodes' },
+      ],
+    },
+    handle: addCommand,
+  },
+  {
+    name: 'remove',
+    description: {
+      command: `${rootCommand} remove <tvdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`,
+      description: 'Remove a series by TVDB ID',
+      flags: [
+        { name: deleteFilesFlag, description: 'Request media file deletion' },
+        { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
+      ],
+    },
+    handle: removeCommand,
+  },
+  {
+    name: 'queue',
+    description: {
+      command: `${rootCommand} queue [${limitFlag} <n>]`,
+      description: 'Return active queue records',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: queueCommand,
+  },
+  {
+    name: 'calendar',
+    description: {
+      command: `${rootCommand} calendar [${daysFlag} <n>]`,
+      description: 'Return upcoming episodes',
+      flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
+    },
+    handle: calendarCommand,
+  },
+  {
+    name: 'missing',
+    description: {
+      command: `${rootCommand} missing [${limitFlag} <n>]`,
+      description: 'Return monitored missing episodes',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: missingCommand,
+  },
+  {
+    name: 'history',
+    description: {
+      command: `${rootCommand} history [${limitFlag} <n>]`,
+      description: 'Return recent history records',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: historyCommand,
+  },
+]
 
-export const executeSonarr = (
-  args: ReadonlyArray<string>
-): Effect.Effect<SonarrCliEnvelope, never, SonarrApi | SonarrConfig> => dispatch(args)
+const execute = createCliRunner<SonarrCliResult, SonarrCliError, SonarrCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
+
+export const executeSonarr = (args: ReadonlyArray<string>): Effect.Effect<SonarrCliEnvelope, never, SonarrCliContext> =>
+  execute(args)

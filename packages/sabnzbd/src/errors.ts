@@ -8,7 +8,6 @@ export type SabnzbdErrorCode =
   | 'SABNZBD_UNREACHABLE'
   | 'SABNZBD_HTTP_ERROR'
   | 'SABNZBD_DECODE_ERROR'
-  | 'SABNZBD_CLI_USAGE'
   | 'SABNZBD_DELETE_CONFIRMATION_REQUIRED'
 
 export class SabnzbdError extends Schema.TaggedErrorClass<SabnzbdError>()('SabnzbdError', {
@@ -17,7 +16,6 @@ export class SabnzbdError extends Schema.TaggedErrorClass<SabnzbdError>()('Sabnz
     'SABNZBD_UNREACHABLE',
     'SABNZBD_HTTP_ERROR',
     'SABNZBD_DECODE_ERROR',
-    'SABNZBD_CLI_USAGE',
     'SABNZBD_DELETE_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -50,13 +48,6 @@ export const decodeError = (message: string): SabnzbdError =>
     code: 'SABNZBD_DECODE_ERROR',
     message,
     fix: 'Update the SABnzbd schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): SabnzbdError =>
-  new SabnzbdError({
-    code: 'SABNZBD_CLI_USAGE',
-    message,
-    fix: 'Run sabnzbd to inspect available commands and required arguments.',
   })
 
 export const deleteConfirmationRequired = (): SabnzbdError =>

@@ -8,7 +8,6 @@ export type ProwlarrErrorCode =
   | 'PROWLARR_UNREACHABLE'
   | 'PROWLARR_HTTP_ERROR'
   | 'PROWLARR_DECODE_ERROR'
-  | 'PROWLARR_CLI_USAGE'
   | 'PROWLARR_SYNC_CONFIRMATION_REQUIRED'
 
 export class ProwlarrError extends Schema.TaggedErrorClass<ProwlarrError>()('ProwlarrError', {
@@ -17,7 +16,6 @@ export class ProwlarrError extends Schema.TaggedErrorClass<ProwlarrError>()('Pro
     'PROWLARR_UNREACHABLE',
     'PROWLARR_HTTP_ERROR',
     'PROWLARR_DECODE_ERROR',
-    'PROWLARR_CLI_USAGE',
     'PROWLARR_SYNC_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -50,13 +48,6 @@ export const decodeError = (message: string): ProwlarrError =>
     code: 'PROWLARR_DECODE_ERROR',
     message,
     fix: 'Update the Prowlarr schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): ProwlarrError =>
-  new ProwlarrError({
-    code: 'PROWLARR_CLI_USAGE',
-    message,
-    fix: 'Run prowlarr to inspect available commands and required arguments.',
   })
 
 export const syncConfirmationRequired = (): ProwlarrError =>

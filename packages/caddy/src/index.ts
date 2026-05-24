@@ -1,12 +1,4 @@
-export {
-  cliUsageError,
-  confirmationRequired,
-  decodeError,
-  envFix,
-  envMissing,
-  httpError,
-  unreachable,
-} from './errors.js'
+export { confirmationRequired, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
 export type { CaddyErrorCode } from './errors.js'
 export { CaddyError } from './errors.js'
 export { JsonObjectSchema } from './api-schema.js'

@@ -7,7 +7,6 @@ export type CaddyErrorCode =
   | 'CADDY_UNREACHABLE'
   | 'CADDY_HTTP_ERROR'
   | 'CADDY_DECODE_ERROR'
-  | 'CADDY_CLI_USAGE'
   | 'CADDY_CONFIRMATION_REQUIRED'
 
 export class CaddyError extends Schema.TaggedErrorClass<CaddyError>()('CaddyError', {
@@ -16,7 +15,6 @@ export class CaddyError extends Schema.TaggedErrorClass<CaddyError>()('CaddyErro
     'CADDY_UNREACHABLE',
     'CADDY_HTTP_ERROR',
     'CADDY_DECODE_ERROR',
-    'CADDY_CLI_USAGE',
     'CADDY_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -45,13 +43,6 @@ export const decodeError = (message: string): CaddyError =>
     code: 'CADDY_DECODE_ERROR',
     message,
     fix: 'Update the Caddy schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): CaddyError =>
-  new CaddyError({
-    code: 'CADDY_CLI_USAGE',
-    message,
-    fix: 'Run caddy to inspect available commands and required arguments.',
   })
 
 export const confirmationRequired = (): CaddyError =>

@@ -9,7 +9,6 @@ export type JellyfinErrorCode =
   | 'JELLYFIN_HTTP_ERROR'
   | 'JELLYFIN_DECODE_ERROR'
   | 'JELLYFIN_NOT_FOUND'
-  | 'JELLYFIN_CLI_USAGE'
   | 'JELLYFIN_CONFIRMATION_REQUIRED'
 
 export class JellyfinError extends Schema.TaggedErrorClass<JellyfinError>()('JellyfinError', {
@@ -19,7 +18,6 @@ export class JellyfinError extends Schema.TaggedErrorClass<JellyfinError>()('Jel
     'JELLYFIN_HTTP_ERROR',
     'JELLYFIN_DECODE_ERROR',
     'JELLYFIN_NOT_FOUND',
-    'JELLYFIN_CLI_USAGE',
     'JELLYFIN_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -52,13 +50,6 @@ export const decodeError = (message: string): JellyfinError =>
 
 export const notFound = (message: string): JellyfinError =>
   new JellyfinError({ code: 'JELLYFIN_NOT_FOUND', message, fix: 'Verify Jellyfin has at least one enabled user.' })
-
-export const cliUsageError = (message: string): JellyfinError =>
-  new JellyfinError({
-    code: 'JELLYFIN_CLI_USAGE',
-    message,
-    fix: 'Run jellyfin to inspect available commands and required arguments.',
-  })
 
 export const confirmationRequired = (): JellyfinError =>
   new JellyfinError({

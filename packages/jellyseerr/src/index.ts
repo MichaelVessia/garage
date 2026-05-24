@@ -1,12 +1,4 @@
-export {
-  cliUsageError,
-  confirmationRequired,
-  decodeError,
-  envFix,
-  envMissing,
-  httpError,
-  unreachable,
-} from './errors.js'
+export { confirmationRequired, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
 export type { JellyseerrErrorCode } from './errors.js'
 export { JellyseerrError } from './errors.js'
 export { JellyseerrApiLive } from './http.js'

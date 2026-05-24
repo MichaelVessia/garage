@@ -8,7 +8,6 @@ export type AdguardErrorCode =
   | 'ADGUARD_UNREACHABLE'
   | 'ADGUARD_HTTP_ERROR'
   | 'ADGUARD_DECODE_ERROR'
-  | 'ADGUARD_CLI_USAGE'
   | 'ADGUARD_CONFIRMATION_REQUIRED'
 
 export class AdguardError extends Schema.TaggedErrorClass<AdguardError>()('AdguardError', {
@@ -17,7 +16,6 @@ export class AdguardError extends Schema.TaggedErrorClass<AdguardError>()('Adgua
     'ADGUARD_UNREACHABLE',
     'ADGUARD_HTTP_ERROR',
     'ADGUARD_DECODE_ERROR',
-    'ADGUARD_CLI_USAGE',
     'ADGUARD_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -46,13 +44,6 @@ export const decodeError = (message: string): AdguardError =>
     code: 'ADGUARD_DECODE_ERROR',
     message,
     fix: 'Update the AdGuard schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): AdguardError =>
-  new AdguardError({
-    code: 'ADGUARD_CLI_USAGE',
-    message,
-    fix: 'Run adguard to inspect available commands and required arguments.',
   })
 
 export const confirmationRequired = (): AdguardError =>

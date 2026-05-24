@@ -1,4 +1,4 @@
-import { cliUsageError, config, confirmationRequired, pkiCa, reload, routes, upstreams } from '@garage/caddy'
+import { config, confirmationRequired, pkiCa, reload, routes, upstreams } from '@garage/caddy'
 import type {
   CaddyApi,
   CaddyConfig,
@@ -10,11 +10,17 @@ import type {
   RouteSummary,
   UpstreamRecord,
 } from '@garage/caddy'
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import { Effect } from 'effect'
 
-import { commandTree, confirmReloadFlag, envNextAction, rootCommand, showCommandsAction } from './command-tree.js'
+import { confirmReloadFlag, envNextAction, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 import { CaddyConfigFile } from './config-file.js'
 
@@ -27,65 +33,14 @@ export type CaddyCliResult =
   | ReloadResult
 
 export type CaddyCliEnvelope = SuccessEnvelope<CaddyCliResult> | ErrorEnvelope
-
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly booleans: ReadonlySet<string>
-}
-
+type CaddyCliError = CaddyError | CliUsageError
 type CaddyCliContext = CaddyApi | CaddyConfig | CaddyConfigFile
+type CaddyInvocation = CommandInvocation<CaddyCliResult, CaddyCliError, CaddyCliContext>
 
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (command: string, error: CaddyError, nextActions: ReadonlyArray<NextAction>): ErrorEnvelope =>
-  errorEnvelope({ command, error: { code: error.code, message: error.message }, fix: error.fix, nextActions })
-
-const wrap = <Result>(
+const root = (
   command: string,
-  program: Effect.Effect<Result, CaddyError, CaddyApi | CaddyConfig>
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, CaddyApi | CaddyConfig> =>
-  program.pipe(
-    Effect.map((result) => successEnvelope({ command, result })),
-    Effect.match({ onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]), onSuccess: (x) => x })
-  )
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  booleanFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, CaddyError> => {
-  const positionals: Array<string> = []
-  const booleans = new Set<string>()
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (booleanFlags.includes(token)) {
-      booleans.add(token)
-      index += 1
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-  return Effect.succeed({ positionals, booleans })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<CaddyCliEnvelope, CaddyError, CaddyCliContext>
-): Effect.Effect<CaddyCliEnvelope, never, CaddyCliContext> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, CaddyCliContext> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, CaddyCliContext> =>
   routes.pipe(
     Effect.match({
       onFailure: (error) =>
@@ -115,17 +70,16 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const reloadCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const reloadCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError, wrap }: CaddyInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [confirmReloadFlag])
+      const parsed = yield* parseFlags(args, { booleanFlags: [confirmReloadFlag] })
       const [path] = parsed.positionals
       if (path === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError('config path is required')))
+        return yield* wrap(Effect.fail(usageError('config path is required')))
       }
       if (!parsed.booleans.has(confirmReloadFlag)) {
-        return errorToEnvelope(command, confirmationRequired(), [
+        return errorToEnvelope(confirmationRequired(), [
           {
             command: `${rootCommand} reload <config.json> ${confirmReloadFlag}`,
             description: 'Reload Caddy after user confirmation and config diff review',
@@ -135,38 +89,52 @@ const reloadCommand = (command: string, rest: ReadonlyArray<string>) =>
       }
       const files = yield* CaddyConfigFile
       const nextConfig = yield* files.read(path)
-      return yield* wrap(command, reload(nextConfig))
+      return yield* wrap(reload(nextConfig))
     })
   )
 
-const dispatch = (args: ReadonlyArray<string>): Effect.Effect<CaddyCliEnvelope, never, CaddyCliContext> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'config': {
-      return wrap(command, config)
-    }
-    case 'routes': {
-      return wrap(command, routes)
-    }
-    case 'upstreams': {
-      return wrap(command, upstreams)
-    }
-    case 'pki-ca': {
-      return wrap(command, pkiCa)
-    }
-    case 'reload': {
-      return reloadCommand(command, rest)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
+
+const commandDefinitions: ReadonlyArray<CommandDefinition<CaddyCliResult, CaddyCliError, CaddyCliContext>> = [
+  {
+    name: 'config',
+    description: { command: `${rootCommand} config`, description: 'Return full active Caddy config' },
+    handle: ({ wrap }) => wrap(config),
+  },
+  {
+    name: 'routes',
+    description: { command: `${rootCommand} routes`, description: 'Return route matchers and reverse-proxy upstreams' },
+    handle: ({ wrap }) => wrap(routes),
+  },
+  {
+    name: 'upstreams',
+    description: { command: `${rootCommand} upstreams`, description: 'Return live reverse-proxy upstream health' },
+    handle: ({ wrap }) => wrap(upstreams),
+  },
+  {
+    name: 'pki-ca',
+    description: { command: `${rootCommand} pki-ca`, description: 'Return local internal CA info' },
+    handle: ({ wrap }) => wrap(pkiCa),
+  },
+  {
+    name: 'reload',
+    description: {
+      command: `${rootCommand} reload <config.json> [${confirmReloadFlag}]`,
+      description: 'Replace the active config via POST /load',
+      flags: [{ name: confirmReloadFlag, description: 'Confirm full Caddy config replacement' }],
+    },
+    handle: reloadCommand,
+  },
+]
+
+const execute = createCliRunner<CaddyCliResult, CaddyCliError, CaddyCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
 
 export const executeCaddy = (args: ReadonlyArray<string>): Effect.Effect<CaddyCliEnvelope, never, CaddyCliContext> =>
-  dispatch(args)
+  execute(args)

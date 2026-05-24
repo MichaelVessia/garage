@@ -11,7 +11,6 @@ export type RadarrErrorCode =
   | 'RADARR_NOT_FOUND'
   | 'RADARR_DELETE_CONFIRMATION_REQUIRED'
   | 'RADARR_COLLECTION_CONFIRMATION_REQUIRED'
-  | 'RADARR_CLI_USAGE'
 
 export class RadarrError extends Schema.TaggedErrorClass<RadarrError>()('RadarrError', {
   code: Schema.Literals([
@@ -22,7 +21,6 @@ export class RadarrError extends Schema.TaggedErrorClass<RadarrError>()('RadarrE
     'RADARR_NOT_FOUND',
     'RADARR_DELETE_CONFIRMATION_REQUIRED',
     'RADARR_COLLECTION_CONFIRMATION_REQUIRED',
-    'RADARR_CLI_USAGE',
   ]),
   message: Schema.String,
   fix: Schema.String,
@@ -75,11 +73,4 @@ export const collectionConfirmationRequired = (): RadarrError =>
     code: 'RADARR_COLLECTION_CONFIRMATION_REQUIRED',
     message: 'Adding a collection requires --confirm-add-collection',
     fix: 'Re-run with --confirm-add-collection only after confirming the collection add with the user.',
-  })
-
-export const cliUsageError = (message: string): RadarrError =>
-  new RadarrError({
-    code: 'RADARR_CLI_USAGE',
-    message,
-    fix: 'Run radarr to inspect available commands and required arguments.',
   })

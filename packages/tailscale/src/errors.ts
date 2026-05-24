@@ -5,7 +5,6 @@ export type TailscaleErrorCode =
   | 'TAILSCALE_COMMAND_FAILED'
   | 'TAILSCALE_DECODE_ERROR'
   | 'TAILSCALE_NOT_RUNNING'
-  | 'TAILSCALE_CLI_USAGE'
 
 export class TailscaleError extends Schema.TaggedErrorClass<TailscaleError>()('TailscaleError', {
   code: Schema.Literals([
@@ -13,7 +12,6 @@ export class TailscaleError extends Schema.TaggedErrorClass<TailscaleError>()('T
     'TAILSCALE_COMMAND_FAILED',
     'TAILSCALE_DECODE_ERROR',
     'TAILSCALE_NOT_RUNNING',
-    'TAILSCALE_CLI_USAGE',
   ]),
   message: Schema.String,
   fix: Schema.String,
@@ -47,11 +45,4 @@ export const notRunning = (backendState: string | undefined): TailscaleError =>
     code: 'TAILSCALE_NOT_RUNNING',
     message: `tailscaled is not running and logged in (BackendState=${backendState ?? 'unknown'})`,
     fix: 'Start Tailscale and log in with tailscale up from an interactive shell.',
-  })
-
-export const cliUsageError = (message: string): TailscaleError =>
-  new TailscaleError({
-    code: 'TAILSCALE_CLI_USAGE',
-    message,
-    fix: 'Run tailscale to inspect available commands and required arguments.',
   })

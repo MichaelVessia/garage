@@ -1,8 +1,15 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  NextAction,
+  ParsedFlags,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import {
   applications,
-  cliUsageError,
   defaultHistoryLimit,
   defaultLimit,
   health,
@@ -39,7 +46,6 @@ import {
   appsCommandTemplate,
   categoryFlag,
   categoryShortFlag,
-  commandTree,
   confirmSyncFlag,
   envNextAction,
   episodeFlag,
@@ -54,6 +60,7 @@ import {
   seasonFlag,
   seasonShortFlag,
   showCommandsAction,
+  statusCommandTemplate,
   syncConfirmedCommandTemplate,
   tmdbFlag,
   torrentsFlag,
@@ -76,105 +83,14 @@ export type ProwlarrCliResult =
   | ListResult<HistoryRecord>
 
 export type ProwlarrCliEnvelope = SuccessEnvelope<ProwlarrCliResult> | ErrorEnvelope
+type ProwlarrCliError = ProwlarrError | CliUsageError
+type ProwlarrCliContext = ProwlarrApi | ProwlarrConfig
+type ProwlarrInvocation = CommandInvocation<ProwlarrCliResult, ProwlarrCliError, ProwlarrCliContext>
 
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-  readonly booleans: ReadonlySet<string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (
+const root = (
   command: string,
-  error: ProwlarrError,
-  nextActions: ReadonlyArray<NextAction>
-): ErrorEnvelope =>
-  errorEnvelope({
-    command,
-    error: { code: error.code, message: error.message },
-    fix: error.fix,
-    nextActions,
-  })
-
-const wrap = <Result>(
-  command: string,
-  program: Effect.Effect<Result, ProwlarrError, ProwlarrApi | ProwlarrConfig>,
-  nextActions: (
-    result: Result
-  ) => Effect.Effect<ReadonlyArray<NextAction>, ProwlarrError, ProwlarrApi | ProwlarrConfig> = () => Effect.succeed([])
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, ProwlarrApi | ProwlarrConfig> =>
-  program.pipe(
-    Effect.flatMap((result) =>
-      nextActions(result).pipe(Effect.map((actions) => successEnvelope({ command, result, nextActions: actions })))
-    ),
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, ProwlarrError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return Effect.fail(cliUsageError(`${label} must be a positive integer`))
-  }
-
-  return Effect.succeed(parsed)
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>,
-  booleanFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, ProwlarrError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  const booleans = new Set<string>()
-
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('-')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (booleanFlags.includes(token)) {
-      booleans.add(token)
-      index += 1
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-
-  return Effect.succeed({ positionals, values, booleans })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<ProwlarrCliEnvelope, ProwlarrError, ProwlarrApi | ProwlarrConfig>
-): Effect.Effect<ProwlarrCliEnvelope, never, ProwlarrApi | ProwlarrConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, ProwlarrApi | ProwlarrConfig> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, ProwlarrCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) => {
@@ -222,63 +138,63 @@ const listNextAction = (
 const limitFromParsed = (
   parsed: ParsedFlags,
   defaultValue: number,
-  positionalAllowed: boolean
-): Effect.Effect<number, ProwlarrError> => {
+  positionalAllowed: boolean,
+  parsePositiveInteger: ProwlarrInvocation['parsePositiveInteger']
+): Effect.Effect<number, ProwlarrCliError> => {
   const value = parsed.values.get(limitFlag)
   if (value !== undefined) {
-    return parseInteger(value, 'limit')
+    return parsePositiveInteger(value, 'limit')
   }
 
   const [positional] = parsed.positionals
   if (positionalAllowed && positional !== undefined) {
-    return parseInteger(positional, 'limit')
+    return parsePositiveInteger(positional, 'limit')
   }
 
   return Effect.succeed(defaultValue)
 }
 
 const limitCommand = <Result extends ProwlarrCliResult>(
-  command: string,
-  args: ReadonlyArray<string>,
+  { args, parseFlags, parsePositiveInteger, recover, wrap }: ProwlarrInvocation,
   defaultValue: number,
   description: string,
   template: string,
   program: (limit: number) => Effect.Effect<Result, ProwlarrError, ProwlarrApi | ProwlarrConfig>,
   positionalAllowed = false
 ) =>
-  recoverEnvelope(
-    command,
-    parseFlags(args, [limitFlag], []).pipe(
-      Effect.flatMap((parsed) => limitFromParsed(parsed, defaultValue, positionalAllowed)),
+  recover(
+    parseFlags(args, { valueFlags: [limitFlag] }).pipe(
+      Effect.flatMap((parsed) => limitFromParsed(parsed, defaultValue, positionalAllowed, parsePositiveInteger)),
       Effect.flatMap((limit) =>
-        wrap(command, program(limit), () => Effect.succeed(listNextAction(template, description, defaultValue)))
+        wrap(program(limit), () => Effect.succeed(listNextAction(template, description, defaultValue)))
       )
     )
   )
 
-const statusCommand = (command: string) => wrap(command, status)
-
-const healthCommand = (command: string, args: ReadonlyArray<string>) =>
-  limitCommand(command, args, defaultLimit, 'Return more health records', healthCommandTemplate, (limit) =>
+const healthCommand = (invocation: ProwlarrInvocation) =>
+  limitCommand(invocation, defaultLimit, 'Return more health records', healthCommandTemplate, (limit) =>
     health({ limit })
   )
 
-const indexersCommand = (command: string, args: ReadonlyArray<string>) =>
-  limitCommand(command, args, defaultLimit, 'Return more indexers', indexersCommandTemplate, (limit) =>
+const indexersCommand = (invocation: ProwlarrInvocation) =>
+  limitCommand(invocation, defaultLimit, 'Return more indexers', indexersCommandTemplate, (limit) =>
     indexers({ limit })
   )
 
-const indexerStatsCommand = (command: string, args: ReadonlyArray<string>) =>
-  limitCommand(command, args, defaultLimit, 'Return more indexer stats', indexerStatsCommandTemplate, (limit) =>
+const indexerStatsCommand = (invocation: ProwlarrInvocation) =>
+  limitCommand(invocation, defaultLimit, 'Return more indexer stats', indexerStatsCommandTemplate, (limit) =>
     indexerStats({ limit })
   )
 
-const searchProtocol = (parsed: ParsedFlags): Effect.Effect<ReadonlyArray<SearchProtocol>, ProwlarrError> => {
+const searchProtocol = (
+  parsed: ParsedFlags,
+  usageError: ProwlarrInvocation['usageError']
+): Effect.Effect<ReadonlyArray<SearchProtocol>, ProwlarrCliError> => {
   const torrents = parsed.booleans.has(torrentsFlag)
   const usenet = parsed.booleans.has(usenetFlag)
 
   if (torrents && usenet) {
-    return Effect.fail(cliUsageError('Use only one of --torrents or --usenet'))
+    return Effect.fail(usageError('Use only one of --torrents or --usenet'))
   }
 
   if (torrents) {
@@ -288,28 +204,25 @@ const searchProtocol = (parsed: ParsedFlags): Effect.Effect<ReadonlyArray<Search
   return Effect.succeed(usenet ? ['usenet'] : [])
 }
 
-const searchCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: ProwlarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(
-        args,
-        [limitFlag, categoryFlag, categoryShortFlag, typeFlag],
-        [torrentsFlag, usenetFlag]
-      )
+      const parsed = yield* parseFlags(args, {
+        valueFlags: [limitFlag, categoryFlag, categoryShortFlag, typeFlag],
+        booleanFlags: [torrentsFlag, usenetFlag],
+      })
       const query = parsed.positionals.join(' ').trim()
       if (query.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('search query is required')))
+        return yield* wrap(Effect.fail(usageError('search query is required')))
       }
 
-      const limit = yield* limitFromParsed(parsed, defaultLimit, false)
+      const limit = yield* limitFromParsed(parsed, defaultLimit, false, parsePositiveInteger)
       const categoryValue = parsed.values.get(categoryFlag) ?? parsed.values.get(categoryShortFlag)
-      const category = categoryValue === undefined ? undefined : yield* parseInteger(categoryValue, 'category')
-      const [protocol] = yield* searchProtocol(parsed)
+      const category = categoryValue === undefined ? undefined : yield* parsePositiveInteger(categoryValue, 'category')
+      const [protocol] = yield* searchProtocol(parsed, usageError)
       const type = parsed.values.get(typeFlag)
 
       return yield* wrap(
-        command,
         search(query, {
           limit,
           ...(protocol === undefined ? {} : { protocol }),
@@ -320,24 +233,20 @@ const searchCommand = (command: string, args: ReadonlyArray<string>) =>
     })
   )
 
-const tvSearchCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const tvSearchCommand = ({ args, parseFlags, parsePositiveInteger, recover, wrap }: ProwlarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(
-        args,
-        [tvdbFlag, seasonFlag, seasonShortFlag, episodeFlag, episodeShortFlag, limitFlag],
-        []
-      )
-      const limit = yield* limitFromParsed(parsed, defaultLimit, false)
-      const tvdbId = yield* parseInteger(parsed.values.get(tvdbFlag), 'tvdb-id')
+      const parsed = yield* parseFlags(args, {
+        valueFlags: [tvdbFlag, seasonFlag, seasonShortFlag, episodeFlag, episodeShortFlag, limitFlag],
+      })
+      const limit = yield* limitFromParsed(parsed, defaultLimit, false, parsePositiveInteger)
+      const tvdbId = yield* parsePositiveInteger(parsed.values.get(tvdbFlag), 'tvdb-id')
       const seasonValue = parsed.values.get(seasonFlag) ?? parsed.values.get(seasonShortFlag)
       const episodeValue = parsed.values.get(episodeFlag) ?? parsed.values.get(episodeShortFlag)
-      const season = seasonValue === undefined ? undefined : yield* parseInteger(seasonValue, 'season')
-      const episode = episodeValue === undefined ? undefined : yield* parseInteger(episodeValue, 'episode')
+      const season = seasonValue === undefined ? undefined : yield* parsePositiveInteger(seasonValue, 'season')
+      const episode = episodeValue === undefined ? undefined : yield* parsePositiveInteger(episodeValue, 'episode')
 
       return yield* wrap(
-        command,
         tvSearch({
           tvdbId,
           limit,
@@ -348,22 +257,27 @@ const tvSearchCommand = (command: string, args: ReadonlyArray<string>) =>
     })
   )
 
-const movieSearchCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const movieSearchCommand = ({
+  args,
+  parseFlags,
+  parsePositiveInteger,
+  recover,
+  usageError,
+  wrap,
+}: ProwlarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [imdbFlag, tmdbFlag, limitFlag], [])
-      const limit = yield* limitFromParsed(parsed, defaultLimit, false)
+      const parsed = yield* parseFlags(args, { valueFlags: [imdbFlag, tmdbFlag, limitFlag] })
+      const limit = yield* limitFromParsed(parsed, defaultLimit, false, parsePositiveInteger)
       const imdbId = parsed.values.get(imdbFlag)
       const tmdbValue = parsed.values.get(tmdbFlag)
-      const tmdbId = tmdbValue === undefined ? undefined : yield* parseInteger(tmdbValue, 'tmdb-id')
+      const tmdbId = tmdbValue === undefined ? undefined : yield* parsePositiveInteger(tmdbValue, 'tmdb-id')
 
       if (imdbId === undefined && tmdbId === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError('movie-search requires --imdb or --tmdb')))
+        return yield* wrap(Effect.fail(usageError('movie-search requires --imdb or --tmdb')))
       }
 
       return yield* wrap(
-        command,
         movieSearch({
           limit,
           ...(imdbId === undefined ? {} : { imdbId }),
@@ -373,43 +287,35 @@ const movieSearchCommand = (command: string, args: ReadonlyArray<string>) =>
     })
   )
 
-const testCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
-    parseInteger(args[0], 'indexer-id').pipe(Effect.flatMap((indexerId) => wrap(command, testIndexer(indexerId))))
-  )
+const testCommand = ({ args, parsePositiveInteger, recover, wrap }: ProwlarrInvocation) =>
+  recover(parsePositiveInteger(args[0], 'indexer-id').pipe(Effect.flatMap((indexerId) => wrap(testIndexer(indexerId)))))
 
-const appsCommand = (command: string, args: ReadonlyArray<string>) =>
-  limitCommand(command, args, defaultLimit, 'Return more connected applications', appsCommandTemplate, (limit) =>
+const appsCommand = (invocation: ProwlarrInvocation) =>
+  limitCommand(invocation, defaultLimit, 'Return more connected applications', appsCommandTemplate, (limit) =>
     applications({ limit })
   )
 
-const syncConfirmationEnvelope = (command: string): ErrorEnvelope =>
-  errorToEnvelope(command, syncConfirmationRequired(), [
-    {
-      command: syncConfirmedCommandTemplate,
-      description: 'Push Prowlarr indexer config to all connected apps',
-    },
-  ])
-
-const syncCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const syncCommand = ({ args, errorToEnvelope, parseFlags, recover, wrap }: ProwlarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [], [confirmSyncFlag])
+      const parsed = yield* parseFlags(args, { booleanFlags: [confirmSyncFlag] })
 
       if (!parsed.booleans.has(confirmSyncFlag)) {
-        return syncConfirmationEnvelope(command)
+        return errorToEnvelope(syncConfirmationRequired(), [
+          {
+            command: syncConfirmedCommandTemplate,
+            description: 'Push Prowlarr indexer config to all connected apps',
+          },
+        ])
       }
 
-      return yield* wrap(command, sync)
+      return yield* wrap(sync)
     })
   )
 
-const historyCommand = (command: string, args: ReadonlyArray<string>) =>
+const historyCommand = (invocation: ProwlarrInvocation) =>
   limitCommand(
-    command,
-    args,
+    invocation,
     defaultHistoryLimit,
     'Return more history records',
     historyLimitCommandTemplate,
@@ -417,58 +323,138 @@ const historyCommand = (command: string, args: ReadonlyArray<string>) =>
     true
   )
 
-const dispatch = (
-  args: ReadonlyArray<string>
-): Effect.Effect<ProwlarrCliEnvelope, never, ProwlarrApi | ProwlarrConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return statusCommand(command)
-    }
-    case 'health': {
-      return healthCommand(command, rest)
-    }
-    case 'indexers': {
-      return indexersCommand(command, rest)
-    }
-    case 'indexer-stats':
-    case 'stats': {
-      return indexerStatsCommand(command, rest)
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    case 'tv-search': {
-      return tvSearchCommand(command, rest)
-    }
-    case 'movie-search': {
-      return movieSearchCommand(command, rest)
-    }
-    case 'test': {
-      return testCommand(command, rest)
-    }
-    case 'apps':
-    case 'applications': {
-      return appsCommand(command, rest)
-    }
-    case 'sync': {
-      return syncCommand(command, rest)
-    }
-    case 'history': {
-      return historyCommand(command, rest)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const commandDefinitions: ReadonlyArray<CommandDefinition<ProwlarrCliResult, ProwlarrCliError, ProwlarrCliContext>> = [
+  {
+    name: 'status',
+    description: { command: statusCommandTemplate, description: 'Return the Prowlarr system status summary' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'health',
+    description: {
+      command: healthCommandTemplate,
+      description: 'Return active Prowlarr health warnings',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: healthCommand,
+  },
+  {
+    name: 'indexers',
+    description: {
+      command: indexersCommandTemplate,
+      description: 'Return configured indexers',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: indexersCommand,
+  },
+  {
+    name: 'indexer-stats',
+    description: {
+      command: indexerStatsCommandTemplate,
+      description: 'Return per-indexer query, grab, and failure counts',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: indexerStatsCommand,
+  },
+  {
+    name: 'stats',
+    description: { command: indexerStatsCommandTemplate, description: 'Alias for indexer-stats' },
+    hidden: true,
+    handle: indexerStatsCommand,
+  },
+  {
+    name: 'search',
+    description: {
+      command: `${rootCommand} search <query>`,
+      description: 'Search enabled indexers by free text',
+      flags: [
+        { name: torrentsFlag, description: 'Search torrent indexers only' },
+        { name: usenetFlag, description: 'Search usenet indexers only' },
+        { name: `${categoryFlag} <id>`, description: 'Restrict by Newznab category ID' },
+        { name: `${typeFlag} <type>`, description: 'Override Prowlarr search type', default: 'search' },
+        { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
+      ],
+    },
+    handle: searchCommand,
+  },
+  {
+    name: 'tv-search',
+    description: {
+      command: `${rootCommand} tv-search --tvdb <id> [--season <n>] [--episode <n>]`,
+      description: 'Search TV releases by TVDB ID',
+      flags: [
+        { name: `${tvdbFlag} <id>`, description: 'TVDB series ID' },
+        { name: `${seasonFlag} <n>`, description: 'Season number' },
+        { name: `${episodeFlag} <n>`, description: 'Episode number' },
+        { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
+      ],
+    },
+    handle: tvSearchCommand,
+  },
+  {
+    name: 'movie-search',
+    description: {
+      command: `${rootCommand} movie-search --imdb <id> | --tmdb <id>`,
+      description: 'Search movie releases by IMDB or TMDB ID',
+      flags: [
+        { name: `${imdbFlag} <id>`, description: 'IMDB title ID' },
+        { name: `${tmdbFlag} <id>`, description: 'TMDB movie ID' },
+        { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
+      ],
+    },
+    handle: movieSearchCommand,
+  },
+  {
+    name: 'test',
+    description: { command: `${rootCommand} test <indexer-id>`, description: 'Test one indexer configuration' },
+    handle: testCommand,
+  },
+  {
+    name: 'apps',
+    description: {
+      command: appsCommandTemplate,
+      description: 'Return connected applications',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: appsCommand,
+  },
+  {
+    name: 'applications',
+    description: { command: appsCommandTemplate, description: 'Alias for apps' },
+    hidden: true,
+    handle: appsCommand,
+  },
+  {
+    name: 'sync',
+    description: {
+      command: `${rootCommand} sync [${confirmSyncFlag}]`,
+      description: 'Push indexer config to all connected applications',
+      flags: [{ name: confirmSyncFlag, description: 'Confirm application indexer sync' }],
+    },
+    handle: syncCommand,
+  },
+  {
+    name: 'history',
+    description: {
+      command: `${rootCommand} history [${limitFlag} <n>]`,
+      description: 'Return recent indexer history',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultHistoryLimit }],
+    },
+    handle: historyCommand,
+  },
+]
+
+const execute = createCliRunner<ProwlarrCliResult, ProwlarrCliError, ProwlarrCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
 
 export const executeProwlarr = (
   args: ReadonlyArray<string>
-): Effect.Effect<ProwlarrCliEnvelope, never, ProwlarrApi | ProwlarrConfig> => dispatch(args)
+): Effect.Effect<ProwlarrCliEnvelope, never, ProwlarrCliContext> => execute(args)

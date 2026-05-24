@@ -1,8 +1,14 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  ParsedFlags,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import {
   approve,
-  cliUsageError,
   confirmationRequired,
   decline,
   defaultLimit,
@@ -35,17 +41,27 @@ import { Effect } from 'effect'
 
 import {
   allFlag,
+  approveCommandTemplate,
   approveConfirmedCommandTemplate,
-  commandTree,
   confirmApproveFlag,
   confirmDeclineFlag,
   confirmDeleteRequestFlag,
+  declineCommandTemplate,
   declineConfirmedCommandTemplate,
+  deleteRequestCommandTemplate,
   deleteRequestConfirmedCommandTemplate,
   envNextAction,
+  issuesCommandTemplate,
   limitFlag,
+  mediaStatusCommandTemplate,
+  recentlyAddedCommandTemplate,
+  requestCountsCommandTemplate,
+  requestsCommandTemplate,
   rootCommand,
+  searchCommandTemplate,
   showCommandsAction,
+  statusCommandTemplate,
+  usersCommandTemplate,
 } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
@@ -63,106 +79,14 @@ export type JellyseerrCliResult =
   | ListResult<IssueRecord>
 
 export type JellyseerrCliEnvelope = SuccessEnvelope<JellyseerrCliResult> | ErrorEnvelope
+type JellyseerrCliError = JellyseerrError | CliUsageError
+type JellyseerrCliContext = JellyseerrApi | JellyseerrConfig
+type JellyseerrInvocation = CommandInvocation<JellyseerrCliResult, JellyseerrCliError, JellyseerrCliContext>
 
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-  readonly booleans: ReadonlySet<string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (
+const root = (
   command: string,
-  error: JellyseerrError,
-  nextActions: ReadonlyArray<NextAction>
-): ErrorEnvelope =>
-  errorEnvelope({
-    command,
-    error: { code: error.code, message: error.message },
-    fix: error.fix,
-    nextActions,
-  })
-
-const wrap = <Result>(
-  command: string,
-  program: Effect.Effect<Result, JellyseerrError, JellyseerrApi | JellyseerrConfig>,
-  nextActions: (
-    result: Result
-  ) => Effect.Effect<ReadonlyArray<NextAction>, JellyseerrError, JellyseerrApi | JellyseerrConfig> = () =>
-    Effect.succeed([])
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, JellyseerrApi | JellyseerrConfig> =>
-  program.pipe(
-    Effect.flatMap((result) =>
-      nextActions(result).pipe(Effect.map((actions) => successEnvelope({ command, result, nextActions: actions })))
-    ),
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, JellyseerrError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return Effect.fail(cliUsageError(`${label} must be a positive integer`))
-  }
-
-  return Effect.succeed(parsed)
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>,
-  booleanFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, JellyseerrError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  const booleans = new Set<string>()
-
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('-')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (booleanFlags.includes(token)) {
-      booleans.add(token)
-      index += 1
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-
-  return Effect.succeed({ positionals, values, booleans })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<JellyseerrCliEnvelope, JellyseerrError, JellyseerrApi | JellyseerrConfig>
-): Effect.Effect<JellyseerrCliEnvelope, never, JellyseerrApi | JellyseerrConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, JellyseerrApi | JellyseerrConfig> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, JellyseerrCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) => {
@@ -195,69 +119,59 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const limitFromParsed = (parsed: ParsedFlags): Effect.Effect<number, JellyseerrError> => {
+const limitFromParsed = (
+  parsed: ParsedFlags,
+  parsePositiveInteger: JellyseerrInvocation['parsePositiveInteger']
+): Effect.Effect<number, JellyseerrCliError> => {
   const value = parsed.values.get(limitFlag)
-  return value === undefined ? Effect.succeed(defaultLimit) : parseInteger(value, 'limit')
+  return value === undefined ? Effect.succeed(defaultLimit) : parsePositiveInteger(value, 'limit')
 }
 
-const idFromArgs = (args: ReadonlyArray<string>, label: string): Effect.Effect<number, JellyseerrError> =>
-  parseInteger(args[0], label)
-
-const statusCommand = (command: string) => wrap(command, status)
-const requestCountsCommand = (command: string) => wrap(command, requestCounts)
-
-const requestsCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const requestsCommand = ({ args, parseFlags, parsePositiveInteger, recover, wrap }: JellyseerrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [limitFlag], [allFlag])
-      const limit = yield* limitFromParsed(parsed)
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag], booleanFlags: [allFlag] })
+      const limit = yield* limitFromParsed(parsed, parsePositiveInteger)
       const filter: RequestFilter = parsed.booleans.has(allFlag) ? 'all' : 'pending'
-      return yield* wrap(command, requests({ limit, filter }))
+      return yield* wrap(requests({ limit, filter }))
     })
   )
 
-const searchCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: JellyseerrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [limitFlag], [])
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
       if (query.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('search query is required')))
+        return yield* wrap(Effect.fail(usageError('search query is required')))
       }
-      const limit = yield* limitFromParsed(parsed)
-      return yield* wrap(command, search({ query, limit }))
+      const limit = yield* limitFromParsed(parsed, parsePositiveInteger)
+      return yield* wrap(search({ query, limit }))
     })
   )
 
-const mediaStatusCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
-    idFromArgs(args, 'media-id').pipe(Effect.flatMap((mediaId) => wrap(command, mediaStatus(mediaId))))
-  )
+const mediaStatusCommand = ({ args, parsePositiveInteger, recover, wrap }: JellyseerrInvocation) =>
+  recover(parsePositiveInteger(args[0], 'media-id').pipe(Effect.flatMap((mediaId) => wrap(mediaStatus(mediaId)))))
 
 const limitCommand = <Result extends JellyseerrCliResult>(
-  command: string,
-  args: ReadonlyArray<string>,
+  { args, parseFlags, parsePositiveInteger, recover, wrap }: JellyseerrInvocation,
   program: (limit: number) => Effect.Effect<Result, JellyseerrError, JellyseerrApi | JellyseerrConfig>
 ) =>
-  recoverEnvelope(
-    command,
-    parseFlags(args, [limitFlag], []).pipe(
-      Effect.flatMap(limitFromParsed),
-      Effect.flatMap((limit) => wrap(command, program(limit)))
+  recover(
+    parseFlags(args, { valueFlags: [limitFlag] }).pipe(
+      Effect.flatMap((parsed) => limitFromParsed(parsed, parsePositiveInteger)),
+      Effect.flatMap((limit) => wrap(program(limit)))
     )
   )
 
 const confirmationEnvelope = (
-  command: string,
+  errorToEnvelope: JellyseerrInvocation['errorToEnvelope'],
   action: string,
   flag: string,
   template: string,
   requestId: number
 ): ErrorEnvelope =>
-  errorToEnvelope(command, confirmationRequired(action, flag), [
+  errorToEnvelope(confirmationRequired(action, flag), [
     {
       command: template,
       description: `${action} after user confirmation`,
@@ -266,8 +180,7 @@ const confirmationEnvelope = (
   ])
 
 const confirmedRequestCommand = (
-  command: string,
-  args: ReadonlyArray<string>,
+  { args, errorToEnvelope, parseFlags, parsePositiveInteger, recover, wrap }: JellyseerrInvocation,
   flag: string,
   action: string,
   template: string,
@@ -275,91 +188,146 @@ const confirmedRequestCommand = (
     requestId: number
   ) => Effect.Effect<RequestRecord | DeleteRequestResult, JellyseerrError, JellyseerrApi | JellyseerrConfig>
 ) =>
-  recoverEnvelope(
-    command,
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [], [flag])
-      const requestId = yield* parseInteger(parsed.positionals[0], 'request-id')
+      const parsed = yield* parseFlags(args, { booleanFlags: [flag] })
+      const requestId = yield* parsePositiveInteger(parsed.positionals[0], 'request-id')
 
       if (!parsed.booleans.has(flag)) {
-        return confirmationEnvelope(command, action, flag, template, requestId)
+        return confirmationEnvelope(errorToEnvelope, action, flag, template, requestId)
       }
 
-      return yield* wrap(command, program(requestId))
+      return yield* wrap(program(requestId))
     })
   )
 
-const dispatch = (
-  args: ReadonlyArray<string>
-): Effect.Effect<JellyseerrCliEnvelope, never, JellyseerrApi | JellyseerrConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return statusCommand(command)
-    }
-    case 'requests': {
-      return requestsCommand(command, rest)
-    }
-    case 'request-counts': {
-      return requestCountsCommand(command)
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    case 'media-status': {
-      return mediaStatusCommand(command, rest)
-    }
-    case 'recently-added': {
-      return limitCommand(command, rest, (limit) => recentlyAdded({ limit }))
-    }
-    case 'approve': {
-      return confirmedRequestCommand(
-        command,
-        rest,
+const commandDefinitions: ReadonlyArray<
+  CommandDefinition<JellyseerrCliResult, JellyseerrCliError, JellyseerrCliContext>
+> = [
+  {
+    name: 'status',
+    description: { command: statusCommandTemplate, description: 'Return Jellyseerr status' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'requests',
+    description: {
+      command: requestsCommandTemplate,
+      description: 'Return pending media requests by default',
+      flags: [
+        { name: allFlag, description: 'Include all request states' },
+        { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
+      ],
+    },
+    handle: requestsCommand,
+  },
+  {
+    name: 'request-counts',
+    description: { command: requestCountsCommandTemplate, description: 'Return request totals by state' },
+    handle: ({ wrap }) => wrap(requestCounts),
+  },
+  {
+    name: 'search',
+    description: {
+      command: searchCommandTemplate,
+      description: 'Search TMDB through Jellyseerr',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: searchCommand,
+  },
+  {
+    name: 'media-status',
+    description: { command: mediaStatusCommandTemplate, description: 'Return one Jellyseerr media row' },
+    handle: mediaStatusCommand,
+  },
+  {
+    name: 'recently-added',
+    description: {
+      command: recentlyAddedCommandTemplate,
+      description: 'Return recently available media',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => recentlyAdded({ limit })),
+  },
+  {
+    name: 'approve',
+    description: {
+      command: approveCommandTemplate,
+      description: 'Approve a media request',
+      flags: [{ name: confirmApproveFlag, description: 'Confirm request approval' }],
+    },
+    handle: (invocation) =>
+      confirmedRequestCommand(
+        invocation,
         confirmApproveFlag,
         'Approve request',
         approveConfirmedCommandTemplate,
         approve
-      )
-    }
-    case 'decline': {
-      return confirmedRequestCommand(
-        command,
-        rest,
+      ),
+  },
+  {
+    name: 'decline',
+    description: {
+      command: declineCommandTemplate,
+      description: 'Decline a media request',
+      flags: [{ name: confirmDeclineFlag, description: 'Confirm request decline' }],
+    },
+    handle: (invocation) =>
+      confirmedRequestCommand(
+        invocation,
         confirmDeclineFlag,
         'Decline request',
         declineConfirmedCommandTemplate,
         decline
-      )
-    }
-    case 'delete-request': {
-      return confirmedRequestCommand(
-        command,
-        rest,
+      ),
+  },
+  {
+    name: 'delete-request',
+    description: {
+      command: deleteRequestCommandTemplate,
+      description: 'Delete a media request',
+      flags: [{ name: confirmDeleteRequestFlag, description: 'Confirm request deletion' }],
+    },
+    handle: (invocation) =>
+      confirmedRequestCommand(
+        invocation,
         confirmDeleteRequestFlag,
         'Delete request',
         deleteRequestConfirmedCommandTemplate,
         deleteRequest
-      )
-    }
-    case 'users': {
-      return limitCommand(command, rest, (limit) => users({ limit }))
-    }
-    case 'issues': {
-      return limitCommand(command, rest, (limit) => issues({ limit }))
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+      ),
+  },
+  {
+    name: 'users',
+    description: {
+      command: usersCommandTemplate,
+      description: 'Return Jellyseerr users',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => users({ limit })),
+  },
+  {
+    name: 'issues',
+    description: {
+      command: issuesCommandTemplate,
+      description: 'Return open Jellyseerr issues',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => issues({ limit })),
+  },
+]
+
+const execute = createCliRunner<JellyseerrCliResult, JellyseerrCliError, JellyseerrCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
 
 export const executeJellyseerr = (
   args: ReadonlyArray<string>
-): Effect.Effect<JellyseerrCliEnvelope, never, JellyseerrApi | JellyseerrConfig> => dispatch(args)
+): Effect.Effect<JellyseerrCliEnvelope, never, JellyseerrCliContext> => execute(args)

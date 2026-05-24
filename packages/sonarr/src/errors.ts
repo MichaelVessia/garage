@@ -10,7 +10,6 @@ export type SonarrErrorCode =
   | 'SONARR_DECODE_ERROR'
   | 'SONARR_NOT_FOUND'
   | 'SONARR_DELETE_CONFIRMATION_REQUIRED'
-  | 'SONARR_CLI_USAGE'
 
 export class SonarrError extends Schema.TaggedErrorClass<SonarrError>()('SonarrError', {
   code: Schema.Literals([
@@ -20,7 +19,6 @@ export class SonarrError extends Schema.TaggedErrorClass<SonarrError>()('SonarrE
     'SONARR_DECODE_ERROR',
     'SONARR_NOT_FOUND',
     'SONARR_DELETE_CONFIRMATION_REQUIRED',
-    'SONARR_CLI_USAGE',
   ]),
   message: Schema.String,
   fix: Schema.String,
@@ -66,11 +64,4 @@ export const deleteConfirmationRequired = (): SonarrError =>
     code: 'SONARR_DELETE_CONFIRMATION_REQUIRED',
     message: 'Deleting files requires --confirm-delete-files',
     fix: 'Re-run with --confirm-delete-files only if you intend to delete media files from disk.',
-  })
-
-export const cliUsageError = (message: string): SonarrError =>
-  new SonarrError({
-    code: 'SONARR_CLI_USAGE',
-    message,
-    fix: 'Run sonarr to inspect available commands and required arguments.',
   })

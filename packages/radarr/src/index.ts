@@ -1,5 +1,4 @@
 export {
-  cliUsageError,
   collectionConfirmationRequired,
   decodeError,
   deleteConfirmationRequired,

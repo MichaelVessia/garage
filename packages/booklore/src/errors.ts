@@ -8,7 +8,6 @@ export type BookloreErrorCode =
   | 'BOOKLORE_UNREACHABLE'
   | 'BOOKLORE_HTTP_ERROR'
   | 'BOOKLORE_DECODE_ERROR'
-  | 'BOOKLORE_CLI_USAGE'
 
 export class BookloreError extends Schema.TaggedErrorClass<BookloreError>()('BookloreError', {
   code: Schema.Literals([
@@ -16,7 +15,6 @@ export class BookloreError extends Schema.TaggedErrorClass<BookloreError>()('Boo
     'BOOKLORE_UNREACHABLE',
     'BOOKLORE_HTTP_ERROR',
     'BOOKLORE_DECODE_ERROR',
-    'BOOKLORE_CLI_USAGE',
   ]),
   message: Schema.String,
   fix: Schema.String,
@@ -44,11 +42,4 @@ export const decodeError = (message: string): BookloreError =>
     code: 'BOOKLORE_DECODE_ERROR',
     message,
     fix: 'Update the BookLore schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): BookloreError =>
-  new BookloreError({
-    code: 'BOOKLORE_CLI_USAGE',
-    message,
-    fix: 'Run booklore to inspect available commands and required arguments.',
   })

@@ -1,9 +1,14 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import {
   albumInfo,
   albums,
-  cliUsageError,
   defaultLimit,
   jobs,
   libraryStats,
@@ -38,7 +43,7 @@ import type {
 } from '@garage/immich'
 import { Effect } from 'effect'
 
-import { commandTree, envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
+import { envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
 export type ImmichCliResult =
@@ -57,77 +62,14 @@ export type ImmichCliResult =
   | ListResult<TagRecord>
 
 export type ImmichCliEnvelope = SuccessEnvelope<ImmichCliResult> | ErrorEnvelope
+type ImmichCliError = ImmichError | CliUsageError
+type ImmichCliContext = ImmichApi | ImmichConfig
+type ImmichInvocation = CommandInvocation<ImmichCliResult, ImmichCliError, ImmichCliContext>
 
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (command: string, error: ImmichError, nextActions: ReadonlyArray<NextAction>): ErrorEnvelope =>
-  errorEnvelope({ command, error: { code: error.code, message: error.message }, fix: error.fix, nextActions })
-
-const wrap = <Result>(
+const root = (
   command: string,
-  program: Effect.Effect<Result, ImmichError, ImmichApi | ImmichConfig>
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, ImmichApi | ImmichConfig> =>
-  program.pipe(
-    Effect.map((result) => successEnvelope({ command, result })),
-    Effect.match({ onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]), onSuccess: (x) => x })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, ImmichError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-  const parsed = Number(value)
-  return Number.isInteger(parsed) && parsed > 0
-    ? Effect.succeed(parsed)
-    : Effect.fail(cliUsageError(`${label} must be a positive integer`))
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, ImmichError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('-')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-  return Effect.succeed({ positionals, values })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<ImmichCliEnvelope, ImmichError, ImmichApi | ImmichConfig>
-): Effect.Effect<ImmichCliEnvelope, never, ImmichApi | ImmichConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, ImmichApi | ImmichConfig> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, ImmichCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) =>
@@ -157,124 +99,164 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const limitFromArgs = (args: ReadonlyArray<string>) =>
-  parseFlags(args, [limitFlag]).pipe(
-    Effect.flatMap((parsed) => {
-      const value = parsed.values.get(limitFlag)
-      return value === undefined ? Effect.succeed(defaultLimit) : parseInteger(value, 'limit')
-    })
-  )
-
 const limitCommand = <Result extends ImmichCliResult>(
-  command: string,
-  args: ReadonlyArray<string>,
+  { args, limitFromArgs, recover, wrap }: ImmichInvocation,
   program: (limit: number) => Effect.Effect<Result, ImmichError, ImmichApi | ImmichConfig>
-) => recoverEnvelope(command, limitFromArgs(args).pipe(Effect.flatMap((limit) => wrap(command, program(limit)))))
+) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
-const searchCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: ImmichInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [limitFlag])
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
       if (query.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('query is required')))
+        return yield* wrap(Effect.fail(usageError('query is required')))
       }
       const value = parsed.values.get(limitFlag)
-      const limit = value === undefined ? defaultLimit : yield* parseInteger(value, 'limit')
-      return yield* wrap(command, search({ query, limit }))
+      const limit = value === undefined ? defaultLimit : yield* parsePositiveInteger(value, 'limit')
+      return yield* wrap(search({ query, limit }))
     })
   )
 
-const albumInfoCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const albumInfoCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: ImmichInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [limitFlag])
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const [id] = parsed.positionals
       if (id === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError('album id is required')))
+        return yield* wrap(Effect.fail(usageError('album id is required')))
       }
       const value = parsed.values.get(limitFlag)
-      const limit = value === undefined ? defaultLimit : yield* parseInteger(value, 'limit')
-      return yield* wrap(command, albumInfo({ id, limit }))
+      const limit = value === undefined ? defaultLimit : yield* parsePositiveInteger(value, 'limit')
+      return yield* wrap(albumInfo({ id, limit }))
     })
   )
 
 const singleIdCommand = <Result extends ImmichCliResult>(
-  command: string,
-  rest: ReadonlyArray<string>,
+  { args, parseFlags, recover, usageError, wrap }: ImmichInvocation,
   label: string,
   program: (id: string) => Effect.Effect<Result, ImmichError, ImmichApi | ImmichConfig>
 ) =>
-  recoverEnvelope(
-    command,
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [])
+      const parsed = yield* parseFlags(args)
       const [id] = parsed.positionals
       if (id === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError(`${label} is required`)))
+        return yield* wrap(Effect.fail(usageError(`${label} is required`)))
       }
-      return yield* wrap(command, program(id))
+      return yield* wrap(program(id))
     })
   )
 
-const dispatch = (args: ReadonlyArray<string>): Effect.Effect<ImmichCliEnvelope, never, ImmichApi | ImmichConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return wrap(command, status)
-    }
-    case 'stats': {
-      return wrap(command, stats)
-    }
-    case 'storage': {
-      return wrap(command, storage)
-    }
-    case 'users': {
-      return wrap(command, users)
-    }
-    case 'me': {
-      return wrap(command, me)
-    }
-    case 'albums': {
-      return limitCommand(command, rest, (limit) => albums({ limit }))
-    }
-    case 'album-info': {
-      return albumInfoCommand(command, rest)
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    case 'recent': {
-      return limitCommand(command, rest, (limit) => recent({ limit }))
-    }
-    case 'people': {
-      return limitCommand(command, rest, (limit) => people({ limit }))
-    }
-    case 'person-info': {
-      return singleIdCommand(command, rest, 'person id', personInfo)
-    }
-    case 'jobs': {
-      return wrap(command, jobs)
-    }
-    case 'library-stats': {
-      return wrap(command, libraryStats)
-    }
-    case 'tags': {
-      return wrap(command, tags)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
-export const executeImmich = (
-  args: ReadonlyArray<string>
-): Effect.Effect<ImmichCliEnvelope, never, ImmichApi | ImmichConfig> => dispatch(args)
+const commandDefinitions: ReadonlyArray<CommandDefinition<ImmichCliResult, ImmichCliError, ImmichCliContext>> = [
+  {
+    name: 'status',
+    description: { command: `${rootCommand} status`, description: 'Return Immich version and ping' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'stats',
+    description: {
+      command: `${rootCommand} stats`,
+      description: 'Return library photo, video, usage, and per-user stats',
+    },
+    handle: ({ wrap }) => wrap(stats),
+  },
+  {
+    name: 'storage',
+    description: { command: `${rootCommand} storage`, description: 'Return storage capacity and usage' },
+    handle: ({ wrap }) => wrap(storage),
+  },
+  {
+    name: 'users',
+    description: {
+      command: `${rootCommand} users`,
+      description: 'Return users, preferring admin fields when available',
+    },
+    handle: ({ wrap }) => wrap(users),
+  },
+  {
+    name: 'me',
+    description: { command: `${rootCommand} me`, description: 'Return the user attached to the API key' },
+    handle: ({ wrap }) => wrap(me),
+  },
+  {
+    name: 'albums',
+    description: {
+      command: `${rootCommand} albums [${limitFlag} <n>]`,
+      description: 'Return visible albums',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => albums({ limit })),
+  },
+  {
+    name: 'album-info',
+    description: {
+      command: `${rootCommand} album-info <id> [${limitFlag} <n>]`,
+      description: 'Return album metadata and a bounded asset sample',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum assets to include', default: defaultLimit }],
+    },
+    handle: albumInfoCommand,
+  },
+  {
+    name: 'search',
+    description: {
+      command: `${rootCommand} search <query> [${limitFlag} <n>]`,
+      description: 'Run smart search, falling back to filename metadata search',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum assets to return', default: defaultLimit }],
+    },
+    handle: searchCommand,
+  },
+  {
+    name: 'recent',
+    description: {
+      command: `${rootCommand} recent [${limitFlag} <n>]`,
+      description: 'Return recent assets',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum assets to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => recent({ limit })),
+  },
+  {
+    name: 'people',
+    description: {
+      command: `${rootCommand} people [${limitFlag} <n>]`,
+      description: 'Return visible people',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum people to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => people({ limit })),
+  },
+  {
+    name: 'person-info',
+    description: { command: `${rootCommand} person-info <id>`, description: 'Return person detail' },
+    handle: (invocation) => singleIdCommand(invocation, 'person id', personInfo),
+  },
+  {
+    name: 'jobs',
+    description: { command: `${rootCommand} jobs`, description: 'Return background job queues' },
+    handle: ({ wrap }) => wrap(jobs),
+  },
+  {
+    name: 'library-stats',
+    description: { command: `${rootCommand} library-stats`, description: 'Alias for stats' },
+    handle: ({ wrap }) => wrap(libraryStats),
+  },
+  {
+    name: 'tags',
+    description: { command: `${rootCommand} tags`, description: 'Return tags' },
+    handle: ({ wrap }) => wrap(tags),
+  },
+]
+
+const execute = createCliRunner<ImmichCliResult, ImmichCliError, ImmichCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
+
+export const executeImmich = (args: ReadonlyArray<string>): Effect.Effect<ImmichCliEnvelope, never, ImmichCliContext> =>
+  execute(args)

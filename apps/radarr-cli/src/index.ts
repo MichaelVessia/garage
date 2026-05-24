@@ -1,11 +1,17 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  NextAction,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import {
   RadarrConfig,
   addCollection,
   addMovie,
   calendar,
-  cliUsageError,
   collectionConfirmationRequired,
   collectionInfo,
   config,
@@ -45,7 +51,6 @@ import {
   addCollectionCommandTemplate,
   addCommandTemplate,
   calendarDaysCommandTemplate,
-  commandTree,
   collectionInfoCommandTemplate,
   confirmAddCollectionFlag,
   confirmDeleteFilesFlag,
@@ -82,88 +87,9 @@ export type RadarrCliResult =
   | ListResult<HistoryRecord>
 
 export type RadarrCliEnvelope = SuccessEnvelope<RadarrCliResult> | ErrorEnvelope
-
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-  readonly booleans: ReadonlySet<string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (command: string, error: RadarrError, nextActions: ReadonlyArray<NextAction>): ErrorEnvelope =>
-  errorEnvelope({
-    command,
-    error: { code: error.code, message: error.message },
-    fix: error.fix,
-    nextActions,
-  })
-
-const wrap = <Result>(
-  command: string,
-  program: Effect.Effect<Result, RadarrError, RadarrApi | RadarrConfig>,
-  nextActions: (
-    result: Result
-  ) => Effect.Effect<ReadonlyArray<NextAction>, RadarrError, RadarrApi | RadarrConfig> = () => Effect.succeed([])
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, RadarrApi | RadarrConfig> =>
-  program.pipe(
-    Effect.flatMap((result) =>
-      nextActions(result).pipe(Effect.map((actions) => successEnvelope({ command, result, nextActions: actions })))
-    ),
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, RadarrError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return Effect.fail(cliUsageError(`${label} must be a positive integer`))
-  }
-
-  return Effect.succeed(parsed)
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>,
-  booleanFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, RadarrError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  const booleans = new Set<string>()
-
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('--')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (booleanFlags.includes(token)) {
-      booleans.add(token)
-      index += 1
-    } else if (token.startsWith('--')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-
-  return Effect.succeed({ positionals, values, booleans })
-}
+type RadarrCliError = RadarrError | CliUsageError
+type RadarrCliContext = RadarrApi | RadarrConfig
+type RadarrInvocation = CommandInvocation<RadarrCliResult, RadarrCliError, RadarrCliContext>
 
 const defaultQualityProfileAction = (
   tmdbId: number,
@@ -232,18 +158,10 @@ const listNextAction = (command: string, description: string): ReadonlyArray<Nex
   },
 ]
 
-const recoverEnvelope = (
+const root = (
   command: string,
-  program: Effect.Effect<RadarrCliEnvelope, RadarrError, RadarrApi | RadarrConfig>
-): Effect.Effect<RadarrCliEnvelope, never, RadarrApi | RadarrConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, RadarrApi | RadarrConfig> =>
+  commandTree: ReadonlyArray<{ readonly command: string; readonly description: string }>
+): Effect.Effect<SuccessEnvelope<RootResult>, never, RadarrCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) => {
@@ -276,69 +194,70 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const statusCommand = (command: string) => wrap(command, status)
-const configCommand = (command: string) => wrap(command, config)
-
-const searchCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: RadarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [limitFlag], [])
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
       const limitValue = parsed.values.get(limitFlag)
-      const limit = limitValue === undefined ? defaultLimit : yield* parseInteger(limitValue, limitFlag)
+      const limit = limitValue === undefined ? defaultLimit : yield* parsePositiveInteger(limitValue, limitFlag)
 
       if (query.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('search query is required')))
+        return yield* wrap(Effect.fail(usageError('search query is required')))
       }
 
-      return yield* wrap(command, search(query, { limit }), searchNextActions)
+      return yield* wrap(search(query, { limit }), searchNextActions)
     })
   )
 
-const existsCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
-    parseInteger(args[0], 'tmdb-id').pipe(Effect.flatMap((tmdbId) => wrap(command, exists(tmdbId), existsNextActions)))
+const existsCommand = ({ args, parsePositiveInteger, recover, wrap }: RadarrInvocation) =>
+  recover(
+    parsePositiveInteger(args[0], 'tmdb-id').pipe(Effect.flatMap((tmdbId) => wrap(exists(tmdbId), existsNextActions)))
   )
 
-const addCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const addCommand = ({ args, parseFlags, parsePositiveInteger, recover, wrap }: RadarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [qualityProfileFlag], [noSearchFlag])
-      const tmdbId = yield* parseInteger(parsed.positionals[0], 'tmdb-id')
+      const parsed = yield* parseFlags(args, { valueFlags: [qualityProfileFlag], booleanFlags: [noSearchFlag] })
+      const tmdbId = yield* parsePositiveInteger(parsed.positionals[0], 'tmdb-id')
       const qualityProfileValue = parsed.values.get(qualityProfileFlag)
       const qualityProfileId =
-        qualityProfileValue === undefined ? undefined : yield* parseInteger(qualityProfileValue, 'quality-profile-id')
+        qualityProfileValue === undefined
+          ? undefined
+          : yield* parsePositiveInteger(qualityProfileValue, 'quality-profile-id')
       const searchForMovie = !parsed.booleans.has(noSearchFlag)
       const options = qualityProfileId === undefined ? { searchForMovie } : { qualityProfileId, searchForMovie }
 
-      return yield* wrap(command, addMovie(tmdbId, options))
+      return yield* wrap(addMovie(tmdbId, options))
     })
   )
 
-const addCollectionConfirmationEnvelope = (command: string, collectionTmdbId: number): ErrorEnvelope =>
-  errorToEnvelope(command, collectionConfirmationRequired(), collectionNextActions(collectionTmdbId))
-
-const addCollectionCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const addCollectionCommand = ({
+  args,
+  errorToEnvelope,
+  parseFlags,
+  parsePositiveInteger,
+  recover,
+  wrap,
+}: RadarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [resultLimitFlag], [noSearchFlag, confirmAddCollectionFlag])
-      const collectionTmdbId = yield* parseInteger(parsed.positionals[0], 'collection-tmdb-id')
+      const parsed = yield* parseFlags(args, {
+        valueFlags: [resultLimitFlag],
+        booleanFlags: [noSearchFlag, confirmAddCollectionFlag],
+      })
+      const collectionTmdbId = yield* parsePositiveInteger(parsed.positionals[0], 'collection-tmdb-id')
       const resultLimitValue = parsed.values.get(resultLimitFlag)
       const resultLimit =
         resultLimitValue === undefined
           ? defaultAddCollectionResultLimit
-          : yield* parseInteger(resultLimitValue, 'result-limit')
+          : yield* parsePositiveInteger(resultLimitValue, 'result-limit')
 
       if (!parsed.booleans.has(confirmAddCollectionFlag)) {
-        return addCollectionConfirmationEnvelope(command, collectionTmdbId)
+        return errorToEnvelope(collectionConfirmationRequired(), collectionNextActions(collectionTmdbId))
       }
 
       return yield* wrap(
-        command,
         addCollection(collectionTmdbId, {
           searchForMovies: !parsed.booleans.has(noSearchFlag),
           resultLimit,
@@ -347,73 +266,52 @@ const addCollectionCommand = (command: string, args: ReadonlyArray<string>) =>
     })
   )
 
-const collectionInfoCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
-    parseInteger(args[0], 'collection-tmdb-id').pipe(
+const collectionInfoCommand = ({ args, parsePositiveInteger, recover, wrap }: RadarrInvocation) =>
+  recover(
+    parsePositiveInteger(args[0], 'collection-tmdb-id').pipe(
       Effect.flatMap((collectionTmdbId) =>
-        wrap(command, collectionInfo(collectionTmdbId), () =>
-          Effect.succeed(collectionNextActions(collectionTmdbId).slice(1))
-        )
+        wrap(collectionInfo(collectionTmdbId), () => Effect.succeed(collectionNextActions(collectionTmdbId).slice(1)))
       )
     )
   )
 
-const removeDeleteConfirmationEnvelope = (command: string, tmdbId: number): ErrorEnvelope =>
-  errorToEnvelope(command, deleteConfirmationRequired(), [
-    {
-      command: removeKeepFilesCommandTemplate,
-      description: 'Remove the movie from Radarr while keeping files on disk',
-      params: { 'tmdb-id': { value: tmdbId, description: 'TMDB movie ID' } },
-    },
-  ])
-
-const removeCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const removeCommand = ({ args, errorToEnvelope, parseFlags, parsePositiveInteger, recover, wrap }: RadarrInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(args, [], [deleteFilesFlag, confirmDeleteFilesFlag])
-      const tmdbId = yield* parseInteger(parsed.positionals[0], 'tmdb-id')
+      const parsed = yield* parseFlags(args, { booleanFlags: [deleteFilesFlag, confirmDeleteFilesFlag] })
+      const tmdbId = yield* parsePositiveInteger(parsed.positionals[0], 'tmdb-id')
       const deleteFiles = parsed.booleans.has(deleteFilesFlag)
 
       if (deleteFiles && !parsed.booleans.has(confirmDeleteFilesFlag)) {
-        return removeDeleteConfirmationEnvelope(command, tmdbId)
+        return errorToEnvelope(deleteConfirmationRequired(), [
+          {
+            command: removeKeepFilesCommandTemplate,
+            description: 'Remove the movie from Radarr while keeping files on disk',
+            params: { 'tmdb-id': { value: tmdbId, description: 'TMDB movie ID' } },
+          },
+        ])
       }
 
-      return yield* wrap(command, removeMovie(tmdbId, { deleteFiles }))
+      return yield* wrap(removeMovie(tmdbId, { deleteFiles }))
     })
   )
 
-const limitFromArgs = (
-  args: ReadonlyArray<string>,
-  flagName: string,
-  defaultValue: number
-): Effect.Effect<number, RadarrError> =>
-  parseFlags(args, [flagName], []).pipe(
-    Effect.flatMap((parsed) => {
-      const value = parsed.values.get(flagName)
-      return value === undefined ? Effect.succeed(defaultValue) : parseInteger(value, flagName)
-    })
-  )
-
-const queueCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const queueCommand = ({ args, limitFromArgs, recover, wrap }: RadarrInvocation) =>
+  recover(
     limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
-        wrap(command, queue({ limit }), () =>
+        wrap(queue({ limit }), () =>
           Effect.succeed(listNextAction(queueLimitCommandTemplate, 'Return more active queue records'))
         )
       )
     )
   )
 
-const calendarCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const calendarCommand = ({ args, limitFromArgs, recover, wrap }: RadarrInvocation) =>
+  recover(
     limitFromArgs(args, daysFlag, defaultCalendarDays).pipe(
       Effect.flatMap((days) =>
-        wrap(command, calendar({ days }), () =>
+        wrap(calendar({ days }), () =>
           Effect.succeed([
             {
               command: calendarDaysCommandTemplate,
@@ -426,81 +324,153 @@ const calendarCommand = (command: string, args: ReadonlyArray<string>) =>
     )
   )
 
-const missingCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const missingCommand = ({ args, limitFromArgs, recover, wrap }: RadarrInvocation) =>
+  recover(
     limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
-        wrap(command, missing({ limit }), () =>
+        wrap(missing({ limit }), () =>
           Effect.succeed(listNextAction(missingLimitCommandTemplate, 'Return more missing movie records'))
         )
       )
     )
   )
 
-const historyCommand = (command: string, args: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const historyCommand = ({ args, limitFromArgs, recover, wrap }: RadarrInvocation) =>
+  recover(
     limitFromArgs(args, limitFlag, defaultLimit).pipe(
       Effect.flatMap((limit) =>
-        wrap(command, history({ limit }), () =>
+        wrap(history({ limit }), () =>
           Effect.succeed(listNextAction(historyLimitCommandTemplate, 'Return more history records'))
         )
       )
     )
   )
 
-const dispatch = (args: ReadonlyArray<string>): Effect.Effect<RadarrCliEnvelope, never, RadarrApi | RadarrConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return statusCommand(command)
-    }
-    case 'config': {
-      return configCommand(command)
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    case 'exists': {
-      return existsCommand(command, rest)
-    }
-    case 'add': {
-      return addCommand(command, rest)
-    }
-    case 'add-collection': {
-      return addCollectionCommand(command, rest)
-    }
-    case 'collection-info': {
-      return collectionInfoCommand(command, rest)
-    }
-    case 'remove': {
-      return removeCommand(command, rest)
-    }
-    case 'queue': {
-      return queueCommand(command, rest)
-    }
-    case 'calendar': {
-      return calendarCommand(command, rest)
-    }
-    case 'missing': {
-      return missingCommand(command, rest)
-    }
-    case 'history': {
-      return historyCommand(command, rest)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const commandDefinitions: ReadonlyArray<CommandDefinition<RadarrCliResult, RadarrCliError, RadarrCliContext>> = [
+  {
+    name: 'status',
+    description: { command: `${rootCommand} status`, description: 'Return the Radarr system status summary' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'config',
+    description: { command: `${rootCommand} config`, description: 'Return root folders and quality profiles' },
+    handle: ({ wrap }) => wrap(config),
+  },
+  {
+    name: 'search',
+    description: {
+      command: `${rootCommand} search <query>`,
+      description: 'Search Radarr lookup by movie title',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: searchCommand,
+  },
+  {
+    name: 'exists',
+    description: { command: existsCommandTemplate, description: 'Check whether a TMDB ID is already in the library' },
+    handle: existsCommand,
+  },
+  {
+    name: 'add',
+    description: {
+      command: addCommandTemplate,
+      description: 'Add a movie by TMDB ID',
+      flags: [
+        {
+          name: `${qualityProfileFlag} <quality-profile-id>`,
+          description: 'Override the default Radarr quality profile',
+        },
+        { name: noSearchFlag, description: 'Add without searching for the movie' },
+      ],
+    },
+    handle: addCommand,
+  },
+  {
+    name: 'add-collection',
+    description: {
+      command: addCollectionCommandTemplate,
+      description: 'Add movies from a known Radarr collection',
+      flags: [
+        { name: noSearchFlag, description: 'Add movies without searching' },
+        { name: confirmAddCollectionFlag, description: 'Confirm the collection add' },
+        {
+          name: `${resultLimitFlag} <n>`,
+          description: 'Maximum result records to include in the envelope',
+          default: defaultAddCollectionResultLimit,
+        },
+      ],
+    },
+    handle: addCollectionCommand,
+  },
+  {
+    name: 'collection-info',
+    description: {
+      command: collectionInfoCommandTemplate,
+      description: 'Inspect a known Radarr collection by TMDB ID',
+    },
+    handle: collectionInfoCommand,
+  },
+  {
+    name: 'remove',
+    description: {
+      command: `${rootCommand} remove <tmdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`,
+      description: 'Remove a movie by TMDB ID',
+      flags: [
+        { name: deleteFilesFlag, description: 'Request media file deletion' },
+        { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
+      ],
+    },
+    handle: removeCommand,
+  },
+  {
+    name: 'queue',
+    description: {
+      command: `${rootCommand} queue [${limitFlag} <n>]`,
+      description: 'Return active queue records',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: queueCommand,
+  },
+  {
+    name: 'calendar',
+    description: {
+      command: `${rootCommand} calendar [${daysFlag} <n>]`,
+      description: 'Return upcoming movies',
+      flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
+    },
+    handle: calendarCommand,
+  },
+  {
+    name: 'missing',
+    description: {
+      command: `${rootCommand} missing [${limitFlag} <n>]`,
+      description: 'Return monitored missing movies',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: missingCommand,
+  },
+  {
+    name: 'history',
+    description: {
+      command: `${rootCommand} history [${limitFlag} <n>]`,
+      description: 'Return recent history records',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
+    },
+    handle: historyCommand,
+  },
+]
 
-export const executeRadarr = (
-  args: ReadonlyArray<string>
-): Effect.Effect<RadarrCliEnvelope, never, RadarrApi | RadarrConfig> => dispatch(args)
+const execute = createCliRunner<RadarrCliResult, RadarrCliError, RadarrCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
+
+export const executeRadarr = (args: ReadonlyArray<string>): Effect.Effect<RadarrCliEnvelope, never, RadarrCliContext> =>
+  execute(args)

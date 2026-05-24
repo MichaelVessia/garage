@@ -1,12 +1,4 @@
-export {
-  cliUsageError,
-  decodeError,
-  envFix,
-  envMissing,
-  httpError,
-  syncConfirmationRequired,
-  unreachable,
-} from './errors.js'
+export { decodeError, envFix, envMissing, httpError, syncConfirmationRequired, unreachable } from './errors.js'
 export type { ProwlarrErrorCode } from './errors.js'
 export { ProwlarrError } from './errors.js'
 export { ProwlarrApiLive } from './http.js'

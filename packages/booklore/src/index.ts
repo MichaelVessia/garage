@@ -1,5 +1,5 @@
 export { JsonObjectSchema } from './api-schema.js'
-export { cliUsageError, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
+export { decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
 export type { BookloreErrorCode } from './errors.js'
 export { BookloreError } from './errors.js'
 export { BookloreApiLive } from './http.js'

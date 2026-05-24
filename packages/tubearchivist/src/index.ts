@@ -1,13 +1,5 @@
 export { JsonObjectSchema } from './api-schema.js'
-export {
-  cliUsageError,
-  confirmationRequired,
-  decodeError,
-  envFix,
-  envMissing,
-  httpError,
-  unreachable,
-} from './errors.js'
+export { confirmationRequired, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
 export type { TubearchivistErrorCode } from './errors.js'
 export { TubearchivistError } from './errors.js'
 export { TubearchivistApiLive } from './http.js'

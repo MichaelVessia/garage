@@ -8,7 +8,6 @@ export type TubearchivistErrorCode =
   | 'TUBEARCHIVIST_UNREACHABLE'
   | 'TUBEARCHIVIST_HTTP_ERROR'
   | 'TUBEARCHIVIST_DECODE_ERROR'
-  | 'TUBEARCHIVIST_CLI_USAGE'
   | 'TUBEARCHIVIST_CONFIRMATION_REQUIRED'
 
 export class TubearchivistError extends Schema.TaggedErrorClass<TubearchivistError>()('TubearchivistError', {
@@ -17,7 +16,6 @@ export class TubearchivistError extends Schema.TaggedErrorClass<TubearchivistErr
     'TUBEARCHIVIST_UNREACHABLE',
     'TUBEARCHIVIST_HTTP_ERROR',
     'TUBEARCHIVIST_DECODE_ERROR',
-    'TUBEARCHIVIST_CLI_USAGE',
     'TUBEARCHIVIST_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -48,13 +46,6 @@ export const decodeError = (message: string): TubearchivistError =>
     code: 'TUBEARCHIVIST_DECODE_ERROR',
     message,
     fix: 'Update the TubeArchivist schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): TubearchivistError =>
-  new TubearchivistError({
-    code: 'TUBEARCHIVIST_CLI_USAGE',
-    message,
-    fix: 'Run tubearchivist to inspect available commands and required arguments.',
   })
 
 export const confirmationRequired = (flag: string): TubearchivistError =>

@@ -1,4 +1,4 @@
-export { AutocaliwebError, cliUsageError, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
+export { AutocaliwebError, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
 export { AutocaliwebApiLive } from './http.js'
 export {
   bookInfo,

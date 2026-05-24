@@ -1,12 +1,4 @@
-export {
-  cliUsageError,
-  decodeError,
-  deleteConfirmationRequired,
-  envFix,
-  envMissing,
-  httpError,
-  unreachable,
-} from './errors.js'
+export { decodeError, deleteConfirmationRequired, envFix, envMissing, httpError, unreachable } from './errors.js'
 export type { SabnzbdErrorCode } from './errors.js'
 export { SabnzbdError } from './errors.js'
 export { SabnzbdApiLive } from './http.js'

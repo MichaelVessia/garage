@@ -1,17 +1,13 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
-import {
-  cliUsageError,
-  currentExitNode,
-  defaultLimit,
-  dns,
-  exitNodes,
-  ip,
-  peers,
-  ping,
-  status,
-  whois,
-} from '@garage/tailscale'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  NextAction,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
+import { currentExitNode, defaultLimit, dns, exitNodes, ip, peers, ping, status, whois } from '@garage/tailscale'
 import type {
   CurrentExitNodeResult,
   DnsResult,
@@ -26,7 +22,7 @@ import type {
 } from '@garage/tailscale'
 import { Effect } from 'effect'
 
-import { commandTree, installNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
+import { installNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
 export type TailscaleCliResult =
@@ -40,85 +36,16 @@ export type TailscaleCliResult =
   | PingResult
 
 export type TailscaleCliEnvelope = SuccessEnvelope<TailscaleCliResult> | ErrorEnvelope
+type TailscaleCliError = TailscaleError | CliUsageError
+type TailscaleInvocation = CommandInvocation<TailscaleCliResult, TailscaleCliError, TailscaleApi>
 
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const nextActionsFor = (error: TailscaleError): ReadonlyArray<NextAction> =>
+const nextActionsFor = (error: TailscaleCliError): ReadonlyArray<NextAction> =>
   error.code === 'TAILSCALE_CLI_MISSING' ? [installNextAction] : [showCommandsAction]
 
-const errorToEnvelope = (command: string, error: TailscaleError): ErrorEnvelope =>
-  errorEnvelope({
-    command,
-    error: { code: error.code, message: error.message },
-    fix: error.fix,
-    nextActions: nextActionsFor(error),
-  })
-
-const wrap = <Result>(
+const root = (
   command: string,
-  program: Effect.Effect<Result, TailscaleError, TailscaleApi>
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, TailscaleApi> =>
-  program.pipe(
-    Effect.map((result) => successEnvelope({ command, result })),
-    Effect.match({ onFailure: (error) => errorToEnvelope(command, error), onSuccess: (x) => x })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, TailscaleError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-  const parsed = Number(value)
-  return Number.isInteger(parsed) && parsed > 0
-    ? Effect.succeed(parsed)
-    : Effect.fail(cliUsageError(`${label} must be a positive integer`))
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, TailscaleError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('-')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-  return Effect.succeed({ positionals, values })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<TailscaleCliEnvelope, TailscaleError, TailscaleApi>
-): Effect.Effect<TailscaleCliEnvelope, never, TailscaleApi> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, TailscaleApi> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, TailscaleApi> =>
   status().pipe(
     Effect.match({
       onFailure: (error) =>
@@ -152,76 +79,99 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const limitFromArgs = (args: ReadonlyArray<string>) =>
-  parseFlags(args, [limitFlag]).pipe(
-    Effect.flatMap((parsed) => {
-      const value = parsed.values.get(limitFlag)
-      return value === undefined ? Effect.succeed(defaultLimit) : parseInteger(value, 'limit')
-    })
-  )
-
 const limitCommand = <Result extends TailscaleCliResult>(
-  command: string,
-  args: ReadonlyArray<string>,
+  { args, limitFromArgs, recover, wrap }: TailscaleInvocation,
   program: (limit: number) => Effect.Effect<Result, TailscaleError, TailscaleApi>
-) => recoverEnvelope(command, limitFromArgs(args).pipe(Effect.flatMap((limit) => wrap(command, program(limit)))))
+) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
 const targetCommand = <Result extends TailscaleCliResult>(
-  command: string,
-  rest: ReadonlyArray<string>,
+  { args, parseFlags, recover, usageError, wrap }: TailscaleInvocation,
   label: string,
   program: (target: string) => Effect.Effect<Result, TailscaleError, TailscaleApi>
 ) =>
-  recoverEnvelope(
-    command,
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [])
+      const parsed = yield* parseFlags(args)
       const [target] = parsed.positionals
       if (target === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError(`${label} is required`)))
+        return yield* wrap(Effect.fail(usageError(`${label} is required`)))
       }
-      return yield* wrap(command, program(target))
+      return yield* wrap(program(target))
     })
   )
 
-const dispatch = (args: ReadonlyArray<string>): Effect.Effect<TailscaleCliEnvelope, never, TailscaleApi> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return limitCommand(command, rest, (limit) => status({ limit }))
-    }
-    case 'peers': {
-      return limitCommand(command, rest, (limit) => peers({ limit }))
-    }
-    case 'exit-nodes': {
-      return limitCommand(command, rest, (limit) => exitNodes({ limit }))
-    }
-    case 'current-exit-node': {
-      return wrap(command, currentExitNode)
-    }
-    case 'dns': {
-      return wrap(command, dns)
-    }
-    case 'ip': {
-      return wrap(command, ip)
-    }
-    case 'whois': {
-      return targetCommand(command, rest, 'ip or host', (target) => whois({ target }))
-    }
-    case 'ping': {
-      return targetCommand(command, rest, 'host', (target) => ping({ target }))
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const rootDescription = { command: rootCommand, description: 'Show this command tree and local daemon health' }
+
+const commandDefinitions: ReadonlyArray<CommandDefinition<TailscaleCliResult, TailscaleCliError, TailscaleApi>> = [
+  {
+    name: 'status',
+    description: {
+      command: `${rootCommand} status [${limitFlag} <n>]`,
+      description: 'Return local tailnet state and a bounded peer sample',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum peers to include', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => status({ limit })),
+  },
+  {
+    name: 'peers',
+    description: {
+      command: `${rootCommand} peers [${limitFlag} <n>]`,
+      description: 'Return peers from tailscale status',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum peers to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => peers({ limit })),
+  },
+  {
+    name: 'exit-nodes',
+    description: {
+      command: `${rootCommand} exit-nodes [${limitFlag} <n>]`,
+      description: 'Return peers advertising exit-node service',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum exit nodes to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => exitNodes({ limit })),
+  },
+  {
+    name: 'current-exit-node',
+    description: {
+      command: `${rootCommand} current-exit-node`,
+      description: 'Return the exit node currently in use, if any',
+    },
+    handle: ({ wrap }) => wrap(currentExitNode),
+  },
+  {
+    name: 'dns',
+    description: { command: `${rootCommand} dns`, description: 'Return tailscale dns status output' },
+    handle: ({ wrap }) => wrap(dns),
+  },
+  {
+    name: 'ip',
+    description: { command: `${rootCommand} ip`, description: 'Return this machine tailnet IPv4 and IPv6 addresses' },
+    handle: ({ wrap }) => wrap(ip),
+  },
+  {
+    name: 'whois',
+    description: {
+      command: `${rootCommand} whois <ip-or-host>`,
+      description: 'Return tailscale whois --json for a target',
+    },
+    handle: (invocation) => targetCommand(invocation, 'ip or host', (target) => whois({ target })),
+  },
+  {
+    name: 'ping',
+    description: { command: `${rootCommand} ping <host>`, description: 'Run tailscale ping --c 3 for a target' },
+    handle: (invocation) => targetCommand(invocation, 'host', (target) => ping({ target })),
+  },
+]
+
+const execute = createCliRunner<TailscaleCliResult, TailscaleCliError, TailscaleApi>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: nextActionsFor,
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
 
 export const executeTailscale = (
   args: ReadonlyArray<string>
-): Effect.Effect<TailscaleCliEnvelope, never, TailscaleApi> => dispatch(args)
+): Effect.Effect<TailscaleCliEnvelope, never, TailscaleApi> => execute(args)

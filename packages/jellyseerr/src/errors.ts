@@ -8,7 +8,6 @@ export type JellyseerrErrorCode =
   | 'JELLYSEERR_UNREACHABLE'
   | 'JELLYSEERR_HTTP_ERROR'
   | 'JELLYSEERR_DECODE_ERROR'
-  | 'JELLYSEERR_CLI_USAGE'
   | 'JELLYSEERR_CONFIRMATION_REQUIRED'
 
 export class JellyseerrError extends Schema.TaggedErrorClass<JellyseerrError>()('JellyseerrError', {
@@ -17,7 +16,6 @@ export class JellyseerrError extends Schema.TaggedErrorClass<JellyseerrError>()(
     'JELLYSEERR_UNREACHABLE',
     'JELLYSEERR_HTTP_ERROR',
     'JELLYSEERR_DECODE_ERROR',
-    'JELLYSEERR_CLI_USAGE',
     'JELLYSEERR_CONFIRMATION_REQUIRED',
   ]),
   message: Schema.String,
@@ -50,13 +48,6 @@ export const decodeError = (message: string): JellyseerrError =>
     code: 'JELLYSEERR_DECODE_ERROR',
     message,
     fix: 'Update the Jellyseerr schemas to match the API response shape.',
-  })
-
-export const cliUsageError = (message: string): JellyseerrError =>
-  new JellyseerrError({
-    code: 'JELLYSEERR_CLI_USAGE',
-    message,
-    fix: 'Run jellyseerr to inspect available commands and required arguments.',
   })
 
 export const confirmationRequired = (action: string, flag: string): JellyseerrError =>

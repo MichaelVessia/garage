@@ -1,5 +1,5 @@
 export { JsonObjectSchema, StatusJsonSchema, toExitNodeList, toPeerList, toStatusResult } from './api-schema.js'
-export { cliMissing, cliUsageError, commandFailed, decodeError, notRunning } from './errors.js'
+export { cliMissing, commandFailed, decodeError, notRunning } from './errors.js'
 export type { TailscaleErrorCode } from './errors.js'
 export { TailscaleError } from './errors.js'
 export type {

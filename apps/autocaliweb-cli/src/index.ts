@@ -2,7 +2,6 @@ import {
   bookInfo,
   books,
   catalog,
-  cliUsageError,
   defaultLimit,
   recent,
   search,
@@ -23,11 +22,17 @@ import type {
   StatsResult,
   StatusResult,
 } from '@garage/autocaliweb'
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import { Effect } from 'effect'
 
-import { commandTree, envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
+import { envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
 export type AutocaliwebCliResult =
@@ -40,81 +45,14 @@ export type AutocaliwebCliResult =
   | SearchResult
 
 export type AutocaliwebCliEnvelope = SuccessEnvelope<AutocaliwebCliResult> | ErrorEnvelope
+type AutocaliwebCliError = AutocaliwebError | CliUsageError
+type AutocaliwebCliContext = AutocaliwebApi | AutocaliwebConfig
+type AutocaliwebInvocation = CommandInvocation<AutocaliwebCliResult, AutocaliwebCliError, AutocaliwebCliContext>
 
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (
+const root = (
   command: string,
-  error: AutocaliwebError,
-  nextActions: ReadonlyArray<NextAction>
-): ErrorEnvelope =>
-  errorEnvelope({ command, error: { code: error.code, message: error.message }, fix: error.fix, nextActions })
-
-const wrap = <Result>(
-  command: string,
-  program: Effect.Effect<Result, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig>
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, AutocaliwebApi | AutocaliwebConfig> =>
-  program.pipe(
-    Effect.map((result) => successEnvelope({ command, result })),
-    Effect.match({ onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]), onSuccess: (x) => x })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, AutocaliwebError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-  const parsed = Number(value)
-  return Number.isInteger(parsed) && parsed > 0
-    ? Effect.succeed(parsed)
-    : Effect.fail(cliUsageError(`${label} must be a positive integer`))
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>
-): Effect.Effect<ParsedFlags, AutocaliwebError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('-')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-  return Effect.succeed({ positionals, values })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<AutocaliwebCliEnvelope, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig>
-): Effect.Effect<AutocaliwebCliEnvelope, never, AutocaliwebApi | AutocaliwebConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
-
-const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never, AutocaliwebApi | AutocaliwebConfig> =>
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, AutocaliwebCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) =>
@@ -144,91 +82,116 @@ const root = (command: string): Effect.Effect<SuccessEnvelope<RootResult>, never
     })
   )
 
-const limitFromArgs = (args: ReadonlyArray<string>) =>
-  parseFlags(args, [limitFlag]).pipe(
-    Effect.flatMap((parsed) => {
-      const value = parsed.values.get(limitFlag)
-      return value === undefined ? Effect.succeed(defaultLimit) : parseInteger(value, 'limit')
-    })
-  )
-
 const limitCommand = <Result extends AutocaliwebCliResult>(
-  command: string,
-  args: ReadonlyArray<string>,
-  program: (limit: number) => Effect.Effect<Result, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig>
-) => recoverEnvelope(command, limitFromArgs(args).pipe(Effect.flatMap((limit) => wrap(command, program(limit)))))
+  { args, limitFromArgs, recover, wrap }: AutocaliwebInvocation,
+  program: (limit: number) => Effect.Effect<Result, AutocaliwebError, AutocaliwebCliContext>
+) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
-const searchCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: AutocaliwebInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [limitFlag])
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
       if (query.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('query is required')))
+        return yield* wrap(Effect.fail(usageError('query is required')))
       }
       const value = parsed.values.get(limitFlag)
-      const limit = value === undefined ? defaultLimit : yield* parseInteger(value, 'limit')
-      return yield* wrap(command, search({ query, limit }))
+      const limit = value === undefined ? defaultLimit : yield* parsePositiveInteger(value, 'limit')
+      return yield* wrap(search({ query, limit }))
     })
   )
 
-const bookInfoCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const bookInfoCommand = ({ args, parseFlags, recover, usageError, wrap }: AutocaliwebInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [])
+      const parsed = yield* parseFlags(args)
       const [uuid] = parsed.positionals
       if (uuid === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError('book uuid is required')))
+        return yield* wrap(Effect.fail(usageError('book uuid is required')))
       }
-      return yield* wrap(command, bookInfo({ uuid }))
+      return yield* wrap(bookInfo({ uuid }))
     })
   )
 
-const dispatch = (
-  args: ReadonlyArray<string>
-): Effect.Effect<AutocaliwebCliEnvelope, never, AutocaliwebApi | AutocaliwebConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return wrap(command, status)
-    }
-    case 'version': {
-      return wrap(command, version)
-    }
-    case 'stats': {
-      return wrap(command, stats)
-    }
-    case 'catalog': {
-      return wrap(command, catalog)
-    }
-    case 'books': {
-      return limitCommand(command, rest, (limit) => books({ limit }))
-    }
-    case 'recent': {
-      return limitCommand(command, rest, (limit) => recent({ limit }))
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    case 'book-info': {
-      return bookInfoCommand(command, rest)
-    }
-    case 'shelves': {
-      return wrap(command, shelves)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
+
+const commandDefinitions: ReadonlyArray<
+  CommandDefinition<AutocaliwebCliResult, AutocaliwebCliError, AutocaliwebCliContext>
+> = [
+  {
+    name: 'status',
+    description: { command: `${rootCommand} status`, description: 'Return Autocaliweb OPDS status and catalog stats' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'version',
+    description: { command: `${rootCommand} version`, description: 'Alias for status' },
+    handle: ({ wrap }) => wrap(version),
+  },
+  {
+    name: 'stats',
+    description: { command: `${rootCommand} stats`, description: 'Return Autocaliweb database counts' },
+    handle: ({ wrap }) => wrap(stats),
+  },
+  {
+    name: 'catalog',
+    description: { command: `${rootCommand} catalog`, description: 'Return top-level OPDS catalog entries' },
+    handle: ({ wrap }) => wrap(catalog),
+  },
+  {
+    name: 'books',
+    description: {
+      command: `${rootCommand} books [${limitFlag} <n>]`,
+      description: 'Return a bounded alphabetical book list',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => books({ limit })),
+  },
+  {
+    name: 'recent',
+    description: {
+      command: `${rootCommand} recent [${limitFlag} <n>]`,
+      description: 'Return recently added books',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => recent({ limit })),
+  },
+  {
+    name: 'search',
+    description: {
+      command: `${rootCommand} search <query> [${limitFlag} <n>]`,
+      description: 'Search books through OPDS',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
+    },
+    handle: searchCommand,
+  },
+  {
+    name: 'book-info',
+    description: {
+      command: `${rootCommand} book-info <uuid>`,
+      description: 'Return Calibre Companion metadata for a book UUID',
+    },
+    handle: bookInfoCommand,
+  },
+  {
+    name: 'shelves',
+    description: {
+      command: `${rootCommand} shelves`,
+      description: 'Return OPDS shelves visible to the logged-in user',
+    },
+    handle: ({ wrap }) => wrap(shelves),
+  },
+]
+
+const execute = createCliRunner<AutocaliwebCliResult, AutocaliwebCliError, AutocaliwebCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
 
 export const executeAutocaliweb = (
   args: ReadonlyArray<string>
-): Effect.Effect<AutocaliwebCliEnvelope, never, AutocaliwebApi | AutocaliwebConfig> => dispatch(args)
+): Effect.Effect<AutocaliwebCliEnvelope, never, AutocaliwebCliContext> => execute(args)

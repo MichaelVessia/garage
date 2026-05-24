@@ -1,6 +1,5 @@
 export {
   SonarrError,
-  cliUsageError,
   decodeError,
   deleteConfirmationRequired,
   envFix,

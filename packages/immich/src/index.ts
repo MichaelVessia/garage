@@ -1,4 +1,4 @@
-export { cliUsageError, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
+export { decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
 export type { ImmichErrorCode } from './errors.js'
 export { ImmichError } from './errors.js'
 export { ImmichApiLive } from './http.js'

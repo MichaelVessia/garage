@@ -1,9 +1,14 @@
-import { errorEnvelope, successEnvelope } from '@garage/cli-protocol'
-import type { ErrorEnvelope, NextAction, SuccessEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import type {
+  CliUsageError,
+  CommandDefinition,
+  CommandInvocation,
+  ErrorEnvelope,
+  SuccessEnvelope,
+} from '@garage/cli-protocol'
 import {
   channelInfo,
   channels,
-  cliUsageError,
   defaultLimit,
   downloads,
   playlists,
@@ -31,14 +36,7 @@ import type {
 } from '@garage/tubearchivist'
 import { Effect } from 'effect'
 
-import {
-  commandTree,
-  confirmUnsubscribeFlag,
-  envNextAction,
-  limitFlag,
-  rootCommand,
-  showCommandsAction,
-} from './command-tree.js'
+import { confirmUnsubscribeFlag, envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
 export type TubearchivistCliResult =
@@ -55,89 +53,14 @@ export type TubearchivistCliResult =
   | SearchResult
 
 export type TubearchivistCliEnvelope = SuccessEnvelope<TubearchivistCliResult> | ErrorEnvelope
-
-interface ParsedFlags {
-  readonly positionals: ReadonlyArray<string>
-  readonly values: ReadonlyMap<string, string>
-  readonly toggles: ReadonlySet<string>
-}
-
-const commandString = (args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
-
-const errorToEnvelope = (
-  command: string,
-  error: TubearchivistError,
-  nextActions: ReadonlyArray<NextAction>
-): ErrorEnvelope =>
-  errorEnvelope({ command, error: { code: error.code, message: error.message }, fix: error.fix, nextActions })
-
-const wrap = <Result>(
-  command: string,
-  program: Effect.Effect<Result, TubearchivistError, TubearchivistApi | TubearchivistConfig>
-): Effect.Effect<SuccessEnvelope<Result> | ErrorEnvelope, never, TubearchivistApi | TubearchivistConfig> =>
-  program.pipe(
-    Effect.map((result) => successEnvelope({ command, result })),
-    Effect.match({ onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]), onSuccess: (x) => x })
-  )
-
-const parseInteger = (value: string | undefined, label: string): Effect.Effect<number, TubearchivistError> => {
-  if (value === undefined) {
-    return Effect.fail(cliUsageError(`${label} is required`))
-  }
-  const parsed = Number(value)
-  return Number.isInteger(parsed) && parsed > 0
-    ? Effect.succeed(parsed)
-    : Effect.fail(cliUsageError(`${label} must be a positive integer`))
-}
-
-const parseFlags = (
-  tokens: ReadonlyArray<string>,
-  valueFlags: ReadonlyArray<string>,
-  toggleFlags: ReadonlyArray<string> = []
-): Effect.Effect<ParsedFlags, TubearchivistError> => {
-  const positionals: Array<string> = []
-  const values = new Map<string, string>()
-  const toggles = new Set<string>()
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]
-    if (token === undefined) {
-      index += 1
-    } else if (valueFlags.includes(token)) {
-      const value = tokens[index + 1]
-      if (value === undefined || value.startsWith('-')) {
-        return Effect.fail(cliUsageError(`${token} requires a value`))
-      }
-      values.set(token, value)
-      index += 2
-    } else if (toggleFlags.includes(token)) {
-      toggles.add(token)
-      index += 1
-    } else if (token.startsWith('-')) {
-      return Effect.fail(cliUsageError(`Unknown flag ${token}`))
-    } else {
-      positionals.push(token)
-      index += 1
-    }
-  }
-  return Effect.succeed({ positionals, values, toggles })
-}
-
-const recoverEnvelope = (
-  command: string,
-  program: Effect.Effect<TubearchivistCliEnvelope, TubearchivistError, TubearchivistApi | TubearchivistConfig>
-): Effect.Effect<TubearchivistCliEnvelope, never, TubearchivistApi | TubearchivistConfig> =>
-  program.pipe(
-    Effect.match({
-      onFailure: (error) => errorToEnvelope(command, error, [showCommandsAction]),
-      onSuccess: (envelope) => envelope,
-    })
-  )
+type TubearchivistCliError = TubearchivistError | CliUsageError
+type TubearchivistCliContext = TubearchivistApi | TubearchivistConfig
+type TubearchivistInvocation = CommandInvocation<TubearchivistCliResult, TubearchivistCliError, TubearchivistCliContext>
 
 const root = (
-  command: string
-): Effect.Effect<SuccessEnvelope<RootResult>, never, TubearchivistApi | TubearchivistConfig> =>
+  command: string,
+  commandTree: RootResult['commands']
+): Effect.Effect<SuccessEnvelope<RootResult>, never, TubearchivistCliContext> =>
   status.pipe(
     Effect.match({
       onFailure: (error) =>
@@ -167,128 +90,174 @@ const root = (
     })
   )
 
-const limitFromArgs = (args: ReadonlyArray<string>) =>
-  parseFlags(args, [limitFlag]).pipe(
-    Effect.flatMap((parsed) => {
-      const value = parsed.values.get(limitFlag)
-      return value === undefined ? Effect.succeed(defaultLimit) : parseInteger(value, 'limit')
-    })
-  )
-
 const limitCommand = <Result extends TubearchivistCliResult>(
-  command: string,
-  args: ReadonlyArray<string>,
+  { args, limitFromArgs, recover, wrap }: TubearchivistInvocation,
   program: (limit: number) => Effect.Effect<Result, TubearchivistError, TubearchivistApi | TubearchivistConfig>
-) => recoverEnvelope(command, limitFromArgs(args).pipe(Effect.flatMap((limit) => wrap(command, program(limit)))))
+) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
 const idCommand = <Result extends TubearchivistCliResult>(
-  command: string,
-  rest: ReadonlyArray<string>,
+  { args, parseFlags, recover, usageError, wrap }: TubearchivistInvocation,
   label: string,
   program: (id: string) => Effect.Effect<Result, TubearchivistError, TubearchivistApi | TubearchivistConfig>
 ) =>
-  recoverEnvelope(
-    command,
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [])
+      const parsed = yield* parseFlags(args)
       const [id] = parsed.positionals
       if (id === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError(`${label} is required`)))
+        return yield* wrap(Effect.fail(usageError(`${label} is required`)))
       }
-      return yield* wrap(command, program(id))
+      return yield* wrap(program(id))
     })
   )
 
-const subscribeCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const subscribeCommand = ({ args, parseFlags, recover, usageError, wrap }: TubearchivistInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [])
+      const parsed = yield* parseFlags(args)
       const target = parsed.positionals.join(' ').trim()
       if (target.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('channel url or id is required')))
+        return yield* wrap(Effect.fail(usageError('channel url or id is required')))
       }
-      return yield* wrap(command, subscribe({ target }))
+      return yield* wrap(subscribe({ target }))
     })
   )
 
-const unsubscribeCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const unsubscribeCommand = ({ args, parseFlags, recover, usageError, wrap }: TubearchivistInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [], [confirmUnsubscribeFlag])
+      const parsed = yield* parseFlags(args, { booleanFlags: [confirmUnsubscribeFlag] })
       const [target] = parsed.positionals
       if (target === undefined) {
-        return yield* wrap(command, Effect.fail(cliUsageError('channel id is required')))
+        return yield* wrap(Effect.fail(usageError('channel id is required')))
       }
-      return yield* wrap(command, unsubscribe({ target, confirmed: parsed.toggles.has(confirmUnsubscribeFlag) }))
+      return yield* wrap(unsubscribe({ target, confirmed: parsed.booleans.has(confirmUnsubscribeFlag) }))
     })
   )
 
-const searchCommand = (command: string, rest: ReadonlyArray<string>) =>
-  recoverEnvelope(
-    command,
+const searchCommand = ({
+  args,
+  parseFlags,
+  parsePositiveInteger,
+  recover,
+  usageError,
+  wrap,
+}: TubearchivistInvocation) =>
+  recover(
     Effect.gen(function* () {
-      const parsed = yield* parseFlags(rest, [limitFlag])
+      const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
       if (query.length === 0) {
-        return yield* wrap(command, Effect.fail(cliUsageError('query is required')))
+        return yield* wrap(Effect.fail(usageError('query is required')))
       }
       const value = parsed.values.get(limitFlag)
-      const limit = value === undefined ? defaultLimit : yield* parseInteger(value, 'limit')
-      return yield* wrap(command, search({ query, limit }))
+      const limit = value === undefined ? defaultLimit : yield* parsePositiveInteger(value, 'limit')
+      return yield* wrap(search({ query, limit }))
     })
   )
 
-const dispatch = (
-  args: ReadonlyArray<string>
-): Effect.Effect<TubearchivistCliEnvelope, never, TubearchivistApi | TubearchivistConfig> => {
-  const command = commandString(args)
-  const [name] = args
-  const rest = args.slice(1)
-  switch (name) {
-    case undefined: {
-      return root(command)
-    }
-    case 'status': {
-      return wrap(command, status)
-    }
-    case 'channels': {
-      return limitCommand(command, rest, (limit) => channels({ limit }))
-    }
-    case 'channel-info': {
-      return idCommand(command, rest, 'channel id', (id) => channelInfo({ id }))
-    }
-    case 'subscribe': {
-      return subscribeCommand(command, rest)
-    }
-    case 'unsubscribe': {
-      return unsubscribeCommand(command, rest)
-    }
-    case 'videos': {
-      return limitCommand(command, rest, (limit) => videos({ limit }))
-    }
-    case 'video-info': {
-      return idCommand(command, rest, 'youtube id', (id) => videoInfo({ id }))
-    }
-    case 'downloads': {
-      return limitCommand(command, rest, (limit) => downloads({ limit }))
-    }
-    case 'playlists': {
-      return limitCommand(command, rest, (limit) => playlists({ limit }))
-    }
-    case 'tasks': {
-      return limitCommand(command, rest, (limit) => tasks({ limit }))
-    }
-    case 'search': {
-      return searchCommand(command, rest)
-    }
-    default: {
-      return wrap(command, Effect.fail(cliUsageError(`Unknown command ${name}`)))
-    }
-  }
-}
+const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
+
+const commandDefinitions: ReadonlyArray<
+  CommandDefinition<TubearchivistCliResult, TubearchivistCliError, TubearchivistCliContext>
+> = [
+  {
+    name: 'status',
+    description: { command: `${rootCommand} status`, description: 'Return health, config, and aggregate stats' },
+    handle: ({ wrap }) => wrap(status),
+  },
+  {
+    name: 'channels',
+    description: {
+      command: `${rootCommand} channels [${limitFlag} <n>]`,
+      description: 'Return indexed channels',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum channels to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => channels({ limit })),
+  },
+  {
+    name: 'channel-info',
+    description: { command: `${rootCommand} channel-info <channel_id>`, description: 'Return one channel' },
+    handle: (invocation) => idCommand(invocation, 'channel id', (id) => channelInfo({ id })),
+  },
+  {
+    name: 'subscribe',
+    description: {
+      command: `${rootCommand} subscribe <url-or-id>`,
+      description: 'Subscribe to a channel and queue Celery resolution',
+    },
+    handle: subscribeCommand,
+  },
+  {
+    name: 'unsubscribe',
+    description: {
+      command: `${rootCommand} unsubscribe <channel_id> ${confirmUnsubscribeFlag}`,
+      description: 'Unsubscribe a channel',
+      flags: [{ name: confirmUnsubscribeFlag, description: 'Required after user confirmation' }],
+    },
+    handle: unsubscribeCommand,
+  },
+  {
+    name: 'videos',
+    description: {
+      command: `${rootCommand} videos [${limitFlag} <n>]`,
+      description: 'Return recent indexed videos',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum videos to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => videos({ limit })),
+  },
+  {
+    name: 'video-info',
+    description: { command: `${rootCommand} video-info <youtube_id>`, description: 'Return one video' },
+    handle: (invocation) => idCommand(invocation, 'youtube id', (id) => videoInfo({ id })),
+  },
+  {
+    name: 'downloads',
+    description: {
+      command: `${rootCommand} downloads [${limitFlag} <n>]`,
+      description: 'Return the pending download queue',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum downloads to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => downloads({ limit })),
+  },
+  {
+    name: 'playlists',
+    description: {
+      command: `${rootCommand} playlists [${limitFlag} <n>]`,
+      description: 'Return indexed playlists',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum playlists to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => playlists({ limit })),
+  },
+  {
+    name: 'tasks',
+    description: {
+      command: `${rootCommand} tasks [${limitFlag} <n>]`,
+      description: 'Return Celery task history',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum tasks to return', default: defaultLimit }],
+    },
+    handle: (invocation) => limitCommand(invocation, (limit) => tasks({ limit })),
+  },
+  {
+    name: 'search',
+    description: {
+      command: `${rootCommand} search <query> [${limitFlag} <n>]`,
+      description: 'Search videos, channels, and playlists',
+      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records per category', default: defaultLimit }],
+    },
+    handle: searchCommand,
+  },
+]
+
+const execute = createCliRunner<TubearchivistCliResult, TubearchivistCliError, TubearchivistCliContext>({
+  rootCommand,
+  rootDescription,
+  commands: commandDefinitions,
+  usageError: createCliUsageError(rootCommand),
+  fallbackNextActions: () => [showCommandsAction],
+  root: ({ command, commandTree }) => root(command, commandTree),
+})
 
 export const executeTubearchivist = (
   args: ReadonlyArray<string>
-): Effect.Effect<TubearchivistCliEnvelope, never, TubearchivistApi | TubearchivistConfig> => dispatch(args)
+): Effect.Effect<TubearchivistCliEnvelope, never, TubearchivistCliContext> => execute(args)

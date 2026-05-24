@@ -8,7 +8,6 @@ export type AutocaliwebErrorCode =
   | 'AUTOCALIWEB_UNREACHABLE'
   | 'AUTOCALIWEB_HTTP_ERROR'
   | 'AUTOCALIWEB_DECODE_ERROR'
-  | 'AUTOCALIWEB_CLI_USAGE'
 
 export class AutocaliwebError extends Schema.TaggedErrorClass<AutocaliwebError>()('AutocaliwebError', {
   code: Schema.Literals([
@@ -16,7 +15,6 @@ export class AutocaliwebError extends Schema.TaggedErrorClass<AutocaliwebError>(
     'AUTOCALIWEB_UNREACHABLE',
     'AUTOCALIWEB_HTTP_ERROR',
     'AUTOCALIWEB_DECODE_ERROR',
-    'AUTOCALIWEB_CLI_USAGE',
   ]),
   message: Schema.String,
   fix: Schema.String,
@@ -44,11 +42,4 @@ export const decodeError = (message: string): AutocaliwebError =>
     code: 'AUTOCALIWEB_DECODE_ERROR',
     message,
     fix: 'Update the Autocaliweb OPDS or JSON schemas to match the response shape.',
-  })
-
-export const cliUsageError = (message: string): AutocaliwebError =>
-  new AutocaliwebError({
-    code: 'AUTOCALIWEB_CLI_USAGE',
-    message,
-    fix: 'Run autocaliweb to inspect available commands and required arguments.',
   })
