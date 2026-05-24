@@ -68,7 +68,7 @@ const severanceSeries = {
 
 const ConfigLayer = Layer.succeed(SonarrConfig, {
   get: Effect.succeed({
-    url: 'http://sonarr.lan',
+    url: 'http://sonarr.example.test',
     apiKey: 'secret',
     defaultQualityProfileId: 1,
   }),

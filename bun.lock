@@ -43,13 +43,6 @@
         "effect": "^4.0.0-beta.64",
       },
     },
-    "packages/core": {
-      "name": "@garage/core",
-      "version": "0.0.0",
-      "dependencies": {
-        "effect": "^4.0.0-beta.64",
-      },
-    },
     "packages/sonarr": {
       "name": "@garage/sonarr",
       "version": "0.0.0",
@@ -153,8 +146,6 @@
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
 
     "@garage/cli-protocol": ["@garage/cli-protocol@workspace:packages/cli-protocol"],
-
-    "@garage/core": ["@garage/core@workspace:packages/core"],
 
     "@garage/sonarr": ["@garage/sonarr@workspace:packages/sonarr"],
 

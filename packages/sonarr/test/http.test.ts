@@ -23,7 +23,7 @@ interface RecordedRequest {
 
 const ConfigLayer = Layer.succeed(SonarrConfig, {
   get: Effect.succeed({
-    url: 'http://sonarr.lan/',
+    url: 'http://sonarr.example.test/',
     apiKey: 'secret',
     defaultQualityProfileId: 1,
   }),
@@ -82,7 +82,7 @@ it.effect('SonarrApiLive sends authenticated requests and decodes JSON responses
     assert.deepStrictEqual(requests, [
       {
         method: 'GET',
-        url: 'http://sonarr.lan/api/v3/system/status',
+        url: 'http://sonarr.example.test/api/v3/system/status',
         apiKey: 'secret',
       },
     ])
@@ -326,7 +326,7 @@ it.effect('SonarrApiLive requests expanded queue records and decodes missing ser
     assert.deepStrictEqual(requests, [
       {
         method: 'GET',
-        url: 'http://sonarr.lan/api/v3/queue?pageSize=5&includeSeries=true&includeEpisode=true',
+        url: 'http://sonarr.example.test/api/v3/queue?pageSize=5&includeSeries=true&includeEpisode=true',
         apiKey: 'secret',
       },
     ])
@@ -392,7 +392,7 @@ it.effect('SonarrApiLive requests expanded missing records and does not require 
     assert.deepStrictEqual(requests, [
       {
         method: 'GET',
-        url: 'http://sonarr.lan/api/v3/wanted/missing?pageSize=5&includeSeries=true',
+        url: 'http://sonarr.example.test/api/v3/wanted/missing?pageSize=5&includeSeries=true',
         apiKey: 'secret',
       },
     ])
@@ -502,7 +502,7 @@ it.effect('SonarrApiLive requests expanded history records and decodes missing s
     assert.deepStrictEqual(requests, [
       {
         method: 'GET',
-        url: 'http://sonarr.lan/api/v3/history?pageSize=5&includeSeries=true&includeEpisode=true',
+        url: 'http://sonarr.example.test/api/v3/history?pageSize=5&includeSeries=true&includeEpisode=true',
         apiKey: 'secret',
       },
     ])

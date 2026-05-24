@@ -17,7 +17,6 @@ Bare Effect v4 monorepo scaffolded with Bun, Nix, TypeScript strictness, oxlint/
 
 - `apps/sonarr-cli` contains the `sonarr` agent-first CLI entrypoint.
 - `packages/cli-protocol` contains shared JSON envelope and command metadata types.
-- `packages/core` contains the initial reusable Effect library code.
 - `packages/sonarr` contains the Sonarr config, API service, HTTP adapter, and domain operations.
 - `rules` contains ast-grep structural lint rules.
 - `rule-tests` contains ast-grep rule fixtures.
