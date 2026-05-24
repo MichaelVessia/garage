@@ -26,11 +26,12 @@
       mkBunCli = {
         name,
         entrypoint,
-        version ? "0.0.0",
-      }:
+      }: let
+        packageJson = builtins.fromJSON (builtins.readFile (./. + "/apps/${name}-cli/package.json"));
+      in
         pkgs.stdenv.mkDerivation {
           pname = name;
-          inherit version;
+          version = packageJson.version;
           src = ./.;
 
           nativeBuildInputs = [

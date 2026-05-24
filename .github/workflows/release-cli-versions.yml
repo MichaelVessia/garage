@@ -1,0 +1,75 @@
+name: Release CLI versions
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-cli-versions-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Find previous CLI release
+        id: base
+        run: |
+          BASE_REF="$(git describe --tags --abbrev=0 --match '*-cli-v*' HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          echo "ref=${BASE_REF}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create automatic changeset
+        run: |
+          bun scripts/cli-versioning.ts write \
+            --base "${{ steps.base.outputs.ref }}" \
+            --head "${{ github.sha }}" \
+            --package-output "${RUNNER_TEMP}/affected-cli-packages.txt"
+
+      - name: Check affected packages
+        id: affected
+        run: |
+          if [ -s "${RUNNER_TEMP}/affected-cli-packages.txt" ]; then
+            echo "found=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "found=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Version packages
+        if: steps.affected.outputs.found == 'true'
+        run: |
+          bunx changeset version
+          bun install --lockfile-only
+
+      - name: Commit and tag release
+        if: steps.affected.outputs.found == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+
+          git commit -m "chore: version CLI packages"
+          bun scripts/cli-versioning.ts tag --package-output "${RUNNER_TEMP}/affected-cli-packages.txt"
+          git push
+          git push --tags
