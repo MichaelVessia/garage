@@ -1,5 +1,5 @@
-import { Effect, Layer, Option, Schema } from 'effect'
-import { Headers, HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
+import { Effect, Layer, Schema } from 'effect'
+import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
   ChannelDetailSchema,
@@ -85,33 +85,11 @@ const decodeJsonResponse = <A, I, RD, RE>(
 ): Effect.Effect<A, TubearchivistError, RD> =>
   response.status < 200 || response.status >= 300 ? httpError(response.status) : decodeBody(response, schema)
 
-const setCookieHeader = (response: HttpClientResponse.HttpClientResponse): string | undefined =>
-  Headers.get(response.headers, 'set-cookie').pipe(Option.getOrUndefined)
-
-const cookieValue = (header: string, name: string): string | undefined => {
-  const marker = `${name}=`
-  const start = header.indexOf(marker)
-  if (start === -1) {
-    return undefined
-  }
-  const valueStart = start + marker.length
-  const semi = header.indexOf(';', valueStart)
-  const comma = header.indexOf(',', valueStart)
-  const candidates = [semi, comma].filter((index) => index >= 0)
-  const end = candidates.length === 0 ? header.length : Math.min(...candidates)
-  const value = header.slice(valueStart, end)
-  return value.length === 0 ? undefined : value
-}
-
 const parseSession = (
   response: HttpClientResponse.HttpClientResponse
 ): Effect.Effect<SessionCookies, TubearchivistError> => {
-  const header = setCookieHeader(response)
-  if (header === undefined) {
-    return Effect.fail(decodeError('login response did not include set-cookie'))
-  }
-  const sessionId = cookieValue(header, 'sessionid')
-  const csrfToken = cookieValue(header, 'csrftoken')
+  const sessionId = response.cookies.cookies.sessionid?.value
+  const csrfToken = response.cookies.cookies.csrftoken?.value
   if (sessionId === undefined || csrfToken === undefined) {
     return Effect.fail(decodeError('login response did not include sessionid and csrftoken cookies'))
   }

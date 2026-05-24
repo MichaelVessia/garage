@@ -1,6 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import { Effect, Layer, Option, Ref } from 'effect'
-import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import { Headers as HttpHeaders, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import {
   TubearchivistApiLive,
@@ -23,7 +23,7 @@ interface RecordedRequest {
 interface FakeResponse {
   readonly status: number
   readonly body: unknown
-  readonly setCookie?: string | undefined
+  readonly setCookies?: ReadonlyArray<string> | undefined
 }
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
@@ -39,17 +39,18 @@ const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse
         {
           method: request.method,
           url: url.toString(),
-          cookie: Headers.get(request.headers, 'cookie').pipe(Option.getOrUndefined),
-          csrf: Headers.get(request.headers, 'x-csrftoken').pipe(Option.getOrUndefined),
-          referer: Headers.get(request.headers, 'referer').pipe(Option.getOrUndefined),
+          cookie: HttpHeaders.get(request.headers, 'cookie').pipe(Option.getOrUndefined),
+          csrf: HttpHeaders.get(request.headers, 'x-csrftoken').pipe(Option.getOrUndefined),
+          referer: HttpHeaders.get(request.headers, 'referer').pipe(Option.getOrUndefined),
         },
       ]).pipe(
         Effect.map(() => {
           const response = respond(request.method, url)
-          const responseInit =
-            response.setCookie === undefined
-              ? { status: response.status }
-              : { headers: { 'set-cookie': response.setCookie }, status: response.status }
+          const headers = new Headers()
+          for (const cookie of response.setCookies ?? []) {
+            headers.append('set-cookie', cookie)
+          }
+          const responseInit = { headers, status: response.status }
           return response.status === 204
             ? HttpClientResponse.fromWeb(request, new Response(null, responseInit))
             : HttpClientResponse.fromWeb(request, Response.json(response.body, responseInit))
@@ -62,7 +63,7 @@ const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse
 const loginResponse = {
   status: 204,
   body: null,
-  setCookie: 'sessionid=session-1; Path=/, csrftoken=csrf-1; Path=/',
+  setCookies: ['csrftoken=csrf-1; Path=/', 'sessionid=session-1; Path=/'],
 }
 
 it.effect('TubeArchivist HTTP adapter logs in, caches cookies, and sends CSRF for mutations', () =>
