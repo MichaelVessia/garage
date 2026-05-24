@@ -105,6 +105,11 @@
           entrypoint = "apps/adguard-cli/src/main.ts";
         };
 
+        caddy = mkBunCli {
+          name = "caddy";
+          entrypoint = "apps/caddy-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 

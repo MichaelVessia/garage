@@ -36,6 +36,19 @@
         "effect": "^4.0.0-beta.64",
       },
     },
+    "apps/caddy-cli": {
+      "name": "@garage/caddy-cli",
+      "version": "0.0.0",
+      "bin": {
+        "caddy": "dist/caddy",
+      },
+      "dependencies": {
+        "@effect/platform-bun": "4.0.0-beta.64",
+        "@garage/caddy": "workspace:*",
+        "@garage/cli-protocol": "workspace:*",
+        "effect": "^4.0.0-beta.64",
+      },
+    },
     "apps/immich-cli": {
       "name": "@garage/immich-cli",
       "version": "0.0.0",
@@ -129,6 +142,13 @@
     },
     "packages/adguard": {
       "name": "@garage/adguard",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "^4.0.0-beta.64",
+      },
+    },
+    "packages/caddy": {
+      "name": "@garage/caddy",
       "version": "0.0.0",
       "dependencies": {
         "effect": "^4.0.0-beta.64",
@@ -288,6 +308,10 @@
     "@garage/adguard": ["@garage/adguard@workspace:packages/adguard"],
 
     "@garage/adguard-cli": ["@garage/adguard-cli@workspace:apps/adguard-cli"],
+
+    "@garage/caddy": ["@garage/caddy@workspace:packages/caddy"],
+
+    "@garage/caddy-cli": ["@garage/caddy-cli@workspace:apps/caddy-cli"],
 
     "@garage/cli-protocol": ["@garage/cli-protocol@workspace:packages/cli-protocol"],
 
