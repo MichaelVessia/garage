@@ -2,7 +2,7 @@ import { assert, it } from '@effect/vitest'
 import { Effect, Layer, Option, Ref } from 'effect'
 import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
-import { SonarrApiLive, SonarrConfig, history, queue, status } from '../src/index.js'
+import { SonarrApiLive, SonarrConfig, history, missing, queue, status } from '../src/index.js'
 
 interface RecordedRequest {
   readonly method: string
@@ -63,10 +63,15 @@ it.effect('SonarrApiLive sends authenticated requests and decodes JSON responses
   })
 )
 
-it.effect('SonarrApiLive decodes queue records without expanded series objects', () =>
+it.effect('SonarrApiLive requests expanded queue records and decodes missing series safely', () =>
   Effect.gen(function* () {
     const fake = yield* makeHttpClientLayer(() => ({
       records: [
+        {
+          title: 'Peppa.Pig.2019.S07E50.1080p.WEB-DL.H264.AAC-CHDWEB',
+          series: { title: 'Peppa Pig' },
+          status: 'completed',
+        },
         {
           title: 'Peppa.Pig.2019.S07E49.1080p.WEB-DL.H264.AAC-CHDWEB',
           status: 'completed',
@@ -77,10 +82,16 @@ it.effect('SonarrApiLive decodes queue records without expanded series objects',
     const layer = SonarrApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* queue({ limit: 5 }).pipe(Effect.provide(layer))
+    const requests = yield* Ref.get(fake.requests)
 
     assert.deepStrictEqual(result, {
-      count: 1,
+      count: 2,
       records: [
+        {
+          title: 'Peppa.Pig.2019.S07E50.1080p.WEB-DL.H264.AAC-CHDWEB',
+          seriesTitle: 'Peppa Pig',
+          status: 'completed',
+        },
         {
           title: 'Peppa.Pig.2019.S07E49.1080p.WEB-DL.H264.AAC-CHDWEB',
           seriesTitle: 'Unknown Series',
@@ -88,13 +99,71 @@ it.effect('SonarrApiLive decodes queue records without expanded series objects',
         },
       ],
     })
+    assert.deepStrictEqual(requests, [
+      {
+        method: 'GET',
+        url: 'http://sonarr.lan/api/v3/queue?pageSize=5&includeSeries=true',
+        apiKey: 'secret',
+      },
+    ])
   })
 )
 
-it.effect('SonarrApiLive decodes history records without expanded series objects', () =>
+it.effect('SonarrApiLive requests expanded missing records and does not require queue status', () =>
   Effect.gen(function* () {
     const fake = yield* makeHttpClientLayer(() => ({
       records: [
+        {
+          title: 'Deeper Cuts',
+          airDateUtc: '2026-04-15T02:44:00Z',
+          series: { title: 'Boy Band Confidential' },
+        },
+        {
+          title: 'Mystery Episode',
+          airDateUtc: '2026-04-16T02:44:00Z',
+          seriesId: 12,
+        },
+      ],
+    }))
+    const layer = SonarrApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    const result = yield* missing({ limit: 5 }).pipe(Effect.provide(layer))
+    const requests = yield* Ref.get(fake.requests)
+
+    assert.deepStrictEqual(result, {
+      count: 2,
+      records: [
+        {
+          title: 'Deeper Cuts',
+          seriesTitle: 'Boy Band Confidential',
+          airDateUtc: '2026-04-15T02:44:00Z',
+        },
+        {
+          title: 'Mystery Episode',
+          seriesTitle: 'Unknown Series',
+          airDateUtc: '2026-04-16T02:44:00Z',
+        },
+      ],
+    })
+    assert.deepStrictEqual(requests, [
+      {
+        method: 'GET',
+        url: 'http://sonarr.lan/api/v3/wanted/missing?pageSize=5&includeSeries=true',
+        apiKey: 'secret',
+      },
+    ])
+  })
+)
+
+it.effect('SonarrApiLive requests expanded history records and decodes missing series safely', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer(() => ({
+      records: [
+        {
+          eventType: 'downloadFolderImported',
+          sourceTitle: 'Buddy.Valastros.Cake.Dynasty.S01E10.1080p.WEB.h264-EDITH',
+          series: { title: "Buddy Valastro's Cake Dynasty" },
+        },
         {
           eventType: 'downloadFolderImported',
           sourceTitle: 'Peppa.Pig.2019.S07E49.1080p.WEB-DL.H264.AAC-CHDWEB',
@@ -108,8 +177,13 @@ it.effect('SonarrApiLive decodes history records without expanded series objects
     const requests = yield* Ref.get(fake.requests)
 
     assert.deepStrictEqual(result, {
-      count: 1,
+      count: 2,
       records: [
+        {
+          title: 'Buddy.Valastros.Cake.Dynasty.S01E10.1080p.WEB.h264-EDITH',
+          seriesTitle: "Buddy Valastro's Cake Dynasty",
+          eventType: 'downloadFolderImported',
+        },
         {
           title: 'Peppa.Pig.2019.S07E49.1080p.WEB-DL.H264.AAC-CHDWEB',
           seriesTitle: 'Unknown Series',
@@ -120,7 +194,7 @@ it.effect('SonarrApiLive decodes history records without expanded series objects
     assert.deepStrictEqual(requests, [
       {
         method: 'GET',
-        url: 'http://sonarr.lan/api/v3/history?pageSize=5',
+        url: 'http://sonarr.lan/api/v3/history?pageSize=5&includeSeries=true',
         apiKey: 'secret',
       },
     ])

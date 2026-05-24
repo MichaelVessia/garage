@@ -139,7 +139,7 @@ export const queue = (
     const sonarrConfig = yield* SonarrConfig
     yield* sonarrConfig.get
     const api = yield* SonarrApi
-    const records = take(yield* api.queue, options.limit)
+    const records = take(yield* api.queue(options.limit), options.limit)
     return { count: records.length, records }
   })
 
@@ -161,7 +161,7 @@ export const missing = (
     const sonarrConfig = yield* SonarrConfig
     yield* sonarrConfig.get
     const api = yield* SonarrApi
-    const records = take(yield* api.missing, options.limit)
+    const records = take(yield* api.missing(options.limit), options.limit)
     return { count: records.length, records }
   })
 

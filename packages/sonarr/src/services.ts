@@ -40,9 +40,9 @@ export class SonarrApi extends Context.Service<
       seriesId: number,
       options: { readonly deleteFiles: boolean }
     ) => Effect.Effect<void, SonarrError>
-    readonly queue: Effect.Effect<ReadonlyArray<QueueRecord>, SonarrError>
+    readonly queue: (limit: number) => Effect.Effect<ReadonlyArray<QueueRecord>, SonarrError>
     readonly calendar: (days: number) => Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
-    readonly missing: Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
+    readonly missing: (limit: number) => Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
     readonly history: (limit: number) => Effect.Effect<ReadonlyArray<HistoryRecord>, SonarrError>
   }
 >()('@garage/sonarr/services/SonarrApi') {}

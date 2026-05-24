@@ -33,9 +33,9 @@ const ApiLayer = Layer.succeed(SonarrApi, {
   getSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceSeries) : Option.none()),
   addSeries: () => Effect.succeed(severanceSeries),
   removeSeries: () => Effect.void,
-  queue: Effect.succeed([{ title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' }]),
+  queue: () => Effect.succeed([{ title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' }]),
   calendar: () => Effect.succeed([{ title: 'Tomorrow', seriesTitle: 'Severance', airDateUtc: '2026-05-24' }]),
-  missing: Effect.succeed([{ title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' }]),
+  missing: () => Effect.succeed([{ title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' }]),
   history: () => Effect.succeed([{ title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' }]),
 })
 

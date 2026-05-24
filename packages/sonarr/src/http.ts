@@ -53,6 +53,16 @@ const QueueResponseSchema = Schema.Struct({
   records: Schema.Array(QueueRecordSchema),
 })
 
+const MissingRecordSchema = Schema.Struct({
+  title: Schema.String,
+  airDateUtc: Schema.optional(Schema.String),
+  series: Schema.optional(Schema.Struct({ title: Schema.String })),
+})
+
+const MissingResponseSchema = Schema.Struct({
+  records: Schema.Array(MissingRecordSchema),
+})
+
 const EpisodeRecordSchema = Schema.Struct({
   title: Schema.String,
   airDateUtc: Schema.optional(Schema.String),
@@ -185,6 +195,12 @@ const toEpisodeRecord = (record: typeof EpisodeRecordSchema.Type): EpisodeRecord
   airDateUtc: record.airDateUtc,
 })
 
+const toMissingRecord = (record: typeof MissingRecordSchema.Type): EpisodeRecord => ({
+  title: record.title,
+  seriesTitle: record.series?.title ?? 'Unknown Series',
+  airDateUtc: record.airDateUtc,
+})
+
 const toHistoryRecord = (record: typeof HistoryRecordSchema.Type): HistoryRecord => ({
   title: record.episode?.title ?? record.sourceTitle ?? record.eventType,
   seriesTitle: record.series?.title ?? 'Unknown Series',
@@ -253,9 +269,11 @@ export const SonarrApiLive = Layer.effect(
         deleteJson(client, config, `/api/v3/series/${seriesId}`, Schema.Unknown, [
           ['deleteFiles', options.deleteFiles],
         ]).pipe(Effect.asVoid),
-      queue: getJson(client, config, '/api/v3/queue', QueueResponseSchema).pipe(
-        Effect.map((response) => response.records.map(toQueueRecord))
-      ),
+      queue: (limit) =>
+        getJson(client, config, '/api/v3/queue', QueueResponseSchema, [
+          ['pageSize', limit],
+          ['includeSeries', true],
+        ]).pipe(Effect.map((response) => response.records.map(toQueueRecord))),
       calendar: (days) =>
         currentCalendarRange(days).pipe(
           Effect.flatMap((range) =>
@@ -267,18 +285,16 @@ export const SonarrApiLive = Layer.effect(
           ),
           Effect.map((records) => records.map(toEpisodeRecord))
         ),
-      missing: getJson(client, config, '/api/v3/wanted/missing', QueueResponseSchema).pipe(
-        Effect.map((response) =>
-          response.records.map((record) => ({
-            title: record.title,
-            seriesTitle: record.series?.title ?? 'Unknown Series',
-          }))
-        )
-      ),
+      missing: (limit) =>
+        getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
+          ['pageSize', limit],
+          ['includeSeries', true],
+        ]).pipe(Effect.map((response) => response.records.map(toMissingRecord))),
       history: (limit) =>
-        getJson(client, config, '/api/v3/history', HistoryResponseSchema, [['pageSize', limit]]).pipe(
-          Effect.map((response) => response.records.map(toHistoryRecord))
-        ),
+        getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
+          ['pageSize', limit],
+          ['includeSeries', true],
+        ]).pipe(Effect.map((response) => response.records.map(toHistoryRecord))),
     })
   })
 )

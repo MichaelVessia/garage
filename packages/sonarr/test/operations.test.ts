@@ -37,6 +37,8 @@ const ConfigLayer = Layer.succeed(SonarrConfig, {
 const makeApiLayer = Effect.gen(function* () {
   const removedDeleteFiles = yield* Ref.make<ReadonlyArray<boolean>>([])
   const addedSearchFlags = yield* Ref.make<ReadonlyArray<boolean>>([])
+  const queueLimits = yield* Ref.make<ReadonlyArray<number>>([])
+  const missingLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const historyLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const api = SonarrApi.of({
     status: Effect.succeed({ appName: 'Sonarr', version: '4.0.0' }),
@@ -51,15 +53,21 @@ const makeApiLayer = Effect.gen(function* () {
       ),
     removeSeries: (_seriesId, options) =>
       Ref.update(removedDeleteFiles, (flags) => [...flags, options.deleteFiles]).pipe(Effect.asVoid),
-    queue: Effect.succeed([
-      { title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' },
-      { title: 'Episode 2', seriesTitle: 'Severance', status: 'queued' },
-    ]),
+    queue: (limit) =>
+      Ref.update(queueLimits, (limits) => [...limits, limit]).pipe(
+        Effect.as([
+          { title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' },
+          { title: 'Episode 2', seriesTitle: 'Severance', status: 'queued' },
+        ])
+      ),
     calendar: (_days) => Effect.succeed([{ title: 'Tomorrow', seriesTitle: 'Severance', airDateUtc: '2026-05-24' }]),
-    missing: Effect.succeed([
-      { title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' },
-      { title: 'Missing 2', seriesTitle: 'Severance', airDateUtc: '2026-05-21' },
-    ]),
+    missing: (limit) =>
+      Ref.update(missingLimits, (limits) => [...limits, limit]).pipe(
+        Effect.as([
+          { title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' },
+          { title: 'Missing 2', seriesTitle: 'Severance', airDateUtc: '2026-05-21' },
+        ])
+      ),
     history: (limit) =>
       Ref.update(historyLimits, (limits) => [...limits, limit]).pipe(
         Effect.as([
@@ -73,6 +81,8 @@ const makeApiLayer = Effect.gen(function* () {
     layer: Layer.succeed(SonarrApi, api),
     removedDeleteFiles,
     addedSearchFlags,
+    queueLimits,
+    missingLimits,
     historyLimits,
   }
 })
@@ -163,6 +173,8 @@ it.effect('bounds list operations at the requested limit', () =>
       count: 1,
       records: [{ title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' }],
     })
+    assert.deepStrictEqual(yield* Ref.get(fake.queueLimits), [1])
+    assert.deepStrictEqual(yield* Ref.get(fake.missingLimits), [1])
     assert.deepStrictEqual(yield* Ref.get(fake.historyLimits), [1])
   })
 )
