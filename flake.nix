@@ -95,6 +95,11 @@
           entrypoint = "apps/jellyfin-cli/src/main.ts";
         };
 
+        immich = mkBunCli {
+          name = "immich";
+          entrypoint = "apps/immich-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
