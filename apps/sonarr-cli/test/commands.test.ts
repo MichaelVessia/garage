@@ -5,12 +5,42 @@ import { Effect, Layer, Option } from 'effect'
 import { executeSonarr } from '../src/index.js'
 
 const severanceLookup = {
-  title: 'Severance',
+  title: 'Linux ISO Weekly',
   year: 2022,
   tvdbId: 371_980,
   tvdbUrl: 'https://thetvdb.com/dereferrer/series/371980',
+  imdbId: 'tt0000001',
+  tmdbId: 95_396,
+  status: 'continuing',
+  network: 'MirrorNet',
+  genres: ['Documentary', 'Technology'],
+  runtime: 49,
+  firstAired: '2022-02-18T00:00:00Z',
+  remotePoster: 'https://example.com/linux-iso-weekly.jpg',
+  overview: 'A weekly digest of totally legitimate Linux ISO release candidates.',
 }
-const severanceSeries = { id: 42, title: 'Severance', tvdbId: 371_980, year: 2022 }
+const severanceSeries = {
+  id: 42,
+  title: 'Linux ISO Weekly',
+  tvdbId: 371_980,
+  year: 2022,
+  path: '/tv/Linux ISO Weekly',
+  monitored: true,
+  status: 'continuing',
+  qualityProfileId: 1,
+  qualityProfileName: 'HD-1080p',
+  network: 'MirrorNet',
+  seasonFolder: true,
+  seriesType: 'standard',
+  statistics: {
+    seasonCount: 2,
+    episodeFileCount: 19,
+    episodeCount: 19,
+    totalEpisodeCount: 19,
+    sizeOnDisk: 123_456,
+    percentOfEpisodes: 100,
+  },
+}
 
 const ConfigLayer = Layer.succeed(SonarrConfig, {
   get: Effect.succeed({
@@ -25,18 +55,127 @@ const MissingConfigLayer = Layer.succeed(SonarrConfig, {
 })
 
 const ApiLayer = Layer.succeed(SonarrApi, {
-  status: Effect.succeed({ appName: 'Sonarr', version: '4.0.0' }),
-  rootFolders: Effect.succeed([{ id: 1, path: '/tv', freeSpace: 1_000_000 }]),
-  qualityProfiles: Effect.succeed([{ id: 1, name: 'HD-1080p' }]),
-  lookupSeries: (query) => Effect.succeed(query === 'Severance' ? [severanceLookup] : []),
+  status: Effect.succeed({
+    appName: 'Sonarr',
+    version: '4.0.0',
+    instanceName: 'Sonarr',
+    runtimeVersion: '6.0.13',
+    databaseVersion: '3.40.1',
+    startupPath: '/opt/Sonarr',
+    appData: '/var/lib/sonarr',
+    mode: 'console',
+    authentication: 'forms',
+    startTime: '2026-04-16T11:59:52Z',
+    urlBase: '',
+    isDocker: true,
+    branch: 'main',
+  }),
+  rootFolders: Effect.succeed([{ id: 1, path: '/tv', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
+  qualityProfiles: Effect.succeed([
+    {
+      id: 1,
+      name: 'HD-1080p',
+      isDefault: true,
+      upgradeAllowed: true,
+      cutoff: 4,
+      minFormatScore: 0,
+      cutoffFormatScore: 0,
+    },
+  ]),
+  lookupSeries: (query) => Effect.succeed(query === 'Linux ISO' ? [severanceLookup] : []),
   lookupSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceLookup) : Option.none()),
   getSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceSeries) : Option.none()),
   addSeries: () => Effect.succeed(severanceSeries),
   removeSeries: () => Effect.void,
-  queue: () => Effect.succeed([{ title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' }]),
-  calendar: () => Effect.succeed([{ title: 'Tomorrow', seriesTitle: 'Severance', airDateUtc: '2026-05-24' }]),
-  missing: () => Effect.succeed([{ title: 'Missing 1', seriesTitle: 'Severance', airDateUtc: '2026-05-20' }]),
-  history: () => Effect.succeed([{ title: 'Grabbed 1', seriesTitle: 'Severance', eventType: 'grabbed' }]),
+  queue: () =>
+    Effect.succeed({
+      count: 1,
+      totalRecords: 66,
+      records: [
+        {
+          id: 100,
+          title: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
+          seriesTitle: 'Linux ISO Weekly',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          episodeTitle: 'Ubuntu LTS Mirror Tour',
+          status: 'completed',
+          trackedDownloadStatus: 'warning',
+          trackedDownloadState: 'importBlocked',
+          statusMessages: ['Automatic import is not possible.'],
+          quality: 'WEBDL-1080p',
+          languages: ['English'],
+          size: 1000,
+          sizeleft: 0,
+          timeleft: '00:00:00',
+          estimatedCompletionTime: '2026-05-24T04:17:15Z',
+          protocol: 'usenet',
+          downloadClient: 'SABnzbd',
+          indexer: 'NZBgeek (Prowlarr)',
+          outputPath: '/downloads/Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL/',
+        },
+      ],
+    }),
+  calendar: () =>
+    Effect.succeed([
+      {
+        id: 200,
+        title: 'Next ISO Drop',
+        seriesTitle: 'Linux ISO Weekly',
+        seasonNumber: 1,
+        episodeNumber: 1,
+        airDateUtc: '2026-05-24',
+        hasFile: false,
+        monitored: true,
+        seriesStatus: 'continuing',
+        network: 'MirrorNet',
+        overview: 'A suspiciously well-seeded release candidate appears.',
+      },
+    ]),
+  missing: () =>
+    Effect.succeed({
+      count: 1,
+      totalRecords: 1338,
+      records: [
+        {
+          id: 300,
+          title: 'Checksum Mismatch',
+          seriesTitle: 'Linux ISO Weekly',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          airDateUtc: '2026-05-20',
+          hasFile: false,
+          monitored: true,
+          seriesStatus: 'continuing',
+          network: 'MirrorNet',
+          lastSearchTime: '2026-05-21T00:00:00Z',
+          overview: 'The SHA256 sum refuses to cooperate.',
+        },
+      ],
+    }),
+  history: () =>
+    Effect.succeed({
+      count: 1,
+      totalRecords: 13_124,
+      records: [
+        {
+          id: 400,
+          date: '2026-05-24T02:29:14Z',
+          eventType: 'grabbed',
+          sourceTitle: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
+          seriesTitle: 'Linux ISO Weekly',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          episodeTitle: 'Ubuntu LTS Mirror Tour',
+          quality: 'WEBDL-1080p',
+          languages: ['English'],
+          downloadClient: 'SABnzbd',
+          releaseGroup: 'GROUP',
+          size: 1000,
+          downloadId: 'SABnzbd_nzo_1',
+        },
+      ],
+    }),
 })
 
 const LiveTestLayer = Layer.mergeAll(ConfigLayer, ApiLayer)
@@ -115,7 +254,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
 
 it.effect('search responses include contextual next actions with TVDB IDs', () =>
   Effect.gen(function* () {
-    const envelope = yield* executeSonarr(['search', 'Severance']).pipe(Effect.provide(LiveTestLayer))
+    const envelope = yield* executeSonarr(['search', 'Linux ISO']).pipe(Effect.provide(LiveTestLayer))
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -123,7 +262,7 @@ it.effect('search responses include contextual next actions with TVDB IDs', () =
     }
 
     assert.deepStrictEqual(envelope.result, {
-      query: 'Severance',
+      query: 'Linux ISO',
       count: 1,
       results: [severanceLookup],
     })
@@ -138,6 +277,29 @@ it.effect('search responses include contextual next actions with TVDB IDs', () =
         description: 'Add a selected series to Sonarr',
         params: {
           'tvdb-id': { value: 371_980, description: 'TVDB series ID' },
+          'quality-profile-id': { default: 1, description: 'Sonarr quality profile ID' },
+        },
+      },
+    ])
+  })
+)
+
+it.effect('exists false suggests adding the selected TVDB ID', () =>
+  Effect.gen(function* () {
+    const envelope = yield* executeSonarr(['exists', '12345']).pipe(Effect.provide(LiveTestLayer))
+
+    assert.strictEqual(envelope.ok, true)
+    if (!envelope.ok) {
+      assert.fail('expected success envelope')
+    }
+
+    assert.deepStrictEqual(envelope.result, { tvdbId: 12_345, exists: false })
+    assert.deepStrictEqual(envelope.next_actions, [
+      {
+        command: 'sonarr add <tvdb-id> [--quality-profile <quality-profile-id>] [--no-search]',
+        description: 'Add this TVDB series to Sonarr',
+        params: {
+          'tvdb-id': { value: 12_345, description: 'TVDB series ID' },
           'quality-profile-id': { default: 1, description: 'Sonarr quality profile ID' },
         },
       },
@@ -179,7 +341,31 @@ it.effect('bounded list commands expose next actions for larger limits', () =>
 
     assert.deepStrictEqual(envelope.result, {
       count: 1,
-      records: [{ title: 'Episode 1', seriesTitle: 'Severance', status: 'downloading' }],
+      totalRecords: 66,
+      records: [
+        {
+          id: 100,
+          title: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
+          seriesTitle: 'Linux ISO Weekly',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          episodeTitle: 'Ubuntu LTS Mirror Tour',
+          status: 'completed',
+          trackedDownloadStatus: 'warning',
+          trackedDownloadState: 'importBlocked',
+          statusMessages: ['Automatic import is not possible.'],
+          quality: 'WEBDL-1080p',
+          languages: ['English'],
+          size: 1000,
+          sizeleft: 0,
+          timeleft: '00:00:00',
+          estimatedCompletionTime: '2026-05-24T04:17:15Z',
+          protocol: 'usenet',
+          downloadClient: 'SABnzbd',
+          indexer: 'NZBgeek (Prowlarr)',
+          outputPath: '/downloads/Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL/',
+        },
+      ],
     })
     assert.deepStrictEqual(envelope.next_actions, [
       {

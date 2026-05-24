@@ -46,6 +46,7 @@ export type {
   SearchResult,
   SeriesLookupResult,
   SeriesRecord,
+  SeriesStatistics,
   SonarrConfigValue,
   SystemStatus,
 } from './model.js'

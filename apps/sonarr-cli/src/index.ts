@@ -135,20 +135,30 @@ const parseFlags = (
   return Effect.succeed({ positionals, values, booleans })
 }
 
-const defaultQualityProfileAction = (tvdbId: number): Effect.Effect<NextAction, SonarrError, SonarrConfig> =>
+const defaultQualityProfileAction = (
+  tvdbId: number,
+  description = 'Add a selected series to Sonarr'
+): Effect.Effect<NextAction, SonarrError, SonarrConfig> =>
   Effect.gen(function* () {
     const sonarrConfig = yield* SonarrConfig
     const values = yield* sonarrConfig.get
 
     return {
       command: 'sonarr add <tvdb-id> [--quality-profile <quality-profile-id>] [--no-search]',
-      description: 'Add a selected series to Sonarr',
+      description,
       params: {
         'tvdb-id': { value: tvdbId, description: 'TVDB series ID' },
         'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Sonarr quality profile ID' },
       },
     }
   })
+
+const existsNextActions = (result: ExistsResult): Effect.Effect<ReadonlyArray<NextAction>, SonarrError, SonarrConfig> =>
+  result.exists
+    ? Effect.succeed([])
+    : defaultQualityProfileAction(result.tvdbId, 'Add this TVDB series to Sonarr').pipe(
+        Effect.map((action) => [action])
+      )
 
 const searchNextActions = (result: SearchResult): Effect.Effect<ReadonlyArray<NextAction>, SonarrError, SonarrConfig> =>
   Option.match(firstTvdbId(result.results), {
@@ -231,7 +241,7 @@ const searchCommand = (command: string, args: ReadonlyArray<string>) => {
 const existsCommand = (command: string, args: ReadonlyArray<string>) =>
   recoverEnvelope(
     command,
-    parseInteger(args[0], 'tvdb-id').pipe(Effect.flatMap((tvdbId) => wrap(command, exists(tvdbId))))
+    parseInteger(args[0], 'tvdb-id').pipe(Effect.flatMap((tvdbId) => wrap(command, exists(tvdbId), existsNextActions)))
   )
 
 const addCommand = (command: string, args: ReadonlyArray<string>) =>

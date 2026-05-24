@@ -18,6 +18,7 @@ import type {
   RemoveSeriesResult,
   SearchResult,
   SeriesLookupResult,
+  SeriesRecord,
   SystemStatus,
 } from './model.js'
 import { SonarrApi, SonarrConfig } from './services.js'
@@ -35,6 +36,27 @@ const first = <A>(items: ReadonlyArray<A>): Option.Option<A> => {
   return head === undefined ? Option.none() : Option.some(head)
 }
 
+const markDefaultQualityProfile = (
+  profile: ConfigSummary['qualityProfiles'][number],
+  defaultQualityProfileId: number
+) => ({
+  ...profile,
+  isDefault: profile.id === defaultQualityProfileId,
+})
+
+const withQualityProfileName = (
+  series: SeriesRecord,
+  qualityProfiles: ConfigSummary['qualityProfiles']
+): SeriesRecord => {
+  const { qualityProfileId } = series
+  if (qualityProfileId === undefined) {
+    return series
+  }
+
+  const qualityProfile = qualityProfiles.find((profile) => profile.id === qualityProfileId)
+  return qualityProfile === undefined ? series : { ...series, qualityProfileName: qualityProfile.name }
+}
+
 export const status: Effect.Effect<SystemStatus, SonarrError, SonarrApi | SonarrConfig> = Effect.gen(function* () {
   const config = yield* SonarrConfig
   yield* config.get
@@ -44,10 +66,12 @@ export const status: Effect.Effect<SystemStatus, SonarrError, SonarrApi | Sonarr
 
 export const config: Effect.Effect<ConfigSummary, SonarrError, SonarrApi | SonarrConfig> = Effect.gen(function* () {
   const sonarrConfig = yield* SonarrConfig
-  yield* sonarrConfig.get
+  const values = yield* sonarrConfig.get
   const api = yield* SonarrApi
   const rootFolders = yield* api.rootFolders
-  const qualityProfiles = yield* api.qualityProfiles
+  const qualityProfiles = (yield* api.qualityProfiles).map((profile) =>
+    markDefaultQualityProfile(profile, values.defaultQualityProfileId)
+  )
 
   return { rootFolders, qualityProfiles }
 })
@@ -72,9 +96,13 @@ export const exists = (tvdbId: number): Effect.Effect<ExistsResult, SonarrError,
     const api = yield* SonarrApi
     const series = yield* api.getSeriesByTvdbId(tvdbId)
 
-    return Option.match(series, {
-      onNone: () => ({ tvdbId, exists: false }),
-      onSome: (record) => ({ tvdbId, exists: true, series: record }),
+    return yield* Option.match(series, {
+      onNone: () => Effect.succeed({ tvdbId, exists: false }),
+      onSome: (record) =>
+        Effect.gen(function* () {
+          const qualityProfiles = yield* api.qualityProfiles
+          return { tvdbId, exists: true, series: withQualityProfileName(record, qualityProfiles) }
+        }),
     })
   })
 
@@ -139,8 +167,9 @@ export const queue = (
     const sonarrConfig = yield* SonarrConfig
     yield* sonarrConfig.get
     const api = yield* SonarrApi
-    const records = take(yield* api.queue(options.limit), options.limit)
-    return { count: records.length, records }
+    const result = yield* api.queue(options.limit)
+    const records = take(result.records, options.limit)
+    return { count: records.length, totalRecords: result.totalRecords, records }
   })
 
 export const calendar = (
@@ -161,8 +190,9 @@ export const missing = (
     const sonarrConfig = yield* SonarrConfig
     yield* sonarrConfig.get
     const api = yield* SonarrApi
-    const records = take(yield* api.missing(options.limit), options.limit)
-    return { count: records.length, records }
+    const result = yield* api.missing(options.limit)
+    const records = take(result.records, options.limit)
+    return { count: records.length, totalRecords: result.totalRecords, records }
   })
 
 export const history = (
@@ -172,8 +202,9 @@ export const history = (
     const sonarrConfig = yield* SonarrConfig
     yield* sonarrConfig.get
     const api = yield* SonarrApi
-    const records = take(yield* api.history(options.limit), options.limit)
-    return { count: records.length, records }
+    const result = yield* api.history(options.limit)
+    const records = take(result.records, options.limit)
+    return { count: records.length, totalRecords: result.totalRecords, records }
   })
 
 export const firstTvdbId = (results: ReadonlyArray<SeriesLookupResult>): Option.Option<number> =>

@@ -4,13 +4,13 @@ import { errorEnvelope, successEnvelope } from '../src/index.js'
 
 it('builds stable success envelopes with next actions', () => {
   const envelope = successEnvelope({
-    command: 'sonarr search Severance',
+    command: 'sonarr search Linux ISO',
     result: {
-      query: 'Severance',
+      query: 'Linux ISO',
       count: 1,
       results: [
         {
-          title: 'Severance',
+          title: 'Linux ISO Weekly',
           year: 2022,
           tvdbId: 371_980,
           tvdbUrl: 'https://thetvdb.com/dereferrer/series/371980',
@@ -30,13 +30,13 @@ it('builds stable success envelopes with next actions', () => {
 
   assert.deepStrictEqual(envelope, {
     ok: true,
-    command: 'sonarr search Severance',
+    command: 'sonarr search Linux ISO',
     result: {
-      query: 'Severance',
+      query: 'Linux ISO',
       count: 1,
       results: [
         {
-          title: 'Severance',
+          title: 'Linux ISO Weekly',
           year: 2022,
           tvdbId: 371_980,
           tvdbUrl: 'https://thetvdb.com/dereferrer/series/371980',

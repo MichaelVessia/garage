@@ -7,6 +7,7 @@ import type {
   AddSeriesApiOptions,
   EpisodeRecord,
   HistoryRecord,
+  ListResult,
   QualityProfile,
   QueueRecord,
   RootFolder,
@@ -40,10 +41,10 @@ export class SonarrApi extends Context.Service<
       seriesId: number,
       options: { readonly deleteFiles: boolean }
     ) => Effect.Effect<void, SonarrError>
-    readonly queue: (limit: number) => Effect.Effect<ReadonlyArray<QueueRecord>, SonarrError>
+    readonly queue: (limit: number) => Effect.Effect<ListResult<QueueRecord>, SonarrError>
     readonly calendar: (days: number) => Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
-    readonly missing: (limit: number) => Effect.Effect<ReadonlyArray<EpisodeRecord>, SonarrError>
-    readonly history: (limit: number) => Effect.Effect<ReadonlyArray<HistoryRecord>, SonarrError>
+    readonly missing: (limit: number) => Effect.Effect<ListResult<EpisodeRecord>, SonarrError>
+    readonly history: (limit: number) => Effect.Effect<ListResult<HistoryRecord>, SonarrError>
   }
 >()('@garage/sonarr/services/SonarrApi') {}
 
