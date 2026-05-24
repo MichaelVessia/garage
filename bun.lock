@@ -23,6 +23,19 @@
         "vitest": "^4.1.0",
       },
     },
+    "apps/jellyseerr-cli": {
+      "name": "@garage/jellyseerr-cli",
+      "version": "0.0.0",
+      "bin": {
+        "jellyseerr": "dist/jellyseerr",
+      },
+      "dependencies": {
+        "@effect/platform-bun": "4.0.0-beta.64",
+        "@garage/cli-protocol": "workspace:*",
+        "@garage/jellyseerr": "workspace:*",
+        "effect": "^4.0.0-beta.64",
+      },
+    },
     "apps/prowlarr-cli": {
       "name": "@garage/prowlarr-cli",
       "version": "0.0.0",
@@ -77,6 +90,13 @@
     },
     "packages/cli-protocol": {
       "name": "@garage/cli-protocol",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "^4.0.0-beta.64",
+      },
+    },
+    "packages/jellyseerr": {
+      "name": "@garage/jellyseerr",
       "version": "0.0.0",
       "dependencies": {
         "effect": "^4.0.0-beta.64",
@@ -206,6 +226,10 @@
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
 
     "@garage/cli-protocol": ["@garage/cli-protocol@workspace:packages/cli-protocol"],
+
+    "@garage/jellyseerr": ["@garage/jellyseerr@workspace:packages/jellyseerr"],
+
+    "@garage/jellyseerr-cli": ["@garage/jellyseerr-cli@workspace:apps/jellyseerr-cli"],
 
     "@garage/prowlarr": ["@garage/prowlarr@workspace:packages/prowlarr"],
 

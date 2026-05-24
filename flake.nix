@@ -85,6 +85,11 @@
           entrypoint = "apps/sabnzbd-cli/src/main.ts";
         };
 
+        jellyseerr = mkBunCli {
+          name = "jellyseerr";
+          entrypoint = "apps/jellyseerr-cli/src/main.ts";
+        };
+
         default = sonarr;
       };
 
