@@ -1,6 +1,20 @@
-export { confirmationRequired, decodeError, envFix, envMissing, httpError, notFound, unreachable } from './errors.js'
+export {
+  JellyfinConfirmationRequiredError,
+  JellyfinDecodeError,
+  JellyfinEnvMissingError,
+  JellyfinError,
+  JellyfinHttpError,
+  JellyfinNotFoundError,
+  JellyfinUnreachableError,
+  confirmationRequired,
+  decodeError,
+  envFix,
+  envMissing,
+  httpError,
+  notFound,
+  unreachable,
+} from './errors.js'
 export type { JellyfinErrorCode } from './errors.js'
-export { JellyfinError } from './errors.js'
 export { JellyfinApiLive } from './http.js'
 export type {
   ItemRecord,

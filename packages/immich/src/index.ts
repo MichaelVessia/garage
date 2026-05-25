@@ -1,6 +1,16 @@
-export { decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
+export {
+  ImmichDecodeError,
+  ImmichEnvMissingError,
+  ImmichError,
+  ImmichHttpError,
+  ImmichUnreachableError,
+  decodeError,
+  envFix,
+  envMissing,
+  httpError,
+  unreachable,
+} from './errors.js'
 export type { ImmichErrorCode } from './errors.js'
-export { ImmichError } from './errors.js'
 export { ImmichApiLive } from './http.js'
 export type {
   AlbumInfo,

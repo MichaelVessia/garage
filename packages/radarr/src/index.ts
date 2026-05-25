@@ -1,4 +1,12 @@
 export {
+  RadarrCollectionConfirmationRequiredError,
+  RadarrDecodeError,
+  RadarrDeleteConfirmationRequiredError,
+  RadarrEnvMissingError,
+  RadarrError,
+  RadarrHttpError,
+  RadarrNotFoundError,
+  RadarrUnreachableError,
   collectionConfirmationRequired,
   decodeError,
   deleteConfirmationRequired,
@@ -9,7 +17,6 @@ export {
   unreachable,
 } from './errors.js'
 export type { RadarrErrorCode } from './errors.js'
-export { RadarrError } from './errors.js'
 export { RadarrApiLive } from './http.js'
 export type {
   AddCollectionMovieAction,

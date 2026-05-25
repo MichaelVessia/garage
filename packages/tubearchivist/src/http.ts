@@ -126,9 +126,6 @@ const session = (
     return cached ?? (yield* login(client, config, cache))
   })
 
-const retryWithFreshSession = (error: TubearchivistError): boolean =>
-  error.code === 'TUBEARCHIVIST_HTTP_ERROR' && (error.status === 401 || error.status === 403)
-
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: TubearchivistConfigValue,
@@ -144,20 +141,18 @@ const getJson = <A, I, RD, RE>(
       Effect.flatMap((response) => decodeJsonResponse(response, schema))
     )
     return yield* attempt.pipe(
-      Effect.matchEffect({
-        onFailure: (error) =>
-          retryWithFreshSession(error)
-            ? login(client, config, cache).pipe(
-                Effect.flatMap((fresh) =>
-                  executeResponse(
-                    client,
-                    HttpClientRequest.get(endpoint(config, path, params)).pipe(withSession(fresh))
-                  ).pipe(Effect.flatMap((response) => decodeJsonResponse(response, schema)))
-                )
+      Effect.catchTag('TubearchivistHttpError', (error) =>
+        error.status === 401 || error.status === 403
+          ? login(client, config, cache).pipe(
+              Effect.flatMap((fresh) =>
+                executeResponse(
+                  client,
+                  HttpClientRequest.get(endpoint(config, path, params)).pipe(withSession(fresh))
+                ).pipe(Effect.flatMap((response) => decodeJsonResponse(response, schema)))
               )
-            : Effect.fail(error),
-        onSuccess: (value) => Effect.succeed(value),
-      })
+            )
+          : Effect.fail(error)
+      )
     )
   })
 
@@ -182,20 +177,18 @@ const postJson = <A, I, RD, RE>(
       Effect.flatMap((response) => decodeJsonResponse(response, schema))
     )
     return yield* attempt.pipe(
-      Effect.matchEffect({
-        onFailure: (error) =>
-          retryWithFreshSession(error)
-            ? login(client, config, cache).pipe(
-                Effect.flatMap((fresh) => build(fresh)),
-                Effect.flatMap((freshRequest) =>
-                  executeResponse(client, freshRequest).pipe(
-                    Effect.flatMap((response) => decodeJsonResponse(response, schema))
-                  )
+      Effect.catchTag('TubearchivistHttpError', (error) =>
+        error.status === 401 || error.status === 403
+          ? login(client, config, cache).pipe(
+              Effect.flatMap((fresh) => build(fresh)),
+              Effect.flatMap((freshRequest) =>
+                executeResponse(client, freshRequest).pipe(
+                  Effect.flatMap((response) => decodeJsonResponse(response, schema))
                 )
               )
-            : Effect.fail(error),
-        onSuccess: (value) => Effect.succeed(value),
-      })
+            )
+          : Effect.fail(error)
+      )
     )
   })
 

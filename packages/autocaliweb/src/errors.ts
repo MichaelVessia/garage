@@ -3,42 +3,67 @@ import { Schema } from 'effect'
 export const envFix =
   'Open a fresh shell so AUTOCALIWEB_URL, AUTOCALIWEB_USERNAME, and AUTOCALIWEB_PASSWORD are exported.'
 
-export type AutocaliwebErrorCode =
-  | 'AUTOCALIWEB_ENV_MISSING'
-  | 'AUTOCALIWEB_UNREACHABLE'
-  | 'AUTOCALIWEB_HTTP_ERROR'
-  | 'AUTOCALIWEB_DECODE_ERROR'
+export class AutocaliwebEnvMissingError extends Schema.TaggedErrorClass<AutocaliwebEnvMissingError>()(
+  'AutocaliwebEnvMissingError',
+  {
+    code: Schema.Literal('AUTOCALIWEB_ENV_MISSING'),
+    message: Schema.String,
+    fix: Schema.String,
+  }
+) {}
 
-export class AutocaliwebError extends Schema.TaggedErrorClass<AutocaliwebError>()('AutocaliwebError', {
-  code: Schema.Literals([
-    'AUTOCALIWEB_ENV_MISSING',
-    'AUTOCALIWEB_UNREACHABLE',
-    'AUTOCALIWEB_HTTP_ERROR',
-    'AUTOCALIWEB_DECODE_ERROR',
-  ]),
+export class AutocaliwebUnreachableError extends Schema.TaggedErrorClass<AutocaliwebUnreachableError>()(
+  'AutocaliwebUnreachableError',
+  {
+    code: Schema.Literal('AUTOCALIWEB_UNREACHABLE'),
+    message: Schema.String,
+    fix: Schema.String,
+  }
+) {}
+
+export class AutocaliwebHttpError extends Schema.TaggedErrorClass<AutocaliwebHttpError>()('AutocaliwebHttpError', {
+  code: Schema.Literal('AUTOCALIWEB_HTTP_ERROR'),
   message: Schema.String,
   fix: Schema.String,
 }) {}
 
-export const envMissing = (variable: string): AutocaliwebError =>
-  new AutocaliwebError({ code: 'AUTOCALIWEB_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+export class AutocaliwebDecodeError extends Schema.TaggedErrorClass<AutocaliwebDecodeError>()(
+  'AutocaliwebDecodeError',
+  {
+    code: Schema.Literal('AUTOCALIWEB_DECODE_ERROR'),
+    message: Schema.String,
+    fix: Schema.String,
+  }
+) {}
 
-export const unreachable = (message: string): AutocaliwebError =>
-  new AutocaliwebError({
+export const AutocaliwebError = Schema.Union([
+  AutocaliwebEnvMissingError,
+  AutocaliwebUnreachableError,
+  AutocaliwebHttpError,
+  AutocaliwebDecodeError,
+])
+export type AutocaliwebError = typeof AutocaliwebError.Type
+export type AutocaliwebErrorCode = AutocaliwebError['code']
+
+export const envMissing = (variable: string): AutocaliwebEnvMissingError =>
+  new AutocaliwebEnvMissingError({ code: 'AUTOCALIWEB_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+
+export const unreachable = (message: string): AutocaliwebUnreachableError =>
+  new AutocaliwebUnreachableError({
     code: 'AUTOCALIWEB_UNREACHABLE',
     message,
     fix: 'Verify Autocaliweb is reachable from this host and AUTOCALIWEB_URL points to the base URL.',
   })
 
-export const httpError = (status: number): AutocaliwebError =>
-  new AutocaliwebError({
+export const httpError = (status: number): AutocaliwebHttpError =>
+  new AutocaliwebHttpError({
     code: 'AUTOCALIWEB_HTTP_ERROR',
     message: `Autocaliweb returned HTTP ${status}`,
     fix: 'Check the Autocaliweb URL, Basic auth credentials, request parameters, and server logs.',
   })
 
-export const decodeError = (message: string): AutocaliwebError =>
-  new AutocaliwebError({
+export const decodeError = (message: string): AutocaliwebDecodeError =>
+  new AutocaliwebDecodeError({
     code: 'AUTOCALIWEB_DECODE_ERROR',
     message,
     fix: 'Update the Autocaliweb OPDS or JSON schemas to match the response shape.',

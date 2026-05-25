@@ -96,7 +96,7 @@ it.effect('runs TubeArchivist operations and requires unsubscribe confirmation',
     assert.strictEqual((yield* search({ query: 'kids', limit: 8 }).pipe(Effect.provide(layer))).query, 'kids')
 
     const denied = yield* unsubscribe({ target: 'UC1', confirmed: false }).pipe(Effect.flip, Effect.provide(layer))
-    assert.strictEqual(denied.code, 'TUBEARCHIVIST_CONFIRMATION_REQUIRED')
+    assert.strictEqual(denied._tag, 'TubearchivistConfirmationRequiredError')
     assert.strictEqual(
       (yield* unsubscribe({ target: 'UC1', confirmed: true }).pipe(Effect.provide(layer))).subscribed,
       false

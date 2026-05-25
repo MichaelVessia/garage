@@ -215,8 +215,8 @@ it.effect('peer reads require a running daemon', () =>
     const fake = yield* makeLayer(() => success(stoppedStatusJson))
     const result = yield* peers().pipe(
       Effect.provide(fake.layer),
-      Effect.match({ onFailure: (error) => error.code, onSuccess: () => 'ok' })
+      Effect.match({ onFailure: (error) => error._tag, onSuccess: () => 'ok' })
     )
-    assert.strictEqual(result, 'TAILSCALE_NOT_RUNNING')
+    assert.strictEqual(result, 'TailscaleNotRunningError')
   })
 )

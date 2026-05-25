@@ -3,33 +3,61 @@ import { Schema } from 'effect'
 export const envFix =
   'Open a fresh shell so sops-nix exports IMMICH_URL and IMMICH_API_KEY from modules/programs/shell.nix.'
 
-export type ImmichErrorCode = 'IMMICH_ENV_MISSING' | 'IMMICH_UNREACHABLE' | 'IMMICH_HTTP_ERROR' | 'IMMICH_DECODE_ERROR'
-
-export class ImmichError extends Schema.TaggedErrorClass<ImmichError>()('ImmichError', {
-  code: Schema.Literals(['IMMICH_ENV_MISSING', 'IMMICH_UNREACHABLE', 'IMMICH_HTTP_ERROR', 'IMMICH_DECODE_ERROR']),
+export class ImmichEnvMissingError extends Schema.TaggedErrorClass<ImmichEnvMissingError>()('ImmichEnvMissingError', {
+  code: Schema.Literal('IMMICH_ENV_MISSING'),
   message: Schema.String,
   fix: Schema.String,
 }) {}
 
-export const envMissing = (variable: string): ImmichError =>
-  new ImmichError({ code: 'IMMICH_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+export class ImmichUnreachableError extends Schema.TaggedErrorClass<ImmichUnreachableError>()(
+  'ImmichUnreachableError',
+  {
+    code: Schema.Literal('IMMICH_UNREACHABLE'),
+    message: Schema.String,
+    fix: Schema.String,
+  }
+) {}
 
-export const unreachable = (message: string): ImmichError =>
-  new ImmichError({
+export class ImmichHttpError extends Schema.TaggedErrorClass<ImmichHttpError>()('ImmichHttpError', {
+  code: Schema.Literal('IMMICH_HTTP_ERROR'),
+  message: Schema.String,
+  fix: Schema.String,
+}) {}
+
+export class ImmichDecodeError extends Schema.TaggedErrorClass<ImmichDecodeError>()('ImmichDecodeError', {
+  code: Schema.Literal('IMMICH_DECODE_ERROR'),
+  message: Schema.String,
+  fix: Schema.String,
+}) {}
+
+export const ImmichError = Schema.Union([
+  ImmichEnvMissingError,
+  ImmichUnreachableError,
+  ImmichHttpError,
+  ImmichDecodeError,
+])
+export type ImmichError = typeof ImmichError.Type
+export type ImmichErrorCode = ImmichError['code']
+
+export const envMissing = (variable: string): ImmichEnvMissingError =>
+  new ImmichEnvMissingError({ code: 'IMMICH_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+
+export const unreachable = (message: string): ImmichUnreachableError =>
+  new ImmichUnreachableError({
     code: 'IMMICH_UNREACHABLE',
     message,
     fix: 'Verify Immich is reachable from this host and IMMICH_URL points to the Immich base URL.',
   })
 
-export const httpError = (status: number): ImmichError =>
-  new ImmichError({
+export const httpError = (status: number): ImmichHttpError =>
+  new ImmichHttpError({
     code: 'IMMICH_HTTP_ERROR',
     message: `Immich returned HTTP ${status}`,
     fix: 'Check the Immich API key, request parameters, and Immich server logs.',
   })
 
-export const decodeError = (message: string): ImmichError =>
-  new ImmichError({
+export const decodeError = (message: string): ImmichDecodeError =>
+  new ImmichDecodeError({
     code: 'IMMICH_DECODE_ERROR',
     message,
     fix: 'Update the Immich schemas to match the API response shape.',

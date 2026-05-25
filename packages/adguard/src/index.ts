@@ -1,6 +1,18 @@
-export { confirmationRequired, decodeError, envFix, envMissing, httpError, unreachable } from './errors.js'
+export {
+  AdguardConfirmationRequiredError,
+  AdguardDecodeError,
+  AdguardEnvMissingError,
+  AdguardError,
+  AdguardHttpError,
+  AdguardUnreachableError,
+  confirmationRequired,
+  decodeError,
+  envFix,
+  envMissing,
+  httpError,
+  unreachable,
+} from './errors.js'
 export type { AdguardErrorCode } from './errors.js'
-export { AdguardError } from './errors.js'
 export { AdguardApiLive } from './http.js'
 export type {
   ActiveClient,

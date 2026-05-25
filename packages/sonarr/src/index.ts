@@ -1,5 +1,11 @@
 export {
+  SonarrDecodeError,
+  SonarrDeleteConfirmationRequiredError,
+  SonarrEnvMissingError,
   SonarrError,
+  SonarrHttpError,
+  SonarrNotFoundError,
+  SonarrUnreachableError,
   decodeError,
   deleteConfirmationRequired,
   envFix,
@@ -8,6 +14,7 @@ export {
   notFound,
   unreachable,
 } from './errors.js'
+export type { SonarrErrorCode } from './errors.js'
 export { SonarrApiLive } from './http.js'
 export {
   addSeries,
