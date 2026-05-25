@@ -19,10 +19,11 @@ import {
 import type { ReleaseRecord, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(ProwlarrConfig, {
-  get: Effect.succeed({
-    url: 'http://prowlarr.example.test',
-    apiKey: 'secret',
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://prowlarr.example.test',
+      apiKey: 'secret',
+    }),
 })
 
 const firstReleaseRecord: ReleaseRecord = {
@@ -66,60 +67,74 @@ const makeApiLayer = Effect.gen(function* () {
   const historyLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const syncCount = yield* Ref.make(0)
   const api = ProwlarrApi.of({
-    status: Effect.succeed({
-      appName: 'Prowlarr',
-      version: '1.30.2',
-      instanceName: 'Prowlarr',
-      branch: 'main',
-      runtimeVersion: '8.0.0',
-      osName: 'linux',
-    }),
-    health: Effect.succeed([
-      { source: 'Indexer', type: 'warning', message: 'Indexer unavailable', wikiUrl: 'https://wiki.example.test' },
-      { source: 'Application', type: 'error', message: 'App sync failed' },
-    ]),
-    indexers: Effect.succeed([
-      {
-        id: 1,
-        name: 'Mirror Indexer',
-        protocol: 'torrent',
-        enabled: true,
-        priority: 25,
-        supportsSearch: true,
-        supportsRss: true,
-      },
-      {
-        id: 2,
-        name: 'Usenet Indexer',
-        protocol: 'usenet',
-        enabled: true,
-        priority: 50,
-        supportsSearch: true,
-        supportsRss: false,
-      },
-    ]),
-    indexerStats: Effect.succeed([
-      {
-        id: 1,
-        name: 'Mirror Indexer',
-        queries: 10,
-        grabs: 2,
-        failedQueries: 1,
-        failedGrabs: 0,
-        avgResponseTimeMs: 512,
-      },
-      { id: 2, name: 'Usenet Indexer', queries: 5, grabs: 1, failedQueries: 0, failedGrabs: 0, avgResponseTimeMs: 256 },
-    ]),
+    status: () =>
+      Effect.succeed({
+        appName: 'Prowlarr',
+        version: '1.30.2',
+        instanceName: 'Prowlarr',
+        branch: 'main',
+        runtimeVersion: '8.0.0',
+        osName: 'linux',
+      }),
+    health: () =>
+      Effect.succeed([
+        { source: 'Indexer', type: 'warning', message: 'Indexer unavailable', wikiUrl: 'https://wiki.example.test' },
+        { source: 'Application', type: 'error', message: 'App sync failed' },
+      ]),
+    indexers: () =>
+      Effect.succeed([
+        {
+          id: 1,
+          name: 'Mirror Indexer',
+          protocol: 'torrent',
+          enabled: true,
+          priority: 25,
+          supportsSearch: true,
+          supportsRss: true,
+        },
+        {
+          id: 2,
+          name: 'Usenet Indexer',
+          protocol: 'usenet',
+          enabled: true,
+          priority: 50,
+          supportsSearch: true,
+          supportsRss: false,
+        },
+      ]),
+    indexerStats: () =>
+      Effect.succeed([
+        {
+          id: 1,
+          name: 'Mirror Indexer',
+          queries: 10,
+          grabs: 2,
+          failedQueries: 1,
+          failedGrabs: 0,
+          avgResponseTimeMs: 512,
+        },
+        {
+          id: 2,
+          name: 'Usenet Indexer',
+          queries: 5,
+          grabs: 1,
+          failedQueries: 0,
+          failedGrabs: 0,
+          avgResponseTimeMs: 256,
+        },
+      ]),
     search: (query, options) =>
       Ref.update(searches, (records) => [...records, { query, options }]).pipe(Effect.as(releaseRecords)),
     testIndexer: (indexerId) => Effect.succeed({ indexerId, passed: true, httpStatus: 200 }),
-    applications: Effect.succeed([
-      { id: 10, name: 'Sonarr', implementation: 'Sonarr', syncLevel: 'fullSync', tags: [1] },
-      { id: 11, name: 'Radarr', implementation: 'Radarr', syncLevel: 'fullSync', tags: [2] },
-    ]),
-    sync: Ref.update(syncCount, (count) => count + 1).pipe(
-      Effect.as({ id: 99, name: 'ApplicationIndexerSync', status: 'queued', queued: '2026-05-24T00:00:00Z' })
-    ),
+    applications: () =>
+      Effect.succeed([
+        { id: 10, name: 'Sonarr', implementation: 'Sonarr', syncLevel: 'fullSync', tags: [1] },
+        { id: 11, name: 'Radarr', implementation: 'Radarr', syncLevel: 'fullSync', tags: [2] },
+      ]),
+    sync: () =>
+      Ref.update(syncCount, (count) => count + 1).pipe(
+        Effect.as({ id: 99, name: 'ApplicationIndexerSync', status: 'queued', queued: '2026-05-24T00:00:00Z' })
+      ),
     history: (limit) =>
       Ref.update(historyLimits, (limits) => [...limits, limit]).pipe(
         Effect.as({

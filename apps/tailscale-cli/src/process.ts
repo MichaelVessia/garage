@@ -21,38 +21,53 @@ const isMissingCommand = (cause: PlatformError.PlatformError): boolean => cause.
 const processError = (args: ReadonlyArray<string>, cause: PlatformError.PlatformError): TailscaleError =>
   isMissingCommand(cause) ? cliMissing(cause.message) : commandFailed(commandText(args), 1, cause.message)
 
-const runCandidateEffect = (
-  spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
-  command: string,
-  args: ReadonlyArray<string>
-): Effect.Effect<ProcessResult, TailscaleError> =>
-  Effect.gen(function* () {
-    const handle = yield* spawner.spawn(ChildProcess.make(command, args))
-    const result = yield* Effect.all(
-      {
-        exitCode: handle.exitCode,
-        stdout: streamText(handle.stdout),
-        stderr: streamText(handle.stderr),
-      },
-      { concurrency: 'unbounded' }
+const commandName = (command: string): string => {
+  const parts = command.split('/')
+  return parts.at(-1) ?? command
+}
+
+const runCandidateEffect = Effect.fn('tailscale.runCandidate')(
+  function* (
+    spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
+    command: string,
+    args: ReadonlyArray<string>
+  ): Effect.fn.Return<ProcessResult, TailscaleError> {
+    yield* Effect.annotateCurrentSpan({ 'tailscale.command': commandName(command), 'tailscale.arg_count': args.length })
+    return yield* Effect.gen(function* () {
+      const handle = yield* spawner.spawn(ChildProcess.make(command, args))
+      const result = yield* Effect.all(
+        {
+          exitCode: handle.exitCode,
+          stdout: streamText(handle.stdout),
+          stderr: streamText(handle.stderr),
+        },
+        { concurrency: 'unbounded' }
+      )
+
+      return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
+    }).pipe(
+      Effect.mapError((cause) => processError(args, cause)),
+      Effect.scoped
     )
+  },
+  Effect.withSpan('tailscale.runCandidate'),
+  Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleProcess', method: 'run' })
+)
 
-    return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
-  }).pipe(
-    Effect.mapError((cause) => processError(args, cause)),
-    Effect.scoped
-  )
-
-const runFirstAvailable = (
+const runFirstAvailable = Effect.fn('tailscale.runFirstAvailable')(function* (
   spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
   args: ReadonlyArray<string>,
   candidates: ReadonlyArray<string>
-): Effect.Effect<ProcessResult, TailscaleError> => {
+): Effect.fn.Return<ProcessResult, TailscaleError> {
+  yield* Effect.annotateCurrentSpan({
+    'tailscale.arg_count': args.length,
+    'tailscale.candidate_count': candidates.length,
+  })
   const [candidate, ...rest] = candidates
   if (candidate === undefined) {
-    return Effect.fail(cliMissing('tailscale CLI not found'))
+    return yield* cliMissing('tailscale CLI not found')
   }
-  return runCandidateEffect(spawner, candidate, args).pipe(
+  return yield* runCandidateEffect(spawner, candidate, args).pipe(
     Effect.matchEffect({
       onFailure: (error) =>
         error.code === 'TAILSCALE_CLI_MISSING' && rest.length > 0
@@ -61,7 +76,7 @@ const runFirstAvailable = (
       onSuccess: (result) => Effect.succeed(result),
     })
   )
-}
+}, Effect.withSpan('tailscale.runFirstAvailable'))
 
 export const TailscaleProcessLive = Layer.effect(
   TailscaleProcess,
@@ -69,7 +84,13 @@ export const TailscaleProcessLive = Layer.effect(
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 
     return TailscaleProcess.of({
-      run: (args) => runFirstAvailable(spawner, args, tailscaleCandidates),
+      run: Effect.fn('TailscaleProcess.run')(
+        function* (args) {
+          yield* Effect.annotateCurrentSpan({ 'tailscale.arg_count': args.length })
+          return yield* runFirstAvailable(spawner, args, tailscaleCandidates)
+        },
+        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleProcess', method: 'run' })
+      ),
     })
   })
 )

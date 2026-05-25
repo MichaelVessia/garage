@@ -67,11 +67,12 @@ const severanceSeries = {
 }
 
 const ConfigLayer = Layer.succeed(SonarrConfig, {
-  get: Effect.succeed({
-    url: 'http://sonarr.example.test',
-    apiKey: 'secret',
-    defaultQualityProfileId: 1,
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://sonarr.example.test',
+      apiKey: 'secret',
+      defaultQualityProfileId: 1,
+    }),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -81,9 +82,9 @@ const makeApiLayer = Effect.gen(function* () {
   const missingLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const historyLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const api = SonarrApi.of({
-    status: Effect.succeed({ appName: 'Sonarr', version: '4.0.0' }),
-    rootFolders: Effect.succeed(rootFolders),
-    qualityProfiles: Effect.succeed(qualityProfiles),
+    status: () => Effect.succeed({ appName: 'Sonarr', version: '4.0.0' }),
+    rootFolders: () => Effect.succeed(rootFolders),
+    qualityProfiles: () => Effect.succeed(qualityProfiles),
     lookupSeries: (query) => Effect.succeed(query === 'Linux ISO' ? [severanceLookup] : []),
     lookupSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceLookup) : Option.none()),
     getSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceSeries) : Option.none()),

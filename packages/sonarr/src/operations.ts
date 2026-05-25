@@ -59,71 +59,83 @@ const withQualityProfileName = (
 
 export const status: Effect.Effect<SystemStatus, SonarrError, SonarrApi | SonarrConfig> = Effect.gen(function* () {
   const config = yield* SonarrConfig
-  yield* config.get
+  yield* config.get()
   const api = yield* SonarrApi
-  return yield* api.status
-})
+  return yield* api.status()
+}).pipe(Effect.withSpan('sonarr.status'), Effect.annotateLogs({ package: '@garage/sonarr', operation: 'status' }))
 
 export const config: Effect.Effect<ConfigSummary, SonarrError, SonarrApi | SonarrConfig> = Effect.gen(function* () {
   const sonarrConfig = yield* SonarrConfig
-  const values = yield* sonarrConfig.get
+  const values = yield* sonarrConfig.get()
   const api = yield* SonarrApi
-  const rootFolders = yield* api.rootFolders
-  const qualityProfiles = (yield* api.qualityProfiles).map((profile) =>
+  const rootFolders = yield* api.rootFolders()
+  const qualityProfiles = (yield* api.qualityProfiles()).map((profile) =>
     markDefaultQualityProfile(profile, values.defaultQualityProfileId)
   )
 
   return { rootFolders, qualityProfiles }
-})
+}).pipe(Effect.withSpan('sonarr.config'), Effect.annotateLogs({ package: '@garage/sonarr', operation: 'config' }))
 
-export const search = (
-  query: string,
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<SearchResult, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const search = Effect.fn('sonarr.search')(
+  function* (
+    query: string,
+    options?: LimitOptions
+  ): Effect.fn.Return<SearchResult, SonarrError, SonarrApi | SonarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'sonarr.query_length': query.length, 'sonarr.limit': limitOptions.limit })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
-    const results = take(yield* api.lookupSeries(query), options.limit)
+    const results = take(yield* api.lookupSeries(query), limitOptions.limit)
 
     return { query, count: results.length, results }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'search' })
+)
 
-export const exists = (tvdbId: number): Effect.Effect<ExistsResult, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const exists = Effect.fn('sonarr.exists')(
+  function* (tvdbId: number): Effect.fn.Return<ExistsResult, SonarrError, SonarrApi | SonarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
     const series = yield* api.getSeriesByTvdbId(tvdbId)
 
     return yield* Option.match(series, {
       onNone: () => Effect.succeed({ tvdbId, exists: false }),
       onSome: (record) =>
-        Effect.gen(function* () {
-          const qualityProfiles = yield* api.qualityProfiles
-          return { tvdbId, exists: true, series: withQualityProfileName(record, qualityProfiles) }
-        }),
+        api.qualityProfiles().pipe(
+          Effect.map((qualityProfiles) => ({
+            tvdbId,
+            exists: true,
+            series: withQualityProfileName(record, qualityProfiles),
+          }))
+        ),
     })
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'exists' })
+)
 
-export const addSeries = (
-  tvdbId: number,
-  options: AddSeriesOptions
-): Effect.Effect<AddSeriesResult, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const addSeries = Effect.fn('sonarr.addSeries')(
+  function* (
+    tvdbId: number,
+    options: AddSeriesOptions
+  ): Effect.fn.Return<AddSeriesResult, SonarrError, SonarrApi | SonarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId })
     const sonarrConfig = yield* SonarrConfig
-    const values = yield* sonarrConfig.get
+    const values = yield* sonarrConfig.get()
     const api = yield* SonarrApi
     const lookup = yield* api.lookupSeriesByTvdbId(tvdbId)
     const selected = yield* Option.match(lookup, {
       onNone: () => Effect.fail(notFound(`No Sonarr lookup result found for TVDB ID ${tvdbId}`)),
       onSome: (record) => Effect.succeed(record),
-    })
-    const rootFolder = yield* first(yield* api.rootFolders).pipe(
+    }).pipe(Effect.withSpan('sonarr.selectLookupResult'))
+    const rootFolder = yield* first(yield* api.rootFolders()).pipe(
       Option.match({
         onNone: () => Effect.fail(notFound('No Sonarr root folders are configured')),
         onSome: (folder) => Effect.succeed(folder),
-      })
+      }),
+      Effect.withSpan('sonarr.selectRootFolder')
     )
     const qualityProfileId = options.qualityProfileId ?? values.defaultQualityProfileId
     const series = yield* api.addSeries(selected, {
@@ -139,73 +151,98 @@ export const addSeries = (
       rootFolderPath: rootFolder.path,
       searchForMissingEpisodes: options.searchForMissingEpisodes,
     }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'addSeries' })
+)
 
-export const removeSeries = (
-  tvdbId: number,
-  options: RemoveSeriesOptions
-): Effect.Effect<RemoveSeriesResult, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const removeSeries = Effect.fn('sonarr.removeSeries')(
+  function* (
+    tvdbId: number,
+    options: RemoveSeriesOptions
+  ): Effect.fn.Return<RemoveSeriesResult, SonarrError, SonarrApi | SonarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId, 'sonarr.delete_files': options.deleteFiles })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
     const series = yield* api.getSeriesByTvdbId(tvdbId)
     const selected = yield* Option.match(series, {
       onNone: () => Effect.fail(notFound(`Series with TVDB ID ${tvdbId} is not in the Sonarr library`)),
       onSome: (record) => Effect.succeed(record),
-    })
+    }).pipe(Effect.withSpan('sonarr.selectSeries'))
 
     yield* api.removeSeries(selected.id, { deleteFiles: options.deleteFiles })
 
     return { removed: true, tvdbId, deleteFiles: options.deleteFiles }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'removeSeries' })
+)
 
-export const queue = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<QueueRecord>, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const queue: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<QueueRecord>, SonarrError, SonarrApi | SonarrConfig> = Effect.fn('sonarr.queue')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<QueueRecord>, SonarrError, SonarrApi | SonarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'sonarr.limit': limitOptions.limit })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
-    const result = yield* api.queue(options.limit)
-    const records = take(result.records, options.limit)
+    const result = yield* api.queue(limitOptions.limit)
+    const records = take(result.records, limitOptions.limit)
     return { count: records.length, totalRecords: result.totalRecords, records }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'queue' })
+)
 
-export const calendar = (
-  options: CalendarOptions = defaultCalendarOptions
-): Effect.Effect<CalendarResult, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const calendar: (
+  options?: CalendarOptions
+) => Effect.Effect<CalendarResult, SonarrError, SonarrApi | SonarrConfig> = Effect.fn('sonarr.calendar')(
+  function* (options?: CalendarOptions): Effect.fn.Return<CalendarResult, SonarrError, SonarrApi | SonarrConfig> {
+    const calendarOptions = options ?? defaultCalendarOptions
+    yield* Effect.annotateCurrentSpan({ 'sonarr.days': calendarOptions.days })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
-    const records = yield* api.calendar(options.days)
-    return { days: options.days, count: records.length, records }
-  })
+    const records = yield* api.calendar(calendarOptions.days)
+    return { days: calendarOptions.days, count: records.length, records }
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'calendar' })
+)
 
-export const missing = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<EpisodeRecord>, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const missing: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<EpisodeRecord>, SonarrError, SonarrApi | SonarrConfig> = Effect.fn('sonarr.missing')(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<EpisodeRecord>, SonarrError, SonarrApi | SonarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'sonarr.limit': limitOptions.limit })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
-    const result = yield* api.missing(options.limit)
-    const records = take(result.records, options.limit)
+    const result = yield* api.missing(limitOptions.limit)
+    const records = take(result.records, limitOptions.limit)
     return { count: records.length, totalRecords: result.totalRecords, records }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'missing' })
+)
 
-export const history = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<HistoryRecord>, SonarrError, SonarrApi | SonarrConfig> =>
-  Effect.gen(function* () {
+export const history: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<HistoryRecord>, SonarrError, SonarrApi | SonarrConfig> = Effect.fn('sonarr.history')(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<HistoryRecord>, SonarrError, SonarrApi | SonarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'sonarr.limit': limitOptions.limit })
     const sonarrConfig = yield* SonarrConfig
-    yield* sonarrConfig.get
+    yield* sonarrConfig.get()
     const api = yield* SonarrApi
-    const result = yield* api.history(options.limit)
-    const records = take(result.records, options.limit)
+    const result = yield* api.history(limitOptions.limit)
+    const records = take(result.records, limitOptions.limit)
     return { count: records.length, totalRecords: result.totalRecords, records }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', operation: 'history' })
+)
 
 export const firstTvdbId = (results: ReadonlyArray<SeriesLookupResult>): Option.Option<number> =>
   first(results).pipe(Option.map((result) => result.tvdbId))

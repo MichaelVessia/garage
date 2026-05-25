@@ -90,33 +90,33 @@ const postJson = <A, I, RD, RE>(
     return yield* executeJson(client, request, schema)
   })
 
-const postIndexerTest = (
+const postIndexerTest = Effect.fn('prowlarr.postIndexerTest')(function* (
   client: HttpClient.HttpClient,
   config: ProwlarrConfigValue,
   indexerId: number,
   body: unknown
-): Effect.Effect<
+): Effect.fn.Return<
   { readonly indexerId: number; readonly passed: boolean; readonly httpStatus: number },
   ProwlarrError
-> =>
-  Effect.gen(function* () {
-    const request = yield* HttpClientRequest.post(endpoint(config, '/api/v1/indexer/test')).pipe(
-      withAuth(config),
-      HttpClientRequest.bodyJson(body),
-      Effect.mapError((error) => decodeError(error.message))
-    )
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+> {
+  yield* Effect.annotateCurrentSpan({ 'prowlarr.indexer_id': indexerId })
+  const request = yield* HttpClientRequest.post(endpoint(config, '/api/v1/indexer/test')).pipe(
+    withAuth(config),
+    HttpClientRequest.bodyJson(body),
+    Effect.mapError((error) => decodeError(error.message))
+  )
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
 
-    if (response.status >= 200 && response.status < 300) {
-      return { indexerId, passed: true, httpStatus: response.status }
-    }
+  if (response.status >= 200 && response.status < 300) {
+    return { indexerId, passed: true, httpStatus: response.status }
+  }
 
-    if (response.status === 400) {
-      return { indexerId, passed: false, httpStatus: response.status }
-    }
+  if (response.status === 400) {
+    return { indexerId, passed: false, httpStatus: response.status }
+  }
 
-    return yield* httpError(response.status)
-  })
+  return yield* httpError(response.status)
+})
 
 const searchParams = (
   query: string,
@@ -143,29 +143,89 @@ export const ProwlarrApiLive = Layer.effect(
   ProwlarrApi,
   Effect.gen(function* () {
     const prowlarrConfig = yield* ProwlarrConfig
-    const config = yield* prowlarrConfig.get
+    const config = yield* prowlarrConfig.get()
     const client = yield* HttpClient.HttpClient
 
     return ProwlarrApi.of({
-      status: getJson(client, config, '/api/v1/system/status', StatusSchema),
-      health: getJson(client, config, '/api/v1/health', Schema.Array(HealthRecordSchema)),
-      indexers: getJson(client, config, '/api/v1/indexer', Schema.Array(IndexerRecordSchema)),
-      indexerStats: getJson(client, config, '/api/v1/indexerstats', IndexerStatsResponseSchema),
-      search: (query, options) =>
-        getJson(client, config, '/api/v1/search', Schema.Array(ReleaseRecordSchema), searchParams(query, options)),
-      testIndexer: (indexerId) =>
-        getJson(client, config, `/api/v1/indexer/${indexerId}`, Schema.Unknown).pipe(
-          Effect.flatMap((indexer) => postIndexerTest(client, config, indexerId, indexer))
-        ),
-      applications: getJson(client, config, '/api/v1/applications', Schema.Array(ApplicationRecordSchema)),
-      sync: postJson(client, config, '/api/v1/command', { name: 'ApplicationIndexerSync' }, CommandRecordSchema),
-      history: (limit) =>
-        getJson(client, config, '/api/v1/history', HistoryResponseSchema, [
-          ['page', 1],
-          ['pageSize', limit],
-          ['sortKey', 'date'],
-          ['sortDirection', 'descending'],
-        ]),
+      status: Effect.fn('ProwlarrApi.status')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/system/status', StatusSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'status' })
+      ),
+      health: Effect.fn('ProwlarrApi.health')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/health', Schema.Array(HealthRecordSchema))
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'health' })
+      ),
+      indexers: Effect.fn('ProwlarrApi.indexers')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/indexer', Schema.Array(IndexerRecordSchema))
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'indexers' })
+      ),
+      indexerStats: Effect.fn('ProwlarrApi.indexerStats')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/indexerstats', IndexerStatsResponseSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'indexerStats' })
+      ),
+      search: Effect.fn('ProwlarrApi.search')(
+        function* (query, options) {
+          yield* Effect.annotateCurrentSpan({
+            'prowlarr.query_length': query.length,
+            'prowlarr.type': options.type ?? 'search',
+            'prowlarr.limit': options.limit,
+          })
+          return yield* getJson(
+            client,
+            config,
+            '/api/v1/search',
+            Schema.Array(ReleaseRecordSchema),
+            searchParams(query, options)
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'search' })
+      ),
+      testIndexer: Effect.fn('ProwlarrApi.testIndexer')(
+        function* (indexerId) {
+          yield* Effect.annotateCurrentSpan({ 'prowlarr.indexer_id': indexerId })
+          const indexer = yield* getJson(client, config, `/api/v1/indexer/${indexerId}`, Schema.Unknown)
+          return yield* postIndexerTest(client, config, indexerId, indexer)
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'testIndexer' })
+      ),
+      applications: Effect.fn('ProwlarrApi.applications')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/applications', Schema.Array(ApplicationRecordSchema))
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'applications' })
+      ),
+      sync: Effect.fn('ProwlarrApi.sync')(
+        function* () {
+          return yield* postJson(
+            client,
+            config,
+            '/api/v1/command',
+            { name: 'ApplicationIndexerSync' },
+            CommandRecordSchema
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'sync' })
+      ),
+      history: Effect.fn('ProwlarrApi.history')(
+        function* (limit) {
+          yield* Effect.annotateCurrentSpan({ 'prowlarr.history_limit': limit })
+          return yield* getJson(client, config, '/api/v1/history', HistoryResponseSchema, [
+            ['page', 1],
+            ['pageSize', limit],
+            ['sortKey', 'date'],
+            ['sortDirection', 'descending'],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrApi', method: 'history' })
+      ),
     })
   })
 )

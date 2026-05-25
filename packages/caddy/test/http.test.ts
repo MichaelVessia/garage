@@ -15,7 +15,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(CaddyConfig, {
-  get: Effect.succeed({ url: 'http://caddy.example.test:2019/' }),
+  get: () => Effect.succeed({ url: 'http://caddy.example.test:2019/' }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

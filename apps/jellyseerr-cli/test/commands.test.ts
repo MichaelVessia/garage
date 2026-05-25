@@ -14,11 +14,11 @@ const isRootResult = (result: JellyseerrCliResult): result is RootResult =>
   'name' in result && result.name === 'jellyseerr' && 'commands' in result && Array.isArray(result.commands)
 
 const ConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: Effect.succeed({ url: 'http://jellyseerr.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test', apiKey: 'secret' }),
 })
 
 const MissingConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: Effect.fail(envMissing('JELLYSEERR_URL')),
+  get: () => Effect.fail(envMissing('JELLYSEERR_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -26,12 +26,12 @@ const makeApiLayer = Effect.gen(function* () {
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const approvals = yield* Ref.make<ReadonlyArray<number>>([])
   const api = JellyseerrApi.of({
-    status: Effect.succeed({ version: '2.0.0', commitTag: 'v2.0.0', updateAvailable: false }),
+    status: () => Effect.succeed({ version: '2.0.0', commitTag: 'v2.0.0', updateAvailable: false }),
     requests: (options) =>
       Ref.update(requestOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, totalRecords: 3, records: [request] })
       ),
-    requestCounts: Effect.succeed({ pending: 3, approved: 9 }),
+    requestCounts: () => Effect.succeed({ pending: 3, approved: 9 }),
     search: (options) =>
       Ref.update(searchOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, totalRecords: 1, records: [{ id: 95_396, mediaType: 'tv', title: 'Linux ISO Weekly' }] })

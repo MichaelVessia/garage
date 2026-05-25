@@ -16,7 +16,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: Effect.succeed({ url: 'http://jellyfin.example.test/', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyfin.example.test/', apiKey: 'secret' }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

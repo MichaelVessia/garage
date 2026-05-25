@@ -16,10 +16,11 @@ import {
 import type { DeleteOptions, LimitOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(SabnzbdConfig, {
-  get: Effect.succeed({
-    url: 'http://sabnzbd.example.test',
-    apiKey: 'secret',
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://sabnzbd.example.test',
+      apiKey: 'secret',
+    }),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -27,18 +28,19 @@ const makeApiLayer = Effect.gen(function* () {
   const historyOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const deleteCalls = yield* Ref.make<ReadonlyArray<{ readonly nzoId: string; readonly options: DeleteOptions }>>([])
   const api = SabnzbdApi.of({
-    status: Effect.succeed({
-      version: '4.5.3',
-      uptime: '1d',
-      paused: false,
-      pausedAll: false,
-      speedlimit: '0',
-      speedlimitAbs: '0',
-      diskspace1Norm: '1 TB',
-      haveWarnings: false,
-      warnings: [],
-    }),
-    version: Effect.succeed({ version: '4.5.3' }),
+    status: () =>
+      Effect.succeed({
+        version: '4.5.3',
+        uptime: '1d',
+        paused: false,
+        pausedAll: false,
+        speedlimit: '0',
+        speedlimitAbs: '0',
+        diskspace1Norm: '1 TB',
+        haveWarnings: false,
+        warnings: [],
+      }),
+    version: () => Effect.succeed({ version: '4.5.3' }),
     queue: (options) =>
       Ref.update(queueOptions, (records) => [...records, options]).pipe(
         Effect.as({
@@ -91,19 +93,20 @@ const makeApiLayer = Effect.gen(function* () {
           ],
         })
       ),
-    pause: Effect.succeed({ action: 'pause', ok: true }),
-    resume: Effect.succeed({ action: 'resume', ok: true }),
+    pause: () => Effect.succeed({ action: 'pause', ok: true }),
+    resume: () => Effect.succeed({ action: 'resume', ok: true }),
     delete: (nzoId, options) =>
       Ref.update(deleteCalls, (records) => [...records, { nzoId, options }]).pipe(
         Effect.as({ action: 'delete', ok: true, nzoId, deleteFiles: options.deleteFiles })
       ),
-    serverStats: Effect.succeed({
-      total: 1000,
-      month: 400,
-      week: 100,
-      day: 10,
-      servers: { 'news.example.test': { total: 1000, month: 400, week: 100, day: 10 } },
-    }),
+    serverStats: () =>
+      Effect.succeed({
+        total: 1000,
+        month: 400,
+        week: 100,
+        day: 10,
+        servers: { 'news.example.test': { total: 1000, month: 400, week: 100, day: 10 } },
+      }),
   })
 
   return { layer: Layer.succeed(SabnzbdApi, api), queueOptions, historyOptions, deleteCalls }

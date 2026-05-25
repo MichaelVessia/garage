@@ -22,7 +22,7 @@ import {
 import type { ClientLookupOptions, LimitOptions, ProtectionToggleOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AdguardConfig, {
-  get: Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: 'secret' }),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -31,16 +31,17 @@ const makeApiLayer = Effect.gen(function* () {
   const clientLookups = yield* Ref.make<ReadonlyArray<ClientLookupOptions>>([])
   const toggles = yield* Ref.make<ReadonlyArray<ProtectionToggleOptions>>([])
   const api = AdguardApi.of({
-    status: Effect.succeed({ version: 'v0.107.67', running: true, protectionEnabled: true }),
-    version: Effect.succeed({ version: 'v0.107.67' }),
-    stats: Effect.succeed({
-      numDnsQueries: 100,
-      numBlockedFiltering: 10,
-      topQueriedDomains: [{ name: 'example.com', count: 20 }],
-      topBlockedDomains: [{ name: 'ads.example.com', count: 5 }],
-      topClients: [{ name: '192.0.2.2', count: 30 }],
-    }),
-    statsInfo: Effect.succeed({ interval: 1 }),
+    status: () => Effect.succeed({ version: 'v0.107.67', running: true, protectionEnabled: true }),
+    version: () => Effect.succeed({ version: 'v0.107.67' }),
+    stats: () =>
+      Effect.succeed({
+        numDnsQueries: 100,
+        numBlockedFiltering: 10,
+        topQueriedDomains: [{ name: 'example.com', count: 20 }],
+        topBlockedDomains: [{ name: 'ads.example.com', count: 5 }],
+        topClients: [{ name: '192.0.2.2', count: 30 }],
+      }),
+    statsInfo: () => Effect.succeed({ interval: 1 }),
     queryLog: (options) =>
       Ref.update(queryLogOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ question: 'example.com', client: '192.0.2.2', answer: '1.1.1.1' }] })
@@ -49,31 +50,34 @@ const makeApiLayer = Effect.gen(function* () {
       Ref.update(searchOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ question: options.query, client: '192.0.2.2', answer: '' }] })
       ),
-    clients: Effect.succeed({
-      configured: [{ name: 'Test Client', ids: ['192.0.2.2'] }],
-      autoCount: 1,
-      autoSample: [{ name: 'Guest Device', ip: '192.0.2.3' }],
-    }),
+    clients: () =>
+      Effect.succeed({
+        configured: [{ name: 'Test Client', ids: ['192.0.2.2'] }],
+        autoCount: 1,
+        autoSample: [{ name: 'Guest Device', ip: '192.0.2.3' }],
+      }),
     clientsActive: (options) =>
       Ref.update(clientLookups, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ ip: options.ip, name: 'Test Client' }] })
       ),
-    filters: Effect.succeed({
-      enabled: true,
-      intervalHours: 24,
-      userRulesCount: 2,
-      blocklists: [{ id: 1, name: 'AdGuard DNS filter' }],
-      allowlists: [],
-    }),
-    rules: Effect.succeed({ count: 1, records: ['@@||example.com^'] }),
-    dnsConfig: Effect.succeed({ upstream_mode: 'parallel' }),
-    dhcpStatus: Effect.succeed({
-      enabled: false,
-      leaseCount: 0,
-      staticLeaseCount: 0,
-      leases: [],
-      staticLeases: [],
-    }),
+    filters: () =>
+      Effect.succeed({
+        enabled: true,
+        intervalHours: 24,
+        userRulesCount: 2,
+        blocklists: [{ id: 1, name: 'AdGuard DNS filter' }],
+        allowlists: [],
+      }),
+    rules: () => Effect.succeed({ count: 1, records: ['@@||example.com^'] }),
+    dnsConfig: () => Effect.succeed({ upstream_mode: 'parallel' }),
+    dhcpStatus: () =>
+      Effect.succeed({
+        enabled: false,
+        leaseCount: 0,
+        staticLeaseCount: 0,
+        leases: [],
+        staticLeases: [],
+      }),
     protectionToggle: (options) =>
       Ref.update(toggles, (records) => [...records, options]).pipe(
         Effect.as({ protectionEnabled: options.state === 'on', protectionDisabledDuration: 0 })

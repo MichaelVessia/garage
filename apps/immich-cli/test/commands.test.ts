@@ -6,11 +6,11 @@ import { Effect, Layer, Ref } from 'effect'
 import { executeImmich } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(ImmichConfig, {
-  get: Effect.succeed({ url: 'http://immich.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://immich.example.test', apiKey: 'secret' }),
 })
 
 const MissingConfigLayer = Layer.succeed(ImmichConfig, {
-  get: Effect.fail(envMissing('IMMICH_URL')),
+  get: () => Effect.fail(envMissing('IMMICH_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -21,18 +21,19 @@ const makeApiLayer = Effect.gen(function* () {
   const peopleOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const personIds = yield* Ref.make<ReadonlyArray<string>>([])
   const api = ImmichApi.of({
-    status: Effect.succeed({ version: '2.5.6', versionParts: { major: 2, minor: 5, patch: 6 }, ping: 'pong' }),
-    stats: Effect.succeed({
-      photos: 10,
-      videos: 2,
-      usageBytes: 1000,
-      usagePhotosBytes: 700,
-      usageVideosBytes: 300,
-      perUser: [],
-    }),
-    storage: Effect.succeed({ diskSize: '10 TiB' }),
-    users: Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User' }] }),
-    me: Effect.succeed({ id: 'u1', name: 'Test User' }),
+    status: () => Effect.succeed({ version: '2.5.6', versionParts: { major: 2, minor: 5, patch: 6 }, ping: 'pong' }),
+    stats: () =>
+      Effect.succeed({
+        photos: 10,
+        videos: 2,
+        usageBytes: 1000,
+        usagePhotosBytes: 700,
+        usageVideosBytes: 300,
+        perUser: [],
+      }),
+    storage: () => Effect.succeed({ diskSize: '10 TiB' }),
+    users: () => Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User' }] }),
+    me: () => Effect.succeed({ id: 'u1', name: 'Test User' }),
     albums: (options) =>
       Ref.update(albumOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'a1', albumName: 'Family' }] })
@@ -60,8 +61,8 @@ const makeApiLayer = Effect.gen(function* () {
       ),
     personInfo: (personId) =>
       Ref.update(personIds, (records) => [...records, personId]).pipe(Effect.as({ id: personId, name: 'Person' })),
-    jobs: Effect.succeed({ count: 1, records: [{ queue: 'smartSearch', counts: { waiting: 0 } }] }),
-    tags: Effect.succeed({ count: 1, records: [{ id: 't1', name: 'vacation' }] }),
+    jobs: () => Effect.succeed({ count: 1, records: [{ queue: 'smartSearch', counts: { waiting: 0 } }] }),
+    tags: () => Effect.succeed({ count: 1, records: [{ id: 't1', name: 'vacation' }] }),
   })
   return {
     layer: Layer.succeed(ImmichApi, api),

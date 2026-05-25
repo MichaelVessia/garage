@@ -108,42 +108,104 @@ export const JellyseerrApiLive = Layer.effect(
   JellyseerrApi,
   Effect.gen(function* () {
     const jellyseerrConfig = yield* JellyseerrConfig
-    const config = yield* jellyseerrConfig.get
+    const config = yield* jellyseerrConfig.get()
     const client = yield* HttpClient.HttpClient
 
     return JellyseerrApi.of({
-      status: getJson(client, config, '/api/v1/status', StatusSchema),
-      requests: (options) =>
-        getJson(client, config, '/api/v1/request', RequestsResponseSchema, [
-          ['take', options.limit],
-          ['sort', 'added'],
-          ['filter', options.filter],
-        ]),
-      requestCounts: getJson(client, config, '/api/v1/request/count', RequestCountsSchema),
-      search: (options) =>
-        getJson(client, config, '/api/v1/search', SearchResponseSchema, [
-          ['query', options.query],
-          ['take', options.limit],
-        ]),
-      mediaStatus: (mediaId) => getJson(client, config, `/api/v1/media/${mediaId}`, MediaResponseSchema),
-      recentlyAdded: (options) =>
-        getJson(client, config, '/api/v1/media', MediaListResponseSchema, [
-          ['filter', 'available'],
-          ['sort', 'mediaAdded'],
-          ['take', options.limit],
-        ]),
-      approve: (requestId) => postJson(client, config, `/api/v1/request/${requestId}/approve`, RequestSchema),
-      decline: (requestId) => postJson(client, config, `/api/v1/request/${requestId}/decline`, RequestSchema),
-      deleteRequest: (requestId) =>
-        deleteStatus(client, config, `/api/v1/request/${requestId}`).pipe(
-          Effect.map((httpStatus) => ({ deleted: true, requestId, httpStatus }))
-        ),
-      users: (options) => getJson(client, config, '/api/v1/user', UserListResponseSchema, [['take', options.limit]]),
-      issues: (options) =>
-        getJson(client, config, '/api/v1/issue', IssueListResponseSchema, [
-          ['take', options.limit],
-          ['filter', 'open'],
-        ]),
+      status: Effect.fn('JellyseerrApi.status')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/status', StatusSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'status' })
+      ),
+      requests: Effect.fn('JellyseerrApi.requests')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': options.limit, 'jellyseerr.filter': options.filter })
+          return yield* getJson(client, config, '/api/v1/request', RequestsResponseSchema, [
+            ['take', options.limit],
+            ['sort', 'added'],
+            ['filter', options.filter],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'requests' })
+      ),
+      requestCounts: Effect.fn('JellyseerrApi.requestCounts')(
+        function* () {
+          return yield* getJson(client, config, '/api/v1/request/count', RequestCountsSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'requestCounts' })
+      ),
+      search: Effect.fn('JellyseerrApi.search')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({
+            'jellyseerr.query_length': options.query.length,
+            'jellyseerr.limit': options.limit,
+          })
+          return yield* getJson(client, config, '/api/v1/search', SearchResponseSchema, [
+            ['query', options.query],
+            ['take', options.limit],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'search' })
+      ),
+      mediaStatus: Effect.fn('JellyseerrApi.mediaStatus')(
+        function* (mediaId) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.media_id': mediaId })
+          return yield* getJson(client, config, `/api/v1/media/${mediaId}`, MediaResponseSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'mediaStatus' })
+      ),
+      recentlyAdded: Effect.fn('JellyseerrApi.recentlyAdded')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': options.limit, 'jellyseerr.filter': 'available' })
+          return yield* getJson(client, config, '/api/v1/media', MediaListResponseSchema, [
+            ['filter', 'available'],
+            ['sort', 'mediaAdded'],
+            ['take', options.limit],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'recentlyAdded' })
+      ),
+      approve: Effect.fn('JellyseerrApi.approve')(
+        function* (requestId) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.request_id': requestId })
+          return yield* postJson(client, config, `/api/v1/request/${requestId}/approve`, RequestSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'approve' })
+      ),
+      decline: Effect.fn('JellyseerrApi.decline')(
+        function* (requestId) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.request_id': requestId })
+          return yield* postJson(client, config, `/api/v1/request/${requestId}/decline`, RequestSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'decline' })
+      ),
+      deleteRequest: Effect.fn('JellyseerrApi.deleteRequest')(
+        function* (requestId) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.request_id': requestId })
+          return yield* deleteStatus(client, config, `/api/v1/request/${requestId}`).pipe(
+            Effect.map((httpStatus) => ({ deleted: true, requestId, httpStatus }))
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'deleteRequest' })
+      ),
+      users: Effect.fn('JellyseerrApi.users')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': options.limit })
+          return yield* getJson(client, config, '/api/v1/user', UserListResponseSchema, [['take', options.limit]])
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'users' })
+      ),
+      issues: Effect.fn('JellyseerrApi.issues')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': options.limit, 'jellyseerr.filter': 'open' })
+          return yield* getJson(client, config, '/api/v1/issue', IssueListResponseSchema, [
+            ['take', options.limit],
+            ['filter', 'open'],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrApi', method: 'issues' })
+      ),
     })
   })
 )

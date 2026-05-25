@@ -97,7 +97,7 @@ const defaultQualityProfileAction = (
 ): Effect.Effect<NextAction, RadarrError, RadarrConfig> =>
   Effect.gen(function* () {
     const radarrConfig = yield* RadarrConfig
-    const values = yield* radarrConfig.get
+    const values = yield* radarrConfig.get()
 
     return {
       command: addCommandTemplate,

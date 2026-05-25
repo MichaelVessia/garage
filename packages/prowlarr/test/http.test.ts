@@ -16,10 +16,11 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(ProwlarrConfig, {
-  get: Effect.succeed({
-    url: 'http://prowlarr.example.test/',
-    apiKey: 'secret',
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://prowlarr.example.test/',
+      apiKey: 'secret',
+    }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

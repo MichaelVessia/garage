@@ -16,7 +16,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(AdguardConfig, {
-  get: Effect.succeed({ url: 'http://adguard.example.test/', username: 'admin', password: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://adguard.example.test/', username: 'admin', password: 'secret' }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

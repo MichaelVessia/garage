@@ -45,15 +45,16 @@ const linuxIsoMovie = {
 }
 
 const ConfigLayer = Layer.succeed(RadarrConfig, {
-  get: Effect.succeed({
-    url: 'http://radarr.example.test',
-    apiKey: 'secret',
-    defaultQualityProfileId: 1,
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://radarr.example.test',
+      apiKey: 'secret',
+      defaultQualityProfileId: 1,
+    }),
 })
 
 const MissingConfigLayer = Layer.succeed(RadarrConfig, {
-  get: Effect.fail(envMissing('RADARR_URL')),
+  get: () => Effect.fail(envMissing('RADARR_URL')),
 })
 
 const movieFromLookup = (lookup: MovieLookupResult): MovieRecord => ({
@@ -74,32 +75,33 @@ const lookupByTmdbId = (tmdbId: number): Option.Option<MovieLookupResult> => {
 }
 
 const ApiLayer = Layer.succeed(RadarrApi, {
-  status: Effect.succeed({
-    appName: 'Radarr',
-    version: '5.0.0',
-    branch: 'main',
-    runtimeVersion: '8.0.0',
-  }),
-  rootFolders: Effect.succeed([
-    { id: 1, path: '/movies', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 },
-  ]),
-  qualityProfiles: Effect.succeed([
-    {
-      id: 1,
-      name: 'HD-1080p',
-      isDefault: true,
-      upgradeAllowed: true,
-      cutoff: 4,
-      minFormatScore: 0,
-      cutoffFormatScore: 0,
-    },
-  ]),
+  status: () =>
+    Effect.succeed({
+      appName: 'Radarr',
+      version: '5.0.0',
+      branch: 'main',
+      runtimeVersion: '8.0.0',
+    }),
+  rootFolders: () =>
+    Effect.succeed([{ id: 1, path: '/movies', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
+  qualityProfiles: () =>
+    Effect.succeed([
+      {
+        id: 1,
+        name: 'HD-1080p',
+        isDefault: true,
+        upgradeAllowed: true,
+        cutoff: 4,
+        minFormatScore: 0,
+        cutoffFormatScore: 0,
+      },
+    ]),
   lookupMovies: (query) => Effect.succeed(query === 'Linux ISO' ? [linuxIsoLookup, debianLookup] : []),
   lookupMovieByTmdbId: (tmdbId) => Effect.succeed(lookupByTmdbId(tmdbId)),
   getMovieByTmdbId: (tmdbId) => Effect.succeed(tmdbId === 27_205 ? Option.some(linuxIsoMovie) : Option.none()),
   addMovie: (lookup) => Effect.succeed(movieFromLookup(lookup)),
   removeMovie: () => Effect.void,
-  collections: Effect.succeed([collection]),
+  collections: () => Effect.succeed([collection]),
   setCollectionMonitoring: () => Effect.void,
   queue: () =>
     Effect.succeed({

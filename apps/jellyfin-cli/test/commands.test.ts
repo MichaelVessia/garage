@@ -6,11 +6,11 @@ import { Effect, Layer, Ref } from 'effect'
 import { executeJellyfin } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: 'secret' }),
 })
 
 const MissingConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: Effect.fail(envMissing('JELLYFIN_URL')),
+  get: () => Effect.fail(envMissing('JELLYFIN_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -18,10 +18,11 @@ const makeApiLayer = Effect.gen(function* () {
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const runTasks = yield* Ref.make<ReadonlyArray<string>>([])
   const api = JellyfinApi.of({
-    status: Effect.succeed({ serverName: 'Jellyfin', version: '10.10.7' }),
-    users: Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User' }] }),
-    libraries: Effect.succeed({ count: 1, records: [{ name: 'Movies' }] }),
-    sessions: Effect.succeed({ count: 1, records: [{ sessionId: 's1', user: 'Test User', nowPlaying: 'Linux ISO' }] }),
+    status: () => Effect.succeed({ serverName: 'Jellyfin', version: '10.10.7' }),
+    users: () => Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User' }] }),
+    libraries: () => Effect.succeed({ count: 1, records: [{ name: 'Movies' }] }),
+    sessions: () =>
+      Effect.succeed({ count: 1, records: [{ sessionId: 's1', user: 'Test User', nowPlaying: 'Linux ISO' }] }),
     recentlyAdded: (options) =>
       Ref.update(recentOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'i1', name: 'Linux ISO' }] })
@@ -30,8 +31,8 @@ const makeApiLayer = Effect.gen(function* () {
       Ref.update(searchOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'i1', name: 'Linux ISO' }] })
       ),
-    libraryStats: Effect.succeed({ MovieCount: 100 }),
-    scheduledTasks: Effect.succeed({ count: 1, records: [{ id: 'task1', name: 'Scan', state: 'Idle' }] }),
+    libraryStats: () => Effect.succeed({ MovieCount: 100 }),
+    scheduledTasks: () => Effect.succeed({ count: 1, records: [{ id: 'task1', name: 'Scan', state: 'Idle' }] }),
     runTask: (taskId) =>
       Ref.update(runTasks, (records) => [...records, taskId]).pipe(
         Effect.as({ started: true, taskId, httpStatus: 204 })

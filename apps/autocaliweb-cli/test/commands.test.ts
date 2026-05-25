@@ -6,10 +6,10 @@ import { Effect, Layer, Ref } from 'effect'
 import { executeAutocaliweb } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
-  get: Effect.succeed({ url: 'http://autocaliweb.example.test', username: 'fixture-user', password: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://autocaliweb.example.test', username: 'fixture-user', password: 'secret' }),
 })
 
-const MissingConfigLayer = Layer.succeed(AutocaliwebConfig, { get: Effect.fail(envMissing('AUTOCALIWEB_URL')) })
+const MissingConfigLayer = Layer.succeed(AutocaliwebConfig, { get: () => Effect.fail(envMissing('AUTOCALIWEB_URL')) })
 
 const makeApiLayer = Effect.gen(function* () {
   const bookOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
@@ -17,14 +17,15 @@ const makeApiLayer = Effect.gen(function* () {
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const bookInfoOptions = yield* Ref.make<ReadonlyArray<string>>([])
   const api = AutocaliwebApi.of({
-    status: Effect.succeed({
-      title: 'Fixture Catalog',
-      updated: '2026-05-24T10:00:00+00:00',
-      catalogCount: 1,
-      stats: { books: 1, authors: 1, categories: 1, series: 0 },
-    }),
-    stats: Effect.succeed({ books: 1, authors: 1, categories: 1, series: 0 }),
-    catalog: Effect.succeed({ count: 1, records: [{ title: 'Alphabetical Books', href: '/opds/books' }] }),
+    status: () =>
+      Effect.succeed({
+        title: 'Fixture Catalog',
+        updated: '2026-05-24T10:00:00+00:00',
+        catalogCount: 1,
+        stats: { books: 1, authors: 1, categories: 1, series: 0 },
+      }),
+    stats: () => Effect.succeed({ books: 1, authors: 1, categories: 1, series: 0 }),
+    catalog: () => Effect.succeed({ count: 1, records: [{ title: 'Alphabetical Books', href: '/opds/books' }] }),
     books: (options) =>
       Ref.update(bookOptions, (records) => [...records, options]).pipe(
         Effect.as({
@@ -61,7 +62,7 @@ const makeApiLayer = Effect.gen(function* () {
           tags: [],
         })
       ),
-    shelves: Effect.succeed({ count: 1, records: [{ title: 'Favorites', href: '/opds/shelf/1' }] }),
+    shelves: () => Effect.succeed({ count: 1, records: [{ title: 'Favorites', href: '/opds/shelf/1' }] }),
   })
   return { layer: Layer.succeed(AutocaliwebApi, api), bookOptions, recentOptions, searchOptions, bookInfoOptions }
 })

@@ -95,71 +95,83 @@ const findCollection = (
 
 export const status: Effect.Effect<SystemStatus, RadarrError, RadarrApi | RadarrConfig> = Effect.gen(function* () {
   const config = yield* RadarrConfig
-  yield* config.get
+  yield* config.get()
   const api = yield* RadarrApi
-  return yield* api.status
-})
+  return yield* api.status()
+}).pipe(Effect.withSpan('radarr.status'), Effect.annotateLogs({ package: '@garage/radarr', operation: 'status' }))
 
 export const config: Effect.Effect<ConfigSummary, RadarrError, RadarrApi | RadarrConfig> = Effect.gen(function* () {
   const radarrConfig = yield* RadarrConfig
-  const values = yield* radarrConfig.get
+  const values = yield* radarrConfig.get()
   const api = yield* RadarrApi
-  const rootFolders = yield* api.rootFolders
-  const qualityProfiles = (yield* api.qualityProfiles).map((profile) =>
+  const rootFolders = yield* api.rootFolders()
+  const qualityProfiles = (yield* api.qualityProfiles()).map((profile) =>
     markDefaultQualityProfile(profile, values.defaultQualityProfileId)
   )
 
   return { rootFolders, qualityProfiles }
-})
+}).pipe(Effect.withSpan('radarr.config'), Effect.annotateLogs({ package: '@garage/radarr', operation: 'config' }))
 
-export const search = (
-  query: string,
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<SearchResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const search = Effect.fn('radarr.search')(
+  function* (
+    query: string,
+    options?: LimitOptions
+  ): Effect.fn.Return<SearchResult, RadarrError, RadarrApi | RadarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'radarr.query_length': query.length, 'radarr.limit': limitOptions.limit })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const results = take(yield* api.lookupMovies(query), options.limit)
+    const results = take(yield* api.lookupMovies(query), limitOptions.limit)
 
     return { query, count: results.length, results }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'search' })
+)
 
-export const exists = (tmdbId: number): Effect.Effect<ExistsResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const exists = Effect.fn('radarr.exists')(
+  function* (tmdbId: number): Effect.fn.Return<ExistsResult, RadarrError, RadarrApi | RadarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
     const movie = yield* api.getMovieByTmdbId(tmdbId)
 
     return yield* Option.match(movie, {
       onNone: () => Effect.succeed({ tmdbId, exists: false }),
       onSome: (record) =>
-        Effect.gen(function* () {
-          const qualityProfiles = yield* api.qualityProfiles
-          return { tmdbId, exists: true, movie: withQualityProfileName(record, qualityProfiles) }
-        }),
+        api.qualityProfiles().pipe(
+          Effect.map((qualityProfiles) => ({
+            tmdbId,
+            exists: true,
+            movie: withQualityProfileName(record, qualityProfiles),
+          }))
+        ),
     })
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'exists' })
+)
 
-export const addMovie = (
-  tmdbId: number,
-  options: AddMovieOptions
-): Effect.Effect<AddMovieResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const addMovie = Effect.fn('radarr.addMovie')(
+  function* (
+    tmdbId: number,
+    options: AddMovieOptions
+  ): Effect.fn.Return<AddMovieResult, RadarrError, RadarrApi | RadarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
     const radarrConfig = yield* RadarrConfig
-    const values = yield* radarrConfig.get
+    const values = yield* radarrConfig.get()
     const api = yield* RadarrApi
     const lookup = yield* api.lookupMovieByTmdbId(tmdbId)
     const selected = yield* Option.match(lookup, {
       onNone: () => Effect.fail(notFound(`No Radarr lookup result found for TMDB ID ${tmdbId}`)),
       onSome: (record) => Effect.succeed(record),
-    })
-    const rootFolder = yield* first(yield* api.rootFolders).pipe(
+    }).pipe(Effect.withSpan('radarr.selectLookupResult'))
+    const rootFolder = yield* first(yield* api.rootFolders()).pipe(
       Option.match({
         onNone: () => Effect.fail(notFound('No Radarr root folders are configured')),
         onSome: (folder) => Effect.succeed(folder),
-      })
+      }),
+      Effect.withSpan('radarr.selectRootFolder')
     )
     const qualityProfileId = options.qualityProfileId ?? values.defaultQualityProfileId
     const movie = yield* api.addMovie(selected, {
@@ -175,16 +187,17 @@ export const addMovie = (
       rootFolderPath: rootFolder.path,
       searchForMovie: options.searchForMovie,
     }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'addMovie' })
+)
 
-export const collectionInfo = (
-  collectionTmdbId: number
-): Effect.Effect<CollectionInfoResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const collectionInfo = Effect.fn('radarr.collectionInfo')(
+  function* (collectionTmdbId: number): Effect.fn.Return<CollectionInfoResult, RadarrError, RadarrApi | RadarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'radarr.collection_id': collectionTmdbId })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const collection = yield* findCollection(yield* api.collections, collectionTmdbId).pipe(
+    const collection = yield* findCollection(yield* api.collections(), collectionTmdbId).pipe(
       Option.match({
         onNone: () =>
           Effect.fail(
@@ -195,17 +208,27 @@ export const collectionInfo = (
     )
 
     return { collection }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'collectionInfo' })
+)
 
-export const addCollection = (
+export const addCollection: (
   collectionTmdbId: number,
-  options: AddCollectionOptions = defaultAddCollectionOptions
-): Effect.Effect<AddCollectionResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+  options?: AddCollectionOptions
+) => Effect.Effect<AddCollectionResult, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.addCollection')(
+  function* (
+    collectionTmdbId: number,
+    options?: AddCollectionOptions
+  ): Effect.fn.Return<AddCollectionResult, RadarrError, RadarrApi | RadarrConfig> {
+    const addOptions = options ?? defaultAddCollectionOptions
+    yield* Effect.annotateCurrentSpan({
+      'radarr.collection_id': collectionTmdbId,
+      'radarr.limit': addOptions.resultLimit,
+    })
     const radarrConfig = yield* RadarrConfig
-    const values = yield* radarrConfig.get
+    const values = yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const collection = yield* findCollection(yield* api.collections, collectionTmdbId).pipe(
+    const collection = yield* findCollection(yield* api.collections(), collectionTmdbId).pipe(
       Option.match({
         onNone: () =>
           Effect.fail(
@@ -214,23 +237,26 @@ export const addCollection = (
         onSome: (record) => Effect.succeed(record),
       })
     )
-    const movies = (yield* api.lookupMovies(collectionSearchTerm(collection.title))).filter(
-      (movie) => movie.collection?.tmdbId === collectionTmdbId
+    const movies = yield* api.lookupMovies(collectionSearchTerm(collection.title)).pipe(
+      Effect.map((records) => records.filter((movie) => movie.collection?.tmdbId === collectionTmdbId)),
+      Effect.withSpan('radarr.lookupCollectionMovies')
     )
 
     if (movies.length === 0) {
       return yield* notFound(`No movies found in collection ${collectionTmdbId}`)
     }
 
-    const rootFolder = yield* first(yield* api.rootFolders).pipe(
+    const rootFolder = yield* first(yield* api.rootFolders()).pipe(
       Option.match({
         onNone: () => Effect.fail(notFound('No Radarr root folders are configured')),
         onSome: (folder) => Effect.succeed(folder),
-      })
+      }),
+      Effect.withSpan('radarr.selectRootFolder')
     )
 
     const addCollectionMovie = (movie: MovieLookupResult): Effect.Effect<AddCollectionMovieResult, never> =>
       Effect.gen(function* () {
+        yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': movie.tmdbId })
         const existing = yield* api.getMovieByTmdbId(movie.tmdbId)
 
         return yield* Option.match(existing, {
@@ -239,12 +265,13 @@ export const addCollection = (
               .addMovie(movie, {
                 qualityProfileId: values.defaultQualityProfileId,
                 rootFolderPath: rootFolder.path,
-                searchForMovie: options.searchForMovies,
+                searchForMovie: addOptions.searchForMovies,
               })
               .pipe(Effect.map(addedCollectionMovie)),
           onSome: () => Effect.succeed(skippedCollectionMovie(movie)),
         })
       }).pipe(
+        Effect.withSpan('radarr.addCollectionMovie'),
         Effect.match({
           onFailure: (error) => failedCollectionMovie(movie, error.message),
           onSuccess: (result) => result,
@@ -257,7 +284,7 @@ export const addCollection = (
     const added = records.filter((record) => record.action === 'added').length
     const skipped = records.filter((record) => record.action === 'skipped').length
     const failed = records.filter((record) => record.action === 'failed').length
-    const visibleRecords = take(records, options.resultLimit)
+    const visibleRecords = take(records, addOptions.resultLimit)
 
     return {
       collectionTmdbId,
@@ -266,79 +293,104 @@ export const addCollection = (
       added,
       skipped,
       failed,
-      searchForMovies: options.searchForMovies,
+      searchForMovies: addOptions.searchForMovies,
       monitored: true,
       searchOnAdd: true,
       records: visibleRecords,
       recordsTruncated: visibleRecords.length < records.length,
     }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'addCollection' })
+)
 
-export const removeMovie = (
-  tmdbId: number,
-  options: RemoveMovieOptions
-): Effect.Effect<RemoveMovieResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const removeMovie = Effect.fn('radarr.removeMovie')(
+  function* (
+    tmdbId: number,
+    options: RemoveMovieOptions
+  ): Effect.fn.Return<RemoveMovieResult, RadarrError, RadarrApi | RadarrConfig> {
+    yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId, 'radarr.delete_files': options.deleteFiles })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
     const movie = yield* api.getMovieByTmdbId(tmdbId)
     const selected = yield* Option.match(movie, {
       onNone: () => Effect.fail(notFound(`Movie with TMDB ID ${tmdbId} is not in the Radarr library`)),
       onSome: (record) => Effect.succeed(record),
-    })
+    }).pipe(Effect.withSpan('radarr.selectMovie'))
 
     yield* api.removeMovie(selected.id, { deleteFiles: options.deleteFiles })
 
     return { removed: true, tmdbId, deleteFiles: options.deleteFiles }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'removeMovie' })
+)
 
-export const queue = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<QueueRecord>, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const queue: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<QueueRecord>, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.queue')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<QueueRecord>, RadarrError, RadarrApi | RadarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const result = yield* api.queue(options.limit)
-    const records = take(result.records, options.limit)
+    const result = yield* api.queue(limitOptions.limit)
+    const records = take(result.records, limitOptions.limit)
     return { count: records.length, totalRecords: result.totalRecords, records }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'queue' })
+)
 
-export const calendar = (
-  options: CalendarOptions = defaultCalendarOptions
-): Effect.Effect<CalendarResult, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const calendar: (
+  options?: CalendarOptions
+) => Effect.Effect<CalendarResult, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.calendar')(
+  function* (options?: CalendarOptions): Effect.fn.Return<CalendarResult, RadarrError, RadarrApi | RadarrConfig> {
+    const calendarOptions = options ?? defaultCalendarOptions
+    yield* Effect.annotateCurrentSpan({ 'radarr.days': calendarOptions.days })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const records = yield* api.calendar(options.days)
-    return { days: options.days, count: records.length, records }
-  })
+    const records = yield* api.calendar(calendarOptions.days)
+    return { days: calendarOptions.days, count: records.length, records }
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'calendar' })
+)
 
-export const missing = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const missing: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.missing')(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi | RadarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const result = yield* api.missing(options.limit)
-    const records = take(result.records, options.limit)
+    const result = yield* api.missing(limitOptions.limit)
+    const records = take(result.records, limitOptions.limit)
     return { count: records.length, totalRecords: result.totalRecords, records }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'missing' })
+)
 
-export const history = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<HistoryRecord>, RadarrError, RadarrApi | RadarrConfig> =>
-  Effect.gen(function* () {
+export const history: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<HistoryRecord>, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.history')(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<HistoryRecord>, RadarrError, RadarrApi | RadarrConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
     const radarrConfig = yield* RadarrConfig
-    yield* radarrConfig.get
+    yield* radarrConfig.get()
     const api = yield* RadarrApi
-    const result = yield* api.history(options.limit)
-    const records = take(result.records, options.limit)
+    const result = yield* api.history(limitOptions.limit)
+    const records = take(result.records, limitOptions.limit)
     return { count: records.length, totalRecords: result.totalRecords, records }
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', operation: 'history' })
+)
 
 export const firstTmdbId = (results: ReadonlyArray<MovieLookupResult>): Option.Option<number> =>
   first(results).pipe(Option.map((result) => result.tmdbId))

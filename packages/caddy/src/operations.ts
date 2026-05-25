@@ -4,42 +4,46 @@ import type { CaddyError } from './errors.js'
 import type { JsonObject, ListResult, PkiCa, ReloadResult, RouteSummary, UpstreamRecord } from './model.js'
 import { CaddyApi, CaddyConfig } from './services.js'
 
-const requireConfig = Effect.gen(function* () {
+const requireConfig = Effect.fn('caddy.requireConfig')(function* () {
   const config = yield* CaddyConfig
-  yield* config.get
+  yield* config.get()
 })
 
 export const config: Effect.Effect<JsonObject, CaddyError, CaddyApi | CaddyConfig> = Effect.gen(function* () {
-  yield* requireConfig
+  yield* requireConfig()
   const api = yield* CaddyApi
-  return yield* api.config
-})
+  return yield* api.config()
+}).pipe(Effect.withSpan('caddy.config'), Effect.annotateLogs({ package: '@garage/caddy', operation: 'config' }))
 
 export const routes: Effect.Effect<ListResult<RouteSummary>, CaddyError, CaddyApi | CaddyConfig> = Effect.gen(
   function* () {
-    yield* requireConfig
+    yield* requireConfig()
     const api = yield* CaddyApi
-    return yield* api.routes
+    const result = yield* api.routes()
+    yield* Effect.annotateCurrentSpan({ 'caddy.route_count': result.count })
+    return result
   }
-)
+).pipe(Effect.withSpan('caddy.routes'), Effect.annotateLogs({ package: '@garage/caddy', operation: 'routes' }))
 
 export const upstreams: Effect.Effect<ListResult<UpstreamRecord>, CaddyError, CaddyApi | CaddyConfig> = Effect.gen(
   function* () {
-    yield* requireConfig
+    yield* requireConfig()
     const api = yield* CaddyApi
-    return yield* api.upstreams
+    return yield* api.upstreams()
   }
-)
+).pipe(Effect.withSpan('caddy.upstreams'), Effect.annotateLogs({ package: '@garage/caddy', operation: 'upstreams' }))
 
 export const pkiCa: Effect.Effect<PkiCa, CaddyError, CaddyApi | CaddyConfig> = Effect.gen(function* () {
-  yield* requireConfig
+  yield* requireConfig()
   const api = yield* CaddyApi
-  return yield* api.pkiCa
-})
+  return yield* api.pkiCa()
+}).pipe(Effect.withSpan('caddy.pkiCa'), Effect.annotateLogs({ package: '@garage/caddy', operation: 'pkiCa' }))
 
-export const reload = (nextConfig: JsonObject): Effect.Effect<ReloadResult, CaddyError, CaddyApi | CaddyConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const reload = Effect.fn('caddy.reload')(
+  function* (nextConfig: JsonObject): Effect.fn.Return<ReloadResult, CaddyError, CaddyApi | CaddyConfig> {
+    yield* requireConfig()
     const api = yield* CaddyApi
     return yield* api.reload(nextConfig)
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/caddy', operation: 'reload' })
+)

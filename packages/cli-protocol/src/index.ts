@@ -1,4 +1,6 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Layer, Schema } from 'effect'
+import type { HttpClient } from 'effect/unstable/http'
+import { OtlpLogger, OtlpSerialization, OtlpTracer } from 'effect/unstable/observability'
 
 export const NextActionParamSchema = Schema.Struct({
   value: Schema.optional(Schema.Unknown),
@@ -54,6 +56,38 @@ export class CliUsageError extends Schema.TaggedErrorClass<CliUsageError>()('Cli
   message: Schema.String,
   fix: Schema.String,
 }) {}
+
+export interface CliObservabilityOptions {
+  readonly serviceName: string
+  readonly serviceVersion: string
+  readonly environment: string
+  readonly tracesUrl?: string | undefined
+  readonly logsUrl?: string | undefined
+}
+
+type OtlpRequirements = HttpClient.HttpClient | OtlpSerialization.OtlpSerialization
+
+const optionalUrl = (value: string | undefined): string | undefined =>
+  value === undefined || value.trim().length === 0 ? undefined : value
+
+const emptyObservabilityLayer: Layer.Layer<never, never, OtlpRequirements> = Layer.empty
+
+export const cliObservabilityLayer = (
+  options: CliObservabilityOptions
+): Layer.Layer<never, never, HttpClient.HttpClient> => {
+  const resource = {
+    serviceName: options.serviceName,
+    serviceVersion: options.serviceVersion,
+    attributes: { 'deployment.environment': options.environment },
+  }
+  const tracesUrl = optionalUrl(options.tracesUrl)
+  const logsUrl = optionalUrl(options.logsUrl)
+  const tracingLayer =
+    tracesUrl === undefined ? emptyObservabilityLayer : OtlpTracer.layer({ url: tracesUrl, resource })
+  const loggingLayer = logsUrl === undefined ? emptyObservabilityLayer : OtlpLogger.layer({ url: logsUrl, resource })
+
+  return Layer.mergeAll(tracingLayer, loggingLayer).pipe(Layer.provide(OtlpSerialization.layerJson))
+}
 
 export interface SuccessEnvelopeInput<Result> {
   readonly command: string

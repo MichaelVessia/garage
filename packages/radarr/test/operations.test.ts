@@ -85,11 +85,12 @@ const linuxIsoMovie = {
 }
 
 const ConfigLayer = Layer.succeed(RadarrConfig, {
-  get: Effect.succeed({
-    url: 'http://radarr.example.test',
-    apiKey: 'secret',
-    defaultQualityProfileId: 1,
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://radarr.example.test',
+      apiKey: 'secret',
+      defaultQualityProfileId: 1,
+    }),
 })
 
 const movieFromLookup = (lookup: MovieLookupResult): MovieRecord => ({
@@ -117,9 +118,9 @@ const makeApiLayer = Effect.gen(function* () {
   const missingLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const historyLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const api = RadarrApi.of({
-    status: Effect.succeed({ appName: 'Radarr', version: '5.0.0', branch: 'main', runtimeVersion: '8.0.0' }),
-    rootFolders: Effect.succeed(rootFolders),
-    qualityProfiles: Effect.succeed(qualityProfiles),
+    status: () => Effect.succeed({ appName: 'Radarr', version: '5.0.0', branch: 'main', runtimeVersion: '8.0.0' }),
+    rootFolders: () => Effect.succeed(rootFolders),
+    qualityProfiles: () => Effect.succeed(qualityProfiles),
     lookupMovies: (query) => Effect.succeed(query === 'Linux ISO' ? [linuxIsoLookup, debianLookup, archLookup] : []),
     lookupMovieByTmdbId: (tmdbId) => Effect.succeed(lookupByTmdbId(tmdbId)),
     getMovieByTmdbId: (tmdbId) => Effect.succeed(tmdbId === 27_205 ? Option.some(linuxIsoMovie) : Option.none()),
@@ -129,7 +130,7 @@ const makeApiLayer = Effect.gen(function* () {
       ),
     removeMovie: (_movieId, options) =>
       Ref.update(removedDeleteFiles, (flags) => [...flags, options.deleteFiles]).pipe(Effect.asVoid),
-    collections: Effect.succeed([collection]),
+    collections: () => Effect.succeed([collection]),
     setCollectionMonitoring: (collectionId) =>
       Ref.update(monitoredCollections, (ids) => [...ids, collectionId]).pipe(Effect.asVoid),
     queue: (limit) =>

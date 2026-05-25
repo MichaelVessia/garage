@@ -15,10 +15,11 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(SabnzbdConfig, {
-  get: Effect.succeed({
-    url: 'http://sabnzbd.example.test/',
-    apiKey: 'secret',
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://sabnzbd.example.test/',
+      apiKey: 'secret',
+    }),
 })
 
 const makeHttpClientLayer = (respond: (url: URL) => FakeResponse) =>

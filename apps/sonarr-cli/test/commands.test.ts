@@ -43,45 +43,49 @@ const severanceSeries = {
 }
 
 const ConfigLayer = Layer.succeed(SonarrConfig, {
-  get: Effect.succeed({
-    url: 'http://sonarr.example.test',
-    apiKey: 'secret',
-    defaultQualityProfileId: 1,
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://sonarr.example.test',
+      apiKey: 'secret',
+      defaultQualityProfileId: 1,
+    }),
 })
 
 const MissingConfigLayer = Layer.succeed(SonarrConfig, {
-  get: Effect.fail(envMissing('SONARR_URL')),
+  get: () => Effect.fail(envMissing('SONARR_URL')),
 })
 
 const ApiLayer = Layer.succeed(SonarrApi, {
-  status: Effect.succeed({
-    appName: 'Sonarr',
-    version: '4.0.0',
-    instanceName: 'Sonarr',
-    runtimeVersion: '6.0.13',
-    databaseVersion: '3.40.1',
-    startupPath: '/opt/Sonarr',
-    appData: '/var/lib/sonarr',
-    mode: 'console',
-    authentication: 'forms',
-    startTime: '2026-04-16T11:59:52Z',
-    urlBase: '',
-    isDocker: true,
-    branch: 'main',
-  }),
-  rootFolders: Effect.succeed([{ id: 1, path: '/tv', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
-  qualityProfiles: Effect.succeed([
-    {
-      id: 1,
-      name: 'HD-1080p',
-      isDefault: true,
-      upgradeAllowed: true,
-      cutoff: 4,
-      minFormatScore: 0,
-      cutoffFormatScore: 0,
-    },
-  ]),
+  status: () =>
+    Effect.succeed({
+      appName: 'Sonarr',
+      version: '4.0.0',
+      instanceName: 'Sonarr',
+      runtimeVersion: '6.0.13',
+      databaseVersion: '3.40.1',
+      startupPath: '/opt/Sonarr',
+      appData: '/var/lib/sonarr',
+      mode: 'console',
+      authentication: 'forms',
+      startTime: '2026-04-16T11:59:52Z',
+      urlBase: '',
+      isDocker: true,
+      branch: 'main',
+    }),
+  rootFolders: () =>
+    Effect.succeed([{ id: 1, path: '/tv', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
+  qualityProfiles: () =>
+    Effect.succeed([
+      {
+        id: 1,
+        name: 'HD-1080p',
+        isDefault: true,
+        upgradeAllowed: true,
+        cutoff: 4,
+        minFormatScore: 0,
+        cutoffFormatScore: 0,
+      },
+    ]),
   lookupSeries: (query) => Effect.succeed(query === 'Linux ISO' ? [severanceLookup] : []),
   lookupSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceLookup) : Option.none()),
   getSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceSeries) : Option.none()),

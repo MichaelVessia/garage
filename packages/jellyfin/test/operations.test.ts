@@ -18,7 +18,7 @@ import {
 import type { LimitOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: 'secret' }),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -26,23 +26,25 @@ const makeApiLayer = Effect.gen(function* () {
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const runTasks = yield* Ref.make<ReadonlyArray<string>>([])
   const api = JellyfinApi.of({
-    status: Effect.succeed({ serverName: 'Jellyfin', version: '10.10.7' }),
-    users: Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User', isAdministrator: true }] }),
-    libraries: Effect.succeed({ count: 1, records: [{ name: 'Movies', collectionType: 'movies', itemId: 'lib1' }] }),
-    sessions: Effect.succeed({
-      count: 2,
-      records: [
-        {
-          sessionId: 's1',
-          user: 'Test User',
-          client: 'Web',
-          device: 'Test Client',
-          nowPlaying: 'Linux ISO',
-          playMethod: 'DirectPlay',
-        },
-        { sessionId: 's2', user: 'Idle', client: 'TV' },
-      ],
-    }),
+    status: () => Effect.succeed({ serverName: 'Jellyfin', version: '10.10.7' }),
+    users: () => Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User', isAdministrator: true }] }),
+    libraries: () =>
+      Effect.succeed({ count: 1, records: [{ name: 'Movies', collectionType: 'movies', itemId: 'lib1' }] }),
+    sessions: () =>
+      Effect.succeed({
+        count: 2,
+        records: [
+          {
+            sessionId: 's1',
+            user: 'Test User',
+            client: 'Web',
+            device: 'Test Client',
+            nowPlaying: 'Linux ISO',
+            playMethod: 'DirectPlay',
+          },
+          { sessionId: 's2', user: 'Idle', client: 'TV' },
+        ],
+      }),
     recentlyAdded: (options) =>
       Ref.update(recentOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'i1', name: 'Linux ISO', type: 'Movie' }] })
@@ -51,8 +53,9 @@ const makeApiLayer = Effect.gen(function* () {
       Ref.update(searchOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'i1', name: 'Linux ISO', type: 'Movie' }] })
       ),
-    libraryStats: Effect.succeed({ MovieCount: 100, SeriesCount: 10 }),
-    scheduledTasks: Effect.succeed({ count: 1, records: [{ id: 'task1', name: 'Scan Media Library', state: 'Idle' }] }),
+    libraryStats: () => Effect.succeed({ MovieCount: 100, SeriesCount: 10 }),
+    scheduledTasks: () =>
+      Effect.succeed({ count: 1, records: [{ id: 'task1', name: 'Scan Media Library', state: 'Idle' }] }),
     runTask: (taskId) =>
       Ref.update(runTasks, (records) => [...records, taskId]).pipe(
         Effect.as({ started: true, taskId, httpStatus: 204 })

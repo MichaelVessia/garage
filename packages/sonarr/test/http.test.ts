@@ -22,11 +22,12 @@ interface RecordedRequest {
 }
 
 const ConfigLayer = Layer.succeed(SonarrConfig, {
-  get: Effect.succeed({
-    url: 'http://sonarr.example.test/',
-    apiKey: 'secret',
-    defaultQualityProfileId: 1,
-  }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://sonarr.example.test/',
+      apiKey: 'secret',
+      defaultQualityProfileId: 1,
+    }),
 })
 
 const makeHttpClientLayer = (respond: (url: URL) => unknown) =>

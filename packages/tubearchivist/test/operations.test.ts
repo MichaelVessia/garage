@@ -19,7 +19,7 @@ import {
 import type { LimitOptions, SearchOptions, SubscriptionOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
-  get: Effect.succeed({ url: 'http://tubearchivist.example.test', username: 'admin', password: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://tubearchivist.example.test', username: 'admin', password: 'secret' }),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -27,12 +27,13 @@ const makeApiLayer = Effect.gen(function* () {
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const subscriptions = yield* Ref.make<ReadonlyArray<SubscriptionOptions & { readonly subscribed: boolean }>>([])
   const api = TubearchivistApi.of({
-    status: Effect.succeed({
-      url: 'http://tubearchivist.example.test',
-      health: 'OK',
-      config: {},
-      stats: { video: {}, channel: {}, download: {}, watch: {} },
-    }),
+    status: () =>
+      Effect.succeed({
+        url: 'http://tubearchivist.example.test',
+        health: 'OK',
+        config: {},
+        stats: { video: {}, channel: {}, download: {}, watch: {} },
+      }),
     channels: (options) =>
       Ref.update(limitOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'UC1', name: 'Channel', subscribed: true }] })

@@ -1,7 +1,14 @@
 import { assert, it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
+import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
-import { createCliRunner, createCliUsageError, errorEnvelope, successEnvelope } from '../src/index.js'
+import {
+  cliObservabilityLayer,
+  createCliRunner,
+  createCliUsageError,
+  errorEnvelope,
+  successEnvelope,
+} from '../src/index.js'
 import type { CliUsageError, CommandDefinition, CommandDescription } from '../src/index.js'
 
 interface ParsedFlagsResult {
@@ -17,6 +24,10 @@ type TestResult = ParsedFlagsResult | RootResult
 
 const rootCommand = 'test-cli'
 const usageError = createCliUsageError(rootCommand)
+const NoopHttpClient = Layer.succeed(
+  HttpClient.HttpClient,
+  HttpClient.make((request) => Effect.succeed(HttpClientResponse.fromWeb(request, new Response(null, { status: 204 }))))
+)
 
 const testCommands: ReadonlyArray<CommandDefinition<TestResult, CliUsageError, never>> = [
   {
@@ -138,4 +149,16 @@ it.effect('only treats double-dash tokens as flags', () =>
       next_actions: [],
     })
   })
+)
+
+it.effect('builds a disabled CLI observability layer without requiring OTLP URLs', () =>
+  Effect.void.pipe(
+    Effect.provide(
+      cliObservabilityLayer({
+        serviceName: '@garage/test-cli',
+        serviceVersion: '0.0.0',
+        environment: 'test',
+      }).pipe(Layer.provide(NoopHttpClient))
+    )
+  )
 )

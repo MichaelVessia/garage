@@ -97,18 +97,20 @@ const postJson = <A, I, RD, RE>(
     return yield* executeJson(client, request, schema)
   })
 
-const metadataSearch = (
+const metadataSearch = Effect.fn('immich.metadataSearch')(function* (
   client: HttpClient.HttpClient,
   config: ImmichConfigValue,
   options: SearchOptions
-): Effect.Effect<SearchResult, ImmichError> =>
-  postJson(
+): Effect.fn.Return<SearchResult, ImmichError> {
+  yield* Effect.annotateCurrentSpan({ 'immich.search_strategy': 'metadata' })
+  return yield* postJson(
     client,
     config,
     '/search/metadata',
     { originalFileName: options.query, size: options.limit },
     SearchResponseSchema('metadata', options.query)
   )
+})
 
 const systemStatus = (versionParts: VersionParts, ping: typeof PingSchema.Type): SystemStatus => ({
   version: `${versionParts.major}.${versionParts.minor}.${versionParts.patch}`,
@@ -120,62 +122,135 @@ export const ImmichApiLive = Layer.effect(
   ImmichApi,
   Effect.gen(function* () {
     const immichConfig = yield* ImmichConfig
-    const config = yield* immichConfig.get
+    const config = yield* immichConfig.get()
     const client = yield* HttpClient.HttpClient
 
     return ImmichApi.of({
-      status: Effect.all({
-        version: getJson(client, config, '/server/version', VersionSchema),
-        ping: getJson(client, config, '/server/ping', PingSchema),
-      }).pipe(Effect.map(({ version, ping }) => systemStatus(version, ping))),
-      stats: getJson(client, config, '/server/statistics', StatisticsSchema),
-      storage: getJson(client, config, '/server/storage', StorageSchema),
-      users: getJson(client, config, '/admin/users', Schema.Array(UserSchema)).pipe(
-        Effect.map((records) => usersResult(records)),
-        Effect.matchEffect({
-          onFailure: () =>
-            getJson(client, config, '/users', Schema.Array(UserSchema)).pipe(
-              Effect.map((records) => usersResult(records, 'admin fields unavailable: API key lacks adminUser.read'))
-            ),
-          onSuccess: (result) => Effect.succeed(result),
-        })
+      status: Effect.fn('ImmichApi.status')(
+        function* () {
+          return yield* Effect.all({
+            version: getJson(client, config, '/server/version', VersionSchema),
+            ping: getJson(client, config, '/server/ping', PingSchema),
+          }).pipe(Effect.map(({ version, ping }) => systemStatus(version, ping)))
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'status' })
       ),
-      me: getJson(client, config, '/users/me', CurrentUserSchema),
-      albums: (options) =>
-        getJson(client, config, '/albums', Schema.Array(AlbumSchema)).pipe(
-          Effect.map((records) => recordsList(records.slice(0, options.limit)))
-        ),
-      albumInfo: (options) => getJson(client, config, `/albums/${options.id}`, AlbumInfoSchema(options.limit)),
-      search: (options) =>
-        postJson(
-          client,
-          config,
-          '/search/smart',
-          { query: options.query, size: options.limit },
-          SearchResponseSchema('smart', options.query)
-        ).pipe(
-          Effect.matchEffect({
-            onFailure: () => metadataSearch(client, config, options),
-            onSuccess: (response) =>
-              response.count > 0 ? Effect.succeed(response) : metadataSearch(client, config, options),
+      stats: Effect.fn('ImmichApi.stats')(
+        function* () {
+          return yield* getJson(client, config, '/server/statistics', StatisticsSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'stats' })
+      ),
+      storage: Effect.fn('ImmichApi.storage')(
+        function* () {
+          return yield* getJson(client, config, '/server/storage', StorageSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'storage' })
+      ),
+      users: Effect.fn('ImmichApi.users')(
+        function* () {
+          return yield* getJson(client, config, '/admin/users', Schema.Array(UserSchema)).pipe(
+            Effect.map((records) => usersResult(records)),
+            Effect.matchEffect({
+              onFailure: () =>
+                getJson(client, config, '/users', Schema.Array(UserSchema)).pipe(
+                  Effect.map((records) =>
+                    usersResult(records, 'admin fields unavailable: API key lacks adminUser.read')
+                  )
+                ),
+              onSuccess: (result) => Effect.succeed(result),
+            })
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'users' })
+      ),
+      me: Effect.fn('ImmichApi.me')(
+        function* () {
+          return yield* getJson(client, config, '/users/me', CurrentUserSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'me' })
+      ),
+      albums: Effect.fn('ImmichApi.albums')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'immich.limit': options.limit })
+          return yield* getJson(client, config, '/albums', Schema.Array(AlbumSchema)).pipe(
+            Effect.map((records) => recordsList(records.slice(0, options.limit)))
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'albums' })
+      ),
+      albumInfo: Effect.fn('ImmichApi.albumInfo')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'immich.album_id': options.id, 'immich.limit': options.limit })
+          return yield* getJson(client, config, `/albums/${options.id}`, AlbumInfoSchema(options.limit))
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'albumInfo' })
+      ),
+      search: Effect.fn('ImmichApi.search')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({
+            'immich.query_length': options.query.length,
+            'immich.limit': options.limit,
+            'immich.search_strategy': 'smart',
           })
-        ),
-      recent: (options) =>
-        postJson(
-          client,
-          config,
-          '/search/metadata',
-          { size: options.limit, order: 'desc' },
-          SearchResponseSchema('metadata', 'recent')
-        ),
-      people: (options) =>
-        getJson(client, config, '/people', PeopleResponseSchema, [
-          ['withHidden', false],
-          ['size', options.limit],
-        ]),
-      personInfo: (personId) => getJson(client, config, `/people/${personId}`, PersonSchema),
-      jobs: getJson(client, config, '/jobs', JobsSchema),
-      tags: getJson(client, config, '/tags', Schema.Array(TagSchema)).pipe(Effect.map(recordsList)),
+          return yield* postJson(
+            client,
+            config,
+            '/search/smart',
+            { query: options.query, size: options.limit },
+            SearchResponseSchema('smart', options.query)
+          ).pipe(
+            Effect.matchEffect({
+              onFailure: () => metadataSearch(client, config, options),
+              onSuccess: (response) =>
+                response.count > 0 ? Effect.succeed(response) : metadataSearch(client, config, options),
+            })
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'search' })
+      ),
+      recent: Effect.fn('ImmichApi.recent')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'immich.limit': options.limit, 'immich.search_strategy': 'metadata' })
+          return yield* postJson(
+            client,
+            config,
+            '/search/metadata',
+            { size: options.limit, order: 'desc' },
+            SearchResponseSchema('metadata', 'recent')
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'recent' })
+      ),
+      people: Effect.fn('ImmichApi.people')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'immich.limit': options.limit })
+          return yield* getJson(client, config, '/people', PeopleResponseSchema, [
+            ['withHidden', false],
+            ['size', options.limit],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'people' })
+      ),
+      personInfo: Effect.fn('ImmichApi.personInfo')(
+        function* (personId) {
+          yield* Effect.annotateCurrentSpan({ 'immich.person_id': personId })
+          return yield* getJson(client, config, `/people/${personId}`, PersonSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'personInfo' })
+      ),
+      jobs: Effect.fn('ImmichApi.jobs')(
+        function* () {
+          return yield* getJson(client, config, '/jobs', JobsSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'jobs' })
+      ),
+      tags: Effect.fn('ImmichApi.tags')(
+        function* () {
+          return yield* getJson(client, config, '/tags', Schema.Array(TagSchema)).pipe(Effect.map(recordsList))
+        },
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'tags' })
+      ),
     })
   })
 )

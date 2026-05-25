@@ -22,7 +22,7 @@ import {
 import type { AlbumInfoOptions, LimitOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(ImmichConfig, {
-  get: Effect.succeed({ url: 'http://immich.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://immich.example.test', apiKey: 'secret' }),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -33,18 +33,19 @@ const makeApiLayer = Effect.gen(function* () {
   const peopleOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const personIds = yield* Ref.make<ReadonlyArray<string>>([])
   const api = ImmichApi.of({
-    status: Effect.succeed({ version: '2.5.6', versionParts: { major: 2, minor: 5, patch: 6 }, ping: 'pong' }),
-    stats: Effect.succeed({
-      photos: 10,
-      videos: 2,
-      usageBytes: 1000,
-      usagePhotosBytes: 700,
-      usageVideosBytes: 300,
-      perUser: [{ userId: 'u1', userName: 'Test User', photos: 10, videos: 2, usageBytes: 1000 }],
-    }),
-    storage: Effect.succeed({ diskSize: '10 TiB', diskUse: '4 TiB', diskUsagePercentage: 40 }),
-    users: Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User', email: 'user@example.test' }] }),
-    me: Effect.succeed({ id: 'u1', name: 'Test User', email: 'user@example.test', isAdmin: true }),
+    status: () => Effect.succeed({ version: '2.5.6', versionParts: { major: 2, minor: 5, patch: 6 }, ping: 'pong' }),
+    stats: () =>
+      Effect.succeed({
+        photos: 10,
+        videos: 2,
+        usageBytes: 1000,
+        usagePhotosBytes: 700,
+        usageVideosBytes: 300,
+        perUser: [{ userId: 'u1', userName: 'Test User', photos: 10, videos: 2, usageBytes: 1000 }],
+      }),
+    storage: () => Effect.succeed({ diskSize: '10 TiB', diskUse: '4 TiB', diskUsagePercentage: 40 }),
+    users: () => Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User', email: 'user@example.test' }] }),
+    me: () => Effect.succeed({ id: 'u1', name: 'Test User', email: 'user@example.test', isAdmin: true }),
     albums: (options) =>
       Ref.update(albumOptions, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, records: [{ id: 'a1', albumName: 'Family', assetCount: 5 }] })
@@ -73,8 +74,8 @@ const makeApiLayer = Effect.gen(function* () {
       ),
     personInfo: (personId) =>
       Ref.update(personIds, (records) => [...records, personId]).pipe(Effect.as({ id: personId, name: 'Person' })),
-    jobs: Effect.succeed({ count: 1, records: [{ queue: 'smartSearch', counts: { waiting: 0, failed: 0 } }] }),
-    tags: Effect.succeed({ count: 1, records: [{ id: 't1', name: 'vacation' }] }),
+    jobs: () => Effect.succeed({ count: 1, records: [{ queue: 'smartSearch', counts: { waiting: 0, failed: 0 } }] }),
+    tags: () => Effect.succeed({ count: 1, records: [{ id: 't1', name: 'vacation' }] }),
   })
 
   return {

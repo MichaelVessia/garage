@@ -18,7 +18,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
-  get: Effect.succeed({ url: 'http://autocaliweb.example.test/', username: 'fixture-user', password: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://autocaliweb.example.test/', username: 'fixture-user', password: 'secret' }),
 })
 
 const basicAuth = `Basic ${btoa('fixture-user:secret')}`

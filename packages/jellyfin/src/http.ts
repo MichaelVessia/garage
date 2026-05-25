@@ -82,62 +82,102 @@ const getJson = <A, I, RD, RE>(
 
 const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
 
-const enabledUserId = (
+const enabledUserId = Effect.fn('jellyfin.enabledUserId')(function* (
   client: HttpClient.HttpClient,
   config: JellyfinConfigValue
-): Effect.Effect<string, JellyfinError> =>
-  getJson(client, config, '/Users', Schema.Array(UserSchema)).pipe(
-    Effect.flatMap((users) => {
-      const selected = users.find((user) => user.isDisabled !== true)
-      return selected === undefined
-        ? Effect.fail(notFound('No enabled Jellyfin user found'))
-        : Effect.succeed(selected.id)
-    })
-  )
+): Effect.fn.Return<string, JellyfinError> {
+  const users = yield* getJson(client, config, '/Users', Schema.Array(UserSchema))
+  const selected = users.find((user) => user.isDisabled !== true)
+  if (selected === undefined) {
+    return yield* notFound('No enabled Jellyfin user found')
+  }
+  return selected.id
+})
 
 export const JellyfinApiLive = Layer.effect(
   JellyfinApi,
   Effect.gen(function* () {
     const jellyfinConfig = yield* JellyfinConfig
-    const config = yield* jellyfinConfig.get
+    const config = yield* jellyfinConfig.get()
     const client = yield* HttpClient.HttpClient
 
     return JellyfinApi.of({
-      status: getJson(client, config, '/System/Info', SystemInfoSchema),
-      users: getJson(client, config, '/Users', Schema.Array(UserSchema)).pipe(Effect.map(listResult)),
-      libraries: getJson(client, config, '/Library/VirtualFolders', Schema.Array(LibrarySchema)).pipe(
-        Effect.map(listResult)
+      status: Effect.fn('JellyfinApi.status')(
+        function* () {
+          return yield* getJson(client, config, '/System/Info', SystemInfoSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'status' })
       ),
-      sessions: getJson(client, config, '/Sessions', Schema.Array(SessionSchema)).pipe(Effect.map(listResult)),
-      recentlyAdded: (options) =>
-        enabledUserId(client, config).pipe(
-          Effect.flatMap((userId) =>
-            getJson(client, config, `/Users/${userId}/Items/Latest`, Schema.Array(BaseItemSchema), [
-              ['Limit', options.limit],
-            ])
-          ),
-          Effect.map(listResult)
-        ),
-      itemSearch: (options) =>
-        enabledUserId(client, config).pipe(
-          Effect.flatMap((userId) =>
-            getJson(client, config, `/Users/${userId}/Items`, ItemsResponseSchema, [
-              ['searchTerm', options.query],
-              ['Recursive', true],
-              ['IncludeItemTypes', 'Movie,Series,Episode'],
-              ['Limit', options.limit],
-            ])
+      users: Effect.fn('JellyfinApi.users')(
+        function* () {
+          return yield* getJson(client, config, '/Users', Schema.Array(UserSchema)).pipe(Effect.map(listResult))
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'users' })
+      ),
+      libraries: Effect.fn('JellyfinApi.libraries')(
+        function* () {
+          return yield* getJson(client, config, '/Library/VirtualFolders', Schema.Array(LibrarySchema)).pipe(
+            Effect.map(listResult)
           )
-        ),
-      libraryStats: getJson(client, config, '/Items/Counts', LibraryStatsSchema),
-      scheduledTasks: getJson(client, config, '/ScheduledTasks', Schema.Array(ScheduledTaskSchema)).pipe(
-        Effect.map(listResult)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'libraries' })
       ),
-      runTask: (taskId) =>
-        executeStatus(
-          client,
-          HttpClientRequest.post(endpoint(config, `/ScheduledTasks/Running/${taskId}`)).pipe(withAuth(config))
-        ).pipe(Effect.map((httpStatus) => ({ started: true, taskId, httpStatus }))),
+      sessions: Effect.fn('JellyfinApi.sessions')(
+        function* () {
+          return yield* getJson(client, config, '/Sessions', Schema.Array(SessionSchema)).pipe(Effect.map(listResult))
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'sessions' })
+      ),
+      recentlyAdded: Effect.fn('JellyfinApi.recentlyAdded')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'jellyfin.limit': options.limit })
+          const userId = yield* enabledUserId(client, config).pipe(Effect.withSpan('jellyfin.enabledUserId'))
+          return yield* getJson(client, config, `/Users/${userId}/Items/Latest`, Schema.Array(BaseItemSchema), [
+            ['Limit', options.limit],
+          ]).pipe(Effect.map(listResult))
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'recentlyAdded' })
+      ),
+      itemSearch: Effect.fn('JellyfinApi.itemSearch')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({
+            'jellyfin.query_length': options.query.length,
+            'jellyfin.limit': options.limit,
+          })
+          const userId = yield* enabledUserId(client, config).pipe(Effect.withSpan('jellyfin.enabledUserId'))
+          return yield* getJson(client, config, `/Users/${userId}/Items`, ItemsResponseSchema, [
+            ['searchTerm', options.query],
+            ['Recursive', true],
+            ['IncludeItemTypes', 'Movie,Series,Episode'],
+            ['Limit', options.limit],
+          ])
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'itemSearch' })
+      ),
+      libraryStats: Effect.fn('JellyfinApi.libraryStats')(
+        function* () {
+          return yield* getJson(client, config, '/Items/Counts', LibraryStatsSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'libraryStats' })
+      ),
+      scheduledTasks: Effect.fn('JellyfinApi.scheduledTasks')(
+        function* () {
+          return yield* getJson(client, config, '/ScheduledTasks', Schema.Array(ScheduledTaskSchema)).pipe(
+            Effect.map(listResult)
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'scheduledTasks' })
+      ),
+      runTask: Effect.fn('JellyfinApi.runTask')(
+        function* (taskId) {
+          yield* Effect.annotateCurrentSpan({ 'jellyfin.task_id': taskId })
+          return yield* executeStatus(
+            client,
+            HttpClientRequest.post(endpoint(config, `/ScheduledTasks/Running/${taskId}`)).pipe(withAuth(config))
+          ).pipe(Effect.map((httpStatus) => ({ started: true, taskId, httpStatus })))
+        },
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinApi', method: 'runTask' })
+      ),
     })
   })
 )

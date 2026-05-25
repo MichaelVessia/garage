@@ -46,21 +46,36 @@ export const TubearchivistSessionCacheFileLive = Layer.effect(
     const fs = yield* FileSystem
     const path = yield* Path
     return TubearchivistSessionCache.of({
-      read: (key) =>
-        sessionPath(path, key).pipe(
-          Effect.flatMap((file) => fs.readFileString(file, 'utf-8')),
-          Effect.match({
-            onFailure: () => missingSession,
-            onSuccess: decodeSession,
-          })
-        ),
-      write: (key, session) =>
-        Effect.gen(function* () {
-          const directory = yield* cacheDirectory(path)
-          const file = yield* sessionPath(path, key)
-          yield* fs.makeDirectory(directory, { mode: 0o700, recursive: true })
-          yield* fs.writeFileString(file, encodeSession(session), { mode: 0o600 })
-        }).pipe(Effect.ignore),
+      read: Effect.fn('TubearchivistSessionCache.read')(
+        function* (key) {
+          return yield* sessionPath(path, key).pipe(
+            Effect.flatMap((file) => fs.readFileString(file, 'utf-8')),
+            Effect.match({
+              onFailure: () => missingSession,
+              onSuccess: decodeSession,
+            })
+          )
+        },
+        Effect.withSpan('tubearchivist.sessionCache.read'),
+        Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistSessionCache', method: 'read' })
+      ),
+      write: Effect.fn('TubearchivistSessionCache.write')(
+        function* (key: string, session: SessionCookies): Effect.fn.Return<void> {
+          return yield* Effect.all(
+            { directory: cacheDirectory(path), file: sessionPath(path, key) },
+            { concurrency: 1 }
+          ).pipe(
+            Effect.flatMap(({ directory, file }) =>
+              fs
+                .makeDirectory(directory, { mode: 0o700, recursive: true })
+                .pipe(Effect.flatMap(() => fs.writeFileString(file, encodeSession(session), { mode: 0o600 })))
+            ),
+            Effect.ignore
+          )
+        },
+        Effect.withSpan('tubearchivist.sessionCache.write'),
+        Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistSessionCache', method: 'write' })
+      ),
     })
   })
 )

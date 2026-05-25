@@ -16,7 +16,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: Effect.succeed({ url: 'http://jellyseerr.example.test/', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test/', apiKey: 'secret' }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

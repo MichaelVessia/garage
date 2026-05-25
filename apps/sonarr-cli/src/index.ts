@@ -88,7 +88,7 @@ const defaultQualityProfileAction = (
 ): Effect.Effect<NextAction, SonarrError, SonarrConfig> =>
   Effect.gen(function* () {
     const sonarrConfig = yield* SonarrConfig
-    const values = yield* sonarrConfig.get
+    const values = yield* sonarrConfig.get()
 
     return {
       command: addCommandTemplate,

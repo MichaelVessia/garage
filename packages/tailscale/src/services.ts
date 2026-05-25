@@ -31,9 +31,9 @@ export class TailscaleApi extends Context.Service<
     readonly status: (options: LimitOptions) => Effect.Effect<StatusResult, TailscaleError>
     readonly peers: (options: LimitOptions) => Effect.Effect<ListResult<PeerRecord>, TailscaleError>
     readonly exitNodes: (options: LimitOptions) => Effect.Effect<ListResult<PeerRecord>, TailscaleError>
-    readonly currentExitNode: Effect.Effect<CurrentExitNodeResult, TailscaleError>
-    readonly dns: Effect.Effect<DnsResult, TailscaleError>
-    readonly ip: Effect.Effect<IpResult, TailscaleError>
+    readonly currentExitNode: () => Effect.Effect<CurrentExitNodeResult, TailscaleError>
+    readonly dns: () => Effect.Effect<DnsResult, TailscaleError>
+    readonly ip: () => Effect.Effect<IpResult, TailscaleError>
     readonly whois: (options: WhoisOptions) => Effect.Effect<JsonObject, TailscaleError>
     readonly ping: (options: PingOptions) => Effect.Effect<PingResult, TailscaleError>
   }

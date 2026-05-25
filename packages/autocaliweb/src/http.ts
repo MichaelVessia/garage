@@ -89,6 +89,7 @@ const collectBookFeed = (
     records: ReadonlyArray<BookRecord>
   ): Effect.Effect<ReadonlyArray<BookRecord>, AutocaliwebError> =>
     getFeed(client, config, nextPath).pipe(
+      Effect.withSpan('autocaliweb.collectOpdsPage'),
       Effect.flatMap((feed) => {
         const nextRecords = [...records, ...feed.books].slice(0, limit)
         if (nextRecords.length >= limit || feed.nextHref === undefined) {
@@ -105,32 +106,76 @@ export const AutocaliwebApiLive = Layer.effect(
   AutocaliwebApi,
   Effect.gen(function* () {
     const autocaliwebConfig = yield* AutocaliwebConfig
-    const config = yield* autocaliwebConfig.get
+    const config = yield* autocaliwebConfig.get()
     const client = yield* HttpClient.HttpClient
 
-    const stats = getJson(client, config, '/opds/stats', StatsSchema)
-    const catalog = getFeed(client, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
+    const loadStats = () => getJson(client, config, '/opds/stats', StatsSchema)
 
     return AutocaliwebApi.of({
-      status: Effect.gen(function* () {
-        const feed = yield* getFeed(client, config, '/opds')
-        const statRecords = yield* stats
-        return { title: feed.title, updated: feed.updated, catalogCount: feed.navigation.length, stats: statRecords }
-      }),
-      stats,
-      catalog,
-      books: (options) => collectBookFeed(client, config, '/opds/books/letter/00', options.limit),
-      recent: (options) => collectBookFeed(client, config, '/opds/new', options.limit),
-      search: (options) =>
-        getFeed(client, config, withQuery('/opds/search', options.query)).pipe(
-          Effect.map((feed) => {
-            const records = feed.books.slice(0, options.limit)
-            return { query: options.query, total: feed.books.length, count: records.length, records }
+      status: Effect.fn('AutocaliwebApi.status')(
+        function* () {
+          const feed = yield* getFeed(client, config, '/opds')
+          const statRecords = yield* loadStats()
+          yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
+          return { title: feed.title, updated: feed.updated, catalogCount: feed.navigation.length, stats: statRecords }
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'status' })
+      ),
+      stats: Effect.fn('AutocaliwebApi.stats')(
+        function* () {
+          return yield* loadStats()
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'stats' })
+      ),
+      catalog: Effect.fn('AutocaliwebApi.catalog')(
+        function* () {
+          return yield* getFeed(client, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'catalog' })
+      ),
+      books: Effect.fn('AutocaliwebApi.books')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'autocaliweb.limit': options.limit })
+          return yield* collectBookFeed(client, config, '/opds/books/letter/00', options.limit)
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'books' })
+      ),
+      recent: Effect.fn('AutocaliwebApi.recent')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'autocaliweb.limit': options.limit })
+          return yield* collectBookFeed(client, config, '/opds/new', options.limit)
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'recent' })
+      ),
+      search: Effect.fn('AutocaliwebApi.search')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({
+            'autocaliweb.query_length': options.query.length,
+            'autocaliweb.limit': options.limit,
           })
-        ),
-      bookInfo: (options) => getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema),
-      shelves: getFeed(client, config, '/opds/shelfindex').pipe(
-        Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
+          return yield* getFeed(client, config, withQuery('/opds/search', options.query)).pipe(
+            Effect.map((feed) => {
+              const records = feed.books.slice(0, options.limit)
+              return { query: options.query, total: feed.books.length, count: records.length, records }
+            })
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'search' })
+      ),
+      bookInfo: Effect.fn('AutocaliwebApi.bookInfo')(
+        function* (options) {
+          yield* Effect.annotateCurrentSpan({ 'autocaliweb.book_uuid_present': options.uuid.length > 0 })
+          return yield* getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'bookInfo' })
+      ),
+      shelves: Effect.fn('AutocaliwebApi.shelves')(
+        function* () {
+          return yield* getFeed(client, config, '/opds/shelfindex').pipe(
+            Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
+          )
+        },
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'shelves' })
       ),
     })
   })

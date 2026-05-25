@@ -21,16 +21,16 @@ import type {
 export class JellyseerrConfig extends Context.Service<
   JellyseerrConfig,
   {
-    readonly get: Effect.Effect<JellyseerrConfigValue, JellyseerrError>
+    readonly get: () => Effect.Effect<JellyseerrConfigValue, JellyseerrError>
   }
 >()('@garage/jellyseerr/services/JellyseerrConfig') {}
 
 export class JellyseerrApi extends Context.Service<
   JellyseerrApi,
   {
-    readonly status: Effect.Effect<SystemStatus, JellyseerrError>
+    readonly status: () => Effect.Effect<SystemStatus, JellyseerrError>
     readonly requests: (options: RequestListOptions) => Effect.Effect<ListResult<RequestRecord>, JellyseerrError>
-    readonly requestCounts: Effect.Effect<RequestCounts, JellyseerrError>
+    readonly requestCounts: () => Effect.Effect<RequestCounts, JellyseerrError>
     readonly search: (options: SearchOptions) => Effect.Effect<ListResult<SearchRecord>, JellyseerrError>
     readonly mediaStatus: (mediaId: number) => Effect.Effect<MediaSummary, JellyseerrError>
     readonly recentlyAdded: (options: LimitOptions) => Effect.Effect<ListResult<MediaSummary>, JellyseerrError>
@@ -46,10 +46,13 @@ const readRequiredString = (name: string): Effect.Effect<string, JellyseerrError
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
 export const JellyseerrConfigLive = Layer.succeed(JellyseerrConfig, {
-  get: Effect.gen(function* () {
-    const url = yield* readRequiredString('JELLYSEERR_URL')
-    const apiKey = yield* readRequiredString('JELLYSEERR_API_KEY')
+  get: Effect.fn('JellyseerrConfig.get')(
+    function* () {
+      const url = yield* readRequiredString('JELLYSEERR_URL')
+      const apiKey = yield* readRequiredString('JELLYSEERR_API_KEY')
 
-    return { url, apiKey }
-  }),
+      return { url, apiKey }
+    },
+    Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrConfig', method: 'get' })
+  ),
 })

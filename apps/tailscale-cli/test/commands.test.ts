@@ -27,9 +27,9 @@ const MissingApiLayer = Layer.succeed(TailscaleApi, {
   status: () => Effect.fail(cliMissing('tailscale not found')),
   peers: () => Effect.fail(cliMissing('tailscale not found')),
   exitNodes: () => Effect.fail(cliMissing('tailscale not found')),
-  currentExitNode: Effect.fail(cliMissing('tailscale not found')),
-  dns: Effect.fail(cliMissing('tailscale not found')),
-  ip: Effect.fail(cliMissing('tailscale not found')),
+  currentExitNode: () => Effect.fail(cliMissing('tailscale not found')),
+  dns: () => Effect.fail(cliMissing('tailscale not found')),
+  ip: () => Effect.fail(cliMissing('tailscale not found')),
   whois: () => Effect.fail(cliMissing('tailscale not found')),
   ping: () => Effect.fail(cliMissing('tailscale not found')),
 })
@@ -48,12 +48,13 @@ const makeApiLayer = Effect.gen(function* () {
       Ref.update(limits, (records) => [...records, options]).pipe(
         Effect.as({ count: 1, total: 1, records: [{ hostName: 'node-b', ips: ['100.64.0.2'] }] })
       ),
-    currentExitNode: Effect.succeed({
-      usingExitNode: true,
-      peer: { hostName: 'node-b', ips: ['100.64.0.2'] },
-    }),
-    dns: Effect.succeed({ output: 'Tailscale DNS: enabled.', lines: ['Tailscale DNS: enabled.'] }),
-    ip: Effect.succeed({ ipv4: '100.64.0.1', ipv6: 'fd7a::1' }),
+    currentExitNode: () =>
+      Effect.succeed({
+        usingExitNode: true,
+        peer: { hostName: 'node-b', ips: ['100.64.0.2'] },
+      }),
+    dns: () => Effect.succeed({ output: 'Tailscale DNS: enabled.', lines: ['Tailscale DNS: enabled.'] }),
+    ip: () => Effect.succeed({ ipv4: '100.64.0.1', ipv6: 'fd7a::1' }),
     whois: (options) =>
       Ref.update(whoisTargets, (records) => [...records, options]).pipe(
         Effect.as({ Node: { Name: `${options.target}.tailnet.example.test.` } })

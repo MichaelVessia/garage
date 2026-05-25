@@ -27,7 +27,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
-  get: Effect.succeed({ url: 'http://tubearchivist.example.test/', username: 'admin', password: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://tubearchivist.example.test/', username: 'admin', password: 'secret' }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

@@ -22,108 +22,165 @@ import { TubearchivistApi, TubearchivistConfig } from './services.js'
 export const defaultLimit = 25
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
-const requireConfig = Effect.gen(function* () {
+const requireConfig = Effect.fn('tubearchivist.requireConfig')(function* () {
   const config = yield* TubearchivistConfig
-  yield* config.get
+  yield* config.get()
 })
 
 export const status: Effect.Effect<StatusResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> =
   Effect.gen(function* () {
-    yield* requireConfig
+    yield* requireConfig()
     const api = yield* TubearchivistApi
-    return yield* api.status
-  })
+    return yield* api.status()
+  }).pipe(
+    Effect.withSpan('tubearchivist.status'),
+    Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'status' })
+  )
 
-export const channels = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const channels: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+  'tubearchivist.channels'
+)(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
+    yield* requireConfig()
     const api = yield* TubearchivistApi
-    return yield* api.channels(options)
-  })
+    return yield* api.channels(limitOptions)
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'channels' })
+)
 
-export const channelInfo = (
-  options: IdOptions
-): Effect.Effect<ChannelRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const channelInfo = Effect.fn('tubearchivist.channelInfo')(
+  function* (
+    options: IdOptions
+  ): Effect.fn.Return<ChannelRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.channelInfo(options)
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'channelInfo' })
+)
 
-export const subscribe = (
-  options: SubscriptionOptions
-): Effect.Effect<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const subscribe = Effect.fn('tubearchivist.subscribe')(
+  function* (
+    options: SubscriptionOptions
+  ): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.subscribe(options)
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'subscribe' })
+)
 
-export const unsubscribe = (options: {
-  readonly target: string
-  readonly confirmed: boolean
-}): Effect.Effect<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
+export const unsubscribe = Effect.fn('tubearchivist.unsubscribe')(
+  function* (options: {
+    readonly target: string
+    readonly confirmed: boolean
+  }): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
     if (!options.confirmed) {
       return yield* confirmationRequired('--confirm-unsubscribe')
     }
-    yield* requireConfig
+    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.unsubscribe({ target: options.target })
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'unsubscribe' })
+)
 
-export const videos = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const videos: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+  'tubearchivist.videos'
+)(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
+    yield* requireConfig()
     const api = yield* TubearchivistApi
-    return yield* api.videos(options)
-  })
+    return yield* api.videos(limitOptions)
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'videos' })
+)
 
-export const videoInfo = (
-  options: IdOptions
-): Effect.Effect<VideoRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const videoInfo = Effect.fn('tubearchivist.videoInfo')(
+  function* (
+    options: IdOptions
+  ): Effect.fn.Return<VideoRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.videoInfo(options)
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'videoInfo' })
+)
 
-export const downloads = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const downloads: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+  'tubearchivist.downloads'
+)(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
+    yield* requireConfig()
     const api = yield* TubearchivistApi
-    return yield* api.downloads(options)
-  })
+    return yield* api.downloads(limitOptions)
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'downloads' })
+)
 
-export const playlists = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const playlists: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+  'tubearchivist.playlists'
+)(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
+    yield* requireConfig()
     const api = yield* TubearchivistApi
-    return yield* api.playlists(options)
-  })
+    return yield* api.playlists(limitOptions)
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'playlists' })
+)
 
-export const tasks = (
-  options: LimitOptions = defaultLimitOptions
-): Effect.Effect<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const tasks: (
+  options?: LimitOptions
+) => Effect.Effect<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+  'tubearchivist.tasks'
+)(
+  function* (
+    options?: LimitOptions
+  ): Effect.fn.Return<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    const limitOptions = options ?? defaultLimitOptions
+    yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
+    yield* requireConfig()
     const api = yield* TubearchivistApi
-    return yield* api.tasks(options)
-  })
+    return yield* api.tasks(limitOptions)
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'tasks' })
+)
 
-export const search = (
-  options: SearchOptions
-): Effect.Effect<SearchResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> =>
-  Effect.gen(function* () {
-    yield* requireConfig
+export const search = Effect.fn('tubearchivist.search')(
+  function* (
+    options: SearchOptions
+  ): Effect.fn.Return<SearchResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+    yield* Effect.annotateCurrentSpan({
+      'tubearchivist.query_length': options.query.length,
+      'tubearchivist.limit': options.limit,
+    })
+    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.search(options)
-  })
+  },
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'search' })
+)

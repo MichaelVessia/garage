@@ -22,7 +22,7 @@ import type {
 
 export class TubearchivistConfig extends Context.Service<
   TubearchivistConfig,
-  { readonly get: Effect.Effect<TubearchivistConfigValue, TubearchivistError> }
+  { readonly get: () => Effect.Effect<TubearchivistConfigValue, TubearchivistError> }
 >()('@garage/tubearchivist/services/TubearchivistConfig') {}
 
 export interface TubearchivistSessionCacheService {
@@ -38,7 +38,7 @@ export class TubearchivistSessionCache extends Context.Service<
 export class TubearchivistApi extends Context.Service<
   TubearchivistApi,
   {
-    readonly status: Effect.Effect<StatusResult, TubearchivistError>
+    readonly status: () => Effect.Effect<StatusResult, TubearchivistError>
     readonly channels: (options: LimitOptions) => Effect.Effect<ListResult<ChannelRecord>, TubearchivistError>
     readonly channelInfo: (options: IdOptions) => Effect.Effect<ChannelRecord, TubearchivistError>
     readonly subscribe: (options: SubscriptionOptions) => Effect.Effect<SubscriptionResult, TubearchivistError>
@@ -56,12 +56,15 @@ const readRequiredString = (name: string): Effect.Effect<string, TubearchivistEr
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
 export const TubearchivistConfigLive = Layer.succeed(TubearchivistConfig, {
-  get: Effect.gen(function* () {
-    const url = yield* readRequiredString('TUBEARCHIVIST_URL')
-    const username = yield* readRequiredString('TUBEARCHIVIST_USERNAME')
-    const password = yield* readRequiredString('TUBEARCHIVIST_PASSWORD')
-    return { url, username, password }
-  }),
+  get: Effect.fn('TubearchivistConfig.get')(
+    function* () {
+      const url = yield* readRequiredString('TUBEARCHIVIST_URL')
+      const username = yield* readRequiredString('TUBEARCHIVIST_USERNAME')
+      const password = yield* readRequiredString('TUBEARCHIVIST_PASSWORD')
+      return { url, username, password }
+    },
+    Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistConfig', method: 'get' })
+  ),
 })
 
 export const TubearchivistSessionCacheMemoryLive = Layer.effect(
@@ -69,8 +72,28 @@ export const TubearchivistSessionCacheMemoryLive = Layer.effect(
   Ref.make<ReadonlyMap<string, SessionCookies>>(new Map<string, SessionCookies>()).pipe(
     Effect.map((sessions) =>
       TubearchivistSessionCache.of({
-        read: (key) => Ref.get(sessions).pipe(Effect.map((records) => records.get(key))),
-        write: (key, session) => Ref.update(sessions, (records) => new Map(records).set(key, session)),
+        read: Effect.fn('TubearchivistSessionCache.read')(
+          function* (key) {
+            return yield* Ref.get(sessions).pipe(Effect.map((records) => records.get(key)))
+          },
+          Effect.withSpan('tubearchivist.sessionCache.read'),
+          Effect.annotateLogs({
+            package: '@garage/tubearchivist',
+            service: 'TubearchivistSessionCache',
+            method: 'read',
+          })
+        ),
+        write: Effect.fn('TubearchivistSessionCache.write')(
+          function* (key, session) {
+            yield* Ref.update(sessions, (records) => new Map(records).set(key, session))
+          },
+          Effect.withSpan('tubearchivist.sessionCache.write'),
+          Effect.annotateLogs({
+            package: '@garage/tubearchivist',
+            service: 'TubearchivistSessionCache',
+            method: 'write',
+          })
+        ),
       })
     )
   )
