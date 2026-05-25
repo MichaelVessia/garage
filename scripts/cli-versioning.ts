@@ -1,9 +1,17 @@
-import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import * as BunRuntime from '@effect/platform-bun/BunRuntime'
+import * as BunServices from '@effect/platform-bun/BunServices'
+import { Console, Effect, FileSystem, Path, Stream } from 'effect'
+import type * as PlatformError from 'effect/PlatformError'
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 const garagePackagePrefix = '@garage/'
 const cliSuffix = '-cli'
+
+interface CommandResult {
+  readonly exitCode: number
+  readonly stdout: string
+  readonly stderr: string
+}
 
 const cliPackageName = (cliName: string): string => `${garagePackagePrefix}${cliName}${cliSuffix}`
 
@@ -40,98 +48,180 @@ export const changesetMarkdown = (packageNames: readonly string[]): string => {
   return ['---', ...packageLines, '---', '', 'Automatic CLI release for changed app or package code.', ''].join('\n')
 }
 
-const discoverCliNames = (): string[] =>
-  readdirSync('apps', { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((directoryName) => directoryName.endsWith(cliSuffix))
-    .filter((directoryName) => existsSync(join('apps', directoryName, 'package.json')))
-    .map((directoryName) => directoryName.slice(0, -cliSuffix.length))
-    .sort()
+const platformError = (operation: string, cause: PlatformError.PlatformError): Error =>
+  new Error(`${operation}: ${cause.message}`)
 
-const changedFilesBetween = (baseRef: string, headRef: string): string[] => {
-  const result = spawnSync('git', ['diff', '--name-only', `${baseRef}...${headRef}`], { encoding: 'utf-8' })
+const streamText = (
+  stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>
+): Effect.Effect<string, PlatformError.PlatformError> => Stream.mkString(Stream.decodeText(stream))
 
-  if (result.status !== 0) {
-    throw new Error(`git diff failed: ${result.stderr.trim()}`)
+const commandText = (command: string, args: readonly string[]): string => `${command} ${args.join(' ')}`
+
+const commandOutput = (result: CommandResult): string => {
+  const stderr = result.stderr.trim()
+  const stdout = result.stdout.trim()
+  return stderr.length === 0 ? stdout : stderr
+}
+
+const runCommand = Effect.fn('runCommand')(function* (command: string, args: readonly string[]) {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      const handle = yield* spawner
+        .spawn(ChildProcess.make(command, args))
+        .pipe(Effect.mapError((cause) => platformError(`Could not start ${commandText(command, args)}`, cause)))
+      const result = yield* Effect.all(
+        {
+          exitCode: handle.exitCode,
+          stdout: streamText(handle.stdout),
+          stderr: streamText(handle.stderr),
+        },
+        { concurrency: 'unbounded' }
+      ).pipe(Effect.mapError((cause) => platformError(`Could not read ${commandText(command, args)} output`, cause)))
+      const { exitCode, stdout, stderr } = result
+      const exitCodeNumber: number = exitCode
+
+      return { exitCode: exitCodeNumber, stdout, stderr }
+    })
+  )
+})
+
+const discoverCliNames = Effect.fn('discoverCliNames')(function* () {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const directoryNames = yield* fs
+    .readDirectory('apps')
+    .pipe(Effect.mapError((cause) => platformError('Could not read apps directory', cause)))
+  const cliNames: string[] = []
+
+  for (const directoryName of directoryNames) {
+    if (!directoryName.endsWith(cliSuffix)) {
+      continue
+    }
+
+    const packageJsonPath = path.join('apps', directoryName, 'package.json')
+    const hasPackageJson = yield* fs
+      .exists(packageJsonPath)
+      .pipe(Effect.mapError((cause) => platformError(`Could not inspect ${packageJsonPath}`, cause)))
+
+    if (hasPackageJson) {
+      cliNames.push(directoryName.slice(0, -cliSuffix.length))
+    }
+  }
+
+  return cliNames.toSorted()
+})
+
+const changedFilesBetween = Effect.fn('changedFilesBetween')(function* (baseRef: string, headRef: string) {
+  const result = yield* runCommand('git', ['diff', '--name-only', `${baseRef}...${headRef}`])
+
+  if (result.exitCode !== 0) {
+    return yield* Effect.fail(new Error(`git diff failed: ${commandOutput(result)}`))
   }
 
   return result.stdout
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-}
+})
 
-const writeAutomaticChangeset = (packageNames: readonly string[]): void => {
+const writeAutomaticChangeset = Effect.fn('writeAutomaticChangeset')(function* (packageNames: readonly string[]) {
   if (packageNames.length === 0) {
     return
   }
 
-  mkdirSync('.changeset', { recursive: true })
-  writeFileSync(join('.changeset', 'automatic-cli-release.md'), changesetMarkdown(packageNames))
-}
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  yield* fs
+    .makeDirectory('.changeset', { recursive: true })
+    .pipe(Effect.mapError((cause) => platformError('Could not create .changeset directory', cause)))
+  yield* fs
+    .writeFileString(path.join('.changeset', 'automatic-cli-release.md'), changesetMarkdown(packageNames))
+    .pipe(Effect.mapError((cause) => platformError('Could not write automatic CLI changeset', cause)))
+})
 
-const writePackageOutput = (packageOutputPath: string, packageNames: readonly string[]): void => {
-  const packageOutputDirectory = dirname(packageOutputPath)
+const writePackageOutput = Effect.fn('writePackageOutput')(function* (
+  packageOutputPath: string,
+  packageNames: readonly string[]
+) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const packageOutputDirectory = path.dirname(packageOutputPath)
 
   if (packageOutputDirectory !== '.') {
-    mkdirSync(packageOutputDirectory, { recursive: true })
+    yield* fs
+      .makeDirectory(packageOutputDirectory, { recursive: true })
+      .pipe(Effect.mapError((cause) => platformError(`Could not create ${packageOutputDirectory}`, cause)))
   }
 
-  writeFileSync(packageOutputPath, packageNames.length === 0 ? '' : `${packageNames.join('\n')}\n`)
-}
+  yield* fs
+    .writeFileString(packageOutputPath, packageNames.length === 0 ? '' : `${packageNames.join('\n')}\n`)
+    .pipe(Effect.mapError((cause) => platformError(`Could not write ${packageOutputPath}`, cause)))
+})
 
-const readPackageOutput = (packageOutputPath: string): string[] =>
-  readFileSync(packageOutputPath, 'utf-8')
+const readPackageOutput = Effect.fn('readPackageOutput')(function* (packageOutputPath: string) {
+  const fs = yield* FileSystem.FileSystem
+  const content = yield* fs
+    .readFileString(packageOutputPath)
+    .pipe(Effect.mapError((cause) => platformError(`Could not read ${packageOutputPath}`, cause)))
+
+  return content
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
+})
 
-const cliDirectoryNameFromPackage = (packageName: string): string => {
+const cliDirectoryNameFromPackage = (packageName: string): Effect.Effect<string, Error> => {
   if (!packageName.startsWith(garagePackagePrefix) || !packageName.endsWith(cliSuffix)) {
-    throw new Error(`Unsupported CLI package name: ${packageName}`)
+    return Effect.fail(new Error(`Unsupported CLI package name: ${packageName}`))
   }
 
-  return packageName.slice(garagePackagePrefix.length)
+  return Effect.succeed(packageName.slice(garagePackagePrefix.length))
 }
 
-const packageVersion = (packageName: string): string => {
-  const directoryName = cliDirectoryNameFromPackage(packageName)
-  const packageJson = readFileSync(join('apps', directoryName, 'package.json'), 'utf-8')
+const packageVersion = Effect.fn('packageVersion')(function* (packageName: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const directoryName = yield* cliDirectoryNameFromPackage(packageName)
+  const packageJsonPath = path.join('apps', directoryName, 'package.json')
+  const packageJson = yield* fs
+    .readFileString(packageJsonPath)
+    .pipe(Effect.mapError((cause) => platformError(`Could not read ${packageJsonPath}`, cause)))
   const match = /"version"\s*:\s*"([^"]+)"/u.exec(packageJson)
   const version = match?.[1]
 
   if (version === undefined) {
-    throw new Error(`Could not find version for ${packageName}`)
+    return yield* Effect.fail(new Error(`Could not find version for ${packageName}`))
   }
 
   return version
-}
+})
 
-const gitTagExists = (tagName: string): boolean => {
-  const result = spawnSync('git', ['rev-parse', '--quiet', '--verify', `refs/tags/${tagName}`], { encoding: 'utf-8' })
+const gitTagExists = Effect.fn('gitTagExists')(function* (tagName: string) {
+  const result = yield* runCommand('git', ['rev-parse', '--quiet', '--verify', `refs/tags/${tagName}`])
 
-  return result.status === 0
-}
+  return result.exitCode === 0
+})
 
-const createGitTag = (tagName: string): void => {
-  const result = spawnSync('git', ['tag', tagName], { encoding: 'utf-8' })
+const createGitTag = Effect.fn('createGitTag')(function* (tagName: string) {
+  const result = yield* runCommand('git', ['tag', tagName])
 
-  if (result.status !== 0) {
-    throw new Error(`git tag failed for ${tagName}: ${result.stderr.trim()}`)
+  if (result.exitCode !== 0) {
+    return yield* Effect.fail(new Error(`git tag failed for ${tagName}: ${commandOutput(result)}`))
   }
-}
+})
 
-const tagReleasedPackages = (packageNames: readonly string[]): void => {
+const tagReleasedPackages = Effect.fn('tagReleasedPackages')(function* (packageNames: readonly string[]) {
   for (const packageName of packageNames) {
-    const directoryName = cliDirectoryNameFromPackage(packageName)
-    const tagName = `${directoryName}-v${packageVersion(packageName)}`
+    const directoryName = yield* cliDirectoryNameFromPackage(packageName)
+    const version = yield* packageVersion(packageName)
+    const tagName = `${directoryName}-v${version}`
 
-    if (!gitTagExists(tagName)) {
-      createGitTag(tagName)
+    if (!(yield* gitTagExists(tagName))) {
+      yield* createGitTag(tagName)
     }
   }
-}
+})
 
 const valueAfter = (args: readonly string[], flag: string): string | undefined => {
   const flagIndex = args.indexOf(flag)
@@ -148,53 +238,61 @@ const usage = `Usage:
   bun scripts/cli-versioning.ts tag --package-output <path>
 `
 
-const writeCommand = (args: readonly string[]): void => {
+const writeCommand = Effect.fn('writeCommand')(function* (args: readonly string[]) {
   const baseRef = valueAfter(args, '--base')
   const headRef = valueAfter(args, '--head')
   const packageOutputPath = valueAfter(args, '--package-output')
 
   if (baseRef === undefined || headRef === undefined || packageOutputPath === undefined) {
-    throw new Error(usage)
+    return yield* Effect.fail(new Error(usage))
   }
 
-  const packageNames = affectedCliPackages(changedFilesBetween(baseRef, headRef), discoverCliNames())
-  writeAutomaticChangeset(packageNames)
-  writePackageOutput(packageOutputPath, packageNames)
-}
+  const changedFiles = yield* changedFilesBetween(baseRef, headRef)
+  const cliNames = yield* discoverCliNames()
+  const packageNames = affectedCliPackages(changedFiles, cliNames)
+  yield* writeAutomaticChangeset(packageNames)
+  yield* writePackageOutput(packageOutputPath, packageNames)
+})
 
-const tagCommand = (args: readonly string[]): void => {
+const tagCommand = Effect.fn('tagCommand')(function* (args: readonly string[]) {
   const packageOutputPath = valueAfter(args, '--package-output')
 
   if (packageOutputPath === undefined) {
-    throw new Error(usage)
+    return yield* Effect.fail(new Error(usage))
   }
 
-  tagReleasedPackages(readPackageOutput(packageOutputPath))
-}
+  const packageNames = yield* readPackageOutput(packageOutputPath)
+  yield* tagReleasedPackages(packageNames)
+})
 
-const main = (): void => {
-  try {
-    const args = process.argv.slice(2)
-    const [command] = args
+export const runCliVersioning = Effect.fn('runCliVersioning')(function* (args: readonly string[]) {
+  const [command] = args
 
-    if (command === 'write') {
-      writeCommand(args)
-      return
-    }
-
-    if (command === 'tag') {
-      tagCommand(args)
-      return
-    }
-
-    throw new Error(usage)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown CLI versioning error'
-    process.stderr.write(`${message}\n`)
-    process.exitCode = 1
+  if (command === 'write') {
+    yield* writeCommand(args)
+    return
   }
-}
+
+  if (command === 'tag') {
+    yield* tagCommand(args)
+    return
+  }
+
+  return yield* Effect.fail(new Error(usage))
+})
 
 if (import.meta.main) {
-  main()
+  const program = runCliVersioning(Bun.argv.slice(2)).pipe(
+    Effect.matchEffect({
+      onFailure: (error) =>
+        Effect.gen(function* () {
+          yield* Console.error(error.message)
+          return yield* Effect.fail(error)
+        }),
+      onSuccess: () => Effect.void,
+    }),
+    Effect.provide(BunServices.layer)
+  )
+
+  BunRuntime.runMain(program, { disableErrorReporting: true })
 }

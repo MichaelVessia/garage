@@ -1,20 +1,27 @@
 import { JsonObjectSchema, decodeError } from '@garage/caddy'
 import type { CaddyError, JsonObject } from '@garage/caddy'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, FileSystem, Layer, Schema } from 'effect'
 
 export class CaddyConfigFile extends Context.Service<
   CaddyConfigFile,
   { readonly read: (path: string) => Effect.Effect<JsonObject, CaddyError> }
 >()('@garage/caddy-cli/config-file/CaddyConfigFile') {}
 
-const readJson = (path: string): Promise<unknown> => Bun.file(path).json()
+export const CaddyConfigFileLive = Layer.effect(
+  CaddyConfigFile,
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
 
-export const CaddyConfigFileLive = Layer.succeed(CaddyConfigFile, {
-  read: (path) =>
-    Effect.tryPromise(() => readJson(path)).pipe(
-      Effect.mapError((cause) => decodeError(`Could not read Caddy config file ${path}: ${String(cause)}`)),
-      Effect.flatMap((input) =>
-        Schema.decodeUnknownEffect(JsonObjectSchema)(input).pipe(Effect.mapError((issue) => decodeError(issue.message)))
-      )
-    ),
-})
+    return CaddyConfigFile.of({
+      read: Effect.fn('CaddyConfigFile.read')(function* (path) {
+        const source = yield* fs
+          .readFileString(path)
+          .pipe(Effect.mapError((cause) => decodeError(`Could not read Caddy config file ${path}: ${cause.message}`)))
+
+        return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(JsonObjectSchema))(source).pipe(
+          Effect.mapError((issue) => decodeError(issue.message))
+        )
+      }),
+    })
+  })
+)

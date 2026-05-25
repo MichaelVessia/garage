@@ -1,6 +1,8 @@
 import { cliMissing, commandFailed, TailscaleProcess } from '@garage/tailscale'
 import type { ProcessResult, TailscaleError } from '@garage/tailscale'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Stream } from 'effect'
+import type * as PlatformError from 'effect/PlatformError'
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 const commandText = (args: ReadonlyArray<string>): string => `tailscale ${args.join(' ')}`
 const tailscaleCandidates: ReadonlyArray<string> = [
@@ -10,38 +12,39 @@ const tailscaleCandidates: ReadonlyArray<string> = [
   'tailscale',
 ]
 
-const readStream = (stream: ReadableStream<Uint8Array>): Promise<string> => new Response(stream).text()
+const streamText = (
+  stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>
+): Effect.Effect<string, PlatformError.PlatformError> => Stream.mkString(Stream.decodeText(stream))
 
-const isMissingCommand = (message: string): boolean => message.includes('ENOENT') || message.includes('not found')
+const isMissingCommand = (cause: PlatformError.PlatformError): boolean => cause.reason._tag === 'NotFound'
 
-const runCandidate = (command: string, args: ReadonlyArray<string>): Promise<ProcessResult> => {
-  const proc = Bun.spawn({
-    cmd: [command, ...args],
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-
-  return Promise.all([readStream(proc.stdout), readStream(proc.stderr), proc.exited]).then(
-    ([stdout, stderr, exitCode]) => ({
-      exitCode,
-      stdout,
-      stderr,
-    })
-  )
-}
-
-const processError = (args: ReadonlyArray<string>, cause: unknown): TailscaleError => {
-  const message = String(cause)
-  return isMissingCommand(message) ? cliMissing(message) : commandFailed(commandText(args), 1, message)
-}
+const processError = (args: ReadonlyArray<string>, cause: PlatformError.PlatformError): TailscaleError =>
+  isMissingCommand(cause) ? cliMissing(cause.message) : commandFailed(commandText(args), 1, cause.message)
 
 const runCandidateEffect = (
+  spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
   command: string,
   args: ReadonlyArray<string>
 ): Effect.Effect<ProcessResult, TailscaleError> =>
-  Effect.tryPromise({ try: () => runCandidate(command, args), catch: (cause) => processError(args, cause) })
+  Effect.gen(function* () {
+    const handle = yield* spawner.spawn(ChildProcess.make(command, args))
+    const result = yield* Effect.all(
+      {
+        exitCode: handle.exitCode,
+        stdout: streamText(handle.stdout),
+        stderr: streamText(handle.stderr),
+      },
+      { concurrency: 'unbounded' }
+    )
+
+    return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
+  }).pipe(
+    Effect.mapError((cause) => processError(args, cause)),
+    Effect.scoped
+  )
 
 const runFirstAvailable = (
+  spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
   args: ReadonlyArray<string>,
   candidates: ReadonlyArray<string>
 ): Effect.Effect<ProcessResult, TailscaleError> => {
@@ -49,15 +52,24 @@ const runFirstAvailable = (
   if (candidate === undefined) {
     return Effect.fail(cliMissing('tailscale CLI not found'))
   }
-  return runCandidateEffect(candidate, args).pipe(
+  return runCandidateEffect(spawner, candidate, args).pipe(
     Effect.matchEffect({
       onFailure: (error) =>
-        error.code === 'TAILSCALE_CLI_MISSING' && rest.length > 0 ? runFirstAvailable(args, rest) : Effect.fail(error),
+        error.code === 'TAILSCALE_CLI_MISSING' && rest.length > 0
+          ? runFirstAvailable(spawner, args, rest)
+          : Effect.fail(error),
       onSuccess: (result) => Effect.succeed(result),
     })
   )
 }
 
-export const TailscaleProcessLive = Layer.succeed(TailscaleProcess, {
-  run: (args) => runFirstAvailable(args, tailscaleCandidates),
-})
+export const TailscaleProcessLive = Layer.effect(
+  TailscaleProcess,
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+
+    return TailscaleProcess.of({
+      run: (args) => runFirstAvailable(spawner, args, tailscaleCandidates),
+    })
+  })
+)
