@@ -16,18 +16,6 @@ export interface RootResult {
 
 export const rootCommand = 'caddy'
 export const confirmReloadFlag = '--confirm-reload'
-export const commandTree: ReadonlyArray<CommandDescription> = [
-  { command: rootCommand, description: 'Show this command tree and configuration health' },
-  { command: `${rootCommand} config`, description: 'Return full active Caddy config' },
-  { command: `${rootCommand} routes`, description: 'Return route matchers and reverse-proxy upstreams' },
-  { command: `${rootCommand} upstreams`, description: 'Return live reverse-proxy upstream health' },
-  { command: `${rootCommand} pki-ca`, description: 'Return local internal CA info' },
-  {
-    command: `${rootCommand} reload <config.json> [--confirm-reload]`,
-    description: 'Replace the active config via POST /load',
-    flags: [{ name: confirmReloadFlag, description: 'Confirm full Caddy config replacement' }],
-  },
-]
 
 export const envNextAction: NextAction = {
   command: rootCommand,

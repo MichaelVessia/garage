@@ -160,7 +160,7 @@ const listNextAction = (command: string, description: string): ReadonlyArray<Nex
 
 const root = (
   command: string,
-  commandTree: ReadonlyArray<{ readonly command: string; readonly description: string }>
+  commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, RadarrCliContext> =>
   status.pipe(
     Effect.match({
@@ -351,114 +351,99 @@ const rootDescription = { command: rootCommand, description: 'Show this command 
 const commandDefinitions: ReadonlyArray<CommandDefinition<RadarrCliResult, RadarrCliError, RadarrCliContext>> = [
   {
     name: 'status',
-    description: { command: `${rootCommand} status`, description: 'Return the Radarr system status summary' },
+    command: `${rootCommand} status`,
+    description: 'Return the Radarr system status summary',
     handle: ({ wrap }) => wrap(status),
   },
   {
     name: 'config',
-    description: { command: `${rootCommand} config`, description: 'Return root folders and quality profiles' },
+    command: `${rootCommand} config`,
+    description: 'Return root folders and quality profiles',
     handle: ({ wrap }) => wrap(config),
   },
   {
     name: 'search',
-    description: {
-      command: `${rootCommand} search <query>`,
-      description: 'Search Radarr lookup by movie title',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} search <query>`,
+    description: 'Search Radarr lookup by movie title',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: searchCommand,
   },
   {
     name: 'exists',
-    description: { command: existsCommandTemplate, description: 'Check whether a TMDB ID is already in the library' },
+    command: existsCommandTemplate,
+    description: 'Check whether a TMDB ID is already in the library',
     handle: existsCommand,
   },
   {
     name: 'add',
-    description: {
-      command: addCommandTemplate,
-      description: 'Add a movie by TMDB ID',
-      flags: [
-        {
-          name: `${qualityProfileFlag} <quality-profile-id>`,
-          description: 'Override the default Radarr quality profile',
-        },
-        { name: noSearchFlag, description: 'Add without searching for the movie' },
-      ],
-    },
+    command: addCommandTemplate,
+    description: 'Add a movie by TMDB ID',
+    flags: [
+      {
+        name: `${qualityProfileFlag} <quality-profile-id>`,
+        description: 'Override the default Radarr quality profile',
+      },
+      { name: noSearchFlag, description: 'Add without searching for the movie' },
+    ],
     handle: addCommand,
   },
   {
     name: 'add-collection',
-    description: {
-      command: addCollectionCommandTemplate,
-      description: 'Add movies from a known Radarr collection',
-      flags: [
-        { name: noSearchFlag, description: 'Add movies without searching' },
-        { name: confirmAddCollectionFlag, description: 'Confirm the collection add' },
-        {
-          name: `${resultLimitFlag} <n>`,
-          description: 'Maximum result records to include in the envelope',
-          default: defaultAddCollectionResultLimit,
-        },
-      ],
-    },
+    command: addCollectionCommandTemplate,
+    description: 'Add movies from a known Radarr collection',
+    flags: [
+      { name: noSearchFlag, description: 'Add movies without searching' },
+      { name: confirmAddCollectionFlag, description: 'Confirm the collection add' },
+      {
+        name: `${resultLimitFlag} <n>`,
+        description: 'Maximum result records to include in the envelope',
+        default: defaultAddCollectionResultLimit,
+      },
+    ],
     handle: addCollectionCommand,
   },
   {
     name: 'collection-info',
-    description: {
-      command: collectionInfoCommandTemplate,
-      description: 'Inspect a known Radarr collection by TMDB ID',
-    },
+    command: collectionInfoCommandTemplate,
+    description: 'Inspect a known Radarr collection by TMDB ID',
     handle: collectionInfoCommand,
   },
   {
     name: 'remove',
-    description: {
-      command: `${rootCommand} remove <tmdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`,
-      description: 'Remove a movie by TMDB ID',
-      flags: [
-        { name: deleteFilesFlag, description: 'Request media file deletion' },
-        { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
-      ],
-    },
+    command: `${rootCommand} remove <tmdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`,
+    description: 'Remove a movie by TMDB ID',
+    flags: [
+      { name: deleteFilesFlag, description: 'Request media file deletion' },
+      { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
+    ],
     handle: removeCommand,
   },
   {
     name: 'queue',
-    description: {
-      command: `${rootCommand} queue [${limitFlag} <n>]`,
-      description: 'Return active queue records',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} queue [${limitFlag} <n>]`,
+    description: 'Return active queue records',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: queueCommand,
   },
   {
     name: 'calendar',
-    description: {
-      command: `${rootCommand} calendar [${daysFlag} <n>]`,
-      description: 'Return upcoming movies',
-      flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
-    },
+    command: `${rootCommand} calendar [${daysFlag} <n>]`,
+    description: 'Return upcoming movies',
+    flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
     handle: calendarCommand,
   },
   {
     name: 'missing',
-    description: {
-      command: `${rootCommand} missing [${limitFlag} <n>]`,
-      description: 'Return monitored missing movies',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} missing [${limitFlag} <n>]`,
+    description: 'Return monitored missing movies',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: missingCommand,
   },
   {
     name: 'history',
-    description: {
-      command: `${rootCommand} history [${limitFlag} <n>]`,
-      description: 'Return recent history records',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} history [${limitFlag} <n>]`,
+    description: 'Return recent history records',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: historyCommand,
   },
 ]

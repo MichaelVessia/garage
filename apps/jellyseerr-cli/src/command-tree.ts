@@ -1,5 +1,4 @@
 import type { CommandDescription, NextAction } from '@garage/cli-protocol'
-import { defaultLimit } from '@garage/jellyseerr'
 
 export interface RootHealth {
   readonly configured: boolean
@@ -35,56 +34,6 @@ export const allFlag = '--all'
 export const confirmApproveFlag = '--confirm-approve'
 export const confirmDeclineFlag = '--confirm-decline'
 export const confirmDeleteRequestFlag = '--confirm-delete-request'
-
-export const commandTree: ReadonlyArray<CommandDescription> = [
-  { command: rootCommand, description: 'Show this command tree and configuration health' },
-  { command: statusCommandTemplate, description: 'Return Jellyseerr status' },
-  {
-    command: requestsCommandTemplate,
-    description: 'Return pending media requests by default',
-    flags: [
-      { name: allFlag, description: 'Include all request states' },
-      { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
-    ],
-  },
-  { command: requestCountsCommandTemplate, description: 'Return request totals by state' },
-  {
-    command: searchCommandTemplate,
-    description: 'Search TMDB through Jellyseerr',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-  },
-  { command: mediaStatusCommandTemplate, description: 'Return one Jellyseerr media row' },
-  {
-    command: recentlyAddedCommandTemplate,
-    description: 'Return recently available media',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-  },
-  {
-    command: approveCommandTemplate,
-    description: 'Approve a media request',
-    flags: [{ name: confirmApproveFlag, description: 'Confirm request approval' }],
-  },
-  {
-    command: declineCommandTemplate,
-    description: 'Decline a media request',
-    flags: [{ name: confirmDeclineFlag, description: 'Confirm request decline' }],
-  },
-  {
-    command: deleteRequestCommandTemplate,
-    description: 'Delete a media request',
-    flags: [{ name: confirmDeleteRequestFlag, description: 'Confirm request deletion' }],
-  },
-  {
-    command: usersCommandTemplate,
-    description: 'Return Jellyseerr users',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-  },
-  {
-    command: issuesCommandTemplate,
-    description: 'Return open Jellyseerr issues',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-  },
-]
 
 export const envNextAction: NextAction = {
   command: rootCommand,

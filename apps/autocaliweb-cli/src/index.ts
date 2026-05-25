@@ -120,65 +120,59 @@ const commandDefinitions: ReadonlyArray<
 > = [
   {
     name: 'status',
-    description: { command: `${rootCommand} status`, description: 'Return Autocaliweb OPDS status and catalog stats' },
+    command: `${rootCommand} status`,
+    description: 'Return Autocaliweb OPDS status and catalog stats',
     handle: ({ wrap }) => wrap(status),
   },
   {
     name: 'version',
-    description: { command: `${rootCommand} version`, description: 'Alias for status' },
+    command: `${rootCommand} version`,
+    description: 'Alias for status',
     handle: ({ wrap }) => wrap(version),
   },
   {
     name: 'stats',
-    description: { command: `${rootCommand} stats`, description: 'Return Autocaliweb database counts' },
+    command: `${rootCommand} stats`,
+    description: 'Return Autocaliweb database counts',
     handle: ({ wrap }) => wrap(stats),
   },
   {
     name: 'catalog',
-    description: { command: `${rootCommand} catalog`, description: 'Return top-level OPDS catalog entries' },
+    command: `${rootCommand} catalog`,
+    description: 'Return top-level OPDS catalog entries',
     handle: ({ wrap }) => wrap(catalog),
   },
   {
     name: 'books',
-    description: {
-      command: `${rootCommand} books [${limitFlag} <n>]`,
-      description: 'Return a bounded alphabetical book list',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} books [${limitFlag} <n>]`,
+    description: 'Return a bounded alphabetical book list',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => books({ limit })),
   },
   {
     name: 'recent',
-    description: {
-      command: `${rootCommand} recent [${limitFlag} <n>]`,
-      description: 'Return recently added books',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} recent [${limitFlag} <n>]`,
+    description: 'Return recently added books',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => recent({ limit })),
   },
   {
     name: 'search',
-    description: {
-      command: `${rootCommand} search <query> [${limitFlag} <n>]`,
-      description: 'Search books through OPDS',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} search <query> [${limitFlag} <n>]`,
+    description: 'Search books through OPDS',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
     handle: searchCommand,
   },
   {
     name: 'book-info',
-    description: {
-      command: `${rootCommand} book-info <uuid>`,
-      description: 'Return Calibre Companion metadata for a book UUID',
-    },
+    command: `${rootCommand} book-info <uuid>`,
+    description: 'Return Calibre Companion metadata for a book UUID',
     handle: bookInfoCommand,
   },
   {
     name: 'shelves',
-    description: {
-      command: `${rootCommand} shelves`,
-      description: 'Return OPDS shelves visible to the logged-in user',
-    },
+    command: `${rootCommand} shelves`,
+    description: 'Return OPDS shelves visible to the logged-in user',
     handle: ({ wrap }) => wrap(shelves),
   },
 ]

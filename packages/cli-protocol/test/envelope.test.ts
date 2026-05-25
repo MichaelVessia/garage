@@ -21,10 +21,8 @@ const usageError = createCliUsageError(rootCommand)
 const testCommands: ReadonlyArray<CommandDefinition<TestResult, CliUsageError, never>> = [
   {
     name: 'parse',
-    description: {
-      command: `${rootCommand} parse [--limit <value>] <tokens...>`,
-      description: 'Parse flags for regression coverage',
-    },
+    command: `${rootCommand} parse [--limit <value>] <tokens...>`,
+    description: 'Parse flags for regression coverage',
     handle: ({ args, parseFlags, recover, wrap }) =>
       recover(
         Effect.gen(function* () {

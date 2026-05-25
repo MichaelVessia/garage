@@ -98,31 +98,33 @@ const rootDescription = { command: rootCommand, description: 'Show this command 
 const commandDefinitions: ReadonlyArray<CommandDefinition<CaddyCliResult, CaddyCliError, CaddyCliContext>> = [
   {
     name: 'config',
-    description: { command: `${rootCommand} config`, description: 'Return full active Caddy config' },
+    command: `${rootCommand} config`,
+    description: 'Return full active Caddy config',
     handle: ({ wrap }) => wrap(config),
   },
   {
     name: 'routes',
-    description: { command: `${rootCommand} routes`, description: 'Return route matchers and reverse-proxy upstreams' },
+    command: `${rootCommand} routes`,
+    description: 'Return route matchers and reverse-proxy upstreams',
     handle: ({ wrap }) => wrap(routes),
   },
   {
     name: 'upstreams',
-    description: { command: `${rootCommand} upstreams`, description: 'Return live reverse-proxy upstream health' },
+    command: `${rootCommand} upstreams`,
+    description: 'Return live reverse-proxy upstream health',
     handle: ({ wrap }) => wrap(upstreams),
   },
   {
     name: 'pki-ca',
-    description: { command: `${rootCommand} pki-ca`, description: 'Return local internal CA info' },
+    command: `${rootCommand} pki-ca`,
+    description: 'Return local internal CA info',
     handle: ({ wrap }) => wrap(pkiCa),
   },
   {
     name: 'reload',
-    description: {
-      command: `${rootCommand} reload <config.json> [${confirmReloadFlag}]`,
-      description: 'Replace the active config via POST /load',
-      flags: [{ name: confirmReloadFlag, description: 'Confirm full Caddy config replacement' }],
-    },
+    command: `${rootCommand} reload <config.json> [${confirmReloadFlag}]`,
+    description: 'Replace the active config via POST /load',
+    flags: [{ name: confirmReloadFlag, description: 'Confirm full Caddy config replacement' }],
     handle: reloadCommand,
   },
 ]

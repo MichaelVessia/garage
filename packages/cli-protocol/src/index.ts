@@ -103,9 +103,8 @@ export interface CommandInvocation<CliResult, Error extends CliEnvelopeError, Co
   ) => Effect.Effect<number, Error>
 }
 
-export interface CommandDefinition<CliResult, Error extends CliEnvelopeError, Context> {
+export interface CommandDefinition<CliResult, Error extends CliEnvelopeError, Context> extends CommandDescription {
   readonly name: string
-  readonly description: CommandDescription
   readonly hidden?: boolean
   readonly handle: (
     invocation: CommandInvocation<CliResult, Error, Context>
@@ -150,12 +149,20 @@ export const renderEnvelope = (envelope: CliEnvelope<unknown>): string => {
 export const commandString = (rootCommand: string, args: ReadonlyArray<string>): string =>
   args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
 
+const commandDescription = <CliResult, Error extends CliEnvelopeError, Context>(
+  definition: CommandDefinition<CliResult, Error, Context>
+): CommandDescription => ({
+  command: definition.command,
+  description: definition.description,
+  ...(definition.flags === undefined ? {} : { flags: definition.flags }),
+})
+
 export const commandDescriptions = <CliResult, Error extends CliEnvelopeError, Context>(
   rootDescription: CommandDescription,
   commands: ReadonlyArray<CommandDefinition<CliResult, Error, Context>>
 ): ReadonlyArray<CommandDescription> => [
   rootDescription,
-  ...commands.flatMap((command) => (command.hidden === true ? [] : [command.description])),
+  ...commands.flatMap((command) => (command.hidden === true ? [] : [commandDescription(command)])),
 ]
 
 export const createCliUsageError = (rootCommand: string): ((message: string) => CliUsageError) => {

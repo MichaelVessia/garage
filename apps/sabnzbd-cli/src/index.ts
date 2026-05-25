@@ -187,62 +187,56 @@ const rootDescription = { command: rootCommand, description: 'Show this command 
 const commandDefinitions: ReadonlyArray<CommandDefinition<SabnzbdCliResult, SabnzbdCliError, SabnzbdCliContext>> = [
   {
     name: 'status',
-    description: { command: statusCommandTemplate, description: 'Return the SABnzbd full status summary' },
+    command: statusCommandTemplate,
+    description: 'Return the SABnzbd full status summary',
     handle: ({ wrap }) => wrap(status),
   },
   {
     name: 'version',
-    description: { command: versionCommandTemplate, description: 'Return the SABnzbd version' },
+    command: versionCommandTemplate,
+    description: 'Return the SABnzbd version',
     handle: ({ wrap }) => wrap(version),
   },
   {
     name: 'queue',
-    description: {
-      command: queueCommandTemplate,
-      description: 'Return active download queue records',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum queue slots to return', default: defaultLimit }],
-    },
+    command: queueCommandTemplate,
+    description: 'Return active download queue records',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum queue slots to return', default: defaultLimit }],
     handle: queueCommand,
   },
   {
     name: 'history',
-    description: {
-      command: historyCommandTemplate,
-      description: 'Return recent download history records',
-      flags: [
-        { name: `${limitFlag} <n>`, description: 'Maximum history slots to return', default: defaultHistoryLimit },
-      ],
-    },
+    command: historyCommandTemplate,
+    description: 'Return recent download history records',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum history slots to return', default: defaultHistoryLimit }],
     handle: historyCommand,
   },
   {
     name: 'pause',
-    description: { command: pauseCommandTemplate, description: 'Pause the SABnzbd queue' },
+    command: pauseCommandTemplate,
+    description: 'Pause the SABnzbd queue',
     handle: ({ wrap }) => wrap(pause),
   },
   {
     name: 'resume',
-    description: { command: resumeCommandTemplate, description: 'Resume the SABnzbd queue' },
+    command: resumeCommandTemplate,
+    description: 'Resume the SABnzbd queue',
     handle: ({ wrap }) => wrap(resume),
   },
   {
     name: 'delete',
-    description: {
-      command: deleteCommandTemplate,
-      description: 'Delete a queue item',
-      flags: [
-        { name: filesFlag, description: 'Delete downloaded files too' },
-        { name: confirmDeleteFilesFlag, description: 'Confirm deletion of downloaded files from disk' },
-      ],
-    },
+    command: deleteCommandTemplate,
+    description: 'Delete a queue item',
+    flags: [
+      { name: filesFlag, description: 'Delete downloaded files too' },
+      { name: confirmDeleteFilesFlag, description: 'Confirm deletion of downloaded files from disk' },
+    ],
     handle: deleteCommand,
   },
   {
     name: 'server-stats',
-    description: {
-      command: serverStatsCommandTemplate,
-      description: 'Return download totals by day, week, month, and server',
-    },
+    command: serverStatsCommandTemplate,
+    description: 'Return download totals by day, week, month, and server',
     handle: ({ wrap }) => wrap(serverStats),
   },
 ]

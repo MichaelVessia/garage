@@ -208,56 +208,51 @@ const commandDefinitions: ReadonlyArray<
 > = [
   {
     name: 'status',
-    description: { command: statusCommandTemplate, description: 'Return Jellyseerr status' },
+    command: statusCommandTemplate,
+    description: 'Return Jellyseerr status',
     handle: ({ wrap }) => wrap(status),
   },
   {
     name: 'requests',
-    description: {
-      command: requestsCommandTemplate,
-      description: 'Return pending media requests by default',
-      flags: [
-        { name: allFlag, description: 'Include all request states' },
-        { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
-      ],
-    },
+    command: requestsCommandTemplate,
+    description: 'Return pending media requests by default',
+    flags: [
+      { name: allFlag, description: 'Include all request states' },
+      { name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit },
+    ],
     handle: requestsCommand,
   },
   {
     name: 'request-counts',
-    description: { command: requestCountsCommandTemplate, description: 'Return request totals by state' },
+    command: requestCountsCommandTemplate,
+    description: 'Return request totals by state',
     handle: ({ wrap }) => wrap(requestCounts),
   },
   {
     name: 'search',
-    description: {
-      command: searchCommandTemplate,
-      description: 'Search TMDB through Jellyseerr',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: searchCommandTemplate,
+    description: 'Search TMDB through Jellyseerr',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: searchCommand,
   },
   {
     name: 'media-status',
-    description: { command: mediaStatusCommandTemplate, description: 'Return one Jellyseerr media row' },
+    command: mediaStatusCommandTemplate,
+    description: 'Return one Jellyseerr media row',
     handle: mediaStatusCommand,
   },
   {
     name: 'recently-added',
-    description: {
-      command: recentlyAddedCommandTemplate,
-      description: 'Return recently available media',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: recentlyAddedCommandTemplate,
+    description: 'Return recently available media',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => recentlyAdded({ limit })),
   },
   {
     name: 'approve',
-    description: {
-      command: approveCommandTemplate,
-      description: 'Approve a media request',
-      flags: [{ name: confirmApproveFlag, description: 'Confirm request approval' }],
-    },
+    command: approveCommandTemplate,
+    description: 'Approve a media request',
+    flags: [{ name: confirmApproveFlag, description: 'Confirm request approval' }],
     handle: (invocation) =>
       confirmedRequestCommand(
         invocation,
@@ -269,11 +264,9 @@ const commandDefinitions: ReadonlyArray<
   },
   {
     name: 'decline',
-    description: {
-      command: declineCommandTemplate,
-      description: 'Decline a media request',
-      flags: [{ name: confirmDeclineFlag, description: 'Confirm request decline' }],
-    },
+    command: declineCommandTemplate,
+    description: 'Decline a media request',
+    flags: [{ name: confirmDeclineFlag, description: 'Confirm request decline' }],
     handle: (invocation) =>
       confirmedRequestCommand(
         invocation,
@@ -285,11 +278,9 @@ const commandDefinitions: ReadonlyArray<
   },
   {
     name: 'delete-request',
-    description: {
-      command: deleteRequestCommandTemplate,
-      description: 'Delete a media request',
-      flags: [{ name: confirmDeleteRequestFlag, description: 'Confirm request deletion' }],
-    },
+    command: deleteRequestCommandTemplate,
+    description: 'Delete a media request',
+    flags: [{ name: confirmDeleteRequestFlag, description: 'Confirm request deletion' }],
     handle: (invocation) =>
       confirmedRequestCommand(
         invocation,
@@ -301,20 +292,16 @@ const commandDefinitions: ReadonlyArray<
   },
   {
     name: 'users',
-    description: {
-      command: usersCommandTemplate,
-      description: 'Return Jellyseerr users',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: usersCommandTemplate,
+    description: 'Return Jellyseerr users',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => users({ limit })),
   },
   {
     name: 'issues',
-    description: {
-      command: issuesCommandTemplate,
-      description: 'Return open Jellyseerr issues',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: issuesCommandTemplate,
+    description: 'Return open Jellyseerr issues',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => issues({ limit })),
   },
 ]

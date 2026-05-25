@@ -273,85 +273,77 @@ const rootDescription = { command: rootCommand, description: 'Show this command 
 const commandDefinitions: ReadonlyArray<CommandDefinition<SonarrCliResult, SonarrCliError, SonarrCliContext>> = [
   {
     name: 'status',
-    description: { command: statusCommandTemplate, description: 'Return the Sonarr system status summary' },
+    command: statusCommandTemplate,
+    description: 'Return the Sonarr system status summary',
     handle: ({ wrap }) => wrap(status),
   },
   {
     name: 'config',
-    description: { command: configCommandTemplate, description: 'Return root folders and quality profiles' },
+    command: configCommandTemplate,
+    description: 'Return root folders and quality profiles',
     handle: ({ wrap }) => wrap(config),
   },
   {
     name: 'search',
-    description: { command: searchCommandTemplate, description: 'Search Sonarr lookup by series title' },
+    command: searchCommandTemplate,
+    description: 'Search Sonarr lookup by series title',
     handle: searchCommand,
   },
   {
     name: 'exists',
-    description: { command: existsCommandTemplate, description: 'Check whether a TVDB ID is already in the library' },
+    command: existsCommandTemplate,
+    description: 'Check whether a TVDB ID is already in the library',
     handle: existsCommand,
   },
   {
     name: 'add',
-    description: {
-      command: addCommandTemplate,
-      description: 'Add a series by TVDB ID',
-      flags: [
-        {
-          name: `${qualityProfileFlag} <quality-profile-id>`,
-          description: 'Override the default Sonarr quality profile',
-        },
-        { name: noSearchFlag, description: 'Add without searching for missing episodes' },
-      ],
-    },
+    command: addCommandTemplate,
+    description: 'Add a series by TVDB ID',
+    flags: [
+      {
+        name: `${qualityProfileFlag} <quality-profile-id>`,
+        description: 'Override the default Sonarr quality profile',
+      },
+      { name: noSearchFlag, description: 'Add without searching for missing episodes' },
+    ],
     handle: addCommand,
   },
   {
     name: 'remove',
-    description: {
-      command: `${rootCommand} remove <tvdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`,
-      description: 'Remove a series by TVDB ID',
-      flags: [
-        { name: deleteFilesFlag, description: 'Request media file deletion' },
-        { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
-      ],
-    },
+    command: `${rootCommand} remove <tvdb-id> [${deleteFilesFlag}] [${confirmDeleteFilesFlag}]`,
+    description: 'Remove a series by TVDB ID',
+    flags: [
+      { name: deleteFilesFlag, description: 'Request media file deletion' },
+      { name: confirmDeleteFilesFlag, description: 'Confirm media file deletion' },
+    ],
     handle: removeCommand,
   },
   {
     name: 'queue',
-    description: {
-      command: `${rootCommand} queue [${limitFlag} <n>]`,
-      description: 'Return active queue records',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} queue [${limitFlag} <n>]`,
+    description: 'Return active queue records',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: queueCommand,
   },
   {
     name: 'calendar',
-    description: {
-      command: `${rootCommand} calendar [${daysFlag} <n>]`,
-      description: 'Return upcoming episodes',
-      flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
-    },
+    command: `${rootCommand} calendar [${daysFlag} <n>]`,
+    description: 'Return upcoming episodes',
+    flags: [{ name: `${daysFlag} <n>`, description: 'Number of days to include', default: defaultCalendarDays }],
     handle: calendarCommand,
   },
   {
     name: 'missing',
-    description: {
-      command: `${rootCommand} missing [${limitFlag} <n>]`,
-      description: 'Return monitored missing episodes',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} missing [${limitFlag} <n>]`,
+    description: 'Return monitored missing episodes',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: missingCommand,
   },
   {
     name: 'history',
-    description: {
-      command: `${rootCommand} history [${limitFlag} <n>]`,
-      description: 'Return recent history records',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} history [${limitFlag} <n>]`,
+    description: 'Return recent history records',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: historyCommand,
   },
 ]

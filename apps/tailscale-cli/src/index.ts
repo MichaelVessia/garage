@@ -105,60 +105,53 @@ const rootDescription = { command: rootCommand, description: 'Show this command 
 const commandDefinitions: ReadonlyArray<CommandDefinition<TailscaleCliResult, TailscaleCliError, TailscaleApi>> = [
   {
     name: 'status',
-    description: {
-      command: `${rootCommand} status [${limitFlag} <n>]`,
-      description: 'Return local tailnet state and a bounded peer sample',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum peers to include', default: defaultLimit }],
-    },
+    command: `${rootCommand} status [${limitFlag} <n>]`,
+    description: 'Return local tailnet state and a bounded peer sample',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum peers to include', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => status({ limit })),
   },
   {
     name: 'peers',
-    description: {
-      command: `${rootCommand} peers [${limitFlag} <n>]`,
-      description: 'Return peers from tailscale status',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum peers to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} peers [${limitFlag} <n>]`,
+    description: 'Return peers from tailscale status',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum peers to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => peers({ limit })),
   },
   {
     name: 'exit-nodes',
-    description: {
-      command: `${rootCommand} exit-nodes [${limitFlag} <n>]`,
-      description: 'Return peers advertising exit-node service',
-      flags: [{ name: `${limitFlag} <n>`, description: 'Maximum exit nodes to return', default: defaultLimit }],
-    },
+    command: `${rootCommand} exit-nodes [${limitFlag} <n>]`,
+    description: 'Return peers advertising exit-node service',
+    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum exit nodes to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => exitNodes({ limit })),
   },
   {
     name: 'current-exit-node',
-    description: {
-      command: `${rootCommand} current-exit-node`,
-      description: 'Return the exit node currently in use, if any',
-    },
+    command: `${rootCommand} current-exit-node`,
+    description: 'Return the exit node currently in use, if any',
     handle: ({ wrap }) => wrap(currentExitNode),
   },
   {
     name: 'dns',
-    description: { command: `${rootCommand} dns`, description: 'Return tailscale dns status output' },
+    command: `${rootCommand} dns`,
+    description: 'Return tailscale dns status output',
     handle: ({ wrap }) => wrap(dns),
   },
   {
     name: 'ip',
-    description: { command: `${rootCommand} ip`, description: 'Return this machine tailnet IPv4 and IPv6 addresses' },
+    command: `${rootCommand} ip`,
+    description: 'Return this machine tailnet IPv4 and IPv6 addresses',
     handle: ({ wrap }) => wrap(ip),
   },
   {
     name: 'whois',
-    description: {
-      command: `${rootCommand} whois <ip-or-host>`,
-      description: 'Return tailscale whois --json for a target',
-    },
+    command: `${rootCommand} whois <ip-or-host>`,
+    description: 'Return tailscale whois --json for a target',
     handle: (invocation) => targetCommand(invocation, 'ip or host', (target) => whois({ target })),
   },
   {
     name: 'ping',
-    description: { command: `${rootCommand} ping <host>`, description: 'Run tailscale ping --c 3 for a target' },
+    command: `${rootCommand} ping <host>`,
+    description: 'Run tailscale ping --c 3 for a target',
     handle: (invocation) => targetCommand(invocation, 'host', (target) => ping({ target })),
   },
 ]

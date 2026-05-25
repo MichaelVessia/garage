@@ -1,5 +1,4 @@
 import type { CommandDescription, NextAction } from '@garage/cli-protocol'
-import { defaultHistoryLimit, defaultLimit } from '@garage/sabnzbd'
 
 export interface RootHealth {
   readonly configured: boolean
@@ -31,33 +30,6 @@ export const serverStatsCommandTemplate = `${rootCommand} server-stats`
 export const limitFlag = '--limit'
 export const filesFlag = '--files'
 export const confirmDeleteFilesFlag = '--confirm-delete-files'
-
-export const commandTree: ReadonlyArray<CommandDescription> = [
-  { command: rootCommand, description: 'Show this command tree and configuration health' },
-  { command: statusCommandTemplate, description: 'Return the SABnzbd full status summary' },
-  { command: versionCommandTemplate, description: 'Return the SABnzbd version' },
-  {
-    command: queueCommandTemplate,
-    description: 'Return active download queue records',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum queue slots to return', default: defaultLimit }],
-  },
-  {
-    command: historyCommandTemplate,
-    description: 'Return recent download history records',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum history slots to return', default: defaultHistoryLimit }],
-  },
-  { command: pauseCommandTemplate, description: 'Pause the SABnzbd queue' },
-  { command: resumeCommandTemplate, description: 'Resume the SABnzbd queue' },
-  {
-    command: deleteCommandTemplate,
-    description: 'Delete a queue item',
-    flags: [
-      { name: filesFlag, description: 'Delete downloaded files too' },
-      { name: confirmDeleteFilesFlag, description: 'Confirm deletion of downloaded files from disk' },
-    ],
-  },
-  { command: serverStatsCommandTemplate, description: 'Return download totals by day, week, month, and server' },
-]
 
 export const envNextAction: NextAction = {
   command: rootCommand,
