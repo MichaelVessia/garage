@@ -114,11 +114,6 @@
           entrypoint = "apps/caddy-cli/src/main.ts";
         };
 
-        booklore = mkBunCli {
-          name = "booklore";
-          entrypoint = "apps/booklore-cli/src/main.ts";
-        };
-
         autocaliweb = mkBunCli {
           name = "autocaliweb";
           entrypoint = "apps/autocaliweb-cli/src/main.ts";

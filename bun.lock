@@ -50,19 +50,6 @@
         "effect": "^4.0.0-beta.64",
       },
     },
-    "apps/booklore-cli": {
-      "name": "@garage/booklore-cli",
-      "version": "0.0.0",
-      "bin": {
-        "booklore": "dist/booklore",
-      },
-      "dependencies": {
-        "@effect/platform-bun": "4.0.0-beta.64",
-        "@garage/booklore": "workspace:*",
-        "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.64",
-      },
-    },
     "apps/caddy-cli": {
       "name": "@garage/caddy-cli",
       "version": "0.0.0",
@@ -204,13 +191,6 @@
       "version": "0.0.0",
       "dependencies": {
         "@xmldom/xmldom": "^0.9.10",
-        "effect": "^4.0.0-beta.64",
-      },
-    },
-    "packages/booklore": {
-      "name": "@garage/booklore",
-      "version": "0.0.0",
-      "dependencies": {
         "effect": "^4.0.0-beta.64",
       },
     },
@@ -429,10 +409,6 @@
     "@garage/autocaliweb": ["@garage/autocaliweb@workspace:packages/autocaliweb"],
 
     "@garage/autocaliweb-cli": ["@garage/autocaliweb-cli@workspace:apps/autocaliweb-cli"],
-
-    "@garage/booklore": ["@garage/booklore@workspace:packages/booklore"],
-
-    "@garage/booklore-cli": ["@garage/booklore-cli@workspace:apps/booklore-cli"],
 
     "@garage/caddy": ["@garage/caddy@workspace:packages/caddy"],
 

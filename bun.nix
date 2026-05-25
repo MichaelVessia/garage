@@ -273,8 +273,6 @@
   "@garage/adguard-cli" = copyPathToStore ./apps/adguard-cli;
   "@garage/autocaliweb" = copyPathToStore ./packages/autocaliweb;
   "@garage/autocaliweb-cli" = copyPathToStore ./apps/autocaliweb-cli;
-  "@garage/booklore" = copyPathToStore ./packages/booklore;
-  "@garage/booklore-cli" = copyPathToStore ./apps/booklore-cli;
   "@garage/caddy" = copyPathToStore ./packages/caddy;
   "@garage/caddy-cli" = copyPathToStore ./apps/caddy-cli;
   "@garage/cli-protocol" = copyPathToStore ./packages/cli-protocol;

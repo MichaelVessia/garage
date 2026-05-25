@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { affectedCliPackages, changesetMarkdown } from './cli-versioning'
 
 describe('affectedCliPackages', () => {
-  const cliNames = ['adguard', 'booklore', 'sonarr']
+  const cliNames = ['adguard', 'sonarr']
 
   it('bumps a CLI when its app changes', () => {
     expect(affectedCliPackages(['apps/adguard-cli/src/index.ts'], cliNames)).toEqual(['@garage/adguard-cli'])
@@ -16,7 +16,6 @@ describe('affectedCliPackages', () => {
   it('bumps every CLI when the shared protocol changes', () => {
     expect(affectedCliPackages(['packages/cli-protocol/src/index.ts'], cliNames)).toEqual([
       '@garage/adguard-cli',
-      '@garage/booklore-cli',
       '@garage/sonarr-cli',
     ])
   })
