@@ -15,14 +15,15 @@ const ObservabilityLive = cliObservabilityLayer({
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = ImmichApiLive.pipe(
-  Layer.provideMerge(Layer.mergeAll(ImmichConfigLive, BunHttpClient.layer)),
+  Layer.provideMerge(ImmichConfigLive),
+  Layer.provide(BunHttpClient.layer),
   Layer.provideMerge(ObservabilityLive)
 )
 
-const program = executeImmich(Bun.argv.slice(2)).pipe(
-  Effect.flatMap((envelope) => Console.log(renderEnvelope(envelope))),
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  Effect.provide(Live)
-)
+const program = Effect.gen(function* () {
+  const context = yield* Layer.build(Live)
+  const envelope = yield* executeImmich(Bun.argv.slice(2)).pipe(Effect.provideContext(context))
+  yield* Console.log(renderEnvelope(envelope))
+}).pipe(Effect.scoped)
 
 BunRuntime.runMain(program)

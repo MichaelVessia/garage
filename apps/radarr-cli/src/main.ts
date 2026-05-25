@@ -15,14 +15,15 @@ const ObservabilityLive = cliObservabilityLayer({
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = RadarrApiLive.pipe(
-  Layer.provideMerge(Layer.mergeAll(RadarrConfigLive, BunHttpClient.layer)),
+  Layer.provideMerge(RadarrConfigLive),
+  Layer.provide(BunHttpClient.layer),
   Layer.provideMerge(ObservabilityLive)
 )
 
-const program = executeRadarr(Bun.argv.slice(2)).pipe(
-  Effect.flatMap((envelope) => Console.log(renderEnvelope(envelope))),
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  Effect.provide(Live)
-)
+const program = Effect.gen(function* () {
+  const context = yield* Layer.build(Live)
+  const envelope = yield* executeRadarr(Bun.argv.slice(2)).pipe(Effect.provideContext(context))
+  yield* Console.log(renderEnvelope(envelope))
+}).pipe(Effect.scoped)
 
 BunRuntime.runMain(program)

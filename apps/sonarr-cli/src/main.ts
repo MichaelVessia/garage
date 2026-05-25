@@ -15,14 +15,15 @@ const ObservabilityLive = cliObservabilityLayer({
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = SonarrApiLive.pipe(
-  Layer.provideMerge(Layer.mergeAll(SonarrConfigLive, BunHttpClient.layer)),
+  Layer.provideMerge(SonarrConfigLive),
+  Layer.provide(BunHttpClient.layer),
   Layer.provideMerge(ObservabilityLive)
 )
 
-const program = executeSonarr(Bun.argv.slice(2)).pipe(
-  Effect.flatMap((envelope) => Console.log(renderEnvelope(envelope))),
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  Effect.provide(Live)
-)
+const program = Effect.gen(function* () {
+  const context = yield* Layer.build(Live)
+  const envelope = yield* executeSonarr(Bun.argv.slice(2)).pipe(Effect.provideContext(context))
+  yield* Console.log(renderEnvelope(envelope))
+}).pipe(Effect.scoped)
 
 BunRuntime.runMain(program)

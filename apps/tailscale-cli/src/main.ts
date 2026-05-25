@@ -16,12 +16,12 @@ const ObservabilityLive = cliObservabilityLayer({
   logsUrl: Bun.env.GARAGE_OTLP_LOGS_URL,
 }).pipe(Layer.provide(BunHttpClient.layer))
 
-const Live = TailscaleApiLive.pipe(Layer.provideMerge(ProcessLive), Layer.provideMerge(ObservabilityLive))
+const Live = TailscaleApiLive.pipe(Layer.provide(ProcessLive), Layer.provideMerge(ObservabilityLive))
 
-const program = executeTailscale(Bun.argv.slice(2)).pipe(
-  Effect.flatMap((envelope) => Console.log(renderEnvelope(envelope))),
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  Effect.provide(Live)
-)
+const program = Effect.gen(function* () {
+  const context = yield* Layer.build(Live)
+  const envelope = yield* executeTailscale(Bun.argv.slice(2)).pipe(Effect.provideContext(context))
+  yield* Console.log(renderEnvelope(envelope))
+}).pipe(Effect.scoped)
 
 BunRuntime.runMain(program)

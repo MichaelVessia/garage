@@ -39,4 +39,20 @@ describe('CLI entrypoints', () => {
       expect(source, `${entrypoint} should not bypass the runtime`).not.toContain('Effect.runPromise(program)')
     }
   })
+
+  it('keep Effect layer diagnostics enabled in main programs', async () => {
+    const entrypoints = await cliEntrypoints()
+
+    expect(entrypoints.length).toBeGreaterThan(0)
+
+    for (const entrypoint of entrypoints) {
+      const source = await readFile(entrypoint, 'utf-8')
+
+      expect(source, `${entrypoint} should not suppress strictEffectProvide`).not.toContain('strictEffectProvide')
+      expect(source, `${entrypoint} should not provide the Live layer directly`).not.toContain('Effect.provide(Live)')
+      expect(source, `${entrypoint} should hide platform layers from provideMerge`).not.toMatch(
+        /Layer\.provideMerge\([^)]*Bun(?:FileSystem|HttpClient|Path|Services)\.layer/su
+      )
+    }
+  })
 })

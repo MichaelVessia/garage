@@ -15,14 +15,15 @@ const ObservabilityLive = cliObservabilityLayer({
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = ProwlarrApiLive.pipe(
-  Layer.provideMerge(Layer.mergeAll(ProwlarrConfigLive, BunHttpClient.layer)),
+  Layer.provideMerge(ProwlarrConfigLive),
+  Layer.provide(BunHttpClient.layer),
   Layer.provideMerge(ObservabilityLive)
 )
 
-const program = executeProwlarr(Bun.argv.slice(2)).pipe(
-  Effect.flatMap((envelope) => Console.log(renderEnvelope(envelope))),
-  // @effect-diagnostics-next-line strictEffectProvide:off
-  Effect.provide(Live)
-)
+const program = Effect.gen(function* () {
+  const context = yield* Layer.build(Live)
+  const envelope = yield* executeProwlarr(Bun.argv.slice(2)).pipe(Effect.provideContext(context))
+  yield* Console.log(renderEnvelope(envelope))
+}).pipe(Effect.scoped)
 
 BunRuntime.runMain(program)
