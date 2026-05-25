@@ -31,12 +31,18 @@ export class CaddyApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, CaddyError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const CaddyConfigLive = Layer.succeed(CaddyConfig, {
-  get: Effect.fn('CaddyConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('CADDY_URL')
-      return { url }
-    },
-    Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyConfig', method: 'get' })
-  ),
-})
+export const CaddyConfigLive = Layer.effect(
+  CaddyConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('CADDY_URL')
+        return { url }
+      }).pipe(
+        Effect.withSpan('CaddyConfig.get'),
+        Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyConfig', method: 'get' })
+      )
+    )
+    return CaddyConfig.of({ get: () => cachedGet })
+  })
+)

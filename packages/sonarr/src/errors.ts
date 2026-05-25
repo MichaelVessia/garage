@@ -15,6 +15,7 @@ export class SonarrUnreachableError extends Schema.TaggedErrorClass<SonarrUnreac
     code: Schema.Literal('SONARR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -28,6 +29,7 @@ export class SonarrDecodeError extends Schema.TaggedErrorClass<SonarrDecodeError
   code: Schema.Literal('SONARR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class SonarrNotFoundError extends Schema.TaggedErrorClass<SonarrNotFoundError>()('SonarrNotFoundError', {
@@ -63,11 +65,12 @@ export const envMissing = (variable: string): SonarrEnvMissingError =>
     fix: envFix,
   })
 
-export const unreachable = (message: string): SonarrUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): SonarrUnreachableError =>
   new SonarrUnreachableError({
     code: 'SONARR_UNREACHABLE',
     message,
     fix: 'Verify Sonarr is reachable from this host and SONARR_URL points to the Sonarr base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): SonarrHttpError =>
@@ -77,11 +80,12 @@ export const httpError = (status: number): SonarrHttpError =>
     fix: 'Check the Sonarr API key, request parameters, and Sonarr server logs.',
   })
 
-export const decodeError = (message: string): SonarrDecodeError =>
+export const decodeError = (message: string, cause?: unknown): SonarrDecodeError =>
   new SonarrDecodeError({
     code: 'SONARR_DECODE_ERROR',
     message,
     fix: 'Update the Sonarr schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const notFound = (message: string): SonarrNotFoundError =>

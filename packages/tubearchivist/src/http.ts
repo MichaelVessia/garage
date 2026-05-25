@@ -56,7 +56,7 @@ const withMutationHeaders = (config: TubearchivistConfigValue, session: SessionC
     'x-csrftoken': session.csrfToken,
   })
 
-const toDecodeError = (error: { readonly message: string }): TubearchivistError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): TubearchivistError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -68,7 +68,7 @@ const executeResponse = (
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest
 ): Effect.Effect<HttpClientResponse.HttpClientResponse, TubearchivistError> =>
-  client.execute(request).pipe(Effect.mapError((cause) => unreachable(cause.message)))
+  client.execute(request).pipe(Effect.mapError((cause) => unreachable(cause.message, cause)))
 
 const decodeJsonResponse = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -96,7 +96,7 @@ const login = Effect.fn('tubearchivist.login')(
     const request = yield* HttpClientRequest.post(endpoint(config, '/user/login/')).pipe(
       HttpClientRequest.setHeaders({ accept: 'application/json' }),
       HttpClientRequest.bodyJson({ username: config.username, password: config.password }),
-      Effect.mapError((cause) => decodeError(cause.message))
+      Effect.mapError((cause) => decodeError(cause.message, cause))
     )
     const response = yield* executeResponse(client, request)
     if (response.status !== 204 && response.status !== 200) {
@@ -106,7 +106,6 @@ const login = Effect.fn('tubearchivist.login')(
     yield* cache.write(cacheKey(config), session)
     return session
   },
-  Effect.withSpan('tubearchivist.login'),
   Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'login' })
 )
 
@@ -122,73 +121,71 @@ const session = Effect.fn('tubearchivist.session')(
   Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'session' })
 )
 
-const getJson = <A, I, RD, RE>(
+const getJson = Effect.fn('tubearchivist.authenticatedGet')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: TubearchivistConfigValue,
   cache: TubearchivistSessionCacheService,
   path: string,
   schema: Schema.Codec<A, I, RD, RE>,
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): Effect.Effect<A, TubearchivistError, RD> =>
-  Effect.gen(function* () {
-    const current = yield* session(client, config, cache)
-    const request = HttpClientRequest.get(endpoint(config, path, params)).pipe(withSession(current))
-    const attempt = executeResponse(client, request).pipe(
-      Effect.flatMap((response) => decodeJsonResponse(response, schema))
-    )
-    return yield* attempt.pipe(
-      Effect.catchTag('TubearchivistHttpError', (error) =>
-        error.status === 401 || error.status === 403
-          ? Effect.annotateCurrentSpan({ 'tubearchivist.session_refreshed': true }).pipe(
-              Effect.flatMap(() => login(client, config, cache)),
-              Effect.flatMap((fresh) =>
-                executeResponse(
-                  client,
-                  HttpClientRequest.get(endpoint(config, path, params)).pipe(withSession(fresh))
-                ).pipe(Effect.flatMap((response) => decodeJsonResponse(response, schema)))
-              )
+): Effect.fn.Return<A, TubearchivistError, RD> {
+  const current = yield* session(client, config, cache)
+  const request = HttpClientRequest.get(endpoint(config, path, params)).pipe(withSession(current))
+  const attempt = executeResponse(client, request).pipe(
+    Effect.flatMap((response) => decodeJsonResponse(response, schema))
+  )
+  return yield* attempt.pipe(
+    Effect.catchTag('TubearchivistHttpError', (error) =>
+      error.status === 401 || error.status === 403
+        ? Effect.annotateCurrentSpan({ 'tubearchivist.session_refreshed': true }).pipe(
+            Effect.flatMap(() => login(client, config, cache)),
+            Effect.flatMap((fresh) =>
+              executeResponse(
+                client,
+                HttpClientRequest.get(endpoint(config, path, params)).pipe(withSession(fresh))
+              ).pipe(Effect.flatMap((response) => decodeJsonResponse(response, schema)))
             )
-          : Effect.fail(error)
-      )
+          )
+        : Effect.fail(error)
     )
-  }).pipe(Effect.withSpan('tubearchivist.authenticatedGet'))
+  )
+})
 
-const postJson = <A, I, RD, RE>(
+const postJson = Effect.fn('tubearchivist.authenticatedPost')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: TubearchivistConfigValue,
   cache: TubearchivistSessionCacheService,
   path: string,
   body: unknown,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, TubearchivistError, RD> =>
-  Effect.gen(function* () {
-    const current = yield* session(client, config, cache)
-    const build = (next: SessionCookies) =>
-      HttpClientRequest.post(endpoint(config, path)).pipe(
-        withMutationHeaders(config, next),
-        HttpClientRequest.bodyJson(body),
-        Effect.mapError((cause) => decodeError(cause.message))
-      )
-    const request = yield* build(current)
-    const attempt = executeResponse(client, request).pipe(
-      Effect.flatMap((response) => decodeJsonResponse(response, schema))
+): Effect.fn.Return<A, TubearchivistError, RD> {
+  const current = yield* session(client, config, cache)
+  const build = (next: SessionCookies) =>
+    HttpClientRequest.post(endpoint(config, path)).pipe(
+      withMutationHeaders(config, next),
+      HttpClientRequest.bodyJson(body),
+      Effect.mapError((cause) => decodeError(cause.message, cause))
     )
-    return yield* attempt.pipe(
-      Effect.catchTag('TubearchivistHttpError', (error) =>
-        error.status === 401 || error.status === 403
-          ? Effect.annotateCurrentSpan({ 'tubearchivist.session_refreshed': true }).pipe(
-              Effect.flatMap(() => login(client, config, cache)),
-              Effect.flatMap((fresh) => build(fresh)),
-              Effect.flatMap((freshRequest) =>
-                executeResponse(client, freshRequest).pipe(
-                  Effect.flatMap((response) => decodeJsonResponse(response, schema))
-                )
+  const request = yield* build(current)
+  const attempt = executeResponse(client, request).pipe(
+    Effect.flatMap((response) => decodeJsonResponse(response, schema))
+  )
+  return yield* attempt.pipe(
+    Effect.catchTag('TubearchivistHttpError', (error) =>
+      error.status === 401 || error.status === 403
+        ? Effect.annotateCurrentSpan({ 'tubearchivist.session_refreshed': true }).pipe(
+            Effect.flatMap(() => login(client, config, cache)),
+            Effect.flatMap((fresh) => build(fresh)),
+            Effect.flatMap((freshRequest) =>
+              executeResponse(client, freshRequest).pipe(
+                Effect.flatMap((response) => decodeJsonResponse(response, schema))
               )
             )
-          : Effect.fail(error)
-      )
+          )
+        : Effect.fail(error)
     )
-  }).pipe(Effect.withSpan('tubearchivist.authenticatedPost'))
+  )
+})
 
 const subscriptionBody = (options: SubscriptionOptions, subscribed: boolean) => ({
   data: [{ channel_id: options.target, channel_subscribed: subscribed }],

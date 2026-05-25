@@ -145,7 +145,7 @@ const parseDocument = (xml: string): Document => new DOMParser().parseFromString
 const messageFromUnknown = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 export const parseOpdsFeed = (baseUrl: string, xml: string): Effect.Effect<OpdsFeed, AutocaliwebError> =>
-  Effect.try({ try: () => parseDocument(xml), catch: (error) => decodeError(messageFromUnknown(error)) }).pipe(
+  Effect.try({ try: () => parseDocument(xml), catch: (error) => decodeError(messageFromUnknown(error), error) }).pipe(
     Effect.map((document) => {
       const atomEntries = elements(document, 'entry')
       const bookEntries = atomEntries.filter(isBookEntry)

@@ -55,17 +55,23 @@ export class TubearchivistApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, TubearchivistError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const TubearchivistConfigLive = Layer.succeed(TubearchivistConfig, {
-  get: Effect.fn('TubearchivistConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('TUBEARCHIVIST_URL')
-      const username = yield* readRequiredString('TUBEARCHIVIST_USERNAME')
-      const password = yield* readRequiredString('TUBEARCHIVIST_PASSWORD')
-      return { url, username, password }
-    },
-    Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistConfig', method: 'get' })
-  ),
-})
+export const TubearchivistConfigLive = Layer.effect(
+  TubearchivistConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('TUBEARCHIVIST_URL')
+        const username = yield* readRequiredString('TUBEARCHIVIST_USERNAME')
+        const password = yield* readRequiredString('TUBEARCHIVIST_PASSWORD')
+        return { url, username, password }
+      }).pipe(
+        Effect.withSpan('TubearchivistConfig.get'),
+        Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistConfig', method: 'get' })
+      )
+    )
+    return TubearchivistConfig.of({ get: () => cachedGet })
+  })
+)
 
 export const TubearchivistSessionCacheMemoryLive = Layer.effect(
   TubearchivistSessionCache,
@@ -76,7 +82,6 @@ export const TubearchivistSessionCacheMemoryLive = Layer.effect(
           function* (key) {
             return yield* Ref.get(sessions).pipe(Effect.map((records) => records.get(key)))
           },
-          Effect.withSpan('tubearchivist.sessionCache.read'),
           Effect.annotateLogs({
             package: '@garage/tubearchivist',
             service: 'TubearchivistSessionCache',
@@ -87,7 +92,6 @@ export const TubearchivistSessionCacheMemoryLive = Layer.effect(
           function* (key, session) {
             yield* Ref.update(sessions, (records) => new Map(records).set(key, session))
           },
-          Effect.withSpan('tubearchivist.sessionCache.write'),
           Effect.annotateLogs({
             package: '@garage/tubearchivist',
             service: 'TubearchivistSessionCache',

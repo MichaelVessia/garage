@@ -54,18 +54,24 @@ export class RadarrApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, RadarrError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const RadarrConfigLive = Layer.succeed(RadarrConfig, {
-  get: Effect.fn('RadarrConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('RADARR_URL')
-      const apiKey = yield* readRequiredString('RADARR_API_KEY')
-      const defaultQualityProfileId = yield* Config.int('RADARR_DEFAULT_QUALITY_PROFILE').pipe(
-        Config.withDefault(1),
-        Effect.mapError((error) => decodeError(error.message))
-      )
+export const RadarrConfigLive = Layer.effect(
+  RadarrConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('RADARR_URL')
+        const apiKey = yield* readRequiredString('RADARR_API_KEY')
+        const defaultQualityProfileId = yield* Config.int('RADARR_DEFAULT_QUALITY_PROFILE').pipe(
+          Config.withDefault(1),
+          Effect.mapError((error) => decodeError(error.message, error))
+        )
 
-      return { url, apiKey, defaultQualityProfileId }
-    },
-    Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrConfig', method: 'get' })
-  ),
-})
+        return { url, apiKey, defaultQualityProfileId }
+      }).pipe(
+        Effect.withSpan('RadarrConfig.get'),
+        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrConfig', method: 'get' })
+      )
+    )
+    return RadarrConfig.of({ get: () => cachedGet })
+  })
+)

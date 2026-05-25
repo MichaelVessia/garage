@@ -12,6 +12,7 @@ export class CaddyUnreachableError extends Schema.TaggedErrorClass<CaddyUnreacha
   code: Schema.Literal('CADDY_UNREACHABLE'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class CaddyHttpError extends Schema.TaggedErrorClass<CaddyHttpError>()('CaddyHttpError', {
@@ -24,6 +25,7 @@ export class CaddyDecodeError extends Schema.TaggedErrorClass<CaddyDecodeError>(
   code: Schema.Literal('CADDY_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class CaddyConfirmationRequiredError extends Schema.TaggedErrorClass<CaddyConfirmationRequiredError>()(
@@ -48,11 +50,12 @@ export type CaddyErrorCode = CaddyError['code']
 export const envMissing = (variable: string): CaddyEnvMissingError =>
   new CaddyEnvMissingError({ code: 'CADDY_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
 
-export const unreachable = (message: string): CaddyUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): CaddyUnreachableError =>
   new CaddyUnreachableError({
     code: 'CADDY_UNREACHABLE',
     message,
     fix: 'Verify Caddy is reachable from this host and CADDY_URL points to the Caddy admin API.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): CaddyHttpError =>
@@ -62,11 +65,12 @@ export const httpError = (status: number): CaddyHttpError =>
     fix: 'Check the Caddy admin API URL, request body, and Caddy logs.',
   })
 
-export const decodeError = (message: string): CaddyDecodeError =>
+export const decodeError = (message: string, cause?: unknown): CaddyDecodeError =>
   new CaddyDecodeError({
     code: 'CADDY_DECODE_ERROR',
     message,
     fix: 'Update the Caddy schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const confirmationRequired = (): CaddyConfirmationRequiredError =>

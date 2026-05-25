@@ -20,52 +20,77 @@ const makeApiLayer = Effect.gen(function* () {
   const recentOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const peopleOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const personIds = yield* Ref.make<ReadonlyArray<string>>([])
-  const api = ImmichApi.of({
-    status: () => Effect.succeed({ version: '2.5.6', versionParts: { major: 2, minor: 5, patch: 6 }, ping: 'pong' }),
-    stats: () =>
-      Effect.succeed({
-        photos: 10,
-        videos: 2,
-        usageBytes: 1000,
-        usagePhotosBytes: 700,
-        usageVideosBytes: 300,
-        perUser: [],
-      }),
-    storage: () => Effect.succeed({ diskSize: '10 TiB' }),
-    users: () => Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User' }] }),
-    me: () => Effect.succeed({ id: 'u1', name: 'Test User' }),
-    albums: (options) =>
-      Ref.update(albumOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ id: 'a1', albumName: 'Family' }] })
-      ),
-    albumInfo: (options) =>
-      Ref.update(albumInfoOptions, (records) => [...records, options]).pipe(
-        Effect.as({
-          id: options.id,
-          albumName: 'Family',
-          assets: { count: 0, records: [] },
-          moreAssetsAvailable: false,
-        })
-      ),
-    search: (options) =>
-      Ref.update(searchOptions, (records) => [...records, options]).pipe(
-        Effect.as({ mode: 'smart', query: options.query, total: 1, count: 1, records: [{ id: 'asset1' }] })
-      ),
-    recent: (options) =>
-      Ref.update(recentOptions, (records) => [...records, options]).pipe(
-        Effect.as({ mode: 'metadata', query: 'recent', total: 1, count: 1, records: [{ id: 'asset2' }] })
-      ),
-    people: (options) =>
-      Ref.update(peopleOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ id: 'p1', name: 'Person' }], total: 1 })
-      ),
-    personInfo: (personId) =>
-      Ref.update(personIds, (records) => [...records, personId]).pipe(Effect.as({ id: personId, name: 'Person' })),
-    jobs: () => Effect.succeed({ count: 1, records: [{ queue: 'smartSearch', counts: { waiting: 0 } }] }),
-    tags: () => Effect.succeed({ count: 1, records: [{ id: 't1', name: 'vacation' }] }),
-  })
+  const layer = Layer.effect(
+    ImmichApi,
+    Effect.gen(function* () {
+      const config = yield* ImmichConfig
+      const configured = <A>(effect: Effect.Effect<A>) => config.get().pipe(Effect.andThen(effect))
+      return ImmichApi.of({
+        status: () =>
+          configured(
+            Effect.succeed({ version: '2.5.6', versionParts: { major: 2, minor: 5, patch: 6 }, ping: 'pong' })
+          ),
+        stats: () =>
+          configured(
+            Effect.succeed({
+              photos: 10,
+              videos: 2,
+              usageBytes: 1000,
+              usagePhotosBytes: 700,
+              usageVideosBytes: 300,
+              perUser: [],
+            })
+          ),
+        storage: () => configured(Effect.succeed({ diskSize: '10 TiB' })),
+        users: () => configured(Effect.succeed({ count: 1, records: [{ id: 'u1', name: 'Test User' }] })),
+        me: () => configured(Effect.succeed({ id: 'u1', name: 'Test User' })),
+        albums: (options) =>
+          configured(
+            Ref.update(albumOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ id: 'a1', albumName: 'Family' }] })
+            )
+          ),
+        albumInfo: (options) =>
+          configured(
+            Ref.update(albumInfoOptions, (records) => [...records, options]).pipe(
+              Effect.as({
+                id: options.id,
+                albumName: 'Family',
+                assets: { count: 0, records: [] },
+                moreAssetsAvailable: false,
+              })
+            )
+          ),
+        search: (options) =>
+          configured(
+            Ref.update(searchOptions, (records) => [...records, options]).pipe(
+              Effect.as({ mode: 'smart', query: options.query, total: 1, count: 1, records: [{ id: 'asset1' }] })
+            )
+          ),
+        recent: (options) =>
+          configured(
+            Ref.update(recentOptions, (records) => [...records, options]).pipe(
+              Effect.as({ mode: 'metadata', query: 'recent', total: 1, count: 1, records: [{ id: 'asset2' }] })
+            )
+          ),
+        people: (options) =>
+          configured(
+            Ref.update(peopleOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ id: 'p1', name: 'Person' }], total: 1 })
+            )
+          ),
+        personInfo: (personId) =>
+          configured(
+            Ref.update(personIds, (records) => [...records, personId]).pipe(Effect.as({ id: personId, name: 'Person' }))
+          ),
+        jobs: () =>
+          configured(Effect.succeed({ count: 1, records: [{ queue: 'smartSearch', counts: { waiting: 0 } }] })),
+        tags: () => configured(Effect.succeed({ count: 1, records: [{ id: 't1', name: 'vacation' }] })),
+      })
+    })
+  )
   return {
-    layer: Layer.succeed(ImmichApi, api),
+    layer,
     albumOptions,
     albumInfoOptions,
     searchOptions,
@@ -78,8 +103,10 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('root command returns command tree and missing env remains recoverable', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const ok = yield* executeImmich([]).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
-    const missing = yield* executeImmich([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer)))
+    const ok = yield* executeImmich([]).pipe(Effect.provide(fake.layer.pipe(Layer.provideMerge(ConfigLayer))))
+    const missing = yield* executeImmich([]).pipe(
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
+    )
 
     assert.strictEqual(ok.ok, true)
     if (!ok.ok || !('health' in ok.result)) {
@@ -97,7 +124,7 @@ it.effect('root command returns command tree and missing env remains recoverable
 it.effect('bounded commands pass limits and search args', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     yield* executeImmich(['albums', '--limit', '3']).pipe(Effect.provide(layer))
     yield* executeImmich(['album-info', 'a1', '--limit', '4']).pipe(Effect.provide(layer))
@@ -119,7 +146,7 @@ it.effect('missing env on subcommands returns an error envelope', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const envelope = yield* executeImmich(['stats']).pipe(
-      Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
     )
 
     assert.strictEqual(envelope.ok, false)
@@ -133,7 +160,7 @@ it.effect('missing env on subcommands returns an error envelope', () =>
 it.effect('remaining commands dispatch successfully', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     for (const args of [['status'], ['stats'], ['storage'], ['users'], ['me'], ['jobs'], ['library-stats'], ['tags']]) {
       const envelope = yield* executeImmich(args).pipe(Effect.provide(layer))

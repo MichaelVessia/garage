@@ -1,11 +1,11 @@
 import { assert, it } from '@effect/vitest'
 import { Effect, Layer, Ref } from 'effect'
 
-import { CaddyApi, CaddyConfig, config, pkiCa, reload, routes, upstreams } from '../src/index.js'
+import { CaddyApi, CaddyConfig, config, envMissing, pkiCa, reload, routes, upstreams } from '../src/index.js'
 import type { JsonObject } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(CaddyConfig, {
-  get: () => Effect.succeed({ url: 'http://caddy.example.test:2019' }),
+  get: () => Effect.fail(envMissing('CADDY_ADMIN_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -32,7 +32,7 @@ const makeApiLayer = Effect.gen(function* () {
   return { layer: Layer.succeed(CaddyApi, api), reloads }
 })
 
-it.effect('runs Caddy read and reload operations', () =>
+it.effect('runs Caddy read and reload operations without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)

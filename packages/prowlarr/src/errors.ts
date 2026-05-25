@@ -18,6 +18,7 @@ export class ProwlarrUnreachableError extends Schema.TaggedErrorClass<ProwlarrUn
     code: Schema.Literal('PROWLARR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -31,6 +32,7 @@ export class ProwlarrDecodeError extends Schema.TaggedErrorClass<ProwlarrDecodeE
   code: Schema.Literal('PROWLARR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class ProwlarrSyncConfirmationRequiredError extends Schema.TaggedErrorClass<ProwlarrSyncConfirmationRequiredError>()(
@@ -59,11 +61,12 @@ export const envMissing = (variable: string): ProwlarrEnvMissingError =>
     fix: envFix,
   })
 
-export const unreachable = (message: string): ProwlarrUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): ProwlarrUnreachableError =>
   new ProwlarrUnreachableError({
     code: 'PROWLARR_UNREACHABLE',
     message,
     fix: 'Verify Prowlarr is reachable from this host and PROWLARR_URL points to the Prowlarr base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): ProwlarrHttpError =>
@@ -73,11 +76,12 @@ export const httpError = (status: number): ProwlarrHttpError =>
     fix: 'Check the Prowlarr API key, request parameters, and Prowlarr server logs.',
   })
 
-export const decodeError = (message: string): ProwlarrDecodeError =>
+export const decodeError = (message: string, cause?: unknown): ProwlarrDecodeError =>
   new ProwlarrDecodeError({
     code: 'PROWLARR_DECODE_ERROR',
     message,
     fix: 'Update the Prowlarr schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const syncConfirmationRequired = (): ProwlarrSyncConfirmationRequiredError =>

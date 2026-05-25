@@ -48,7 +48,7 @@ const withAuth = (config: ImmichConfigValue) =>
     'x-api-key': config.apiKey,
   })
 
-const toDecodeError = (error: { readonly message: string }): ImmichError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): ImmichError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -56,20 +56,19 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, ImmichError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('immich.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, ImmichError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<A, ImmichError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return yield* decodeBody(response, schema)
-  })
+  return yield* decodeBody(response, schema)
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,
@@ -80,22 +79,21 @@ const getJson = <A, I, RD, RE>(
 ): Effect.Effect<A, ImmichError, RD> =>
   executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
 
-const postJson = <A, I, RD, RE>(
+const postJson = Effect.fn('immich.postJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: ImmichConfigValue,
   path: string,
   body: unknown,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, ImmichError, RD> =>
-  Effect.gen(function* () {
-    const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-      withAuth(config),
-      HttpClientRequest.bodyJson(body),
-      Effect.mapError((error) => decodeError(error.message))
-    )
+): Effect.fn.Return<A, ImmichError, RD> {
+  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
+    withAuth(config),
+    HttpClientRequest.bodyJson(body),
+    Effect.mapError((error) => decodeError(error.message, error))
+  )
 
-    return yield* executeJson(client, request, schema)
-  })
+  return yield* executeJson(client, request, schema)
+})
 
 const metadataSearch = Effect.fn('immich.metadataSearch')(function* (
   client: HttpClient.HttpClient,

@@ -5,6 +5,7 @@ import {
   SabnzbdApi,
   SabnzbdConfig,
   deleteQueueItem,
+  envMissing,
   history,
   pause,
   queue,
@@ -16,11 +17,7 @@ import {
 import type { DeleteOptions, LimitOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(SabnzbdConfig, {
-  get: () =>
-    Effect.succeed({
-      url: 'http://sabnzbd.example.test',
-      apiKey: 'secret',
-    }),
+  get: () => Effect.fail(envMissing('SABNZBD_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -112,7 +109,7 @@ const makeApiLayer = Effect.gen(function* () {
   return { layer: Layer.succeed(SabnzbdApi, api), queueOptions, historyOptions, deleteCalls }
 })
 
-it.effect('returns status, version, queue, history, and server stats', () =>
+it.effect('returns status, version, queue, history, and server stats without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)
@@ -135,7 +132,7 @@ it.effect('returns status, version, queue, history, and server stats', () =>
   })
 )
 
-it.effect('runs queue mutations through the API service', () =>
+it.effect('runs queue mutations through the API service without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)

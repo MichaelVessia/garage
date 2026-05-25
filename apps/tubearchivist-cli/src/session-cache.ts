@@ -11,15 +11,16 @@ const encodeHex = (value: string): string =>
 
 const encodeSession = Schema.encodeSync(Schema.fromJsonString(SessionCookiesSchema))
 
-const cacheDirectory = (path: Path): Effect.Effect<string> =>
-  Effect.gen(function* () {
-    const tmp = yield* Config.string('TMPDIR').pipe(Effect.orElseSucceed(() => '/tmp'))
-    const user = yield* Config.string('UID').pipe(
-      Config.orElse(() => Config.string('USER')),
-      Effect.orElseSucceed(() => 'user')
-    )
-    return path.join(tmp, `tubearchivist-${encodeHex(user)}`)
-  })
+const cacheDirectory = Effect.fn('tubearchivist.sessionCache.cacheDirectory')(function* (
+  path: Path
+): Effect.fn.Return<string> {
+  const tmp = yield* Config.string('TMPDIR').pipe(Effect.orElseSucceed(() => '/tmp'))
+  const user = yield* Config.string('UID').pipe(
+    Config.orElse(() => Config.string('USER')),
+    Effect.orElseSucceed(() => 'user')
+  )
+  return path.join(tmp, `tubearchivist-${encodeHex(user)}`)
+})
 
 const sessionPath = (path: Path, key: string): Effect.Effect<string> =>
   cacheDirectory(path).pipe(Effect.map((directory) => path.join(directory, `${encodeHex(key)}.json`)))
@@ -56,7 +57,6 @@ export const TubearchivistSessionCacheFileLive = Layer.effect(
             })
           )
         },
-        Effect.withSpan('tubearchivist.sessionCache.read'),
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistSessionCache', method: 'read' })
       ),
       write: Effect.fn('TubearchivistSessionCache.write')(
@@ -73,7 +73,6 @@ export const TubearchivistSessionCacheFileLive = Layer.effect(
             Effect.ignore
           )
         },
-        Effect.withSpan('tubearchivist.sessionCache.write'),
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistSessionCache', method: 'write' })
       ),
     })

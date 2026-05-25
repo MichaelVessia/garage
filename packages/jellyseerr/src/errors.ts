@@ -18,6 +18,7 @@ export class JellyseerrUnreachableError extends Schema.TaggedErrorClass<Jellysee
     code: Schema.Literal('JELLYSEERR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -31,6 +32,7 @@ export class JellyseerrDecodeError extends Schema.TaggedErrorClass<JellyseerrDec
   code: Schema.Literal('JELLYSEERR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class JellyseerrConfirmationRequiredError extends Schema.TaggedErrorClass<JellyseerrConfirmationRequiredError>()(
@@ -59,11 +61,12 @@ export const envMissing = (variable: string): JellyseerrEnvMissingError =>
     fix: envFix,
   })
 
-export const unreachable = (message: string): JellyseerrUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): JellyseerrUnreachableError =>
   new JellyseerrUnreachableError({
     code: 'JELLYSEERR_UNREACHABLE',
     message,
     fix: 'Verify Jellyseerr is reachable from this host and JELLYSEERR_URL points to the Jellyseerr base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): JellyseerrHttpError =>
@@ -73,11 +76,12 @@ export const httpError = (status: number): JellyseerrHttpError =>
     fix: 'Check the Jellyseerr API key, request parameters, and Jellyseerr server logs.',
   })
 
-export const decodeError = (message: string): JellyseerrDecodeError =>
+export const decodeError = (message: string, cause?: unknown): JellyseerrDecodeError =>
   new JellyseerrDecodeError({
     code: 'JELLYSEERR_DECODE_ERROR',
     message,
     fix: 'Update the Jellyseerr schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const confirmationRequired = (action: string, flag: string): JellyseerrConfirmationRequiredError =>

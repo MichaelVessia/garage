@@ -49,13 +49,19 @@ export class ImmichApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, ImmichError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const ImmichConfigLive = Layer.succeed(ImmichConfig, {
-  get: Effect.fn('ImmichConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('IMMICH_URL')
-      const apiKey = yield* readRequiredString('IMMICH_API_KEY')
-      return { url, apiKey }
-    },
-    Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichConfig', method: 'get' })
-  ),
-})
+export const ImmichConfigLive = Layer.effect(
+  ImmichConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('IMMICH_URL')
+        const apiKey = yield* readRequiredString('IMMICH_API_KEY')
+        return { url, apiKey }
+      }).pipe(
+        Effect.withSpan('ImmichConfig.get'),
+        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichConfig', method: 'get' })
+      )
+    )
+    return ImmichConfig.of({ get: () => cachedGet })
+  })
+)

@@ -11,8 +11,16 @@ import { DeleteRequestResultSchema } from '../packages/jellyseerr/src/index.js'
 import { SearchOptionsSchema as ProwlarrSearchOptionsSchema } from '../packages/prowlarr/src/index.js'
 import { MovieLookupResultSchema } from '../packages/radarr/src/index.js'
 import { ActionResultSchema, DeleteOptionsSchema } from '../packages/sabnzbd/src/index.js'
-import { SeriesLookupResultSchema } from '../packages/sonarr/src/index.js'
-import { StatusResultSchema as TailscaleStatusResultSchema } from '../packages/tailscale/src/index.js'
+import {
+  SeriesLookupResultSchema,
+  decodeError as sonarrDecodeError,
+  unreachable as sonarrUnreachable,
+} from '../packages/sonarr/src/index.js'
+import {
+  StatusResultSchema as TailscaleStatusResultSchema,
+  commandFailed as tailscaleCommandFailed,
+  decodeError as tailscaleDecodeError,
+} from '../packages/tailscale/src/index.js'
 import { SubscriptionResultSchema } from '../packages/tubearchivist/src/index.js'
 
 it('exports public schemas for normalized models and envelopes', () => {
@@ -124,4 +132,18 @@ it('rejects invalid public options at runtime', () => {
   assert.throws(() => Schema.decodeUnknownSync(ProwlarrSearchOptionsSchema)({ limit: 10, protocol: 'invalid' }))
   assert.throws(() => Schema.decodeUnknownSync(ProtectionToggleOptionsSchema)({ state: 'invalid' }))
   assert.throws(() => Schema.decodeUnknownSync(DeleteOptionsSchema)({ deleteFiles: 'yes' }))
+})
+
+it('preserves underlying causes on transport, process, and decode errors', () => {
+  const transportCause = new Error('socket closed')
+  const decodeCause = new Error('unexpected shape')
+  const processCause = new Error('spawn failed')
+
+  assert.strictEqual(Reflect.get(sonarrUnreachable('network failed', transportCause), 'cause'), transportCause)
+  assert.strictEqual(Reflect.get(sonarrDecodeError('decode failed', decodeCause), 'cause'), decodeCause)
+  assert.strictEqual(
+    Reflect.get(tailscaleCommandFailed('tailscale status', 1, 'failed', processCause), 'cause'),
+    processCause
+  )
+  assert.strictEqual(Reflect.get(tailscaleDecodeError('json failed', decodeCause), 'cause'), decodeCause)
 })

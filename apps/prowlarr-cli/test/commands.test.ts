@@ -54,60 +54,83 @@ const MissingConfigLayer = Layer.succeed(ProwlarrConfig, {
 const makeApiLayer = Effect.gen(function* () {
   const searches = yield* Ref.make<ReadonlyArray<{ readonly query: string; readonly options: SearchOptions }>>([])
   const syncCount = yield* Ref.make(0)
-  const api = ProwlarrApi.of({
-    status: () => Effect.succeed({ appName: 'Prowlarr', version: '1.30.2', branch: 'main', runtimeVersion: '8.0.0' }),
-    health: () => Effect.succeed([{ source: 'Indexer', type: 'warning', message: 'Indexer unavailable' }]),
-    indexers: () =>
-      Effect.succeed([
-        { id: 1, name: 'Mirror Indexer', protocol: 'torrent', enabled: true, priority: 25, supportsSearch: true },
-      ]),
-    indexerStats: () =>
-      Effect.succeed([
-        {
-          id: 1,
-          name: 'Mirror Indexer',
-          queries: 10,
-          grabs: 2,
-          failedQueries: 1,
-          failedGrabs: 0,
-          avgResponseTimeMs: 512,
-        },
-      ]),
-    search: (query, options) =>
-      Ref.update(searches, (records) => [...records, { query, options }]).pipe(Effect.as(releaseRecords)),
-    testIndexer: (indexerId) => Effect.succeed({ indexerId, passed: true, httpStatus: 200 }),
-    applications: () =>
-      Effect.succeed([{ id: 10, name: 'Sonarr', implementation: 'Sonarr', syncLevel: 'fullSync', tags: [1] }]),
-    sync: () =>
-      Ref.update(syncCount, (count) => count + 1).pipe(
-        Effect.as({ id: 99, name: 'ApplicationIndexerSync', status: 'queued', queued: '2026-05-24T00:00:00Z' })
-      ),
-    history: (limit) =>
-      Effect.succeed({
-        count: 1,
-        totalRecords: 100,
-        records: [
-          {
-            id: 100,
-            date: '2026-05-24T00:00:00Z',
-            eventType: 'query',
-            indexerId: 1,
-            successful: true,
-            query: `limit:${limit}`,
-            queryType: 'search',
-            results: 2,
-          },
-        ],
-      }),
-  })
+  const layer = Layer.effect(
+    ProwlarrApi,
+    Effect.gen(function* () {
+      const config = yield* ProwlarrConfig
+      const configured = <A>(effect: Effect.Effect<A>) => config.get().pipe(Effect.andThen(effect))
+      return ProwlarrApi.of({
+        status: () =>
+          configured(
+            Effect.succeed({ appName: 'Prowlarr', version: '1.30.2', branch: 'main', runtimeVersion: '8.0.0' })
+          ),
+        health: () =>
+          configured(Effect.succeed([{ source: 'Indexer', type: 'warning', message: 'Indexer unavailable' }])),
+        indexers: () =>
+          configured(
+            Effect.succeed([
+              { id: 1, name: 'Mirror Indexer', protocol: 'torrent', enabled: true, priority: 25, supportsSearch: true },
+            ])
+          ),
+        indexerStats: () =>
+          configured(
+            Effect.succeed([
+              {
+                id: 1,
+                name: 'Mirror Indexer',
+                queries: 10,
+                grabs: 2,
+                failedQueries: 1,
+                failedGrabs: 0,
+                avgResponseTimeMs: 512,
+              },
+            ])
+          ),
+        search: (query, options) =>
+          configured(
+            Ref.update(searches, (records) => [...records, { query, options }]).pipe(Effect.as(releaseRecords))
+          ),
+        testIndexer: (indexerId) => configured(Effect.succeed({ indexerId, passed: true, httpStatus: 200 })),
+        applications: () =>
+          configured(
+            Effect.succeed([{ id: 10, name: 'Sonarr', implementation: 'Sonarr', syncLevel: 'fullSync', tags: [1] }])
+          ),
+        sync: () =>
+          configured(
+            Ref.update(syncCount, (count) => count + 1).pipe(
+              Effect.as({ id: 99, name: 'ApplicationIndexerSync', status: 'queued', queued: '2026-05-24T00:00:00Z' })
+            )
+          ),
+        history: (limit) =>
+          configured(
+            Effect.succeed({
+              count: 1,
+              totalRecords: 100,
+              records: [
+                {
+                  id: 100,
+                  date: '2026-05-24T00:00:00Z',
+                  eventType: 'query',
+                  indexerId: 1,
+                  successful: true,
+                  query: `limit:${limit}`,
+                  queryType: 'search',
+                  results: 2,
+                },
+              ],
+            })
+          ),
+      })
+    })
+  )
 
-  return { layer: Layer.succeed(ProwlarrApi, api), searches, syncCount }
+  return { layer, searches, syncCount }
 })
 
 it.effect('root command returns a self-documenting command tree and health summary', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const envelope = yield* executeProwlarr([]).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const envelope = yield* executeProwlarr([]).pipe(Effect.provide(fake.layer.pipe(Layer.provideMerge(ConfigLayer))))
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -142,7 +165,9 @@ it.effect('root command returns a self-documenting command tree and health summa
 it.effect('root command still returns the command tree when credentials are missing', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const envelope = yield* executeProwlarr([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer)))
+    const envelope = yield* executeProwlarr([]).pipe(
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
+    )
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -166,7 +191,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const envelope = yield* executeProwlarr(['status']).pipe(
-      Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
     )
 
     assert.deepStrictEqual(envelope, {
@@ -185,7 +210,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
 it.effect('search commands parse filters and bound results', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const envelope = yield* executeProwlarr([
       'search',
@@ -218,7 +243,7 @@ it.effect('search commands parse filters and bound results', () =>
 it.effect('tv and movie commands build structured Prowlarr searches', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     yield* executeProwlarr(['tv-search', '--tvdb', '81189', '--season', '1', '--episode', '2']).pipe(
       Effect.provide(layer)
@@ -243,7 +268,7 @@ it.effect('tv and movie commands build structured Prowlarr searches', () =>
 it.effect('sync requires explicit confirmation before mutation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const blocked = yield* executeProwlarr(['sync']).pipe(Effect.provide(layer))
     const allowed = yield* executeProwlarr(['sync', '--confirm-sync']).pipe(Effect.provide(layer))
@@ -273,7 +298,7 @@ it.effect('history accepts wrapper-compatible positional limits', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const envelope = yield* executeProwlarr(['history', '25']).pipe(
-      Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(ConfigLayer)))
     )
 
     assert.strictEqual(envelope.ok, true)

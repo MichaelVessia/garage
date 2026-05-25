@@ -18,6 +18,7 @@ export class AdguardUnreachableError extends Schema.TaggedErrorClass<AdguardUnre
     code: Schema.Literal('ADGUARD_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -31,6 +32,7 @@ export class AdguardDecodeError extends Schema.TaggedErrorClass<AdguardDecodeErr
   code: Schema.Literal('ADGUARD_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class AdguardConfirmationRequiredError extends Schema.TaggedErrorClass<AdguardConfirmationRequiredError>()(
@@ -55,11 +57,12 @@ export type AdguardErrorCode = AdguardError['code']
 export const envMissing = (variable: string): AdguardEnvMissingError =>
   new AdguardEnvMissingError({ code: 'ADGUARD_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
 
-export const unreachable = (message: string): AdguardUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): AdguardUnreachableError =>
   new AdguardUnreachableError({
     code: 'ADGUARD_UNREACHABLE',
     message,
     fix: 'Verify AdGuard Home is reachable from this host and ADGUARD_URL points to the AdGuard base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): AdguardHttpError =>
@@ -69,11 +72,12 @@ export const httpError = (status: number): AdguardHttpError =>
     fix: 'Check the AdGuard username, password, request parameters, and AdGuard server logs.',
   })
 
-export const decodeError = (message: string): AdguardDecodeError =>
+export const decodeError = (message: string, cause?: unknown): AdguardDecodeError =>
   new AdguardDecodeError({
     code: 'ADGUARD_DECODE_ERROR',
     message,
     fix: 'Update the AdGuard schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const confirmationRequired = (): AdguardConfirmationRequiredError =>

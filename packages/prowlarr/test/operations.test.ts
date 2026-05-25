@@ -5,6 +5,7 @@ import {
   ProwlarrApi,
   ProwlarrConfig,
   applications,
+  envMissing,
   health,
   history,
   indexerStats,
@@ -19,11 +20,7 @@ import {
 import type { ReleaseRecord, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(ProwlarrConfig, {
-  get: () =>
-    Effect.succeed({
-      url: 'http://prowlarr.example.test',
-      apiKey: 'secret',
-    }),
+  get: () => Effect.fail(envMissing('PROWLARR_URL')),
 })
 
 const firstReleaseRecord: ReleaseRecord = {
@@ -160,7 +157,7 @@ const makeApiLayer = Effect.gen(function* () {
   return { layer: Layer.succeed(ProwlarrApi, api), searches, historyLimits, syncCount }
 })
 
-it.effect('returns status and bounded list results', () =>
+it.effect('returns status and bounded list results without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)
@@ -184,7 +181,7 @@ it.effect('returns status and bounded list results', () =>
   })
 )
 
-it.effect('builds search query variants and bounds release results', () =>
+it.effect('builds search query variants and bounds release results without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)
@@ -219,7 +216,7 @@ it.effect('builds search query variants and bounds release results', () =>
   })
 )
 
-it.effect('runs indexer tests, application sync, apps, and history operations', () =>
+it.effect('runs indexer tests, application sync, apps, and history operations without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)

@@ -1,5 +1,5 @@
 import { BunFileSystem, BunHttpClient, BunPath, BunRuntime } from '@effect/platform-bun'
-import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
+import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
 import { TubearchivistApiLive, TubearchivistConfigLive } from '@garage/tubearchivist'
 import { Console, Effect, Layer } from 'effect'
 
@@ -10,12 +10,10 @@ import { TubearchivistSessionCacheFileLive } from './session-cache.js'
 const SessionCacheLive = TubearchivistSessionCacheFileLive.pipe(
   Layer.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
 )
-const ObservabilityLive = cliObservabilityLayer({
+const ObservabilityLive = cliObservabilityLayerFromConfig({
   serviceName: '@garage/tubearchivist-cli',
   serviceVersion: packageJson.version,
   environment: 'local',
-  tracesUrl: Bun.env.GARAGE_OTLP_TRACES_URL,
-  logsUrl: Bun.env.GARAGE_OTLP_LOGS_URL,
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = TubearchivistApiLive.pipe(

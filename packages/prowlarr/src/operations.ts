@@ -18,7 +18,8 @@ import type {
   SystemStatus,
   TvSearchOptions,
 } from './model.js'
-import { ProwlarrApi, ProwlarrConfig } from './services.js'
+import { ProwlarrApi } from './services.js'
+import type { ProwlarrConfig } from './services.js'
 
 export const defaultLimit = 10
 export const defaultHistoryLimit = 50
@@ -74,8 +75,6 @@ const movieSearchQuery = (options: MovieSearchOptions): string => {
 
 export const status: Effect.Effect<SystemStatus, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.gen(
   function* () {
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return yield* api.status()
   }
@@ -91,8 +90,6 @@ export const health: (
   ): Effect.fn.Return<ListResult<HealthRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return toListResult(yield* api.health(), limitOptions.limit)
   },
@@ -109,8 +106,6 @@ export const indexers: (
   ): Effect.fn.Return<ListResult<IndexerRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return toListResult(yield* api.indexers(), limitOptions.limit)
   },
@@ -127,8 +122,6 @@ export const indexerStats: (
   ): Effect.fn.Return<ListResult<IndexerStatsRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return toListResult(yield* api.indexerStats(), limitOptions.limit)
   },
@@ -145,8 +138,6 @@ export const search: (
   ): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     const searchOptions = options ?? defaultSearchOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.query_length': query.length, 'prowlarr.limit': searchOptions.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     const searchType = searchOptions.type ?? 'search'
     const records = yield* api.search(query, { ...searchOptions, type: searchType })
@@ -158,8 +149,6 @@ export const search: (
 export const tvSearch = Effect.fn('prowlarr.tvSearch')(
   function* (options: TvSearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     yield* Effect.annotateCurrentSpan({ 'prowlarr.type': 'tvsearch', 'prowlarr.limit': options.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     const query = tvSearchQuery(options)
     const records = yield* api.search(query, { limit: options.limit, type: 'tvsearch' })
@@ -171,8 +160,6 @@ export const tvSearch = Effect.fn('prowlarr.tvSearch')(
 export const movieSearch = Effect.fn('prowlarr.movieSearch')(
   function* (options: MovieSearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     yield* Effect.annotateCurrentSpan({ 'prowlarr.type': 'movie', 'prowlarr.limit': options.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     const query = movieSearchQuery(options)
     const records = yield* api.search(query, { limit: options.limit, type: 'movie' })
@@ -184,8 +171,6 @@ export const movieSearch = Effect.fn('prowlarr.movieSearch')(
 export const testIndexer = Effect.fn('prowlarr.testIndexer')(
   function* (indexerId: number): Effect.fn.Return<IndexerTestResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     yield* Effect.annotateCurrentSpan({ 'prowlarr.indexer_id': indexerId })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return yield* api.testIndexer(indexerId)
   },
@@ -202,8 +187,6 @@ export const applications: (
   ): Effect.fn.Return<ListResult<ApplicationRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return toListResult(yield* api.applications(), limitOptions.limit)
   },
@@ -211,8 +194,6 @@ export const applications: (
 )
 
 export const sync: Effect.Effect<CommandResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.gen(function* () {
-  const config = yield* ProwlarrConfig
-  yield* config.get()
   const api = yield* ProwlarrApi
   return yield* api.sync()
 }).pipe(Effect.withSpan('prowlarr.sync'), Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'sync' }))
@@ -227,8 +208,6 @@ export const history: (
   ): Effect.fn.Return<ListResult<HistoryRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
     const limitOptions = options ?? defaultHistoryOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.history_limit': limitOptions.limit })
-    const config = yield* ProwlarrConfig
-    yield* config.get()
     const api = yield* ProwlarrApi
     return yield* api.history(limitOptions.limit)
   },

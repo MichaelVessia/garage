@@ -25,7 +25,7 @@ const decodeJson = <A, I, RD, RE>(
   schema: Schema.Codec<A, I, RD, RE>
 ): Effect.Effect<A, TailscaleError, RD> =>
   Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(input).pipe(
-    Effect.mapError((issue) => decodeError(issue.message))
+    Effect.mapError((issue) => decodeError(issue.message, issue))
   )
 
 const statusText = Effect.fn('tailscale.statusText')(function* (
@@ -77,7 +77,7 @@ const firstLine = (output: string): string | undefined =>
 
 const decodeJsonObject = (input: string): Effect.Effect<JsonObject, TailscaleError> =>
   Schema.decodeUnknownEffect(Schema.fromJsonString(JsonObjectSchema))(input).pipe(
-    Effect.mapError((issue) => decodeError(issue.message))
+    Effect.mapError((issue) => decodeError(issue.message, issue))
   )
 
 export const TailscaleApiLive = Layer.effect(

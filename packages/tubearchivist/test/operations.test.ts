@@ -7,6 +7,7 @@ import {
   channelInfo,
   channels,
   downloads,
+  envMissing,
   playlists,
   search,
   status,
@@ -19,7 +20,7 @@ import {
 import type { LimitOptions, SearchOptions, SubscriptionOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
-  get: () => Effect.succeed({ url: 'http://tubearchivist.example.test', username: 'admin', password: 'secret' }),
+  get: () => Effect.fail(envMissing('TUBEARCHIVIST_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {

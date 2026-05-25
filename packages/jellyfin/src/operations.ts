@@ -15,15 +15,14 @@ import type {
   SystemStatus,
   UserRecord,
 } from './model.js'
-import { JellyfinApi, JellyfinConfig } from './services.js'
+import { JellyfinApi } from './services.js'
+import type { JellyfinConfig } from './services.js'
 
 export const defaultLimit = 10
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
 export const status: Effect.Effect<SystemStatus, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.gen(
   function* () {
-    const config = yield* JellyfinConfig
-    yield* config.get()
     const api = yield* JellyfinApi
     return yield* api.status()
   }
@@ -31,8 +30,6 @@ export const status: Effect.Effect<SystemStatus, JellyfinError, JellyfinApi | Je
 
 export const users: Effect.Effect<ListResult<UserRecord>, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.gen(
   function* () {
-    const config = yield* JellyfinConfig
-    yield* config.get()
     const api = yield* JellyfinApi
     return yield* api.users()
   }
@@ -43,8 +40,6 @@ export const libraries: Effect.Effect<
   JellyfinError,
   JellyfinApi | JellyfinConfig
 > = Effect.gen(function* () {
-  const config = yield* JellyfinConfig
-  yield* config.get()
   const api = yield* JellyfinApi
   return yield* api.libraries()
 }).pipe(
@@ -57,8 +52,6 @@ export const sessions: Effect.Effect<
   JellyfinError,
   JellyfinApi | JellyfinConfig
 > = Effect.gen(function* () {
-  const config = yield* JellyfinConfig
-  yield* config.get()
   const api = yield* JellyfinApi
   return yield* api.sessions()
 }).pipe(
@@ -101,8 +94,6 @@ export const recentlyAdded: (
   ): Effect.fn.Return<ListResult<ItemRecord>, JellyfinError, JellyfinApi | JellyfinConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'jellyfin.limit': limitOptions.limit })
-    const config = yield* JellyfinConfig
-    yield* config.get()
     const api = yield* JellyfinApi
     return yield* api.recentlyAdded(limitOptions)
   },
@@ -117,8 +108,6 @@ export const itemSearch = Effect.fn('jellyfin.itemSearch')(
       'jellyfin.query_length': options.query.length,
       'jellyfin.limit': options.limit,
     })
-    const config = yield* JellyfinConfig
-    yield* config.get()
     const api = yield* JellyfinApi
     return yield* api.itemSearch(options)
   },
@@ -127,8 +116,6 @@ export const itemSearch = Effect.fn('jellyfin.itemSearch')(
 
 export const libraryStats: Effect.Effect<LibraryStats, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.gen(
   function* () {
-    const config = yield* JellyfinConfig
-    yield* config.get()
     const api = yield* JellyfinApi
     return yield* api.libraryStats()
   }
@@ -142,8 +129,6 @@ export const scheduledTasks: Effect.Effect<
   JellyfinError,
   JellyfinApi | JellyfinConfig
 > = Effect.gen(function* () {
-  const config = yield* JellyfinConfig
-  yield* config.get()
   const api = yield* JellyfinApi
   return yield* api.scheduledTasks()
 }).pipe(
@@ -154,8 +139,6 @@ export const scheduledTasks: Effect.Effect<
 export const runTask = Effect.fn('jellyfin.runTask')(
   function* (taskId: string): Effect.fn.Return<RunTaskResult, JellyfinError, JellyfinApi | JellyfinConfig> {
     yield* Effect.annotateCurrentSpan({ 'jellyfin.task_id': taskId })
-    const config = yield* JellyfinConfig
-    yield* config.get()
     const api = yield* JellyfinApi
     return yield* api.runTask(taskId)
   },

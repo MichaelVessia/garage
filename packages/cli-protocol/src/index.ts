@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema } from 'effect'
+import { Config, Effect, Layer, Option, Schema } from 'effect'
 import type { HttpClient } from 'effect/unstable/http'
 import { OtlpLogger, OtlpSerialization, OtlpTracer } from 'effect/unstable/observability'
 
@@ -65,12 +65,17 @@ export interface CliObservabilityOptions {
   readonly logsUrl?: string | undefined
 }
 
+export type CliObservabilityConfigOptions = Omit<CliObservabilityOptions, 'tracesUrl' | 'logsUrl'>
+
 type OtlpRequirements = HttpClient.HttpClient | OtlpSerialization.OtlpSerialization
 
 const optionalUrl = (value: string | undefined): string | undefined =>
   value === undefined || value.trim().length === 0 ? undefined : value
 
 const emptyObservabilityLayer: Layer.Layer<never, never, OtlpRequirements> = Layer.empty
+
+const optionalConfigString = (name: string): Effect.Effect<string | undefined, Config.ConfigError> =>
+  Config.option(Config.string(name)).pipe(Effect.map(Option.getOrUndefined))
 
 export const cliObservabilityLayer = (
   options: CliObservabilityOptions
@@ -88,6 +93,17 @@ export const cliObservabilityLayer = (
 
   return Layer.mergeAll(tracingLayer, loggingLayer).pipe(Layer.provide(OtlpSerialization.layerJson))
 }
+
+export const cliObservabilityLayerFromConfig = (
+  options: CliObservabilityConfigOptions
+): Layer.Layer<never, Config.ConfigError, HttpClient.HttpClient> =>
+  Layer.unwrap(
+    Effect.gen(function* () {
+      const tracesUrl = yield* optionalConfigString('GARAGE_OTLP_TRACES_URL')
+      const logsUrl = yield* optionalConfigString('GARAGE_OTLP_LOGS_URL')
+      return cliObservabilityLayer({ ...options, tracesUrl, logsUrl })
+    })
+  )
 
 export interface SuccessEnvelopeInput<Result> {
   readonly command: string

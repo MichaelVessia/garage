@@ -17,19 +17,14 @@ import type {
   TaskRecord,
   VideoRecord,
 } from './model.js'
-import { TubearchivistApi, TubearchivistConfig } from './services.js'
+import { TubearchivistApi } from './services.js'
+import type { TubearchivistConfig } from './services.js'
 
 export const defaultLimit = 25
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
-const requireConfig = Effect.fn('tubearchivist.requireConfig')(function* () {
-  const config = yield* TubearchivistConfig
-  yield* config.get()
-})
-
 export const status: Effect.Effect<StatusResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> =
   Effect.gen(function* () {
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.status()
   }).pipe(
@@ -47,7 +42,6 @@ export const channels: (
   ): Effect.fn.Return<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.channels(limitOptions)
   },
@@ -58,7 +52,6 @@ export const channelInfo = Effect.fn('tubearchivist.channelInfo')(
   function* (
     options: IdOptions
   ): Effect.fn.Return<ChannelRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.channelInfo(options)
   },
@@ -69,7 +62,6 @@ export const subscribe = Effect.fn('tubearchivist.subscribe')(
   function* (
     options: SubscriptionOptions
   ): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.subscribe(options)
   },
@@ -84,7 +76,6 @@ export const unsubscribe = Effect.fn('tubearchivist.unsubscribe')(
     if (!options.confirmed) {
       return yield* confirmationRequired('--confirm-unsubscribe')
     }
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.unsubscribe({ target: options.target })
   },
@@ -101,7 +92,6 @@ export const videos: (
   ): Effect.fn.Return<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.videos(limitOptions)
   },
@@ -112,7 +102,6 @@ export const videoInfo = Effect.fn('tubearchivist.videoInfo')(
   function* (
     options: IdOptions
   ): Effect.fn.Return<VideoRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.videoInfo(options)
   },
@@ -129,7 +118,6 @@ export const downloads: (
   ): Effect.fn.Return<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.downloads(limitOptions)
   },
@@ -146,7 +134,6 @@ export const playlists: (
   ): Effect.fn.Return<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.playlists(limitOptions)
   },
@@ -163,7 +150,6 @@ export const tasks: (
   ): Effect.fn.Return<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.tasks(limitOptions)
   },
@@ -178,7 +164,6 @@ export const search = Effect.fn('tubearchivist.search')(
       'tubearchivist.query_length': options.query.length,
       'tubearchivist.limit': options.limit,
     })
-    yield* requireConfig()
     const api = yield* TubearchivistApi
     return yield* api.search(options)
   },

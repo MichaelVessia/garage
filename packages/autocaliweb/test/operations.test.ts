@@ -4,18 +4,21 @@ import { Effect, Layer, Ref } from 'effect'
 import {
   AutocaliwebApi,
   AutocaliwebConfig,
+  bookInfo,
   books,
   catalog,
+  envMissing,
   recent,
   search,
   shelves,
   stats,
   status,
+  version,
 } from '../src/index.js'
 import type { LimitOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
-  get: () => Effect.succeed({ url: 'http://autocaliweb.example.test', username: 'fixture-user', password: 'secret' }),
+  get: () => Effect.fail(envMissing('AUTOCALIWEB_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -71,12 +74,13 @@ const makeApiLayer = Effect.gen(function* () {
   return { layer: Layer.succeed(AutocaliwebApi, api), bookOptions, recentOptions, searchOptions }
 })
 
-it.effect('operations require config and forward options to AutocaliwebApi', () =>
+it.effect('operations do not preflight config and forward options to AutocaliwebApi', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)
 
     assert.strictEqual((yield* status.pipe(Effect.provide(layer))).title, 'Fixture Catalog')
+    assert.strictEqual((yield* version.pipe(Effect.provide(layer))).title, 'Fixture Catalog')
     assert.strictEqual((yield* stats.pipe(Effect.provide(layer))).books, 1)
     assert.strictEqual((yield* catalog.pipe(Effect.provide(layer))).records[0]?.title, 'Alphabetical Books')
     assert.strictEqual((yield* books({ limit: 3 }).pipe(Effect.provide(layer))).records[0]?.title, 'Fixture Novel One')
@@ -85,6 +89,7 @@ it.effect('operations require config and forward options to AutocaliwebApi', () 
       (yield* search({ query: 'fixture', limit: 4 }).pipe(Effect.provide(layer))).records[0]?.title,
       'Fixture Novel One'
     )
+    assert.strictEqual((yield* bookInfo({ uuid: 'book-uuid' }).pipe(Effect.provide(layer))).uuid, 'book-uuid')
     assert.strictEqual((yield* shelves.pipe(Effect.provide(layer))).records[0]?.title, 'Favorites')
     assert.deepStrictEqual(yield* Ref.get(fake.bookOptions), [{ limit: 3 }])
     assert.deepStrictEqual(yield* Ref.get(fake.recentOptions), [{ limit: 2 }])

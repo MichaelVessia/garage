@@ -281,14 +281,15 @@ export const runCliVersioning = Effect.fn('runCliVersioning')(function* (args: r
   return yield* Effect.fail(new Error(usage))
 })
 
+const reportCliVersioningFailure = Effect.fn('runCliVersioning.onFailure')(function* (failure: Error) {
+  yield* Console.error(failure.message)
+  return yield* Effect.fail(failure)
+})
+
 if (import.meta.main) {
   const program = runCliVersioning(Bun.argv.slice(2)).pipe(
     Effect.matchEffect({
-      onFailure: (error) =>
-        Effect.gen(function* () {
-          yield* Console.error(error.message)
-          return yield* Effect.fail(error)
-        }),
+      onFailure: reportCliVersioningFailure,
       onSuccess: () => Effect.void,
     }),
     Effect.provide(BunServices.layer)

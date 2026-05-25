@@ -2,7 +2,7 @@ import * as BunFileSystem from '@effect/platform-bun/BunFileSystem'
 import * as BunPath from '@effect/platform-bun/BunPath'
 import { assert, it } from '@effect/vitest'
 import { TubearchivistApi, TubearchivistConfig, TubearchivistSessionCache, envMissing } from '@garage/tubearchivist'
-import type { LimitOptions, SearchOptions, SubscriptionOptions } from '@garage/tubearchivist'
+import type { LimitOptions, SearchOptions, SubscriptionOptions, TubearchivistError } from '@garage/tubearchivist'
 import { ConfigProvider, Effect, Layer, Ref } from 'effect'
 import { FileSystem } from 'effect/FileSystem'
 import { Path } from 'effect/Path'
@@ -36,62 +36,91 @@ const makeApiLayer = Effect.gen(function* () {
   const limitOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const subscriptions = yield* Ref.make<ReadonlyArray<SubscriptionOptions & { readonly subscribed: boolean }>>([])
-  const api = TubearchivistApi.of({
-    status: () =>
-      Effect.succeed({
-        url: 'http://tubearchivist.example.test',
-        health: 'OK',
-        config: {},
-        stats: { video: {}, channel: {}, download: {}, watch: {} },
-      }),
-    channels: (options) =>
-      Ref.update(limitOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ id: 'UC1', name: 'Channel' }] })
-      ),
-    channelInfo: (options) => Effect.succeed({ id: options.id, name: 'Channel' }),
-    subscribe: (options) =>
-      Ref.update(subscriptions, (records) => [...records, { ...options, subscribed: true }]).pipe(
-        Effect.as({ target: options.target, subscribed: true, response: {}, note: 'queued' })
-      ),
-    unsubscribe: (options) =>
-      Ref.update(subscriptions, (records) => [...records, { ...options, subscribed: false }]).pipe(
-        Effect.as({ target: options.target, subscribed: false, response: {} })
-      ),
-    videos: (options) =>
-      Ref.update(limitOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ youtubeId: 'v1', title: 'Video' }] })
-      ),
-    videoInfo: (options) => Effect.succeed({ youtubeId: options.id, title: 'Video' }),
-    downloads: (options) =>
-      Ref.update(limitOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ youtubeId: 'v1', status: 'pending' }] })
-      ),
-    playlists: (options) =>
-      Ref.update(limitOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ playlistId: 'PL1', name: 'Playlist' }] })
-      ),
-    tasks: (options) =>
-      Ref.update(limitOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ name: 'subscribe_to', status: 'SUCCESS' }] })
-      ),
-    search: (options) =>
-      Ref.update(searchOptions, (records) => [...records, options]).pipe(
-        Effect.as({
-          query: options.query,
-          videos: { count: 0, records: [] },
-          channels: { count: 0, records: [] },
-          playlists: { count: 0, records: [] },
-        })
-      ),
-  })
-  return { layer: Layer.succeed(TubearchivistApi, api), limitOptions, searchOptions, subscriptions }
+  const layer = Layer.effect(
+    TubearchivistApi,
+    Effect.gen(function* () {
+      const config = yield* TubearchivistConfig
+      const configured = <A>(effect: Effect.Effect<A>): Effect.Effect<A, TubearchivistError> =>
+        config.get().pipe(Effect.andThen(effect))
+
+      return TubearchivistApi.of({
+        status: () =>
+          configured(
+            Effect.succeed({
+              url: 'http://tubearchivist.example.test',
+              health: 'OK',
+              config: {},
+              stats: { video: {}, channel: {}, download: {}, watch: {} },
+            })
+          ),
+        channels: (options) =>
+          configured(
+            Ref.update(limitOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ id: 'UC1', name: 'Channel' }] })
+            )
+          ),
+        channelInfo: (options) => configured(Effect.succeed({ id: options.id, name: 'Channel' })),
+        subscribe: (options) =>
+          configured(
+            Ref.update(subscriptions, (records) => [...records, { ...options, subscribed: true }]).pipe(
+              Effect.as({ target: options.target, subscribed: true, response: {}, note: 'queued' })
+            )
+          ),
+        unsubscribe: (options) =>
+          configured(
+            Ref.update(subscriptions, (records) => [...records, { ...options, subscribed: false }]).pipe(
+              Effect.as({ target: options.target, subscribed: false, response: {} })
+            )
+          ),
+        videos: (options) =>
+          configured(
+            Ref.update(limitOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ youtubeId: 'v1', title: 'Video' }] })
+            )
+          ),
+        videoInfo: (options) => configured(Effect.succeed({ youtubeId: options.id, title: 'Video' })),
+        downloads: (options) =>
+          configured(
+            Ref.update(limitOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ youtubeId: 'v1', status: 'pending' }] })
+            )
+          ),
+        playlists: (options) =>
+          configured(
+            Ref.update(limitOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ playlistId: 'PL1', name: 'Playlist' }] })
+            )
+          ),
+        tasks: (options) =>
+          configured(
+            Ref.update(limitOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ name: 'subscribe_to', status: 'SUCCESS' }] })
+            )
+          ),
+        search: (options) =>
+          configured(
+            Ref.update(searchOptions, (records) => [...records, options]).pipe(
+              Effect.as({
+                query: options.query,
+                videos: { count: 0, records: [] },
+                channels: { count: 0, records: [] },
+                playlists: { count: 0, records: [] },
+              })
+            )
+          ),
+      })
+    })
+  )
+  return { layer, limitOptions, searchOptions, subscriptions }
 })
 
 it.effect('root command returns command tree and missing env remains recoverable', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const ok = yield* executeTubearchivist([]).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
-    const missing = yield* executeTubearchivist([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer)))
+    const okLayer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
+    const missingLayer = fake.layer.pipe(Layer.provideMerge(MissingConfigLayer))
+    const ok = yield* executeTubearchivist([]).pipe(Effect.provide(okLayer))
+    const missing = yield* executeTubearchivist([]).pipe(Effect.provide(missingLayer))
 
     assert.strictEqual(ok.ok, true)
     if (!ok.ok || !('health' in ok.result)) {
@@ -109,7 +138,7 @@ it.effect('root command returns command tree and missing env remains recoverable
 it.effect('bounded commands pass limits and search args', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     yield* executeTubearchivist(['channels', '--limit', '3']).pipe(Effect.provide(layer))
     yield* executeTubearchivist(['videos', '--limit', '4']).pipe(Effect.provide(layer))
@@ -132,7 +161,7 @@ it.effect('bounded commands pass limits and search args', () =>
 it.effect('subscribe dispatches and unsubscribe requires confirmation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const subscribeEnvelope = yield* executeTubearchivist(['subscribe', 'https://youtube.com/@example']).pipe(
       Effect.provide(layer)
@@ -159,7 +188,7 @@ it.effect('subscribe dispatches and unsubscribe requires confirmation', () =>
 it.effect('remaining commands dispatch and missing env on subcommands returns an error envelope', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     for (const args of [['status'], ['channel-info', 'UC1'], ['video-info', 'v1']]) {
       const envelope = yield* executeTubearchivist(args).pipe(Effect.provide(layer))
@@ -167,7 +196,7 @@ it.effect('remaining commands dispatch and missing env on subcommands returns an
     }
 
     const missing = yield* executeTubearchivist(['channels']).pipe(
-      Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
     )
     assert.strictEqual(missing.ok, false)
     if (missing.ok) {

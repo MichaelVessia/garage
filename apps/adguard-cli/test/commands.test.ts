@@ -18,49 +18,71 @@ const makeApiLayer = Effect.gen(function* () {
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const clientLookups = yield* Ref.make<ReadonlyArray<ClientLookupOptions>>([])
   const toggles = yield* Ref.make<ReadonlyArray<ProtectionToggleOptions>>([])
-  const api = AdguardApi.of({
-    status: () => Effect.succeed({ version: 'v0.107.67', running: true, protectionEnabled: true }),
-    version: () => Effect.succeed({ version: 'v0.107.67' }),
-    stats: () =>
-      Effect.succeed({
-        numDnsQueries: 100,
-        numBlockedFiltering: 10,
-        topQueriedDomains: [],
-        topBlockedDomains: [],
-        topClients: [],
-      }),
-    statsInfo: () => Effect.succeed({ interval: 1 }),
-    queryLog: (options) =>
-      Ref.update(queryLogOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ question: 'example.com', answer: '' }] })
-      ),
-    queryLogSearch: (options) =>
-      Ref.update(searchOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ question: options.query, answer: '' }] })
-      ),
-    clients: () => Effect.succeed({ configured: [{ name: 'Test Client' }], autoCount: 0, autoSample: [] }),
-    clientsActive: (options) =>
-      Ref.update(clientLookups, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, records: [{ ip: options.ip, name: 'Test Client' }] })
-      ),
-    filters: () => Effect.succeed({ userRulesCount: 1, blocklists: [], allowlists: [] }),
-    rules: () => Effect.succeed({ count: 1, records: ['@@||example.com^'] }),
-    dnsConfig: () => Effect.succeed({ upstream_mode: 'parallel' }),
-    dhcpStatus: () =>
-      Effect.succeed({ enabled: false, leaseCount: 0, staticLeaseCount: 0, leases: [], staticLeases: [] }),
-    protectionToggle: (options) =>
-      Ref.update(toggles, (records) => [...records, options]).pipe(
-        Effect.as({ protectionEnabled: options.state === 'on', protectionDisabledDuration: 0 })
-      ),
-  })
-  return { layer: Layer.succeed(AdguardApi, api), queryLogOptions, searchOptions, clientLookups, toggles }
+  const layer = Layer.effect(
+    AdguardApi,
+    Effect.gen(function* () {
+      const config = yield* AdguardConfig
+      const configured = <A>(effect: Effect.Effect<A>) => config.get().pipe(Effect.andThen(effect))
+      return AdguardApi.of({
+        status: () => configured(Effect.succeed({ version: 'v0.107.67', running: true, protectionEnabled: true })),
+        version: () => configured(Effect.succeed({ version: 'v0.107.67' })),
+        stats: () =>
+          configured(
+            Effect.succeed({
+              numDnsQueries: 100,
+              numBlockedFiltering: 10,
+              topQueriedDomains: [],
+              topBlockedDomains: [],
+              topClients: [],
+            })
+          ),
+        statsInfo: () => configured(Effect.succeed({ interval: 1 })),
+        queryLog: (options) =>
+          configured(
+            Ref.update(queryLogOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ question: 'example.com', answer: '' }] })
+            )
+          ),
+        queryLogSearch: (options) =>
+          configured(
+            Ref.update(searchOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ question: options.query, answer: '' }] })
+            )
+          ),
+        clients: () =>
+          configured(Effect.succeed({ configured: [{ name: 'Test Client' }], autoCount: 0, autoSample: [] })),
+        clientsActive: (options) =>
+          configured(
+            Ref.update(clientLookups, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, records: [{ ip: options.ip, name: 'Test Client' }] })
+            )
+          ),
+        filters: () => configured(Effect.succeed({ userRulesCount: 1, blocklists: [], allowlists: [] })),
+        rules: () => configured(Effect.succeed({ count: 1, records: ['@@||example.com^'] })),
+        dnsConfig: () => configured(Effect.succeed({ upstream_mode: 'parallel' })),
+        dhcpStatus: () =>
+          configured(
+            Effect.succeed({ enabled: false, leaseCount: 0, staticLeaseCount: 0, leases: [], staticLeases: [] })
+          ),
+        protectionToggle: (options) =>
+          configured(
+            Ref.update(toggles, (records) => [...records, options]).pipe(
+              Effect.as({ protectionEnabled: options.state === 'on', protectionDisabledDuration: 0 })
+            )
+          ),
+      })
+    })
+  )
+  return { layer, queryLogOptions, searchOptions, clientLookups, toggles }
 })
 
 it.effect('root command returns command tree and missing env remains recoverable', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const ok = yield* executeAdguard([]).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
-    const missing = yield* executeAdguard([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer)))
+    const ok = yield* executeAdguard([]).pipe(Effect.provide(fake.layer.pipe(Layer.provideMerge(ConfigLayer))))
+    const missing = yield* executeAdguard([]).pipe(
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
+    )
 
     assert.strictEqual(ok.ok, true)
     if (!ok.ok || !('health' in ok.result)) {
@@ -82,7 +104,7 @@ it.effect('root command returns command tree and missing env remains recoverable
 it.effect('bounded and lookup commands pass arguments', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     yield* executeAdguard(['query-log', '--limit', '5']).pipe(Effect.provide(layer))
     yield* executeAdguard(['query-log-search', 'ads', 'example', '--limit', '7']).pipe(Effect.provide(layer))
@@ -97,7 +119,7 @@ it.effect('bounded and lookup commands pass arguments', () =>
 it.effect('protection-toggle requires confirmation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const blocked = yield* executeAdguard(['protection-toggle', 'off']).pipe(Effect.provide(layer))
     const allowed = yield* executeAdguard(['protection-toggle', 'off', '--confirm-toggle']).pipe(Effect.provide(layer))
@@ -112,7 +134,7 @@ it.effect('missing env on subcommands returns an error envelope', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const envelope = yield* executeAdguard(['stats']).pipe(
-      Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
     )
 
     assert.strictEqual(envelope.ok, false)
@@ -126,7 +148,7 @@ it.effect('missing env on subcommands returns an error envelope', () =>
 it.effect('remaining commands dispatch successfully', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     for (const args of [
       ['status'],

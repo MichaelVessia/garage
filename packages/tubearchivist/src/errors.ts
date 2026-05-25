@@ -18,6 +18,7 @@ export class TubearchivistUnreachableError extends Schema.TaggedErrorClass<Tubea
     code: Schema.Literal('TUBEARCHIVIST_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -37,6 +38,7 @@ export class TubearchivistDecodeError extends Schema.TaggedErrorClass<Tubearchiv
     code: Schema.Literal('TUBEARCHIVIST_DECODE_ERROR'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -66,11 +68,12 @@ export const envMissing = (variable: string): TubearchivistEnvMissingError =>
     fix: envFix,
   })
 
-export const unreachable = (message: string): TubearchivistUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): TubearchivistUnreachableError =>
   new TubearchivistUnreachableError({
     code: 'TUBEARCHIVIST_UNREACHABLE',
     message,
     fix: 'Verify TubeArchivist is reachable from this host and TUBEARCHIVIST_URL points to the base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): TubearchivistHttpError =>
@@ -81,11 +84,12 @@ export const httpError = (status: number): TubearchivistHttpError =>
     status,
   })
 
-export const decodeError = (message: string): TubearchivistDecodeError =>
+export const decodeError = (message: string, cause?: unknown): TubearchivistDecodeError =>
   new TubearchivistDecodeError({
     code: 'TUBEARCHIVIST_DECODE_ERROR',
     message,
     fix: 'Update the TubeArchivist schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const confirmationRequired = (flag: string): TubearchivistConfirmationRequiredError =>

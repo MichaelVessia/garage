@@ -25,40 +25,65 @@ const makeApiLayer = Effect.gen(function* () {
   const requestOptions = yield* Ref.make<ReadonlyArray<RequestListOptions>>([])
   const searchOptions = yield* Ref.make<ReadonlyArray<SearchOptions>>([])
   const approvals = yield* Ref.make<ReadonlyArray<number>>([])
-  const api = JellyseerrApi.of({
-    status: () => Effect.succeed({ version: '2.0.0', commitTag: 'v2.0.0', updateAvailable: false }),
-    requests: (options) =>
-      Ref.update(requestOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, totalRecords: 3, records: [request] })
-      ),
-    requestCounts: () => Effect.succeed({ pending: 3, approved: 9 }),
-    search: (options) =>
-      Ref.update(searchOptions, (records) => [...records, options]).pipe(
-        Effect.as({ count: 1, totalRecords: 1, records: [{ id: 95_396, mediaType: 'tv', title: 'Linux ISO Weekly' }] })
-      ),
-    mediaStatus: () => Effect.succeed(media),
-    recentlyAdded: () => Effect.succeed({ count: 1, totalRecords: 1, records: [media] }),
-    approve: (requestId) => Ref.update(approvals, (records) => [...records, requestId]).pipe(Effect.as(request)),
-    decline: () => Effect.succeed({ ...request, status: 3 }),
-    deleteRequest: (requestId) => Effect.succeed({ deleted: true, requestId, httpStatus: 204 }),
-    users: () =>
-      Effect.succeed({
-        count: 1,
-        totalRecords: 1,
-        records: [
-          { id: 1, email: 'user@example.test', displayName: 'Test User', username: 'fixture-user', permissions: 1 },
-        ],
-      }),
-    issues: () => Effect.succeed({ count: 1, totalRecords: 1, records: [{ id: 9, issueType: 'video', media }] }),
-  })
+  const layer = Layer.effect(
+    JellyseerrApi,
+    Effect.gen(function* () {
+      const config = yield* JellyseerrConfig
+      const configured = <A>(effect: Effect.Effect<A>) => config.get().pipe(Effect.andThen(effect))
+      return JellyseerrApi.of({
+        status: () => configured(Effect.succeed({ version: '2.0.0', commitTag: 'v2.0.0', updateAvailable: false })),
+        requests: (options) =>
+          configured(
+            Ref.update(requestOptions, (records) => [...records, options]).pipe(
+              Effect.as({ count: 1, totalRecords: 3, records: [request] })
+            )
+          ),
+        requestCounts: () => configured(Effect.succeed({ pending: 3, approved: 9 })),
+        search: (options) =>
+          configured(
+            Ref.update(searchOptions, (records) => [...records, options]).pipe(
+              Effect.as({
+                count: 1,
+                totalRecords: 1,
+                records: [{ id: 95_396, mediaType: 'tv', title: 'Linux ISO Weekly' }],
+              })
+            )
+          ),
+        mediaStatus: () => configured(Effect.succeed(media)),
+        recentlyAdded: () => configured(Effect.succeed({ count: 1, totalRecords: 1, records: [media] })),
+        approve: (requestId) =>
+          configured(Ref.update(approvals, (records) => [...records, requestId]).pipe(Effect.as(request))),
+        decline: () => configured(Effect.succeed({ ...request, status: 3 })),
+        deleteRequest: (requestId) => configured(Effect.succeed({ deleted: true, requestId, httpStatus: 204 })),
+        users: () =>
+          configured(
+            Effect.succeed({
+              count: 1,
+              totalRecords: 1,
+              records: [
+                {
+                  id: 1,
+                  email: 'user@example.test',
+                  displayName: 'Test User',
+                  username: 'fixture-user',
+                  permissions: 1,
+                },
+              ],
+            })
+          ),
+        issues: () =>
+          configured(Effect.succeed({ count: 1, totalRecords: 1, records: [{ id: 9, issueType: 'video', media }] })),
+      })
+    })
+  )
 
-  return { layer: Layer.succeed(JellyseerrApi, api), requestOptions, searchOptions, approvals }
+  return { layer, requestOptions, searchOptions, approvals }
 })
 
 it.effect('root command returns a self-documenting command tree and health summary', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const envelope = yield* executeJellyseerr([]).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const envelope = yield* executeJellyseerr([]).pipe(Effect.provide(fake.layer.pipe(Layer.provideMerge(ConfigLayer))))
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -92,7 +117,9 @@ it.effect('root command returns a self-documenting command tree and health summa
 it.effect('root command still returns command tree when env is missing', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const envelope = yield* executeJellyseerr([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer)))
+    const envelope = yield* executeJellyseerr([]).pipe(
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
+    )
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -109,7 +136,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const envelope = yield* executeJellyseerr(['status']).pipe(
-      Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
     )
 
     assert.deepStrictEqual(envelope, {
@@ -125,7 +152,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
 it.effect('requests and search parse filters and limits', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     yield* executeJellyseerr(['requests', '--all', '--limit', '5']).pipe(Effect.provide(layer))
     yield* executeJellyseerr(['search', 'Linux', 'ISO', '--limit', '4']).pipe(Effect.provide(layer))
@@ -140,7 +167,7 @@ it.effect('requests and search parse filters and limits', () =>
 it.effect('approve requires explicit confirmation before mutation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const blocked = yield* executeJellyseerr(['approve', '42']).pipe(Effect.provide(layer))
     const allowed = yield* executeJellyseerr(['approve', '42', '--confirm-approve']).pipe(Effect.provide(layer))
@@ -167,7 +194,7 @@ it.effect('approve requires explicit confirmation before mutation', () =>
 it.effect('remaining commands dispatch successfully', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const counts = yield* executeJellyseerr(['request-counts']).pipe(Effect.provide(layer))
     const mediaStatus = yield* executeJellyseerr(['media-status', '7']).pipe(Effect.provide(layer))

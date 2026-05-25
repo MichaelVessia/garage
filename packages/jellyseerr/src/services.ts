@@ -45,14 +45,20 @@ export class JellyseerrApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, JellyseerrError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const JellyseerrConfigLive = Layer.succeed(JellyseerrConfig, {
-  get: Effect.fn('JellyseerrConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('JELLYSEERR_URL')
-      const apiKey = yield* readRequiredString('JELLYSEERR_API_KEY')
+export const JellyseerrConfigLive = Layer.effect(
+  JellyseerrConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('JELLYSEERR_URL')
+        const apiKey = yield* readRequiredString('JELLYSEERR_API_KEY')
 
-      return { url, apiKey }
-    },
-    Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrConfig', method: 'get' })
-  ),
-})
+        return { url, apiKey }
+      }).pipe(
+        Effect.withSpan('JellyseerrConfig.get'),
+        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrConfig', method: 'get' })
+      )
+    )
+    return JellyseerrConfig.of({ get: () => cachedGet })
+  })
+)

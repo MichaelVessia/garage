@@ -82,23 +82,22 @@ type SonarrCliError = SonarrError | CliUsageError
 type SonarrCliContext = SonarrApi | SonarrConfig
 type SonarrInvocation = CommandInvocation<SonarrCliResult, SonarrCliError, SonarrCliContext>
 
-const defaultQualityProfileAction = (
+const defaultQualityProfileAction = Effect.fn('sonarrCli.defaultQualityProfileAction')(function* (
   tvdbId: number,
   description = 'Add a selected series to Sonarr'
-): Effect.Effect<NextAction, SonarrError, SonarrConfig> =>
-  Effect.gen(function* () {
-    const sonarrConfig = yield* SonarrConfig
-    const values = yield* sonarrConfig.get()
+): Effect.fn.Return<NextAction, SonarrError, SonarrConfig> {
+  const sonarrConfig = yield* SonarrConfig
+  const values = yield* sonarrConfig.get()
 
-    return {
-      command: addCommandTemplate,
-      description,
-      params: {
-        'tvdb-id': { value: tvdbId, description: 'TVDB series ID' },
-        'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Sonarr quality profile ID' },
-      },
-    }
-  })
+  return {
+    command: addCommandTemplate,
+    description,
+    params: {
+      'tvdb-id': { value: tvdbId, description: 'TVDB series ID' },
+      'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Sonarr quality profile ID' },
+    },
+  }
+})
 
 const existsNextActions = (result: ExistsResult): Effect.Effect<ReadonlyArray<NextAction>, SonarrError, SonarrConfig> =>
   result.exists

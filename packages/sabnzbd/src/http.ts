@@ -35,7 +35,7 @@ const endpoint = (
     ...params,
   ])}`
 
-const toDecodeError = (error: { readonly message: string }): SabnzbdError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): SabnzbdError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -43,20 +43,19 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, SabnzbdError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('sabnzbd.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, SabnzbdError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<A, SabnzbdError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return yield* decodeBody(response, schema)
-  })
+  return yield* decodeBody(response, schema)
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,

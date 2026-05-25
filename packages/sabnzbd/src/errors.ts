@@ -18,6 +18,7 @@ export class SabnzbdUnreachableError extends Schema.TaggedErrorClass<SabnzbdUnre
     code: Schema.Literal('SABNZBD_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -31,6 +32,7 @@ export class SabnzbdDecodeError extends Schema.TaggedErrorClass<SabnzbdDecodeErr
   code: Schema.Literal('SABNZBD_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class SabnzbdDeleteConfirmationRequiredError extends Schema.TaggedErrorClass<SabnzbdDeleteConfirmationRequiredError>()(
@@ -59,11 +61,12 @@ export const envMissing = (variable: string): SabnzbdEnvMissingError =>
     fix: envFix,
   })
 
-export const unreachable = (message: string): SabnzbdUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): SabnzbdUnreachableError =>
   new SabnzbdUnreachableError({
     code: 'SABNZBD_UNREACHABLE',
     message,
     fix: 'Verify SABnzbd is reachable from this host and SABNZBD_URL points to the SABnzbd base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): SabnzbdHttpError =>
@@ -73,11 +76,12 @@ export const httpError = (status: number): SabnzbdHttpError =>
     fix: 'Check the SABnzbd API key, request parameters, and SABnzbd server logs.',
   })
 
-export const decodeError = (message: string): SabnzbdDecodeError =>
+export const decodeError = (message: string, cause?: unknown): SabnzbdDecodeError =>
   new SabnzbdDecodeError({
     code: 'SABNZBD_DECODE_ERROR',
     message,
     fix: 'Update the SABnzbd schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const deleteConfirmationRequired = (): SabnzbdDeleteConfirmationRequiredError =>

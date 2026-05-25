@@ -49,14 +49,20 @@ export class AdguardApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, AdguardError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const AdguardConfigLive = Layer.succeed(AdguardConfig, {
-  get: Effect.fn('AdguardConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('ADGUARD_URL')
-      const username = yield* readRequiredString('ADGUARD_USERNAME')
-      const password = yield* readRequiredString('ADGUARD_PASSWORD')
-      return { url, username, password }
-    },
-    Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardConfig', method: 'get' })
-  ),
-})
+export const AdguardConfigLive = Layer.effect(
+  AdguardConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('ADGUARD_URL')
+        const username = yield* readRequiredString('ADGUARD_USERNAME')
+        const password = yield* readRequiredString('ADGUARD_PASSWORD')
+        return { url, username, password }
+      }).pipe(
+        Effect.withSpan('AdguardConfig.get'),
+        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardConfig', method: 'get' })
+      )
+    )
+    return AdguardConfig.of({ get: () => cachedGet })
+  })
+)

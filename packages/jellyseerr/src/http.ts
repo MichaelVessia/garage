@@ -43,7 +43,7 @@ const withAuth = (config: JellyseerrConfigValue) =>
     'x-api-key': config.apiKey,
   })
 
-const toDecodeError = (error: { readonly message: string }): JellyseerrError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): JellyseerrError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -51,34 +51,32 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, JellyseerrError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('jellyseerr.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, JellyseerrError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<A, JellyseerrError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return yield* decodeBody(response, schema)
-  })
+  return yield* decodeBody(response, schema)
+})
 
-const executeStatus = (
+const executeStatus = Effect.fn('jellyseerr.executeStatus')(function* (
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest
-): Effect.Effect<number, JellyseerrError> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<number, JellyseerrError> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return response.status
-  })
+  return response.status
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,

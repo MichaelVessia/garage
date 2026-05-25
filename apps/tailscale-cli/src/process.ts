@@ -19,7 +19,7 @@ const streamText = (
 const isMissingCommand = (cause: PlatformError.PlatformError): boolean => cause.reason._tag === 'NotFound'
 
 const processError = (args: ReadonlyArray<string>, cause: PlatformError.PlatformError): TailscaleError =>
-  isMissingCommand(cause) ? cliMissing(cause.message) : commandFailed(commandText(args), 1, cause.message)
+  isMissingCommand(cause) ? cliMissing(cause.message, cause) : commandFailed(commandText(args), 1, cause.message, cause)
 
 const commandName = (command: string): string => {
   const parts = command.split('/')
@@ -50,7 +50,6 @@ const runCandidateEffect = Effect.fn('tailscale.runCandidate')(
       Effect.scoped
     )
   },
-  Effect.withSpan('tailscale.runCandidate'),
   Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleProcess', method: 'run' })
 )
 
@@ -76,7 +75,7 @@ const runFirstAvailable = Effect.fn('tailscale.runFirstAvailable')(function* (
       onSuccess: (result) => Effect.succeed(result),
     })
   )
-}, Effect.withSpan('tailscale.runFirstAvailable'))
+})
 
 export const TailscaleProcessLive = Layer.effect(
   TailscaleProcess,

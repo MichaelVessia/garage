@@ -4,6 +4,7 @@ import { Effect, Layer, Ref } from 'effect'
 import {
   JellyfinApi,
   JellyfinConfig,
+  envMissing,
   itemSearch,
   libraries,
   libraryStats,
@@ -18,7 +19,7 @@ import {
 import type { LimitOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: () => Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: 'secret' }),
+  get: () => Effect.fail(envMissing('JELLYFIN_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -65,7 +66,7 @@ const makeApiLayer = Effect.gen(function* () {
   return { layer: Layer.succeed(JellyfinApi, api), recentOptions, searchOptions, runTasks }
 })
 
-it.effect('runs Jellyfin read and mutation operations', () =>
+it.effect('runs Jellyfin read and mutation operations without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)

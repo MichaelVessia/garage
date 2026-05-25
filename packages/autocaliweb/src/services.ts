@@ -38,14 +38,20 @@ export class AutocaliwebApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, AutocaliwebError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const AutocaliwebConfigLive = Layer.succeed(AutocaliwebConfig, {
-  get: Effect.fn('AutocaliwebConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('AUTOCALIWEB_URL')
-      const username = yield* readRequiredString('AUTOCALIWEB_USERNAME')
-      const password = yield* readRequiredString('AUTOCALIWEB_PASSWORD')
-      return { url, username, password }
-    },
-    Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebConfig', method: 'get' })
-  ),
-})
+export const AutocaliwebConfigLive = Layer.effect(
+  AutocaliwebConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('AUTOCALIWEB_URL')
+        const username = yield* readRequiredString('AUTOCALIWEB_USERNAME')
+        const password = yield* readRequiredString('AUTOCALIWEB_PASSWORD')
+        return { url, username, password }
+      }).pipe(
+        Effect.withSpan('AutocaliwebConfig.get'),
+        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebConfig', method: 'get' })
+      )
+    )
+    return AutocaliwebConfig.of({ get: () => cachedGet })
+  })
+)

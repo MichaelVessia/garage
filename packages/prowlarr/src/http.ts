@@ -41,7 +41,7 @@ const withAuth = (config: ProwlarrConfigValue) =>
     'x-api-key': config.apiKey,
   })
 
-const toDecodeError = (error: { readonly message: string }): ProwlarrError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): ProwlarrError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -49,20 +49,19 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, ProwlarrError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('prowlarr.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, ProwlarrError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<A, ProwlarrError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return yield* decodeBody(response, schema)
-  })
+  return yield* decodeBody(response, schema)
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,
@@ -73,22 +72,21 @@ const getJson = <A, I, RD, RE>(
 ): Effect.Effect<A, ProwlarrError, RD> =>
   executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
 
-const postJson = <A, I, RD, RE>(
+const postJson = Effect.fn('prowlarr.postJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: ProwlarrConfigValue,
   path: string,
   body: unknown,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, ProwlarrError, RD> =>
-  Effect.gen(function* () {
-    const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-      withAuth(config),
-      HttpClientRequest.bodyJson(body),
-      Effect.mapError((error) => decodeError(error.message))
-    )
+): Effect.fn.Return<A, ProwlarrError, RD> {
+  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
+    withAuth(config),
+    HttpClientRequest.bodyJson(body),
+    Effect.mapError((error) => decodeError(error.message, error))
+  )
 
-    return yield* executeJson(client, request, schema)
-  })
+  return yield* executeJson(client, request, schema)
+})
 
 const postIndexerTest = Effect.fn('prowlarr.postIndexerTest')(function* (
   client: HttpClient.HttpClient,
@@ -103,9 +101,9 @@ const postIndexerTest = Effect.fn('prowlarr.postIndexerTest')(function* (
   const request = yield* HttpClientRequest.post(endpoint(config, '/api/v1/indexer/test')).pipe(
     withAuth(config),
     HttpClientRequest.bodyJson(body),
-    Effect.mapError((error) => decodeError(error.message))
+    Effect.mapError((error) => decodeError(error.message, error))
   )
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
   if (response.status >= 200 && response.status < 300) {
     return { indexerId, passed: true, httpStatus: response.status }

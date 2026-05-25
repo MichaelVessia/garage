@@ -1,17 +1,15 @@
 import { BunHttpClient, BunRuntime } from '@effect/platform-bun'
 import { AutocaliwebApiLive, AutocaliwebConfigLive } from '@garage/autocaliweb'
-import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
+import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
 import { Console, Effect, Layer } from 'effect'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { executeAutocaliweb } from './index.js'
 
-const ObservabilityLive = cliObservabilityLayer({
+const ObservabilityLive = cliObservabilityLayerFromConfig({
   serviceName: '@garage/autocaliweb-cli',
   serviceVersion: packageJson.version,
   environment: 'local',
-  tracesUrl: Bun.env.GARAGE_OTLP_TRACES_URL,
-  logsUrl: Bun.env.GARAGE_OTLP_LOGS_URL,
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = AutocaliwebApiLive.pipe(

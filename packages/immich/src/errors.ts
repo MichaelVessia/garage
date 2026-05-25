@@ -15,6 +15,7 @@ export class ImmichUnreachableError extends Schema.TaggedErrorClass<ImmichUnreac
     code: Schema.Literal('IMMICH_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -29,6 +30,7 @@ export class ImmichDecodeError extends Schema.TaggedErrorClass<ImmichDecodeError
   code: Schema.Literal('IMMICH_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export const ImmichError = Schema.Union([
@@ -43,11 +45,12 @@ export type ImmichErrorCode = ImmichError['code']
 export const envMissing = (variable: string): ImmichEnvMissingError =>
   new ImmichEnvMissingError({ code: 'IMMICH_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
 
-export const unreachable = (message: string): ImmichUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): ImmichUnreachableError =>
   new ImmichUnreachableError({
     code: 'IMMICH_UNREACHABLE',
     message,
     fix: 'Verify Immich is reachable from this host and IMMICH_URL points to the Immich base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): ImmichHttpError =>
@@ -58,9 +61,10 @@ export const httpError = (status: number): ImmichHttpError =>
     status,
   })
 
-export const decodeError = (message: string): ImmichDecodeError =>
+export const decodeError = (message: string, cause?: unknown): ImmichDecodeError =>
   new ImmichDecodeError({
     code: 'IMMICH_DECODE_ERROR',
     message,
     fix: 'Update the Immich schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })

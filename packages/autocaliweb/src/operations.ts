@@ -13,19 +13,14 @@ import type {
   StatsResult,
   StatusResult,
 } from './index.js'
-import { AutocaliwebApi, AutocaliwebConfig } from './services.js'
+import { AutocaliwebApi } from './services.js'
+import type { AutocaliwebConfig } from './services.js'
 
 export const defaultLimit = 50
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
-const requireConfig = Effect.fn('autocaliweb.requireConfig')(function* () {
-  const config = yield* AutocaliwebConfig
-  yield* config.get()
-})
-
 export const status: Effect.Effect<StatusResult, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig> = Effect.gen(
   function* () {
-    yield* requireConfig()
     const api = yield* AutocaliwebApi
     return yield* api.status()
   }
@@ -41,7 +36,6 @@ export const version: Effect.Effect<StatusResult, AutocaliwebError, AutocaliwebA
 
 export const stats: Effect.Effect<StatsResult, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig> = Effect.gen(
   function* () {
-    yield* requireConfig()
     const api = yield* AutocaliwebApi
     return yield* api.stats()
   }
@@ -55,7 +49,6 @@ export const catalog: Effect.Effect<
   AutocaliwebError,
   AutocaliwebApi | AutocaliwebConfig
 > = Effect.gen(function* () {
-  yield* requireConfig()
   const api = yield* AutocaliwebApi
   return yield* api.catalog()
 }).pipe(
@@ -73,7 +66,6 @@ export const books: (
   ): Effect.fn.Return<ListResult<BookRecord>, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'autocaliweb.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* AutocaliwebApi
     return yield* api.books(limitOptions)
   },
@@ -90,7 +82,6 @@ export const recent: (
   ): Effect.fn.Return<ListResult<BookRecord>, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'autocaliweb.limit': limitOptions.limit })
-    yield* requireConfig()
     const api = yield* AutocaliwebApi
     return yield* api.recent(limitOptions)
   },
@@ -105,7 +96,6 @@ export const search = Effect.fn('autocaliweb.search')(
       'autocaliweb.query_length': options.query.length,
       'autocaliweb.limit': options.limit,
     })
-    yield* requireConfig()
     const api = yield* AutocaliwebApi
     return yield* api.search(options)
   },
@@ -117,7 +107,6 @@ export const bookInfo = Effect.fn('autocaliweb.bookInfo')(
     options: BookInfoOptions
   ): Effect.fn.Return<BookInfoRecord, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig> {
     yield* Effect.annotateCurrentSpan({ 'autocaliweb.book_uuid_present': options.uuid.length > 0 })
-    yield* requireConfig()
     const api = yield* AutocaliwebApi
     return yield* api.bookInfo(options)
   },
@@ -129,7 +118,6 @@ export const shelves: Effect.Effect<
   AutocaliwebError,
   AutocaliwebApi | AutocaliwebConfig
 > = Effect.gen(function* () {
-  yield* requireConfig()
   const api = yield* AutocaliwebApi
   return yield* api.shelves()
 }).pipe(

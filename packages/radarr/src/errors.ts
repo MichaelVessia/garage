@@ -15,6 +15,7 @@ export class RadarrUnreachableError extends Schema.TaggedErrorClass<RadarrUnreac
     code: Schema.Literal('RADARR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -28,6 +29,7 @@ export class RadarrDecodeError extends Schema.TaggedErrorClass<RadarrDecodeError
   code: Schema.Literal('RADARR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class RadarrNotFoundError extends Schema.TaggedErrorClass<RadarrNotFoundError>()('RadarrNotFoundError', {
@@ -73,11 +75,12 @@ export const envMissing = (variable: string): RadarrEnvMissingError =>
     fix: envFix,
   })
 
-export const unreachable = (message: string): RadarrUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): RadarrUnreachableError =>
   new RadarrUnreachableError({
     code: 'RADARR_UNREACHABLE',
     message,
     fix: 'Verify Radarr is reachable from this host and RADARR_URL points to the Radarr base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): RadarrHttpError =>
@@ -87,11 +90,12 @@ export const httpError = (status: number): RadarrHttpError =>
     fix: 'Check the Radarr API key, request parameters, and Radarr server logs.',
   })
 
-export const decodeError = (message: string): RadarrDecodeError =>
+export const decodeError = (message: string, cause?: unknown): RadarrDecodeError =>
   new RadarrDecodeError({
     code: 'RADARR_DECODE_ERROR',
     message,
     fix: 'Update the Radarr schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const notFound = (message: string): RadarrNotFoundError =>

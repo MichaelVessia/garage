@@ -18,6 +18,7 @@ export class JellyfinUnreachableError extends Schema.TaggedErrorClass<JellyfinUn
     code: Schema.Literal('JELLYFIN_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -31,6 +32,7 @@ export class JellyfinDecodeError extends Schema.TaggedErrorClass<JellyfinDecodeE
   code: Schema.Literal('JELLYFIN_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class JellyfinNotFoundError extends Schema.TaggedErrorClass<JellyfinNotFoundError>()('JellyfinNotFoundError', {
@@ -62,11 +64,12 @@ export type JellyfinErrorCode = JellyfinError['code']
 export const envMissing = (variable: string): JellyfinEnvMissingError =>
   new JellyfinEnvMissingError({ code: 'JELLYFIN_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
 
-export const unreachable = (message: string): JellyfinUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): JellyfinUnreachableError =>
   new JellyfinUnreachableError({
     code: 'JELLYFIN_UNREACHABLE',
     message,
     fix: 'Verify Jellyfin is reachable from this host and JELLYFIN_URL points to the Jellyfin base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): JellyfinHttpError =>
@@ -76,11 +79,12 @@ export const httpError = (status: number): JellyfinHttpError =>
     fix: 'Check the Jellyfin API key, request parameters, and Jellyfin server logs.',
   })
 
-export const decodeError = (message: string): JellyfinDecodeError =>
+export const decodeError = (message: string, cause?: unknown): JellyfinDecodeError =>
   new JellyfinDecodeError({
     code: 'JELLYFIN_DECODE_ERROR',
     message,
     fix: 'Update the Jellyfin schemas to match the API response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const notFound = (message: string): JellyfinNotFoundError =>

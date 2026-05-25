@@ -38,14 +38,20 @@ export class SabnzbdApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, SabnzbdError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const SabnzbdConfigLive = Layer.succeed(SabnzbdConfig, {
-  get: Effect.fn('SabnzbdConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('SABNZBD_URL')
-      const apiKey = yield* readRequiredString('SABNZBD_API_KEY')
+export const SabnzbdConfigLive = Layer.effect(
+  SabnzbdConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('SABNZBD_URL')
+        const apiKey = yield* readRequiredString('SABNZBD_API_KEY')
 
-      return { url, apiKey }
-    },
-    Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdConfig', method: 'get' })
-  ),
-})
+        return { url, apiKey }
+      }).pipe(
+        Effect.withSpan('SabnzbdConfig.get'),
+        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdConfig', method: 'get' })
+      )
+    )
+    return SabnzbdConfig.of({ get: () => cachedGet })
+  })
+)

@@ -21,53 +21,70 @@ const makeApiLayer = Effect.gen(function* () {
   const queueOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const historyOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const deleteCalls = yield* Ref.make<ReadonlyArray<{ readonly nzoId: string; readonly options: DeleteOptions }>>([])
-  const api = SabnzbdApi.of({
-    status: () =>
-      Effect.succeed({ version: '4.5.3', uptime: '1d', paused: false, pausedAll: false, haveWarnings: false }),
-    version: () => Effect.succeed({ version: '4.5.3' }),
-    queue: (options) =>
-      Ref.update(queueOptions, (records) => [...records, options]).pipe(
-        Effect.as({
-          status: 'Downloading',
-          paused: false,
-          count: 1,
-          totalRecords: 22,
-          slots: [{ nzoId: 'SABnzbd_nzo_abc', filename: 'Linux.ISO.2026', status: 'Downloading' }],
-        })
-      ),
-    history: (options) =>
-      Ref.update(historyOptions, (records) => [...records, options]).pipe(
-        Effect.as({
-          totalSize: '10 GB',
-          noofslots: 44,
-          count: 1,
-          totalRecords: 44,
-          slots: [{ nzoId: 'SABnzbd_nzo_done', name: 'Linux ISO Done', status: 'Completed' }],
-        })
-      ),
-    pause: () => Effect.succeed({ action: 'pause', ok: true }),
-    resume: () => Effect.succeed({ action: 'resume', ok: true }),
-    delete: (nzoId, options) =>
-      Ref.update(deleteCalls, (records) => [...records, { nzoId, options }]).pipe(
-        Effect.as({ action: 'delete', ok: true, nzoId, deleteFiles: options.deleteFiles })
-      ),
-    serverStats: () =>
-      Effect.succeed({
-        total: 1000,
-        month: 400,
-        week: 100,
-        day: 10,
-        servers: { 'news.example.test': { total: 1000, month: 400, week: 100, day: 10 } },
-      }),
-  })
+  const layer = Layer.effect(
+    SabnzbdApi,
+    Effect.gen(function* () {
+      const config = yield* SabnzbdConfig
+      const configured = <A>(effect: Effect.Effect<A>) => config.get().pipe(Effect.andThen(effect))
+      return SabnzbdApi.of({
+        status: () =>
+          configured(
+            Effect.succeed({ version: '4.5.3', uptime: '1d', paused: false, pausedAll: false, haveWarnings: false })
+          ),
+        version: () => configured(Effect.succeed({ version: '4.5.3' })),
+        queue: (options) =>
+          configured(
+            Ref.update(queueOptions, (records) => [...records, options]).pipe(
+              Effect.as({
+                status: 'Downloading',
+                paused: false,
+                count: 1,
+                totalRecords: 22,
+                slots: [{ nzoId: 'SABnzbd_nzo_abc', filename: 'Linux.ISO.2026', status: 'Downloading' }],
+              })
+            )
+          ),
+        history: (options) =>
+          configured(
+            Ref.update(historyOptions, (records) => [...records, options]).pipe(
+              Effect.as({
+                totalSize: '10 GB',
+                noofslots: 44,
+                count: 1,
+                totalRecords: 44,
+                slots: [{ nzoId: 'SABnzbd_nzo_done', name: 'Linux ISO Done', status: 'Completed' }],
+              })
+            )
+          ),
+        pause: () => configured(Effect.succeed({ action: 'pause', ok: true })),
+        resume: () => configured(Effect.succeed({ action: 'resume', ok: true })),
+        delete: (nzoId, options) =>
+          configured(
+            Ref.update(deleteCalls, (records) => [...records, { nzoId, options }]).pipe(
+              Effect.as({ action: 'delete', ok: true, nzoId, deleteFiles: options.deleteFiles })
+            )
+          ),
+        serverStats: () =>
+          configured(
+            Effect.succeed({
+              total: 1000,
+              month: 400,
+              week: 100,
+              day: 10,
+              servers: { 'news.example.test': { total: 1000, month: 400, week: 100, day: 10 } },
+            })
+          ),
+      })
+    })
+  )
 
-  return { layer: Layer.succeed(SabnzbdApi, api), queueOptions, historyOptions, deleteCalls }
+  return { layer, queueOptions, historyOptions, deleteCalls }
 })
 
 it.effect('root command returns a self-documenting command tree and health summary', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const envelope = yield* executeSabnzbd([]).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const envelope = yield* executeSabnzbd([]).pipe(Effect.provide(fake.layer.pipe(Layer.provideMerge(ConfigLayer))))
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -99,7 +116,9 @@ it.effect('root command returns a self-documenting command tree and health summa
 it.effect('root command still returns the command tree when credentials are missing', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const envelope = yield* executeSabnzbd([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer)))
+    const envelope = yield* executeSabnzbd([]).pipe(
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
+    )
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -123,7 +142,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const envelope = yield* executeSabnzbd(['status']).pipe(
-      Effect.provide(Layer.mergeAll(MissingConfigLayer, fake.layer))
+      Effect.provide(fake.layer.pipe(Layer.provideMerge(MissingConfigLayer)))
     )
 
     assert.deepStrictEqual(envelope, {
@@ -142,7 +161,7 @@ it.effect('missing env on subcommands renders a recoverable error envelope', () 
 it.effect('queue and history commands pass bounded limits', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     yield* executeSabnzbd(['queue', '--limit', '5']).pipe(Effect.provide(layer))
     yield* executeSabnzbd(['history', '25']).pipe(Effect.provide(layer))
@@ -157,7 +176,7 @@ it.effect('queue and history commands pass bounded limits', () =>
 it.effect('delete with files requires explicit confirmation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const blocked = yield* executeSabnzbd(['delete', 'SABnzbd_nzo_abc', '--files']).pipe(Effect.provide(layer))
     const allowed = yield* executeSabnzbd(['delete', 'SABnzbd_nzo_abc', '--files', '--confirm-delete-files']).pipe(
@@ -189,7 +208,7 @@ it.effect('delete with files requires explicit confirmation', () =>
 it.effect('pause, resume, version, and server-stats dispatch to operations', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const versionEnvelope = yield* executeSabnzbd(['version']).pipe(Effect.provide(layer))
     const pauseEnvelope = yield* executeSabnzbd(['pause']).pipe(Effect.provide(layer))

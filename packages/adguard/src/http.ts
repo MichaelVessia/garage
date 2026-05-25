@@ -48,7 +48,7 @@ const withAuth =
       HttpClientRequest.basicAuth(config.username, config.password)
     )
 
-const toDecodeError = (error: { readonly message: string }): AdguardError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): AdguardError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -56,34 +56,32 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, AdguardError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('adguard.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, AdguardError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<A, AdguardError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return yield* decodeBody(response, schema)
-  })
+  return yield* decodeBody(response, schema)
+})
 
-const executeStatus = (
+const executeStatus = Effect.fn('adguard.executeStatus')(function* (
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest
-): Effect.Effect<number, AdguardError> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<number, AdguardError> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return response.status
-  })
+  return response.status
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,
@@ -96,21 +94,20 @@ const getJson = <A, I, RD, RE>(
 
 const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
 
-const postStatus = (
+const postStatus = Effect.fn('adguard.postStatus')(function* (
   client: HttpClient.HttpClient,
   config: AdguardConfigValue,
   path: string,
   body: unknown
-): Effect.Effect<number, AdguardError> =>
-  Effect.gen(function* () {
-    const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-      withAuth(config),
-      HttpClientRequest.bodyJson(body),
-      Effect.mapError((error) => decodeError(error.message))
-    )
+): Effect.fn.Return<number, AdguardError> {
+  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
+    withAuth(config),
+    HttpClientRequest.bodyJson(body),
+    Effect.mapError((error) => decodeError(error.message, error))
+  )
 
-    return yield* executeStatus(client, request)
-  })
+  return yield* executeStatus(client, request)
+})
 
 export const AdguardApiLive = Layer.effect(
   AdguardApi,

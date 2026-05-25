@@ -25,7 +25,7 @@ const basicAuth = (config: AutocaliwebConfigValue): string => `Basic ${btoa(`${c
 const withBasicAuth = (config: AutocaliwebConfigValue, accept: string) =>
   HttpClientRequest.setHeaders({ accept, authorization: basicAuth(config) })
 
-const toDecodeError = (error: { readonly message: string }): AutocaliwebError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): AutocaliwebError => decodeError(error.message, error)
 
 const decodeJsonBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -36,17 +36,16 @@ const decodeJsonBody = <A, I, RD, RE>(
 const responseText = (response: HttpClientResponse.HttpClientResponse): Effect.Effect<string, AutocaliwebError> =>
   response.text.pipe(Effect.mapError(toDecodeError))
 
-const execute = (
+const execute = Effect.fn('autocaliweb.execute')(function* (
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest
-): Effect.Effect<HttpClientResponse.HttpClientResponse, AutocaliwebError> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
-    return response
-  })
+): Effect.fn.Return<HttpClientResponse.HttpClientResponse, AutocaliwebError> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
+  return response
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,

@@ -7,6 +7,7 @@ import {
   approve,
   decline,
   deleteRequest,
+  envMissing,
   issues,
   mediaStatus,
   recentlyAdded,
@@ -29,7 +30,7 @@ const request = {
 }
 
 const ConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test', apiKey: 'secret' }),
+  get: () => Effect.fail(envMissing('JELLYSEERR_URL')),
 })
 
 const makeApiLayer = Effect.gen(function* () {
@@ -78,7 +79,7 @@ const makeApiLayer = Effect.gen(function* () {
   return { layer: Layer.succeed(JellyseerrApi, api), requestOptions, searchOptions, recentOptions }
 })
 
-it.effect('runs public read operations with bounded options', () =>
+it.effect('runs public read operations with bounded options without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)
@@ -103,7 +104,7 @@ it.effect('runs public read operations with bounded options', () =>
   })
 )
 
-it.effect('runs request mutations through the API service', () =>
+it.effect('runs request mutations through the API service without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
     const layer = Layer.mergeAll(ConfigLayer, fake.layer)

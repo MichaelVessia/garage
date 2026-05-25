@@ -55,134 +55,144 @@ const MissingConfigLayer = Layer.succeed(SonarrConfig, {
   get: () => Effect.fail(envMissing('SONARR_URL')),
 })
 
-const ApiLayer = Layer.succeed(SonarrApi, {
-  status: () =>
-    Effect.succeed({
-      appName: 'Sonarr',
-      version: '4.0.0',
-      instanceName: 'Sonarr',
-      runtimeVersion: '6.0.13',
-      databaseVersion: '3.40.1',
-      startupPath: '/opt/Sonarr',
-      appData: '/var/lib/sonarr',
-      mode: 'console',
-      authentication: 'forms',
-      startTime: '2026-04-16T11:59:52Z',
-      urlBase: '',
-      isDocker: true,
-      branch: 'main',
-    }),
-  rootFolders: () =>
-    Effect.succeed([{ id: 1, path: '/tv', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
-  qualityProfiles: () =>
-    Effect.succeed([
-      {
-        id: 1,
-        name: 'HD-1080p',
-        isDefault: true,
-        upgradeAllowed: true,
-        cutoff: 4,
-        minFormatScore: 0,
-        cutoffFormatScore: 0,
-      },
-    ]),
-  lookupSeries: (query) => Effect.succeed(query === 'Linux ISO' ? [severanceLookup] : []),
-  lookupSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceLookup) : Option.none()),
-  getSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceSeries) : Option.none()),
-  addSeries: () => Effect.succeed(severanceSeries),
-  removeSeries: () => Effect.void,
-  queue: () =>
-    Effect.succeed({
-      count: 1,
-      totalRecords: 66,
-      records: [
-        {
-          id: 100,
-          title: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
-          seriesTitle: 'Linux ISO Weekly',
-          seasonNumber: 1,
-          episodeNumber: 1,
-          episodeTitle: 'Ubuntu LTS Mirror Tour',
-          status: 'completed',
-          trackedDownloadStatus: 'warning',
-          trackedDownloadState: 'importBlocked',
-          statusMessages: ['Automatic import is not possible.'],
-          quality: 'WEBDL-1080p',
-          languages: ['English'],
-          size: 1000,
-          sizeleft: 0,
-          timeleft: '00:00:00',
-          estimatedCompletionTime: '2026-05-24T04:17:15Z',
-          protocol: 'usenet',
-          downloadClient: 'SABnzbd',
-          indexer: 'NZBgeek (Prowlarr)',
-          outputPath: '/downloads/Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL/',
-        },
-      ],
-    }),
-  calendar: () =>
-    Effect.succeed([
-      {
-        id: 200,
-        title: 'Next ISO Drop',
-        seriesTitle: 'Linux ISO Weekly',
-        seasonNumber: 1,
-        episodeNumber: 1,
-        airDateUtc: '2026-05-24',
-        hasFile: false,
-        monitored: true,
-        seriesStatus: 'continuing',
-        network: 'MirrorNet',
-        overview: 'A suspiciously well-seeded release candidate appears.',
-      },
-    ]),
-  missing: () =>
-    Effect.succeed({
-      count: 1,
-      totalRecords: 1338,
-      records: [
-        {
-          id: 300,
-          title: 'Checksum Mismatch',
-          seriesTitle: 'Linux ISO Weekly',
-          seasonNumber: 1,
-          episodeNumber: 1,
-          airDateUtc: '2026-05-20',
-          hasFile: false,
-          monitored: true,
-          seriesStatus: 'continuing',
-          network: 'MirrorNet',
-          lastSearchTime: '2026-05-21T00:00:00Z',
-          overview: 'The SHA256 sum refuses to cooperate.',
-        },
-      ],
-    }),
-  history: () =>
-    Effect.succeed({
-      count: 1,
-      totalRecords: 13_124,
-      records: [
-        {
-          id: 400,
-          date: '2026-05-24T02:29:14Z',
-          eventType: 'grabbed',
-          sourceTitle: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
-          seriesTitle: 'Linux ISO Weekly',
-          seasonNumber: 1,
-          episodeNumber: 1,
-          episodeTitle: 'Ubuntu LTS Mirror Tour',
-          quality: 'WEBDL-1080p',
-          languages: ['English'],
-          downloadClient: 'SABnzbd',
-          releaseGroup: 'GROUP',
-          size: 1000,
-          downloadId: 'SABnzbd_nzo_1',
-        },
-      ],
-    }),
-})
+const ApiLayer = Layer.effect(
+  SonarrApi,
+  Effect.gen(function* () {
+    const config = yield* SonarrConfig
+    return SonarrApi.of({
+      status: () =>
+        config.get().pipe(
+          Effect.as({
+            appName: 'Sonarr',
+            version: '4.0.0',
+            instanceName: 'Sonarr',
+            runtimeVersion: '6.0.13',
+            databaseVersion: '3.40.1',
+            startupPath: '/opt/Sonarr',
+            appData: '/var/lib/sonarr',
+            mode: 'console',
+            authentication: 'forms',
+            startTime: '2026-04-16T11:59:52Z',
+            urlBase: '',
+            isDocker: true,
+            branch: 'main',
+          })
+        ),
+      rootFolders: () =>
+        Effect.succeed([{ id: 1, path: '/tv', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
+      qualityProfiles: () =>
+        Effect.succeed([
+          {
+            id: 1,
+            name: 'HD-1080p',
+            isDefault: true,
+            upgradeAllowed: true,
+            cutoff: 4,
+            minFormatScore: 0,
+            cutoffFormatScore: 0,
+          },
+        ]),
+      lookupSeries: (query) => Effect.succeed(query === 'Linux ISO' ? [severanceLookup] : []),
+      lookupSeriesByTvdbId: (tvdbId) =>
+        Effect.succeed(tvdbId === 371_980 ? Option.some(severanceLookup) : Option.none()),
+      getSeriesByTvdbId: (tvdbId) => Effect.succeed(tvdbId === 371_980 ? Option.some(severanceSeries) : Option.none()),
+      addSeries: () => Effect.succeed(severanceSeries),
+      removeSeries: () => Effect.void,
+      queue: () =>
+        Effect.succeed({
+          count: 1,
+          totalRecords: 66,
+          records: [
+            {
+              id: 100,
+              title: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
+              seriesTitle: 'Linux ISO Weekly',
+              seasonNumber: 1,
+              episodeNumber: 1,
+              episodeTitle: 'Ubuntu LTS Mirror Tour',
+              status: 'completed',
+              trackedDownloadStatus: 'warning',
+              trackedDownloadState: 'importBlocked',
+              statusMessages: ['Automatic import is not possible.'],
+              quality: 'WEBDL-1080p',
+              languages: ['English'],
+              size: 1000,
+              sizeleft: 0,
+              timeleft: '00:00:00',
+              estimatedCompletionTime: '2026-05-24T04:17:15Z',
+              protocol: 'usenet',
+              downloadClient: 'SABnzbd',
+              indexer: 'NZBgeek (Prowlarr)',
+              outputPath: '/downloads/Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL/',
+            },
+          ],
+        }),
+      calendar: () =>
+        Effect.succeed([
+          {
+            id: 200,
+            title: 'Next ISO Drop',
+            seriesTitle: 'Linux ISO Weekly',
+            seasonNumber: 1,
+            episodeNumber: 1,
+            airDateUtc: '2026-05-24',
+            hasFile: false,
+            monitored: true,
+            seriesStatus: 'continuing',
+            network: 'MirrorNet',
+            overview: 'A suspiciously well-seeded release candidate appears.',
+          },
+        ]),
+      missing: () =>
+        Effect.succeed({
+          count: 1,
+          totalRecords: 1338,
+          records: [
+            {
+              id: 300,
+              title: 'Checksum Mismatch',
+              seriesTitle: 'Linux ISO Weekly',
+              seasonNumber: 1,
+              episodeNumber: 1,
+              airDateUtc: '2026-05-20',
+              hasFile: false,
+              monitored: true,
+              seriesStatus: 'continuing',
+              network: 'MirrorNet',
+              lastSearchTime: '2026-05-21T00:00:00Z',
+              overview: 'The SHA256 sum refuses to cooperate.',
+            },
+          ],
+        }),
+      history: () =>
+        Effect.succeed({
+          count: 1,
+          totalRecords: 13_124,
+          records: [
+            {
+              id: 400,
+              date: '2026-05-24T02:29:14Z',
+              eventType: 'grabbed',
+              sourceTitle: 'Linux.ISO.Weekly.S01E01.Ubuntu.LTS.1080p.WEB-DL',
+              seriesTitle: 'Linux ISO Weekly',
+              seasonNumber: 1,
+              episodeNumber: 1,
+              episodeTitle: 'Ubuntu LTS Mirror Tour',
+              quality: 'WEBDL-1080p',
+              languages: ['English'],
+              downloadClient: 'SABnzbd',
+              releaseGroup: 'GROUP',
+              size: 1000,
+              downloadId: 'SABnzbd_nzo_1',
+            },
+          ],
+        }),
+    })
+  })
+)
 
-const LiveTestLayer = Layer.mergeAll(ConfigLayer, ApiLayer)
+const LiveTestLayer = ApiLayer.pipe(Layer.provideMerge(ConfigLayer))
+const MissingTestLayer = ApiLayer.pipe(Layer.provideMerge(MissingConfigLayer))
 
 it.effect('root command returns a self-documenting command tree and health summary', () =>
   Effect.gen(function* () {
@@ -219,7 +229,7 @@ it.effect('root command returns a self-documenting command tree and health summa
 
 it.effect('root command still returns the command tree when credentials are missing', () =>
   Effect.gen(function* () {
-    const envelope = yield* executeSonarr([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, ApiLayer)))
+    const envelope = yield* executeSonarr([]).pipe(Effect.provide(MissingTestLayer))
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -241,7 +251,7 @@ it.effect('root command still returns the command tree when credentials are miss
 
 it.effect('missing env on subcommands renders a recoverable error envelope', () =>
   Effect.gen(function* () {
-    const envelope = yield* executeSonarr(['status']).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, ApiLayer)))
+    const envelope = yield* executeSonarr(['status']).pipe(Effect.provide(MissingTestLayer))
 
     assert.deepStrictEqual(envelope, {
       ok: false,

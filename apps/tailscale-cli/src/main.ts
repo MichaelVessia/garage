@@ -1,5 +1,5 @@
 import { BunHttpClient, BunRuntime, BunServices } from '@effect/platform-bun'
-import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
+import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
 import { TailscaleApiLive } from '@garage/tailscale'
 import { Console, Effect, Layer } from 'effect'
 
@@ -8,12 +8,10 @@ import { executeTailscale } from './index.js'
 import { TailscaleProcessLive } from './process.js'
 
 const ProcessLive = TailscaleProcessLive.pipe(Layer.provide(BunServices.layer))
-const ObservabilityLive = cliObservabilityLayer({
+const ObservabilityLive = cliObservabilityLayerFromConfig({
   serviceName: '@garage/tailscale-cli',
   serviceVersion: packageJson.version,
   environment: 'local',
-  tracesUrl: Bun.env.GARAGE_OTLP_TRACES_URL,
-  logsUrl: Bun.env.GARAGE_OTLP_LOGS_URL,
 }).pipe(Layer.provide(BunHttpClient.layer))
 
 const Live = TailscaleApiLive.pipe(Layer.provide(ProcessLive), Layer.provideMerge(ObservabilityLive))

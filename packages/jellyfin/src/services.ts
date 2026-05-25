@@ -40,13 +40,19 @@ export class JellyfinApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, JellyfinError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const JellyfinConfigLive = Layer.succeed(JellyfinConfig, {
-  get: Effect.fn('JellyfinConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('JELLYFIN_URL')
-      const apiKey = yield* readRequiredString('JELLYFIN_API_KEY')
-      return { url, apiKey }
-    },
-    Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinConfig', method: 'get' })
-  ),
-})
+export const JellyfinConfigLive = Layer.effect(
+  JellyfinConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('JELLYFIN_URL')
+        const apiKey = yield* readRequiredString('JELLYFIN_API_KEY')
+        return { url, apiKey }
+      }).pipe(
+        Effect.withSpan('JellyfinConfig.get'),
+        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinConfig', method: 'get' })
+      )
+    )
+    return JellyfinConfig.of({ get: () => cachedGet })
+  })
+)

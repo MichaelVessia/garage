@@ -1,9 +1,10 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { ConfigProvider, Effect, Layer } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import {
   cliObservabilityLayer,
+  cliObservabilityLayerFromConfig,
   createCliRunner,
   createCliUsageError,
   errorEnvelope,
@@ -159,6 +160,30 @@ it.effect('builds a disabled CLI observability layer without requiring OTLP URLs
         serviceVersion: '0.0.0',
         environment: 'test',
       }).pipe(Layer.provide(NoopHttpClient))
+    )
+  )
+)
+
+it.effect('builds CLI observability from Effect Config', () =>
+  Effect.void.pipe(
+    Effect.provide(
+      cliObservabilityLayerFromConfig({
+        serviceName: '@garage/test-cli',
+        serviceVersion: '0.0.0',
+        environment: 'test',
+      }).pipe(
+        Layer.provide(NoopHttpClient),
+        Layer.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromEnv({
+              env: {
+                GARAGE_OTLP_TRACES_URL: 'http://collector.example.test/v1/traces',
+                GARAGE_OTLP_LOGS_URL: 'http://collector.example.test/v1/logs',
+              },
+            })
+          )
+        )
+      )
     )
   )
 )

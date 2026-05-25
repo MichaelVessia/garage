@@ -74,116 +74,125 @@ const lookupByTmdbId = (tmdbId: number): Option.Option<MovieLookupResult> => {
   return match === undefined ? Option.none() : Option.some(match)
 }
 
-const ApiLayer = Layer.succeed(RadarrApi, {
-  status: () =>
-    Effect.succeed({
-      appName: 'Radarr',
-      version: '5.0.0',
-      branch: 'main',
-      runtimeVersion: '8.0.0',
-    }),
-  rootFolders: () =>
-    Effect.succeed([{ id: 1, path: '/movies', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
-  qualityProfiles: () =>
-    Effect.succeed([
-      {
-        id: 1,
-        name: 'HD-1080p',
-        isDefault: true,
-        upgradeAllowed: true,
-        cutoff: 4,
-        minFormatScore: 0,
-        cutoffFormatScore: 0,
-      },
-    ]),
-  lookupMovies: (query) => Effect.succeed(query === 'Linux ISO' ? [linuxIsoLookup, debianLookup] : []),
-  lookupMovieByTmdbId: (tmdbId) => Effect.succeed(lookupByTmdbId(tmdbId)),
-  getMovieByTmdbId: (tmdbId) => Effect.succeed(tmdbId === 27_205 ? Option.some(linuxIsoMovie) : Option.none()),
-  addMovie: (lookup) => Effect.succeed(movieFromLookup(lookup)),
-  removeMovie: () => Effect.void,
-  collections: () => Effect.succeed([collection]),
-  setCollectionMonitoring: () => Effect.void,
-  queue: () =>
-    Effect.succeed({
-      count: 1,
-      totalRecords: 66,
-      records: [
-        {
-          id: 100,
-          title: 'Linux.ISO.The.Movie.2024.1080p.WEB-DL',
-          movieTitle: 'Linux ISO: The Movie',
-          year: 2024,
-          status: 'completed',
-          trackedDownloadStatus: 'warning',
-          trackedDownloadState: 'importBlocked',
-          statusMessages: ['Automatic import is not possible.'],
-          quality: 'WEBDL-1080p',
-          size: 1000,
-          sizeleft: 0,
-          timeleft: '00:00:00',
-          estimatedCompletionTime: '2026-05-24T04:17:15Z',
-          protocol: 'usenet',
-          downloadClient: 'SABnzbd',
-          indexer: 'NZBgeek (Prowlarr)',
-          outputPath: '/downloads/Linux.ISO.The.Movie.2024.1080p.WEB-DL/',
-        },
-      ],
-    }),
-  calendar: () =>
-    Effect.succeed([
-      {
-        id: 200,
-        title: 'Linux ISO: Next Drop',
-        year: 2026,
-        tmdbId: 27_208,
-        inCinemas: '2026-05-24T00:00:00Z',
-        hasFile: false,
-        monitored: true,
-        status: 'released',
-        isAvailable: true,
-      },
-    ]),
-  missing: () =>
-    Effect.succeed({
-      count: 1,
-      totalRecords: 1338,
-      records: [
-        {
-          id: 300,
-          title: 'Linux ISO: Missing Checksum',
-          year: 2024,
-          tmdbId: 27_209,
-          physicalRelease: '2026-05-20T00:00:00Z',
-          hasFile: false,
-          monitored: true,
-          status: 'released',
-          isAvailable: true,
-        },
-      ],
-    }),
-  history: () =>
-    Effect.succeed({
-      count: 1,
-      totalRecords: 13_124,
-      records: [
-        {
-          id: 400,
-          date: '2026-05-24T02:29:14Z',
-          eventType: 'grabbed',
-          sourceTitle: 'Linux.ISO.The.Movie.2024.1080p.WEB-DL',
-          movieTitle: 'Linux ISO: The Movie',
-          year: 2024,
-          quality: 'WEBDL-1080p',
-          downloadClient: 'SABnzbd',
-          releaseGroup: 'GROUP',
-          size: 1000,
-          downloadId: 'SABnzbd_nzo_1',
-        },
-      ],
-    }),
-})
+const ApiLayer = Layer.effect(
+  RadarrApi,
+  Effect.gen(function* () {
+    const config = yield* RadarrConfig
+    return RadarrApi.of({
+      status: () =>
+        config.get().pipe(
+          Effect.as({
+            appName: 'Radarr',
+            version: '5.0.0',
+            branch: 'main',
+            runtimeVersion: '8.0.0',
+          })
+        ),
+      rootFolders: () =>
+        Effect.succeed([{ id: 1, path: '/movies', freeSpace: 1_000_000, accessible: true, unmappedFolderCount: 0 }]),
+      qualityProfiles: () =>
+        Effect.succeed([
+          {
+            id: 1,
+            name: 'HD-1080p',
+            isDefault: true,
+            upgradeAllowed: true,
+            cutoff: 4,
+            minFormatScore: 0,
+            cutoffFormatScore: 0,
+          },
+        ]),
+      lookupMovies: (query) => Effect.succeed(query === 'Linux ISO' ? [linuxIsoLookup, debianLookup] : []),
+      lookupMovieByTmdbId: (tmdbId) => Effect.succeed(lookupByTmdbId(tmdbId)),
+      getMovieByTmdbId: (tmdbId) => Effect.succeed(tmdbId === 27_205 ? Option.some(linuxIsoMovie) : Option.none()),
+      addMovie: (lookup) => Effect.succeed(movieFromLookup(lookup)),
+      removeMovie: () => Effect.void,
+      collections: () => Effect.succeed([collection]),
+      setCollectionMonitoring: () => Effect.void,
+      queue: () =>
+        Effect.succeed({
+          count: 1,
+          totalRecords: 66,
+          records: [
+            {
+              id: 100,
+              title: 'Linux.ISO.The.Movie.2024.1080p.WEB-DL',
+              movieTitle: 'Linux ISO: The Movie',
+              year: 2024,
+              status: 'completed',
+              trackedDownloadStatus: 'warning',
+              trackedDownloadState: 'importBlocked',
+              statusMessages: ['Automatic import is not possible.'],
+              quality: 'WEBDL-1080p',
+              size: 1000,
+              sizeleft: 0,
+              timeleft: '00:00:00',
+              estimatedCompletionTime: '2026-05-24T04:17:15Z',
+              protocol: 'usenet',
+              downloadClient: 'SABnzbd',
+              indexer: 'NZBgeek (Prowlarr)',
+              outputPath: '/downloads/Linux.ISO.The.Movie.2024.1080p.WEB-DL/',
+            },
+          ],
+        }),
+      calendar: () =>
+        Effect.succeed([
+          {
+            id: 200,
+            title: 'Linux ISO: Next Drop',
+            year: 2026,
+            tmdbId: 27_208,
+            inCinemas: '2026-05-24T00:00:00Z',
+            hasFile: false,
+            monitored: true,
+            status: 'released',
+            isAvailable: true,
+          },
+        ]),
+      missing: () =>
+        Effect.succeed({
+          count: 1,
+          totalRecords: 1338,
+          records: [
+            {
+              id: 300,
+              title: 'Linux ISO: Missing Checksum',
+              year: 2024,
+              tmdbId: 27_209,
+              physicalRelease: '2026-05-20T00:00:00Z',
+              hasFile: false,
+              monitored: true,
+              status: 'released',
+              isAvailable: true,
+            },
+          ],
+        }),
+      history: () =>
+        Effect.succeed({
+          count: 1,
+          totalRecords: 13_124,
+          records: [
+            {
+              id: 400,
+              date: '2026-05-24T02:29:14Z',
+              eventType: 'grabbed',
+              sourceTitle: 'Linux.ISO.The.Movie.2024.1080p.WEB-DL',
+              movieTitle: 'Linux ISO: The Movie',
+              year: 2024,
+              quality: 'WEBDL-1080p',
+              downloadClient: 'SABnzbd',
+              releaseGroup: 'GROUP',
+              size: 1000,
+              downloadId: 'SABnzbd_nzo_1',
+            },
+          ],
+        }),
+    })
+  })
+)
 
-const LiveTestLayer = Layer.mergeAll(ConfigLayer, ApiLayer)
+const LiveTestLayer = ApiLayer.pipe(Layer.provideMerge(ConfigLayer))
+const MissingTestLayer = ApiLayer.pipe(Layer.provideMerge(MissingConfigLayer))
 
 it.effect('root command returns a self-documenting command tree and health summary', () =>
   Effect.gen(function* () {
@@ -222,7 +231,7 @@ it.effect('root command returns a self-documenting command tree and health summa
 
 it.effect('root command still returns the command tree when credentials are missing', () =>
   Effect.gen(function* () {
-    const envelope = yield* executeRadarr([]).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, ApiLayer)))
+    const envelope = yield* executeRadarr([]).pipe(Effect.provide(MissingTestLayer))
 
     assert.strictEqual(envelope.ok, true)
     if (!envelope.ok) {
@@ -244,7 +253,7 @@ it.effect('root command still returns the command tree when credentials are miss
 
 it.effect('missing env on subcommands renders a recoverable error envelope', () =>
   Effect.gen(function* () {
-    const envelope = yield* executeRadarr(['status']).pipe(Effect.provide(Layer.mergeAll(MissingConfigLayer, ApiLayer)))
+    const envelope = yield* executeRadarr(['status']).pipe(Effect.provide(MissingTestLayer))
 
     assert.deepStrictEqual(envelope, {
       ok: false,

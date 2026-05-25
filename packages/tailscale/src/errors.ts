@@ -6,6 +6,7 @@ export class TailscaleCliMissingError extends Schema.TaggedErrorClass<TailscaleC
     code: Schema.Literal('TAILSCALE_CLI_MISSING'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -16,6 +17,7 @@ export class TailscaleCommandFailedError extends Schema.TaggedErrorClass<Tailsca
     message: Schema.String,
     fix: Schema.String,
     exitCode: Schema.Number,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -23,6 +25,7 @@ export class TailscaleDecodeError extends Schema.TaggedErrorClass<TailscaleDecod
   code: Schema.Literal('TAILSCALE_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  cause: Schema.optional(Schema.Defect),
 }) {}
 
 export class TailscaleNotRunningError extends Schema.TaggedErrorClass<TailscaleNotRunningError>()(
@@ -43,26 +46,34 @@ export const TailscaleError = Schema.Union([
 export type TailscaleError = typeof TailscaleError.Type
 export type TailscaleErrorCode = TailscaleError['code']
 
-export const cliMissing = (message: string): TailscaleCliMissingError =>
+export const cliMissing = (message: string, cause?: unknown): TailscaleCliMissingError =>
   new TailscaleCliMissingError({
     code: 'TAILSCALE_CLI_MISSING',
     message,
     fix: 'Install the tailscale CLI on PATH, then run tailscale up interactively if this host is not logged in.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
-export const commandFailed = (command: string, exitCode: number, output: string): TailscaleCommandFailedError =>
+export const commandFailed = (
+  command: string,
+  exitCode: number,
+  output: string,
+  cause?: unknown
+): TailscaleCommandFailedError =>
   new TailscaleCommandFailedError({
     code: 'TAILSCALE_COMMAND_FAILED',
     message: output.length === 0 ? `${command} exited with ${exitCode}` : output,
     fix: 'Run tailscale status locally to inspect daemon state and permissions.',
     exitCode,
+    ...(cause === undefined ? {} : { cause }),
   })
 
-export const decodeError = (message: string): TailscaleDecodeError =>
+export const decodeError = (message: string, cause?: unknown): TailscaleDecodeError =>
   new TailscaleDecodeError({
     code: 'TAILSCALE_DECODE_ERROR',
     message,
     fix: 'Update the Tailscale status schemas to match the local CLI JSON shape.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const notRunning = (backendState: string | undefined): TailscaleNotRunningError =>

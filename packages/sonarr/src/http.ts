@@ -45,7 +45,7 @@ const withAuth = (config: SonarrConfigValue) =>
     'x-api-key': config.apiKey,
   })
 
-const toDecodeError = (error: { readonly message: string }): SonarrError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): SonarrError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -53,20 +53,19 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, SonarrError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('sonarr.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, SonarrError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
+): Effect.fn.Return<A, SonarrError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
 
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
 
-    return yield* decodeBody(response, schema)
-  })
+  return yield* decodeBody(response, schema)
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,
@@ -86,22 +85,21 @@ const deleteJson = <A, I, RD, RE>(
 ): Effect.Effect<A, SonarrError, RD> =>
   executeJson(client, HttpClientRequest.delete(endpoint(config, path, params)).pipe(withAuth(config)), schema)
 
-const postJson = <A, I, RD, RE>(
+const postJson = Effect.fn('sonarr.postJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: SonarrConfigValue,
   path: string,
   body: unknown,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, SonarrError, RD> =>
-  Effect.gen(function* () {
-    const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-      withAuth(config),
-      HttpClientRequest.bodyJson(body),
-      Effect.mapError((error) => decodeError(error.message))
-    )
+): Effect.fn.Return<A, SonarrError, RD> {
+  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
+    withAuth(config),
+    HttpClientRequest.bodyJson(body),
+    Effect.mapError((error) => decodeError(error.message, error))
+  )
 
-    return yield* executeJson(client, request, schema)
-  })
+  return yield* executeJson(client, request, schema)
+})
 
 const lookupByTvdbId = Effect.fn('sonarr.lookupByTvdbId')(function* (
   client: HttpClient.HttpClient,
@@ -239,7 +237,7 @@ export const SonarrApiLive = Layer.effect(
           yield* Effect.annotateCurrentSpan({ 'sonarr.days': days })
           return yield* withConfig(
             Effect.fn('SonarrApi.calendar.configured')(function* (config) {
-              const range = yield* currentCalendarRange(days).pipe(Effect.withSpan('sonarr.currentCalendarRange'))
+              const range = yield* currentCalendarRange(days)
               return yield* getJson(client, config, '/api/v3/calendar', Schema.Array(EpisodeRecordSchema), [
                 ...range,
                 ['includeSeries', true],

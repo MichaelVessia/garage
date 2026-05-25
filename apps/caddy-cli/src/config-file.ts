@@ -19,7 +19,7 @@ export const CaddyConfigFileLive = Layer.effect(
           .pipe(Effect.mapError((cause) => decodeError(`Could not read Caddy config file ${path}: ${cause.message}`)))
 
         return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(JsonObjectSchema))(source).pipe(
-          Effect.mapError((issue) => decodeError(issue.message))
+          Effect.mapError((issue) => decodeError(issue.message, issue))
         )
       }),
     })

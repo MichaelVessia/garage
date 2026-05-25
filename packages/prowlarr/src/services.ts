@@ -45,14 +45,20 @@ export class ProwlarrApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, ProwlarrError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
-export const ProwlarrConfigLive = Layer.succeed(ProwlarrConfig, {
-  get: Effect.fn('ProwlarrConfig.get')(
-    function* () {
-      const url = yield* readRequiredString('PROWLARR_URL')
-      const apiKey = yield* readRequiredString('PROWLARR_API_KEY')
+export const ProwlarrConfigLive = Layer.effect(
+  ProwlarrConfig,
+  Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(
+      Effect.gen(function* () {
+        const url = yield* readRequiredString('PROWLARR_URL')
+        const apiKey = yield* readRequiredString('PROWLARR_API_KEY')
 
-      return { url, apiKey }
-    },
-    Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrConfig', method: 'get' })
-  ),
-})
+        return { url, apiKey }
+      }).pipe(
+        Effect.withSpan('ProwlarrConfig.get'),
+        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrConfig', method: 'get' })
+      )
+    )
+    return ProwlarrConfig.of({ get: () => cachedGet })
+  })
+)

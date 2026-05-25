@@ -18,6 +18,7 @@ export class AutocaliwebUnreachableError extends Schema.TaggedErrorClass<Autocal
     code: Schema.Literal('AUTOCALIWEB_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -33,6 +34,7 @@ export class AutocaliwebDecodeError extends Schema.TaggedErrorClass<AutocaliwebD
     code: Schema.Literal('AUTOCALIWEB_DECODE_ERROR'),
     message: Schema.String,
     fix: Schema.String,
+    cause: Schema.optional(Schema.Defect),
   }
 ) {}
 
@@ -48,11 +50,12 @@ export type AutocaliwebErrorCode = AutocaliwebError['code']
 export const envMissing = (variable: string): AutocaliwebEnvMissingError =>
   new AutocaliwebEnvMissingError({ code: 'AUTOCALIWEB_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
 
-export const unreachable = (message: string): AutocaliwebUnreachableError =>
+export const unreachable = (message: string, cause?: unknown): AutocaliwebUnreachableError =>
   new AutocaliwebUnreachableError({
     code: 'AUTOCALIWEB_UNREACHABLE',
     message,
     fix: 'Verify Autocaliweb is reachable from this host and AUTOCALIWEB_URL points to the base URL.',
+    ...(cause === undefined ? {} : { cause }),
   })
 
 export const httpError = (status: number): AutocaliwebHttpError =>
@@ -62,9 +65,10 @@ export const httpError = (status: number): AutocaliwebHttpError =>
     fix: 'Check the Autocaliweb URL, Basic auth credentials, request parameters, and server logs.',
   })
 
-export const decodeError = (message: string): AutocaliwebDecodeError =>
+export const decodeError = (message: string, cause?: unknown): AutocaliwebDecodeError =>
   new AutocaliwebDecodeError({
     code: 'AUTOCALIWEB_DECODE_ERROR',
     message,
     fix: 'Update the Autocaliweb OPDS or JSON schemas to match the response shape.',
+    ...(cause === undefined ? {} : { cause }),
   })

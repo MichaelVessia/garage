@@ -91,23 +91,22 @@ type RadarrCliError = RadarrError | CliUsageError
 type RadarrCliContext = RadarrApi | RadarrConfig
 type RadarrInvocation = CommandInvocation<RadarrCliResult, RadarrCliError, RadarrCliContext>
 
-const defaultQualityProfileAction = (
+const defaultQualityProfileAction = Effect.fn('radarrCli.defaultQualityProfileAction')(function* (
   tmdbId: number,
   description = 'Add a selected movie to Radarr'
-): Effect.Effect<NextAction, RadarrError, RadarrConfig> =>
-  Effect.gen(function* () {
-    const radarrConfig = yield* RadarrConfig
-    const values = yield* radarrConfig.get()
+): Effect.fn.Return<NextAction, RadarrError, RadarrConfig> {
+  const radarrConfig = yield* RadarrConfig
+  const values = yield* radarrConfig.get()
 
-    return {
-      command: addCommandTemplate,
-      description,
-      params: {
-        'tmdb-id': { value: tmdbId, description: 'TMDB movie ID' },
-        'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Radarr quality profile ID' },
-      },
-    }
-  })
+  return {
+    command: addCommandTemplate,
+    description,
+    params: {
+      'tmdb-id': { value: tmdbId, description: 'TMDB movie ID' },
+      'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Radarr quality profile ID' },
+    },
+  }
+})
 
 const existsNextActions = (result: ExistsResult): Effect.Effect<ReadonlyArray<NextAction>, RadarrError, RadarrConfig> =>
   result.exists

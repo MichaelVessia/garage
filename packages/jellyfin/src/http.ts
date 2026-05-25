@@ -38,7 +38,7 @@ const endpoint = (
 const withAuth = (config: JellyfinConfigValue) =>
   HttpClientRequest.setHeaders({ accept: 'application/json', 'x-emby-token': config.apiKey })
 
-const toDecodeError = (error: { readonly message: string }): JellyfinError => decodeError(error.message)
+const toDecodeError = (error: { readonly message: string }): JellyfinError => decodeError(error.message, error)
 
 const decodeBody = <A, I, RD, RE>(
   response: HttpClientResponse.HttpClientResponse,
@@ -46,30 +46,28 @@ const decodeBody = <A, I, RD, RE>(
 ): Effect.Effect<A, JellyfinError, RD> =>
   HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
 
-const executeJson = <A, I, RD, RE>(
+const executeJson = Effect.fn('jellyfin.executeJson')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest,
   schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, JellyfinError, RD> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
-    return yield* decodeBody(response, schema)
-  })
+): Effect.fn.Return<A, JellyfinError, RD> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
+  return yield* decodeBody(response, schema)
+})
 
-const executeStatus = (
+const executeStatus = Effect.fn('jellyfin.executeStatus')(function* (
   client: HttpClient.HttpClient,
   request: HttpClientRequest.HttpClientRequest
-): Effect.Effect<number, JellyfinError> =>
-  Effect.gen(function* () {
-    const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message)))
-    if (response.status < 200 || response.status >= 300) {
-      return yield* httpError(response.status)
-    }
-    return response.status
-  })
+): Effect.fn.Return<number, JellyfinError> {
+  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
+  if (response.status < 200 || response.status >= 300) {
+    return yield* httpError(response.status)
+  }
+  return response.status
+})
 
 const getJson = <A, I, RD, RE>(
   client: HttpClient.HttpClient,
@@ -139,7 +137,7 @@ export const JellyfinApiLive = Layer.effect(
           yield* Effect.annotateCurrentSpan({ 'jellyfin.limit': options.limit })
           return yield* withConfig(
             Effect.fn('JellyfinApi.recentlyAdded.configured')(function* (config) {
-              const userId = yield* enabledUserId(client, config).pipe(Effect.withSpan('jellyfin.enabledUserId'))
+              const userId = yield* enabledUserId(client, config)
               return yield* getJson(client, config, `/Users/${userId}/Items/Latest`, Schema.Array(BaseItemSchema), [
                 ['Limit', options.limit],
               ]).pipe(Effect.map(listResult))
@@ -156,7 +154,7 @@ export const JellyfinApiLive = Layer.effect(
           })
           return yield* withConfig(
             Effect.fn('JellyfinApi.itemSearch.configured')(function* (config) {
-              const userId = yield* enabledUserId(client, config).pipe(Effect.withSpan('jellyfin.enabledUserId'))
+              const userId = yield* enabledUserId(client, config)
               return yield* getJson(client, config, `/Users/${userId}/Items`, ItemsResponseSchema, [
                 ['searchTerm', options.query],
                 ['Recursive', true],
