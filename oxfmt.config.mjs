@@ -14,5 +14,6 @@ export default defineConfig({
     '**/*.yml',
     '**/*.html',
     '**/*.md',
+    'repos/**/*',
   ],
 })

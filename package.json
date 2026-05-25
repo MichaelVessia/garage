@@ -15,6 +15,8 @@
     "ast-grep:test": "ast-grep test",
     "version:clis": "bun scripts/cli-versioning.ts",
     "validate": "bun run typecheck && bun run lint && bun run format && bun run ast-grep && bun run ast-grep:test && bun run test",
+    "vendor:update": "bun run vendor:update:effect-smol",
+    "vendor:update:effect-smol": "git subtree pull --prefix=repos/effect-smol https://github.com/Effect-TS/effect-smol main --squash",
     "postinstall": "effect-language-service patch && effect-tsgo patch",
     "prepare": "lefthook install"
   },

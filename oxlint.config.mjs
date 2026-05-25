@@ -8,7 +8,7 @@ export default defineConfig({
     node: true,
     es2022: true,
   },
-  ignorePatterns: ['dist/**/*', 'node_modules/**/*'],
+  ignorePatterns: ['dist/**/*', 'node_modules/**/*', 'repos/**/*'],
   overrides: [
     {
       files: ['**/services/**/*.ts'],
