@@ -22,6 +22,7 @@ export class ImmichHttpError extends Schema.TaggedErrorClass<ImmichHttpError>()(
   code: Schema.Literal('IMMICH_HTTP_ERROR'),
   message: Schema.String,
   fix: Schema.String,
+  status: Schema.Number,
 }) {}
 
 export class ImmichDecodeError extends Schema.TaggedErrorClass<ImmichDecodeError>()('ImmichDecodeError', {
@@ -54,6 +55,7 @@ export const httpError = (status: number): ImmichHttpError =>
     code: 'IMMICH_HTTP_ERROR',
     message: `Immich returned HTTP ${status}`,
     fix: 'Check the Immich API key, request parameters, and Immich server logs.',
+    status,
   })
 
 export const decodeError = (message: string): ImmichDecodeError =>

@@ -116,3 +116,51 @@ it.effect('ImmichApiLive falls back from admin users and empty smart search', ()
     )
   })
 )
+
+it.effect('ImmichApiLive does not fall back from admin users decode failures', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer((_, url) =>
+      url.pathname === '/api/admin/users'
+        ? { status: 200, body: { users: [] } }
+        : { status: 200, body: [{ id: 'u1', name: 'Fallback User', email: 'fallback@example.test' }] }
+    )
+    const layer = ImmichApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    const error = yield* users.pipe(Effect.provide(layer), Effect.flip)
+
+    assert.strictEqual(error._tag, 'ImmichDecodeError')
+    assert.deepStrictEqual(
+      (yield* Ref.get(fake.requests)).map((request) => ({ method: request.method, url: request.url })),
+      [{ method: 'GET', url: 'http://immich.example.test/api/admin/users' }]
+    )
+  })
+)
+
+it.effect('ImmichApiLive does not fall back from smart search server failures', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer((method, url) =>
+      method === 'POST' && url.pathname === '/api/search/smart'
+        ? { status: 500, body: { message: 'server error' } }
+        : {
+            status: 200,
+            body: {
+              assets: {
+                total: 1,
+                count: 1,
+                items: [{ id: 'asset1', type: 'IMAGE', originalFileName: 'IMG_0001.jpg' }],
+              },
+            },
+          }
+    )
+    const layer = ImmichApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    const error = yield* search({ query: 'IMG', limit: 5 }).pipe(Effect.provide(layer), Effect.flip)
+
+    assert.strictEqual(error._tag, 'ImmichHttpError')
+    assert.strictEqual(error.message, 'Immich returned HTTP 500')
+    assert.deepStrictEqual(
+      (yield* Ref.get(fake.requests)).map((request) => ({ method: request.method, url: request.url })),
+      [{ method: 'POST', url: 'http://immich.example.test/api/search/smart' }]
+    )
+  })
+)

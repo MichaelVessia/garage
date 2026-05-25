@@ -156,15 +156,15 @@ export const ImmichApiLive = Layer.effect(
           return yield* withConfig((config) =>
             getJson(client, config, '/admin/users', Schema.Array(UserSchema)).pipe(
               Effect.map((records) => usersResult(records)),
-              Effect.matchEffect({
-                onFailure: () =>
-                  getJson(client, config, '/users', Schema.Array(UserSchema)).pipe(
-                    Effect.map((records) =>
-                      usersResult(records, 'admin fields unavailable: API key lacks adminUser.read')
+              Effect.catchTag('ImmichHttpError', (error) =>
+                error.status === 403
+                  ? getJson(client, config, '/users', Schema.Array(UserSchema)).pipe(
+                      Effect.map((records) =>
+                        usersResult(records, 'admin fields unavailable: API key lacks adminUser.read')
+                      )
                     )
-                  ),
-                onSuccess: (result) => Effect.succeed(result),
-              })
+                  : Effect.fail(error)
+              )
             )
           )
         },
@@ -211,11 +211,9 @@ export const ImmichApiLive = Layer.effect(
               { query: options.query, size: options.limit },
               SearchResponseSchema('smart', options.query)
             ).pipe(
-              Effect.matchEffect({
-                onFailure: () => metadataSearch(client, config, options),
-                onSuccess: (response) =>
-                  response.count > 0 ? Effect.succeed(response) : metadataSearch(client, config, options),
-              })
+              Effect.flatMap((response) =>
+                response.count > 0 ? Effect.succeed(response) : metadataSearch(client, config, options)
+              )
             )
           )
         },
