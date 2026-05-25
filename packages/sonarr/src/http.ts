@@ -1,4 +1,4 @@
-import { DateTime, Effect, Layer, Option, Schema } from 'effect'
+import { DateTime, Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -42,7 +42,7 @@ const endpoint = (
 const withAuth = (config: SonarrConfigValue) =>
   HttpClientRequest.setHeaders({
     accept: 'application/json',
-    'x-api-key': config.apiKey,
+    'x-api-key': Redacted.value(config.apiKey),
   })
 
 const toDecodeError = (error: { readonly message: string }): SonarrError => decodeError(error.message, error)

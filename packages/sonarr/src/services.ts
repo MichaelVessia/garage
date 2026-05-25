@@ -1,5 +1,5 @@
 import type { Option } from 'effect'
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Context, Effect, Layer, Schema } from 'effect'
 
 import { decodeError, envMissing } from './errors.js'
 import type { SonarrError } from './errors.js'
@@ -51,13 +51,16 @@ export class SonarrApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, SonarrError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const SonarrConfigLive = Layer.effect(
   SonarrConfig,
   Effect.gen(function* () {
     const cachedGet = yield* Effect.cached(
       Effect.gen(function* () {
         const url = yield* readRequiredString('SONARR_URL')
-        const apiKey = yield* readRequiredString('SONARR_API_KEY')
+        const apiKey = yield* readRequiredSecret('SONARR_API_KEY')
         const defaultQualityProfileId = yield* Config.int('SONARR_DEFAULT_QUALITY_PROFILE').pipe(
           Config.withDefault(1),
           Effect.mapError((error) => decodeError(error.message, error))

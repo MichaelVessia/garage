@@ -1,7 +1,17 @@
 import { assert, it } from '@effect/vitest'
-import { ConfigProvider, Effect, Layer, Ref } from 'effect'
+import { ConfigProvider, Effect, Layer, Redacted, Ref } from 'effect'
 
 import { SonarrConfig, SonarrConfigLive } from '../src/index.js'
+
+const assertConfig = (actual: {
+  readonly url: string
+  readonly apiKey: Redacted.Redacted<string>
+  readonly defaultQualityProfileId: number
+}): void => {
+  assert.strictEqual(actual.url, 'http://sonarr.test')
+  assert.strictEqual(Redacted.value(actual.apiKey), 'secret')
+  assert.strictEqual(actual.defaultQualityProfileId, 7)
+}
 
 it.effect('SonarrConfigLive caches resolved configuration values per layer instance', () =>
   Effect.gen(function* () {
@@ -23,16 +33,8 @@ it.effect('SonarrConfigLive caches resolved configuration values per layer insta
     yield* Effect.gen(function* () {
       const config = yield* SonarrConfig
 
-      assert.deepStrictEqual(yield* config.get(), {
-        url: 'http://sonarr.test',
-        apiKey: 'secret',
-        defaultQualityProfileId: 7,
-      })
-      assert.deepStrictEqual(yield* config.get(), {
-        url: 'http://sonarr.test',
-        apiKey: 'secret',
-        defaultQualityProfileId: 7,
-      })
+      assertConfig(yield* config.get())
+      assertConfig(yield* config.get())
     }).pipe(Effect.provide(layer))
     assert.strictEqual(yield* Ref.get(reads), 3)
   })

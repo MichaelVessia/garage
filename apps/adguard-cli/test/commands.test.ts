@@ -1,12 +1,13 @@
 import { assert, it } from '@effect/vitest'
 import { AdguardApi, AdguardConfig, envMissing } from '@garage/adguard'
 import type { ClientLookupOptions, LimitOptions, ProtectionToggleOptions, SearchOptions } from '@garage/adguard'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import { executeAdguard } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AdguardConfig, {
-  get: () => Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: 'secret' }),
+  get: () =>
+    Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: Redacted.make('secret') }),
 })
 
 const MissingConfigLayer = Layer.succeed(AdguardConfig, {

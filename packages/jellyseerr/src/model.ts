@@ -7,7 +7,7 @@ const OptionalStatusValue = Schema.optional(Schema.Union([Schema.Number, Schema.
 
 export const JellyseerrConfigValueSchema = Schema.Struct({
   url: Schema.String,
-  apiKey: Schema.String,
+  apiKey: Schema.RedactedFromValue(Schema.String),
 })
 export type JellyseerrConfigValue = typeof JellyseerrConfigValueSchema.Type
 

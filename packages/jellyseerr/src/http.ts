@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import type { Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
@@ -40,7 +40,7 @@ const endpoint = (
 const withAuth = (config: JellyseerrConfigValue) =>
   HttpClientRequest.setHeaders({
     accept: 'application/json',
-    'x-api-key': config.apiKey,
+    'x-api-key': Redacted.value(config.apiKey),
   })
 
 const toDecodeError = (error: { readonly message: string }): JellyseerrError => decodeError(error.message, error)

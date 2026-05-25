@@ -1,4 +1,4 @@
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Context, Effect, Layer, Schema } from 'effect'
 
 import { envMissing } from './errors.js'
 import type { SabnzbdError } from './errors.js'
@@ -38,13 +38,16 @@ export class SabnzbdApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, SabnzbdError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const SabnzbdConfigLive = Layer.effect(
   SabnzbdConfig,
   Effect.gen(function* () {
     const cachedGet = yield* Effect.cached(
       Effect.gen(function* () {
         const url = yield* readRequiredString('SABNZBD_URL')
-        const apiKey = yield* readRequiredString('SABNZBD_API_KEY')
+        const apiKey = yield* readRequiredSecret('SABNZBD_API_KEY')
 
         return { url, apiKey }
       }).pipe(

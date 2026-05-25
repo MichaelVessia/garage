@@ -1,5 +1,5 @@
 import type { Option } from 'effect'
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Context, Effect, Layer, Schema } from 'effect'
 
 import { decodeError, envMissing } from './errors.js'
 import type { RadarrError } from './errors.js'
@@ -54,13 +54,16 @@ export class RadarrApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, RadarrError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const RadarrConfigLive = Layer.effect(
   RadarrConfig,
   Effect.gen(function* () {
     const cachedGet = yield* Effect.cached(
       Effect.gen(function* () {
         const url = yield* readRequiredString('RADARR_URL')
-        const apiKey = yield* readRequiredString('RADARR_API_KEY')
+        const apiKey = yield* readRequiredSecret('RADARR_API_KEY')
         const defaultQualityProfileId = yield* Config.int('RADARR_DEFAULT_QUALITY_PROFILE').pipe(
           Config.withDefault(1),
           Effect.mapError((error) => decodeError(error.message, error))

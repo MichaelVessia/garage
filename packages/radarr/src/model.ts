@@ -7,7 +7,7 @@ const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
 export const RadarrConfigValueSchema = Schema.Struct({
   url: Schema.String,
-  apiKey: Schema.String,
+  apiKey: Schema.RedactedFromValue(Schema.String),
   defaultQualityProfileId: Schema.Number,
 })
 export type RadarrConfigValue = typeof RadarrConfigValueSchema.Type

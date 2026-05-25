@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Logger, Option, References } from 'effect'
+import { Effect, Layer, Logger, Option, Redacted, References } from 'effect'
 
 import { notFound, SonarrApi, SonarrConfig, status } from '../src/index.js'
 
@@ -11,7 +11,8 @@ it.effect('annotates operation logs with package and operation', () =>
     })
 
     const ConfigLayer = Layer.succeed(SonarrConfig, {
-      get: () => Effect.succeed({ url: 'http://sonarr.test', apiKey: 'key', defaultQualityProfileId: 1 }),
+      get: () =>
+        Effect.succeed({ url: 'http://sonarr.test', apiKey: Redacted.make('key'), defaultQualityProfileId: 1 }),
     })
     const ApiLayer = Layer.succeed(
       SonarrApi,

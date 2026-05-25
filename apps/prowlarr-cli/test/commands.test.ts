@@ -1,7 +1,7 @@
 import { assert, it } from '@effect/vitest'
 import { ProwlarrApi, ProwlarrConfig, envMissing } from '@garage/prowlarr'
 import type { SearchOptions } from '@garage/prowlarr'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import { executeProwlarr } from '../src/index.js'
 
@@ -43,7 +43,7 @@ const ConfigLayer = Layer.succeed(ProwlarrConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://prowlarr.example.test',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
     }),
 })
 

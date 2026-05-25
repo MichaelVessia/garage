@@ -8,7 +8,7 @@ const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 export const AdguardConfigValueSchema = Schema.Struct({
   url: Schema.String,
   username: Schema.String,
-  password: Schema.String,
+  password: Schema.RedactedFromValue(Schema.String),
 })
 export type AdguardConfigValue = typeof AdguardConfigValueSchema.Type
 

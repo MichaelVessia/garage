@@ -1,7 +1,7 @@
 import { assert, it } from '@effect/vitest'
 import { RadarrApi, RadarrConfig, envMissing } from '@garage/radarr'
 import type { MovieLookupResult, MovieRecord } from '@garage/radarr'
-import { Effect, Layer, Option } from 'effect'
+import { Effect, Layer, Option, Redacted } from 'effect'
 
 import { executeRadarr } from '../src/index.js'
 
@@ -48,7 +48,7 @@ const ConfigLayer = Layer.succeed(RadarrConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://radarr.example.test',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
       defaultQualityProfileId: 1,
     }),
 })

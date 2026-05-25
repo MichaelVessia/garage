@@ -7,7 +7,7 @@ const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
 export const SabnzbdConfigValueSchema = Schema.Struct({
   url: Schema.String,
-  apiKey: Schema.String,
+  apiKey: Schema.RedactedFromValue(Schema.String),
 })
 export type SabnzbdConfigValue = typeof SabnzbdConfigValueSchema.Type
 

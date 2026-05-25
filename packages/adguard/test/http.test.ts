@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Ref } from 'effect'
+import { Effect, Layer, Option, Redacted, Ref } from 'effect'
 import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { AdguardApiLive, AdguardConfig, protectionToggle, queryLogSearch, stats, status } from '../src/index.js'
@@ -16,7 +16,8 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(AdguardConfig, {
-  get: () => Effect.succeed({ url: 'http://adguard.example.test/', username: 'admin', password: 'secret' }),
+  get: () =>
+    Effect.succeed({ url: 'http://adguard.example.test/', username: 'admin', password: Redacted.make('secret') }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

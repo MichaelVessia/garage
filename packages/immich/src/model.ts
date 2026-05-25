@@ -6,7 +6,7 @@ const OptionalBoolean = Schema.optional(Schema.Boolean)
 
 export const ImmichConfigValueSchema = Schema.Struct({
   url: Schema.String,
-  apiKey: Schema.String,
+  apiKey: Schema.RedactedFromValue(Schema.String),
 })
 export type ImmichConfigValue = typeof ImmichConfigValueSchema.Type
 

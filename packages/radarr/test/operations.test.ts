@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Ref } from 'effect'
+import { Effect, Layer, Option, Redacted, Ref } from 'effect'
 
 import {
   RadarrApi,
@@ -88,7 +88,7 @@ const ConfigLayer = Layer.succeed(RadarrConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://radarr.example.test',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
       defaultQualityProfileId: 1,
     }),
 })

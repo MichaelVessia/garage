@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Layer, Redacted, Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -95,7 +95,7 @@ const login = Effect.fn('tubearchivist.login')(
   ): Effect.fn.Return<SessionCookies, TubearchivistError> {
     const request = yield* HttpClientRequest.post(endpoint(config, '/user/login/')).pipe(
       HttpClientRequest.setHeaders({ accept: 'application/json' }),
-      HttpClientRequest.bodyJson({ username: config.username, password: config.password }),
+      HttpClientRequest.bodyJson({ username: config.username, password: Redacted.value(config.password) }),
       Effect.mapError((cause) => decodeError(cause.message, cause))
     )
     const response = yield* executeResponse(client, request)

@@ -3,7 +3,7 @@ import * as BunPath from '@effect/platform-bun/BunPath'
 import { assert, it } from '@effect/vitest'
 import { TubearchivistApi, TubearchivistConfig, TubearchivistSessionCache, envMissing } from '@garage/tubearchivist'
 import type { LimitOptions, SearchOptions, SubscriptionOptions, TubearchivistError } from '@garage/tubearchivist'
-import { ConfigProvider, Effect, Layer, Ref } from 'effect'
+import { ConfigProvider, Effect, Layer, Redacted, Ref } from 'effect'
 import { FileSystem } from 'effect/FileSystem'
 import { Path } from 'effect/Path'
 
@@ -25,7 +25,12 @@ const SessionCacheTestLayer = TubearchivistSessionCacheFileLive.pipe(
 )
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
-  get: () => Effect.succeed({ url: 'http://tubearchivist.example.test', username: 'admin', password: 'secret' }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://tubearchivist.example.test',
+      username: 'admin',
+      password: Redacted.make('secret'),
+    }),
 })
 
 const MissingConfigLayer = Layer.succeed(TubearchivistConfig, {

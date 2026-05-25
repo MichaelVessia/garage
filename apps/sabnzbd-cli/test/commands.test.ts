@@ -1,7 +1,7 @@
 import { assert, it } from '@effect/vitest'
 import { SabnzbdApi, SabnzbdConfig, envMissing } from '@garage/sabnzbd'
 import type { DeleteOptions, LimitOptions } from '@garage/sabnzbd'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import { executeSabnzbd } from '../src/index.js'
 
@@ -9,7 +9,7 @@ const ConfigLayer = Layer.succeed(SabnzbdConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://sabnzbd.example.test',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
     }),
 })
 

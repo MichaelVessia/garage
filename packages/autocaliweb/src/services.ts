@@ -1,4 +1,4 @@
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Context, Effect, Layer, Schema } from 'effect'
 
 import { envMissing } from './errors.js'
 import type { AutocaliwebError } from './errors.js'
@@ -38,6 +38,9 @@ export class AutocaliwebApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, AutocaliwebError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const AutocaliwebConfigLive = Layer.effect(
   AutocaliwebConfig,
   Effect.gen(function* () {
@@ -45,7 +48,7 @@ export const AutocaliwebConfigLive = Layer.effect(
       Effect.gen(function* () {
         const url = yield* readRequiredString('AUTOCALIWEB_URL')
         const username = yield* readRequiredString('AUTOCALIWEB_USERNAME')
-        const password = yield* readRequiredString('AUTOCALIWEB_PASSWORD')
+        const password = yield* readRequiredSecret('AUTOCALIWEB_PASSWORD')
         return { url, username, password }
       }).pipe(
         Effect.withSpan('AutocaliwebConfig.get'),

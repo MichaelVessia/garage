@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import type { Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
@@ -20,7 +20,8 @@ const endpoint = (config: AutocaliwebConfigValue, path: string): string =>
     ? path
     : `${normalizeBaseUrl(config.url)}${path.startsWith('/') ? path : `/${path}`}`
 
-const basicAuth = (config: AutocaliwebConfigValue): string => `Basic ${btoa(`${config.username}:${config.password}`)}`
+const basicAuth = (config: AutocaliwebConfigValue): string =>
+  `Basic ${btoa(`${config.username}:${Redacted.value(config.password)}`)}`
 
 const withBasicAuth = (config: AutocaliwebConfigValue, accept: string) =>
   HttpClientRequest.setHeaders({ accept, authorization: basicAuth(config) })

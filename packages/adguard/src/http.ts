@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import type { Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
@@ -45,7 +45,7 @@ const withAuth =
   (request: HttpClientRequest.HttpClientRequest): HttpClientRequest.HttpClientRequest =>
     request.pipe(
       HttpClientRequest.setHeaders({ accept: 'application/json' }),
-      HttpClientRequest.basicAuth(config.username, config.password)
+      HttpClientRequest.basicAuth(config.username, Redacted.value(config.password))
     )
 
 const toDecodeError = (error: { readonly message: string }): AdguardError => decodeError(error.message, error)

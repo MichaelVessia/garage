@@ -1,12 +1,12 @@
 import { assert, it } from '@effect/vitest'
 import { JellyfinApi, JellyfinConfig, envMissing } from '@garage/jellyfin'
 import type { LimitOptions, SearchOptions } from '@garage/jellyfin'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import { executeJellyfin } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: () => Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyfin.example.test', apiKey: Redacted.make('secret') }),
 })
 
 const MissingConfigLayer = Layer.succeed(JellyfinConfig, {

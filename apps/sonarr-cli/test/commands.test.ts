@@ -1,6 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import { SonarrApi, SonarrConfig, envMissing } from '@garage/sonarr'
-import { Effect, Layer, Option } from 'effect'
+import { Effect, Layer, Option, Redacted } from 'effect'
 
 import { executeSonarr } from '../src/index.js'
 
@@ -46,7 +46,7 @@ const ConfigLayer = Layer.succeed(SonarrConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://sonarr.example.test',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
       defaultQualityProfileId: 1,
     }),
 })

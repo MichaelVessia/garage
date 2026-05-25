@@ -7,7 +7,7 @@ const StringArray = Schema.Array(Schema.String)
 export const AutocaliwebConfigValueSchema = Schema.Struct({
   url: Schema.String,
   username: Schema.String,
-  password: Schema.String,
+  password: Schema.RedactedFromValue(Schema.String),
 })
 export type AutocaliwebConfigValue = typeof AutocaliwebConfigValueSchema.Type
 

@@ -1,7 +1,7 @@
 import { assert, it } from '@effect/vitest'
 import { JellyseerrApi, JellyseerrConfig, envMissing } from '@garage/jellyseerr'
 import type { RequestListOptions, SearchOptions } from '@garage/jellyseerr'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import type { RootResult } from '../src/command-tree.js'
 import { executeJellyseerr } from '../src/index.js'
@@ -14,7 +14,7 @@ const isRootResult = (result: JellyseerrCliResult): result is RootResult =>
   'name' in result && result.name === 'jellyseerr' && 'commands' in result && Array.isArray(result.commands)
 
 const ConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test', apiKey: Redacted.make('secret') }),
 })
 
 const MissingConfigLayer = Layer.succeed(JellyseerrConfig, {

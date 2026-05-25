@@ -1,4 +1,4 @@
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Layer, Redacted, Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -45,7 +45,7 @@ const endpoint = (
 const withAuth = (config: ImmichConfigValue) =>
   HttpClientRequest.setHeaders({
     accept: 'application/json',
-    'x-api-key': config.apiKey,
+    'x-api-key': Redacted.value(config.apiKey),
   })
 
 const toDecodeError = (error: { readonly message: string }): ImmichError => decodeError(error.message, error)

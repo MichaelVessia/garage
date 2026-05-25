@@ -1,12 +1,17 @@
 import { assert, it } from '@effect/vitest'
 import { AutocaliwebApi, AutocaliwebConfig, envMissing } from '@garage/autocaliweb'
 import type { LimitOptions, SearchOptions } from '@garage/autocaliweb'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import { executeAutocaliweb } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
-  get: () => Effect.succeed({ url: 'http://autocaliweb.example.test', username: 'fixture-user', password: 'secret' }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://autocaliweb.example.test',
+      username: 'fixture-user',
+      password: Redacted.make('secret'),
+    }),
 })
 
 const MissingConfigLayer = Layer.succeed(AutocaliwebConfig, { get: () => Effect.fail(envMissing('AUTOCALIWEB_URL')) })

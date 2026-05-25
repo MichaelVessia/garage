@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { SabnzbdApiLive, SabnzbdConfig, deleteQueueItem, queue, status } from '../src/index.js'
@@ -18,7 +18,7 @@ const ConfigLayer = Layer.succeed(SabnzbdConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://sabnzbd.example.test/',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
     }),
 })
 

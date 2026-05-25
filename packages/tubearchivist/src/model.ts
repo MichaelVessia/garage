@@ -10,7 +10,7 @@ export type JsonObject = typeof JsonObjectSchema.Type
 export const TubearchivistConfigValueSchema = Schema.Struct({
   url: Schema.String,
   username: Schema.String,
-  password: Schema.String,
+  password: Schema.RedactedFromValue(Schema.String),
 })
 export type TubearchivistConfigValue = typeof TubearchivistConfigValueSchema.Type
 

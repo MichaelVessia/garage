@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Ref } from 'effect'
+import { Effect, Layer, Option, Redacted, Ref } from 'effect'
 
 import {
   SonarrApi,
@@ -70,7 +70,7 @@ const ConfigLayer = Layer.succeed(SonarrConfig, {
   get: () =>
     Effect.succeed({
       url: 'http://sonarr.example.test',
-      apiKey: 'secret',
+      apiKey: Redacted.make('secret'),
       defaultQualityProfileId: 1,
     }),
 })

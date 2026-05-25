@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import {
   ImmichApi,
@@ -22,7 +22,7 @@ import {
 import type { AlbumInfoOptions, LimitOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(ImmichConfig, {
-  get: () => Effect.succeed({ url: 'http://immich.example.test', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://immich.example.test', apiKey: Redacted.make('secret') }),
 })
 
 const makeApiLayer = Effect.gen(function* () {

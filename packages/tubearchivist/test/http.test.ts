@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Ref } from 'effect'
+import { Effect, Layer, Option, Redacted, Ref } from 'effect'
 import { Headers as HttpHeaders, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -27,7 +27,12 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
-  get: () => Effect.succeed({ url: 'http://tubearchivist.example.test/', username: 'admin', password: 'secret' }),
+  get: () =>
+    Effect.succeed({
+      url: 'http://tubearchivist.example.test/',
+      username: 'admin',
+      password: Redacted.make('secret'),
+    }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>

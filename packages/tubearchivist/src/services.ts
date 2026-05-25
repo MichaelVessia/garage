@@ -1,4 +1,4 @@
-import { Config, Context, Effect, Layer, Ref } from 'effect'
+import { Config, Context, Effect, Layer, Ref, Schema } from 'effect'
 
 import { envMissing } from './errors.js'
 import type { TubearchivistError } from './errors.js'
@@ -55,6 +55,9 @@ export class TubearchivistApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, TubearchivistError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const TubearchivistConfigLive = Layer.effect(
   TubearchivistConfig,
   Effect.gen(function* () {
@@ -62,7 +65,7 @@ export const TubearchivistConfigLive = Layer.effect(
       Effect.gen(function* () {
         const url = yield* readRequiredString('TUBEARCHIVIST_URL')
         const username = yield* readRequiredString('TUBEARCHIVIST_USERNAME')
-        const password = yield* readRequiredString('TUBEARCHIVIST_PASSWORD')
+        const password = yield* readRequiredSecret('TUBEARCHIVIST_PASSWORD')
         return { url, username, password }
       }).pipe(
         Effect.withSpan('TubearchivistConfig.get'),

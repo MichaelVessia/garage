@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import type { Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
@@ -29,7 +29,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string =>
   `${normalizeBaseUrl(config.url)}/api?${queryString([
-    ['apikey', config.apiKey],
+    ['apikey', Redacted.value(config.apiKey)],
     ['output', 'json'],
     ['mode', mode],
     ...params,

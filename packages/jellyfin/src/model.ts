@@ -7,7 +7,7 @@ const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
 export const JellyfinConfigValueSchema = Schema.Struct({
   url: Schema.String,
-  apiKey: Schema.String,
+  apiKey: Schema.RedactedFromValue(Schema.String),
 })
 export type JellyfinConfigValue = typeof JellyfinConfigValueSchema.Type
 

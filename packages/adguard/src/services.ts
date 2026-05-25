@@ -1,4 +1,4 @@
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Context, Effect, Layer, Schema } from 'effect'
 
 import { envMissing } from './errors.js'
 import type { AdguardError } from './errors.js'
@@ -49,6 +49,9 @@ export class AdguardApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, AdguardError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const AdguardConfigLive = Layer.effect(
   AdguardConfig,
   Effect.gen(function* () {
@@ -56,7 +59,7 @@ export const AdguardConfigLive = Layer.effect(
       Effect.gen(function* () {
         const url = yield* readRequiredString('ADGUARD_URL')
         const username = yield* readRequiredString('ADGUARD_USERNAME')
-        const password = yield* readRequiredString('ADGUARD_PASSWORD')
+        const password = yield* readRequiredSecret('ADGUARD_PASSWORD')
         return { url, username, password }
       }).pipe(
         Effect.withSpan('AdguardConfig.get'),

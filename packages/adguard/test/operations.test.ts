@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Ref } from 'effect'
+import { Effect, Layer, Redacted, Ref } from 'effect'
 
 import {
   AdguardApi,
@@ -22,7 +22,8 @@ import {
 import type { ClientLookupOptions, LimitOptions, ProtectionToggleOptions, SearchOptions } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AdguardConfig, {
-  get: () => Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: 'secret' }),
+  get: () =>
+    Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: Redacted.make('secret') }),
 })
 
 const makeApiLayer = Effect.gen(function* () {

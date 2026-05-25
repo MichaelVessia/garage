@@ -6,7 +6,7 @@ const OptionalBoolean = Schema.optional(Schema.Boolean)
 
 export const ProwlarrConfigValueSchema = Schema.Struct({
   url: Schema.String,
-  apiKey: Schema.String,
+  apiKey: Schema.RedactedFromValue(Schema.String),
 })
 export type ProwlarrConfigValue = typeof ProwlarrConfigValueSchema.Type
 

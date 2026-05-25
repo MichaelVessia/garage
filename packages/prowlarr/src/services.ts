@@ -1,4 +1,4 @@
-import { Config, Context, Effect, Layer } from 'effect'
+import { Config, Context, Effect, Layer, Schema } from 'effect'
 
 import { envMissing } from './errors.js'
 import type { ProwlarrError } from './errors.js'
@@ -45,13 +45,16 @@ export class ProwlarrApi extends Context.Service<
 const readRequiredString = (name: string): Effect.Effect<string, ProwlarrError> =>
   Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readRequiredSecret = (name: string) =>
+  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+
 export const ProwlarrConfigLive = Layer.effect(
   ProwlarrConfig,
   Effect.gen(function* () {
     const cachedGet = yield* Effect.cached(
       Effect.gen(function* () {
         const url = yield* readRequiredString('PROWLARR_URL')
-        const apiKey = yield* readRequiredString('PROWLARR_API_KEY')
+        const apiKey = yield* readRequiredSecret('PROWLARR_API_KEY')
 
         return { url, apiKey }
       }).pipe(

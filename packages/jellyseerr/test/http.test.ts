@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Ref } from 'effect'
+import { Effect, Layer, Option, Redacted, Ref } from 'effect'
 import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { JellyseerrApiLive, JellyseerrConfig, approve, deleteRequest, requests, search, status } from '../src/index.js'
@@ -16,7 +16,7 @@ interface FakeResponse {
 }
 
 const ConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test/', apiKey: 'secret' }),
+  get: () => Effect.succeed({ url: 'http://jellyseerr.example.test/', apiKey: Redacted.make('secret') }),
 })
 
 const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
