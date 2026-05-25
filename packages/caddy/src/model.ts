@@ -1,42 +1,56 @@
-export interface CaddyConfigValue {
-  readonly url: string
-}
+import { Schema } from 'effect'
 
-export type JsonObject = Readonly<Record<string, unknown>>
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface RouteSummary {
-  readonly server: string
-  readonly listen?: ReadonlyArray<string> | undefined
-  readonly routes: ReadonlyArray<RouteRecord>
-}
+export const CaddyConfigValueSchema = Schema.Struct({ url: Schema.String })
+export type CaddyConfigValue = typeof CaddyConfigValueSchema.Type
 
-export interface RouteRecord {
-  readonly match?: ReadonlyArray<JsonObject> | undefined
-  readonly upstreams: ReadonlyArray<string>
-}
+export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObjectSchema.Type
 
-export interface UpstreamRecord {
-  readonly address?: string | undefined
-  readonly numRequests?: number | undefined
-  readonly fails?: number | undefined
-  readonly healthy?: boolean | undefined
-}
+export const RouteRecordSchema = Schema.Struct({
+  match: Schema.optional(Schema.Array(JsonObjectSchema)),
+  upstreams: Schema.Array(Schema.String),
+})
+export type RouteRecord = typeof RouteRecordSchema.Type
 
-export interface PkiCa {
-  readonly id?: string | undefined
-  readonly name?: string | undefined
-  readonly rootCommonName?: string | undefined
-  readonly intermediateCommonName?: string | undefined
-  readonly rootCertificate?: string | undefined
-  readonly intermediateCertificate?: string | undefined
-}
+export const RouteSummarySchema = Schema.Struct({
+  server: Schema.String,
+  listen: OptionalStringArray,
+  routes: Schema.Array(RouteRecordSchema),
+})
+export type RouteSummary = typeof RouteSummarySchema.Type
 
-export interface ReloadResult {
-  readonly reloaded: boolean
-  readonly httpStatus: number
-}
+export const UpstreamRecordSchema = Schema.Struct({
+  address: OptionalString,
+  numRequests: OptionalNumber,
+  fails: OptionalNumber,
+  healthy: OptionalBoolean,
+})
+export type UpstreamRecord = typeof UpstreamRecordSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly records: ReadonlyArray<Record>
-}
+export const PkiCaSchema = Schema.Struct({
+  id: OptionalString,
+  name: OptionalString,
+  rootCommonName: OptionalString,
+  intermediateCommonName: OptionalString,
+  rootCertificate: OptionalString,
+  intermediateCertificate: OptionalString,
+})
+export type PkiCa = typeof PkiCaSchema.Type
+
+export const ReloadResultSchema = Schema.Struct({
+  reloaded: Schema.Boolean,
+  httpStatus: Schema.Number,
+})
+export type ReloadResult = typeof ReloadResultSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>

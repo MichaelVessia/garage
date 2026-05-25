@@ -16,6 +16,21 @@ export {
 } from './errors.js'
 export type { JellyfinErrorCode } from './errors.js'
 export { JellyfinApiLive } from './http.js'
+export {
+  ItemRecordSchema,
+  JellyfinConfigValueSchema,
+  LibraryRecordSchema,
+  LibraryStatsSchema,
+  LimitOptionsSchema,
+  ListResultSchema,
+  NowPlayingRecordSchema,
+  RunTaskResultSchema,
+  ScheduledTaskRecordSchema,
+  SearchOptionsSchema,
+  SessionRecordSchema,
+  SystemStatusSchema,
+  UserRecordSchema,
+} from './model.js'
 export type {
   ItemRecord,
   JellyfinConfigValue,

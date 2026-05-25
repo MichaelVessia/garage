@@ -1,81 +1,98 @@
-export interface AutocaliwebConfigValue {
-  readonly url: string
-  readonly username: string
-  readonly password: string
-}
+import { Schema } from 'effect'
 
-export interface StatsResult {
-  readonly books: number
-  readonly authors: number
-  readonly categories: number
-  readonly series: number
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const StringArray = Schema.Array(Schema.String)
 
-export interface StatusResult {
-  readonly title?: string | undefined
-  readonly updated?: string | undefined
-  readonly catalogCount: number
-  readonly stats: StatsResult
-}
+export const AutocaliwebConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  username: Schema.String,
+  password: Schema.String,
+})
+export type AutocaliwebConfigValue = typeof AutocaliwebConfigValueSchema.Type
 
-export interface CatalogEntry {
-  readonly title?: string | undefined
-  readonly id?: string | undefined
-  readonly href?: string | undefined
-  readonly content?: string | undefined
-}
+export const StatsResultSchema = Schema.Struct({
+  books: Schema.Number,
+  authors: Schema.Number,
+  categories: Schema.Number,
+  series: Schema.Number,
+})
+export type StatsResult = typeof StatsResultSchema.Type
 
-export interface DownloadLink {
-  readonly href: string
-  readonly format?: string | undefined
-  readonly mediaType?: string | undefined
-  readonly size?: number | undefined
-}
+export const StatusResultSchema = Schema.Struct({
+  title: OptionalString,
+  updated: OptionalString,
+  catalogCount: Schema.Number,
+  stats: StatsResultSchema,
+})
+export type StatusResult = typeof StatusResultSchema.Type
 
-export interface BookRecord {
-  readonly id?: string | undefined
-  readonly uuid?: string | undefined
-  readonly urn?: string | undefined
-  readonly title?: string | undefined
-  readonly authors: ReadonlyArray<string>
-  readonly published?: string | undefined
-  readonly updated?: string | undefined
-  readonly languages: ReadonlyArray<string>
-  readonly categories: ReadonlyArray<string>
-  readonly summary?: string | undefined
-  readonly coverHref?: string | undefined
-  readonly downloads: ReadonlyArray<DownloadLink>
-}
+export const CatalogEntrySchema = Schema.Struct({
+  title: OptionalString,
+  id: OptionalString,
+  href: OptionalString,
+  content: OptionalString,
+})
+export type CatalogEntry = typeof CatalogEntrySchema.Type
 
-export interface BookInfoRecord extends BookRecord {
-  readonly formats: ReadonlyArray<string>
-  readonly tags: ReadonlyArray<string>
-  readonly rating?: string | undefined
-  readonly lastModified?: string | undefined
-  readonly authorSort?: string | undefined
-  readonly titleSort?: string | undefined
-}
+export const DownloadLinkSchema = Schema.Struct({
+  href: Schema.String,
+  format: OptionalString,
+  mediaType: OptionalString,
+  size: OptionalNumber,
+})
+export type DownloadLink = typeof DownloadLinkSchema.Type
 
-export interface SearchResult {
-  readonly query: string
-  readonly total: number
-  readonly count: number
-  readonly records: ReadonlyArray<BookRecord>
-}
+export const BookRecordSchema = Schema.Struct({
+  id: OptionalString,
+  uuid: OptionalString,
+  urn: OptionalString,
+  title: OptionalString,
+  authors: StringArray,
+  published: OptionalString,
+  updated: OptionalString,
+  languages: StringArray,
+  categories: StringArray,
+  summary: OptionalString,
+  coverHref: OptionalString,
+  downloads: Schema.Array(DownloadLinkSchema),
+})
+export type BookRecord = typeof BookRecordSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const BookInfoRecordSchema = Schema.Struct({
+  ...BookRecordSchema.fields,
+  formats: StringArray,
+  tags: StringArray,
+  rating: OptionalString,
+  lastModified: OptionalString,
+  authorSort: OptionalString,
+  titleSort: OptionalString,
+})
+export type BookInfoRecord = typeof BookInfoRecordSchema.Type
 
-export interface SearchOptions extends LimitOptions {
-  readonly query: string
-}
+export const SearchResultSchema = Schema.Struct({
+  query: Schema.String,
+  total: Schema.Number,
+  count: Schema.Number,
+  records: Schema.Array(BookRecordSchema),
+})
+export type SearchResult = typeof SearchResultSchema.Type
 
-export interface BookInfoOptions {
-  readonly uuid: string
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly records: ReadonlyArray<Record>
-}
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  query: Schema.String,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
+
+export const BookInfoOptionsSchema = Schema.Struct({ uuid: Schema.String })
+export type BookInfoOptions = typeof BookInfoOptionsSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>

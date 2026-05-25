@@ -1,44 +1,53 @@
 import { Effect, Schema } from 'effect'
 
-export interface NextActionParam {
-  readonly value?: unknown
-  readonly default?: unknown
-  readonly description: string
-}
+export const NextActionParamSchema = Schema.Struct({
+  value: Schema.optional(Schema.Unknown),
+  default: Schema.optional(Schema.Unknown),
+  description: Schema.String,
+})
+export type NextActionParam = typeof NextActionParamSchema.Type
 
-export interface NextAction {
-  readonly command: string
-  readonly description: string
-  readonly params?: Readonly<Record<string, NextActionParam>>
-}
+export const NextActionSchema = Schema.Struct({
+  command: Schema.String,
+  description: Schema.String,
+  params: Schema.optional(Schema.Record(Schema.String, NextActionParamSchema)),
+})
+export type NextAction = typeof NextActionSchema.Type
 
-export interface SuccessEnvelope<Result> {
-  readonly ok: true
-  readonly command: string
-  readonly result: Result
-  readonly next_actions: ReadonlyArray<NextAction>
-}
+export const SuccessEnvelopeSchema = <Result>(result: Schema.Codec<Result>) =>
+  Schema.Struct({
+    ok: Schema.Literal(true),
+    command: Schema.String,
+    result,
+    next_actions: Schema.Array(NextActionSchema),
+  })
+export type SuccessEnvelope<Result> = Schema.Schema.Type<ReturnType<typeof SuccessEnvelopeSchema<Result>>>
 
-export interface ErrorBody {
-  readonly code: string
-  readonly message: string
-}
+export const ErrorBodySchema = Schema.Struct({
+  code: Schema.String,
+  message: Schema.String,
+})
+export type ErrorBody = typeof ErrorBodySchema.Type
 
-export interface ErrorEnvelope {
-  readonly ok: false
-  readonly command: string
-  readonly error: ErrorBody
-  readonly fix: string
-  readonly next_actions: ReadonlyArray<NextAction>
-}
+export const ErrorEnvelopeSchema = Schema.Struct({
+  ok: Schema.Literal(false),
+  command: Schema.String,
+  error: ErrorBodySchema,
+  fix: Schema.String,
+  next_actions: Schema.Array(NextActionSchema),
+})
+export type ErrorEnvelope = typeof ErrorEnvelopeSchema.Type
 
-export type CliEnvelope<Result> = SuccessEnvelope<Result> | ErrorEnvelope
+export const CliEnvelopeSchema = <Result>(result: Schema.Codec<Result>) =>
+  Schema.Union([SuccessEnvelopeSchema(result), ErrorEnvelopeSchema])
+export type CliEnvelope<Result> = Schema.Schema.Type<ReturnType<typeof CliEnvelopeSchema<Result>>>
 
-export interface CliEnvelopeError {
-  readonly code: string
-  readonly message: string
-  readonly fix: string
-}
+export const CliEnvelopeErrorSchema = Schema.Struct({
+  code: Schema.String,
+  message: Schema.String,
+  fix: Schema.String,
+})
+export type CliEnvelopeError = typeof CliEnvelopeErrorSchema.Type
 
 export class CliUsageError extends Schema.TaggedErrorClass<CliUsageError>()('CliUsageError', {
   code: Schema.String,
@@ -59,17 +68,19 @@ export interface ErrorEnvelopeInput {
   readonly nextActions?: ReadonlyArray<NextAction>
 }
 
-export interface CommandDescription {
-  readonly command: string
-  readonly description: string
-  readonly flags?: ReadonlyArray<FlagDescription>
-}
+export const FlagDescriptionSchema = Schema.Struct({
+  name: Schema.String,
+  description: Schema.String,
+  default: Schema.optional(Schema.Unknown),
+})
+export type FlagDescription = typeof FlagDescriptionSchema.Type
 
-export interface FlagDescription {
-  readonly name: string
-  readonly description: string
-  readonly default?: unknown
-}
+export const CommandDescriptionSchema = Schema.Struct({
+  command: Schema.String,
+  description: Schema.String,
+  flags: Schema.optional(Schema.Array(FlagDescriptionSchema)),
+})
+export type CommandDescription = typeof CommandDescriptionSchema.Type
 
 export interface ParsedFlags {
   readonly positionals: ReadonlyArray<string>

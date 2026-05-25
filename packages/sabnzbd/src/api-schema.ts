@@ -188,7 +188,7 @@ export const toHistoryResult = (response: typeof HistoryResponseSchema.Type): Hi
   }
 }
 
-const actionOk = (status: boolean | string | null | undefined): boolean => status !== false && status !== 'false'
+const actionOk = (status: boolean | string | null | undefined): boolean => status === true || status === 'true'
 
 export const toActionResult = (
   action: SabnzbdAction,

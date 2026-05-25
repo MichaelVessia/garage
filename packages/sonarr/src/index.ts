@@ -17,6 +17,30 @@ export {
 export type { SonarrErrorCode } from './errors.js'
 export { SonarrApiLive } from './http.js'
 export {
+  AddSeriesApiOptionsSchema,
+  AddSeriesOptionsSchema,
+  AddSeriesResultSchema,
+  CalendarOptionsSchema,
+  CalendarResultSchema,
+  ConfigSummarySchema,
+  EpisodeRecordSchema,
+  ExistsResultSchema,
+  HistoryRecordSchema,
+  LimitOptionsSchema,
+  ListResultSchema,
+  QualityProfileSchema,
+  QueueRecordSchema,
+  RemoveSeriesOptionsSchema,
+  RemoveSeriesResultSchema,
+  RootFolderSchema,
+  SearchResultSchema,
+  SeriesLookupResultSchema,
+  SeriesRecordSchema,
+  SeriesStatisticsSchema,
+  SonarrConfigValueSchema,
+  SystemStatusSchema,
+} from './model.js'
+export {
   addSeries,
   calendar,
   config,

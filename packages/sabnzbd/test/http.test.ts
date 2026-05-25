@@ -150,3 +150,19 @@ it.effect('SabnzbdApiLive sends delete file flags explicitly', () =>
     ])
   })
 )
+
+it.effect('SabnzbdApiLive does not treat missing action status as success', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeHttpClientLayer(() => ({ status: 200, body: {} }))
+    const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    const result = yield* deleteQueueItem('SABnzbd_nzo_abc', { deleteFiles: false }).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(result, {
+      action: 'delete',
+      ok: false,
+      nzoId: 'SABnzbd_nzo_abc',
+      deleteFiles: false,
+    })
+  })
+)

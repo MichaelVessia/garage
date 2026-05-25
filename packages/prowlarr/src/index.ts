@@ -14,6 +14,25 @@ export {
 } from './errors.js'
 export type { ProwlarrErrorCode } from './errors.js'
 export { ProwlarrApiLive } from './http.js'
+export {
+  ApplicationRecordSchema,
+  CommandResultSchema,
+  HealthRecordSchema,
+  HistoryRecordSchema,
+  IndexerRecordSchema,
+  IndexerStatsRecordSchema,
+  IndexerTestResultSchema,
+  LimitOptionsSchema,
+  ListResultSchema,
+  MovieSearchOptionsSchema,
+  ProwlarrConfigValueSchema,
+  ReleaseRecordSchema,
+  SearchOptionsSchema,
+  SearchProtocolSchema,
+  SearchResultSchema,
+  SystemStatusSchema,
+  TvSearchOptionsSchema,
+} from './model.js'
 export type {
   ApplicationRecord,
   CommandResult,

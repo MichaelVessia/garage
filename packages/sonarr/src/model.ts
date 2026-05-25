@@ -1,203 +1,227 @@
-export interface SonarrConfigValue {
-  readonly url: string
-  readonly apiKey: string
-  readonly defaultQualityProfileId: number
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly appName: string
-  readonly version: string
-  readonly instanceName?: string | undefined
-  readonly runtimeVersion?: string | undefined
-  readonly databaseVersion?: string | undefined
-  readonly startupPath?: string | undefined
-  readonly appData?: string | undefined
-  readonly mode?: string | undefined
-  readonly authentication?: string | undefined
-  readonly startTime?: string | undefined
-  readonly urlBase?: string | undefined
-  readonly isDocker?: boolean | undefined
-  readonly branch?: string | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface RootFolder {
-  readonly id: number
-  readonly path: string
-  readonly freeSpace?: number | undefined
-  readonly accessible?: boolean | undefined
-  readonly unmappedFolderCount?: number | undefined
-}
+export const SonarrConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+  defaultQualityProfileId: Schema.Number,
+})
+export type SonarrConfigValue = typeof SonarrConfigValueSchema.Type
 
-export interface QualityProfile {
-  readonly id: number
-  readonly name: string
-  readonly isDefault?: boolean | undefined
-  readonly upgradeAllowed?: boolean | undefined
-  readonly cutoff?: number | undefined
-  readonly minFormatScore?: number | undefined
-  readonly cutoffFormatScore?: number | undefined
-}
+export const SystemStatusSchema = Schema.Struct({
+  appName: Schema.String,
+  version: Schema.String,
+  instanceName: OptionalString,
+  runtimeVersion: OptionalString,
+  databaseVersion: OptionalString,
+  startupPath: OptionalString,
+  appData: OptionalString,
+  mode: OptionalString,
+  authentication: OptionalString,
+  startTime: OptionalString,
+  urlBase: OptionalString,
+  isDocker: OptionalBoolean,
+  branch: OptionalString,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface SeriesLookupResult {
-  readonly title: string
-  readonly year?: number | undefined
-  readonly tvdbId: number
-  readonly tvdbUrl: string
-  readonly titleSlug?: string | undefined
-  readonly imdbId?: string | undefined
-  readonly tmdbId?: number | undefined
-  readonly status?: string | undefined
-  readonly network?: string | undefined
-  readonly genres?: ReadonlyArray<string> | undefined
-  readonly runtime?: number | undefined
-  readonly firstAired?: string | undefined
-  readonly remotePoster?: string | undefined
-  readonly overview?: string | undefined
-}
+export const RootFolderSchema = Schema.Struct({
+  id: Schema.Number,
+  path: Schema.String,
+  freeSpace: OptionalNumber,
+  accessible: OptionalBoolean,
+  unmappedFolderCount: OptionalNumber,
+})
+export type RootFolder = typeof RootFolderSchema.Type
 
-export interface SeriesStatistics {
-  readonly seasonCount?: number | undefined
-  readonly episodeFileCount?: number | undefined
-  readonly episodeCount?: number | undefined
-  readonly totalEpisodeCount?: number | undefined
-  readonly sizeOnDisk?: number | undefined
-  readonly percentOfEpisodes?: number | undefined
-}
+export const QualityProfileSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  isDefault: OptionalBoolean,
+  upgradeAllowed: OptionalBoolean,
+  cutoff: OptionalNumber,
+  minFormatScore: OptionalNumber,
+  cutoffFormatScore: OptionalNumber,
+})
+export type QualityProfile = typeof QualityProfileSchema.Type
 
-export interface SeriesRecord {
-  readonly id: number
-  readonly title: string
-  readonly tvdbId: number
-  readonly year?: number | undefined
-  readonly path?: string | undefined
-  readonly monitored?: boolean | undefined
-  readonly status?: string | undefined
-  readonly qualityProfileId?: number | undefined
-  readonly qualityProfileName?: string | undefined
-  readonly network?: string | undefined
-  readonly seasonFolder?: boolean | undefined
-  readonly seriesType?: string | undefined
-  readonly statistics?: SeriesStatistics | undefined
-}
+export const SeriesLookupResultSchema = Schema.Struct({
+  title: Schema.String,
+  year: OptionalNumber,
+  tvdbId: Schema.Number,
+  tvdbUrl: Schema.String,
+  titleSlug: OptionalString,
+  imdbId: OptionalString,
+  tmdbId: OptionalNumber,
+  status: OptionalString,
+  network: OptionalString,
+  genres: OptionalStringArray,
+  runtime: OptionalNumber,
+  firstAired: OptionalString,
+  remotePoster: OptionalString,
+  overview: OptionalString,
+})
+export type SeriesLookupResult = typeof SeriesLookupResultSchema.Type
 
-export interface QueueRecord {
-  readonly id?: number | undefined
-  readonly title: string
-  readonly seriesTitle: string
-  readonly seasonNumber?: number | undefined
-  readonly episodeNumber?: number | undefined
-  readonly episodeTitle?: string | undefined
-  readonly status: string
-  readonly trackedDownloadStatus?: string | undefined
-  readonly trackedDownloadState?: string | undefined
-  readonly statusMessages?: ReadonlyArray<string> | undefined
-  readonly errorMessage?: string | undefined
-  readonly quality?: string | undefined
-  readonly languages?: ReadonlyArray<string> | undefined
-  readonly size?: number | undefined
-  readonly sizeleft?: number | undefined
-  readonly timeleft?: string | undefined
-  readonly estimatedCompletionTime?: string | undefined
-  readonly protocol?: string | undefined
-  readonly downloadClient?: string | undefined
-  readonly indexer?: string | undefined
-  readonly outputPath?: string | undefined
-}
+export const SeriesStatisticsSchema = Schema.Struct({
+  seasonCount: OptionalNumber,
+  episodeFileCount: OptionalNumber,
+  episodeCount: OptionalNumber,
+  totalEpisodeCount: OptionalNumber,
+  sizeOnDisk: OptionalNumber,
+  percentOfEpisodes: OptionalNumber,
+})
+export type SeriesStatistics = typeof SeriesStatisticsSchema.Type
 
-export interface EpisodeRecord {
-  readonly id?: number | undefined
-  readonly title: string
-  readonly seriesTitle: string
-  readonly seasonNumber?: number | undefined
-  readonly episodeNumber?: number | undefined
-  readonly airDateUtc?: string | undefined
-  readonly hasFile?: boolean | undefined
-  readonly monitored?: boolean | undefined
-  readonly seriesStatus?: string | undefined
-  readonly network?: string | undefined
-  readonly lastSearchTime?: string | undefined
-  readonly overview?: string | undefined
-}
+export const SeriesRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  title: Schema.String,
+  tvdbId: Schema.Number,
+  year: OptionalNumber,
+  path: OptionalString,
+  monitored: OptionalBoolean,
+  status: OptionalString,
+  qualityProfileId: OptionalNumber,
+  qualityProfileName: OptionalString,
+  network: OptionalString,
+  seasonFolder: OptionalBoolean,
+  seriesType: OptionalString,
+  statistics: Schema.optional(SeriesStatisticsSchema),
+})
+export type SeriesRecord = typeof SeriesRecordSchema.Type
 
-export interface HistoryRecord {
-  readonly id?: number | undefined
-  readonly date?: string | undefined
-  readonly eventType: string
-  readonly sourceTitle?: string | undefined
-  readonly seriesTitle: string
-  readonly seasonNumber?: number | undefined
-  readonly episodeNumber?: number | undefined
-  readonly episodeTitle?: string | undefined
-  readonly quality?: string | undefined
-  readonly languages?: ReadonlyArray<string> | undefined
-  readonly downloadClient?: string | undefined
-  readonly releaseGroup?: string | undefined
-  readonly size?: number | undefined
-  readonly downloadId?: string | undefined
-}
+export const QueueRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  title: Schema.String,
+  seriesTitle: Schema.String,
+  seasonNumber: OptionalNumber,
+  episodeNumber: OptionalNumber,
+  episodeTitle: OptionalString,
+  status: Schema.String,
+  trackedDownloadStatus: OptionalString,
+  trackedDownloadState: OptionalString,
+  statusMessages: OptionalStringArray,
+  errorMessage: OptionalString,
+  quality: OptionalString,
+  languages: OptionalStringArray,
+  size: OptionalNumber,
+  sizeleft: OptionalNumber,
+  timeleft: OptionalString,
+  estimatedCompletionTime: OptionalString,
+  protocol: OptionalString,
+  downloadClient: OptionalString,
+  indexer: OptionalString,
+  outputPath: OptionalString,
+})
+export type QueueRecord = typeof QueueRecordSchema.Type
 
-export interface ConfigSummary {
-  readonly rootFolders: ReadonlyArray<RootFolder>
-  readonly qualityProfiles: ReadonlyArray<QualityProfile>
-}
+export const EpisodeRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  title: Schema.String,
+  seriesTitle: Schema.String,
+  seasonNumber: OptionalNumber,
+  episodeNumber: OptionalNumber,
+  airDateUtc: OptionalString,
+  hasFile: OptionalBoolean,
+  monitored: OptionalBoolean,
+  seriesStatus: OptionalString,
+  network: OptionalString,
+  lastSearchTime: OptionalString,
+  overview: OptionalString,
+})
+export type EpisodeRecord = typeof EpisodeRecordSchema.Type
 
-export interface SearchResult {
-  readonly query: string
-  readonly count: number
-  readonly results: ReadonlyArray<SeriesLookupResult>
-}
+export const HistoryRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  date: OptionalString,
+  eventType: Schema.String,
+  sourceTitle: OptionalString,
+  seriesTitle: Schema.String,
+  seasonNumber: OptionalNumber,
+  episodeNumber: OptionalNumber,
+  episodeTitle: OptionalString,
+  quality: OptionalString,
+  languages: OptionalStringArray,
+  downloadClient: OptionalString,
+  releaseGroup: OptionalString,
+  size: OptionalNumber,
+  downloadId: OptionalString,
+})
+export type HistoryRecord = typeof HistoryRecordSchema.Type
 
-export interface ExistsResult {
-  readonly tvdbId: number
-  readonly exists: boolean
-  readonly series?: SeriesRecord
-}
+export const ConfigSummarySchema = Schema.Struct({
+  rootFolders: Schema.Array(RootFolderSchema),
+  qualityProfiles: Schema.Array(QualityProfileSchema),
+})
+export type ConfigSummary = typeof ConfigSummarySchema.Type
 
-export interface AddSeriesOptions {
-  readonly qualityProfileId?: number
-  readonly searchForMissingEpisodes: boolean
-}
+export const SearchResultSchema = Schema.Struct({
+  query: Schema.String,
+  count: Schema.Number,
+  results: Schema.Array(SeriesLookupResultSchema),
+})
+export type SearchResult = typeof SearchResultSchema.Type
 
-export interface AddSeriesApiOptions {
-  readonly qualityProfileId: number
-  readonly rootFolderPath: string
-  readonly searchForMissingEpisodes: boolean
-}
+export const ExistsResultSchema = Schema.Struct({
+  tvdbId: Schema.Number,
+  exists: Schema.Boolean,
+  series: Schema.optional(SeriesRecordSchema),
+})
+export type ExistsResult = typeof ExistsResultSchema.Type
 
-export interface AddSeriesResult {
-  readonly added: boolean
-  readonly series: SeriesRecord
-  readonly qualityProfileId: number
-  readonly rootFolderPath: string
-  readonly searchForMissingEpisodes: boolean
-}
+export const AddSeriesOptionsSchema = Schema.Struct({
+  qualityProfileId: OptionalNumber,
+  searchForMissingEpisodes: Schema.Boolean,
+})
+export type AddSeriesOptions = typeof AddSeriesOptionsSchema.Type
 
-export interface RemoveSeriesOptions {
-  readonly deleteFiles: boolean
-}
+export const AddSeriesApiOptionsSchema = Schema.Struct({
+  qualityProfileId: Schema.Number,
+  rootFolderPath: Schema.String,
+  searchForMissingEpisodes: Schema.Boolean,
+})
+export type AddSeriesApiOptions = typeof AddSeriesApiOptionsSchema.Type
 
-export interface RemoveSeriesResult {
-  readonly removed: boolean
-  readonly tvdbId: number
-  readonly deleteFiles: boolean
-}
+export const AddSeriesResultSchema = Schema.Struct({
+  added: Schema.Boolean,
+  series: SeriesRecordSchema,
+  qualityProfileId: Schema.Number,
+  rootFolderPath: Schema.String,
+  searchForMissingEpisodes: Schema.Boolean,
+})
+export type AddSeriesResult = typeof AddSeriesResultSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const RemoveSeriesOptionsSchema = Schema.Struct({ deleteFiles: Schema.Boolean })
+export type RemoveSeriesOptions = typeof RemoveSeriesOptionsSchema.Type
 
-export interface CalendarOptions {
-  readonly days: number
-}
+export const RemoveSeriesResultSchema = Schema.Struct({
+  removed: Schema.Boolean,
+  tvdbId: Schema.Number,
+  deleteFiles: Schema.Boolean,
+})
+export type RemoveSeriesResult = typeof RemoveSeriesResultSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly totalRecords: number
-  readonly records: ReadonlyArray<Record>
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
 
-export interface CalendarResult {
-  readonly days: number
-  readonly count: number
-  readonly records: ReadonlyArray<EpisodeRecord>
-}
+export const CalendarOptionsSchema = Schema.Struct({ days: Schema.Number })
+export type CalendarOptions = typeof CalendarOptionsSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    totalRecords: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+
+export const CalendarResultSchema = Schema.Struct({
+  days: Schema.Number,
+  count: Schema.Number,
+  records: Schema.Array(EpisodeRecordSchema),
+})
+export type CalendarResult = typeof CalendarResultSchema.Type

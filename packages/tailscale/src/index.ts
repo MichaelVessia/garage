@@ -1,4 +1,4 @@
-export { JsonObjectSchema, StatusJsonSchema, toExitNodeList, toPeerList, toStatusResult } from './api-schema.js'
+export { StatusJsonSchema, toExitNodeList, toPeerList, toStatusResult } from './api-schema.js'
 export {
   TailscaleCliMissingError,
   TailscaleCommandFailedError,
@@ -11,6 +11,20 @@ export {
   notRunning,
 } from './errors.js'
 export type { TailscaleErrorCode } from './errors.js'
+export {
+  CurrentExitNodeResultSchema,
+  DnsResultSchema,
+  IpResultSchema,
+  JsonObjectSchema,
+  LimitOptionsSchema,
+  ListResultSchema,
+  PeerRecordSchema,
+  PingOptionsSchema,
+  PingResultSchema,
+  ProcessResultSchema,
+  StatusResultSchema,
+  WhoisOptionsSchema,
+} from './model.js'
 export type {
   CurrentExitNodeResult,
   DnsResult,

@@ -1,243 +1,271 @@
-export interface RadarrConfigValue {
-  readonly url: string
-  readonly apiKey: string
-  readonly defaultQualityProfileId: number
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly appName?: string | undefined
-  readonly version: string
-  readonly instanceName?: string | undefined
-  readonly branch?: string | undefined
-  readonly runtimeVersion?: string | undefined
-  readonly startupPath?: string | undefined
-  readonly appData?: string | undefined
-  readonly osName?: string | undefined
-  readonly osVersion?: string | undefined
-  readonly isLinux?: boolean | undefined
-  readonly isDocker?: boolean | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface RootFolder {
-  readonly id: number
-  readonly path: string
-  readonly freeSpace?: number | undefined
-  readonly accessible?: boolean | undefined
-  readonly unmappedFolderCount?: number | undefined
-}
+export const RadarrConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+  defaultQualityProfileId: Schema.Number,
+})
+export type RadarrConfigValue = typeof RadarrConfigValueSchema.Type
 
-export interface QualityProfile {
-  readonly id: number
-  readonly name: string
-  readonly isDefault?: boolean | undefined
-  readonly upgradeAllowed?: boolean | undefined
-  readonly cutoff?: number | undefined
-  readonly minFormatScore?: number | undefined
-  readonly cutoffFormatScore?: number | undefined
-}
+export const SystemStatusSchema = Schema.Struct({
+  appName: OptionalString,
+  version: Schema.String,
+  instanceName: OptionalString,
+  branch: OptionalString,
+  runtimeVersion: OptionalString,
+  startupPath: OptionalString,
+  appData: OptionalString,
+  osName: OptionalString,
+  osVersion: OptionalString,
+  isLinux: OptionalBoolean,
+  isDocker: OptionalBoolean,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface MovieCollectionSummary {
-  readonly tmdbId: number
-  readonly title: string
-}
+export const RootFolderSchema = Schema.Struct({
+  id: Schema.Number,
+  path: Schema.String,
+  freeSpace: OptionalNumber,
+  accessible: OptionalBoolean,
+  unmappedFolderCount: OptionalNumber,
+})
+export type RootFolder = typeof RootFolderSchema.Type
 
-export interface MovieLookupResult {
-  readonly title: string
-  readonly year?: number | undefined
-  readonly tmdbId: number
-  readonly tmdbUrl: string
-  readonly titleSlug?: string | undefined
-  readonly imdbId?: string | undefined
-  readonly status?: string | undefined
-  readonly overview?: string | undefined
-  readonly runtime?: number | undefined
-  readonly certification?: string | undefined
-  readonly genres?: ReadonlyArray<string> | undefined
-  readonly studio?: string | undefined
-  readonly inCinemas?: string | undefined
-  readonly physicalRelease?: string | undefined
-  readonly digitalRelease?: string | undefined
-  readonly remotePoster?: string | undefined
-  readonly collection?: MovieCollectionSummary | undefined
-}
+export const QualityProfileSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  isDefault: OptionalBoolean,
+  upgradeAllowed: OptionalBoolean,
+  cutoff: OptionalNumber,
+  minFormatScore: OptionalNumber,
+  cutoffFormatScore: OptionalNumber,
+})
+export type QualityProfile = typeof QualityProfileSchema.Type
 
-export interface MovieRecord {
-  readonly id: number
-  readonly title: string
-  readonly year?: number | undefined
-  readonly tmdbId: number
-  readonly path?: string | undefined
-  readonly monitored?: boolean | undefined
-  readonly status?: string | undefined
-  readonly hasFile?: boolean | undefined
-  readonly qualityProfileId?: number | undefined
-  readonly qualityProfileName?: string | undefined
-  readonly minimumAvailability?: string | undefined
-  readonly isAvailable?: boolean | undefined
-  readonly sizeOnDisk?: number | undefined
-  readonly inCinemas?: string | undefined
-  readonly physicalRelease?: string | undefined
-  readonly digitalRelease?: string | undefined
-  readonly added?: string | undefined
-  readonly studio?: string | undefined
-  readonly runtime?: number | undefined
-  readonly certification?: string | undefined
-  readonly genres?: ReadonlyArray<string> | undefined
-}
+export const MovieCollectionSummarySchema = Schema.Struct({
+  tmdbId: Schema.Number,
+  title: Schema.String,
+})
+export type MovieCollectionSummary = typeof MovieCollectionSummarySchema.Type
 
-export interface MovieReleaseRecord {
-  readonly id?: number | undefined
-  readonly title: string
-  readonly year?: number | undefined
-  readonly tmdbId?: number | undefined
-  readonly inCinemas?: string | undefined
-  readonly physicalRelease?: string | undefined
-  readonly digitalRelease?: string | undefined
-  readonly hasFile?: boolean | undefined
-  readonly monitored?: boolean | undefined
-  readonly status?: string | undefined
-  readonly isAvailable?: boolean | undefined
-}
+export const MovieLookupResultSchema = Schema.Struct({
+  title: Schema.String,
+  year: OptionalNumber,
+  tmdbId: Schema.Number,
+  tmdbUrl: Schema.String,
+  titleSlug: OptionalString,
+  imdbId: OptionalString,
+  status: OptionalString,
+  overview: OptionalString,
+  runtime: OptionalNumber,
+  certification: OptionalString,
+  genres: OptionalStringArray,
+  studio: OptionalString,
+  inCinemas: OptionalString,
+  physicalRelease: OptionalString,
+  digitalRelease: OptionalString,
+  remotePoster: OptionalString,
+  collection: Schema.optional(MovieCollectionSummarySchema),
+})
+export type MovieLookupResult = typeof MovieLookupResultSchema.Type
 
-export interface QueueRecord {
-  readonly id?: number | undefined
-  readonly title: string
-  readonly movieTitle?: string | undefined
-  readonly year?: number | undefined
-  readonly status: string
-  readonly trackedDownloadStatus?: string | undefined
-  readonly trackedDownloadState?: string | undefined
-  readonly statusMessages?: ReadonlyArray<string> | undefined
-  readonly errorMessage?: string | undefined
-  readonly quality?: string | undefined
-  readonly size?: number | undefined
-  readonly sizeleft?: number | undefined
-  readonly timeleft?: string | undefined
-  readonly estimatedCompletionTime?: string | undefined
-  readonly protocol?: string | undefined
-  readonly downloadClient?: string | undefined
-  readonly indexer?: string | undefined
-  readonly outputPath?: string | undefined
-}
+export const MovieRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  title: Schema.String,
+  year: OptionalNumber,
+  tmdbId: Schema.Number,
+  path: OptionalString,
+  monitored: OptionalBoolean,
+  status: OptionalString,
+  hasFile: OptionalBoolean,
+  qualityProfileId: OptionalNumber,
+  qualityProfileName: OptionalString,
+  minimumAvailability: OptionalString,
+  isAvailable: OptionalBoolean,
+  sizeOnDisk: OptionalNumber,
+  inCinemas: OptionalString,
+  physicalRelease: OptionalString,
+  digitalRelease: OptionalString,
+  added: OptionalString,
+  studio: OptionalString,
+  runtime: OptionalNumber,
+  certification: OptionalString,
+  genres: OptionalStringArray,
+})
+export type MovieRecord = typeof MovieRecordSchema.Type
 
-export interface HistoryRecord {
-  readonly id?: number | undefined
-  readonly date?: string | undefined
-  readonly eventType: string
-  readonly sourceTitle?: string | undefined
-  readonly movieTitle?: string | undefined
-  readonly year?: number | undefined
-  readonly quality?: string | undefined
-  readonly downloadClient?: string | undefined
-  readonly releaseGroup?: string | undefined
-  readonly size?: number | undefined
-  readonly downloadId?: string | undefined
-}
+export const MovieReleaseRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  title: Schema.String,
+  year: OptionalNumber,
+  tmdbId: OptionalNumber,
+  inCinemas: OptionalString,
+  physicalRelease: OptionalString,
+  digitalRelease: OptionalString,
+  hasFile: OptionalBoolean,
+  monitored: OptionalBoolean,
+  status: OptionalString,
+  isAvailable: OptionalBoolean,
+})
+export type MovieReleaseRecord = typeof MovieReleaseRecordSchema.Type
 
-export interface CollectionRecord {
-  readonly id: number
-  readonly title: string
-  readonly tmdbId: number
-  readonly monitored?: boolean | undefined
-  readonly searchOnAdd?: boolean | undefined
-}
+export const QueueRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  title: Schema.String,
+  movieTitle: OptionalString,
+  year: OptionalNumber,
+  status: Schema.String,
+  trackedDownloadStatus: OptionalString,
+  trackedDownloadState: OptionalString,
+  statusMessages: OptionalStringArray,
+  errorMessage: OptionalString,
+  quality: OptionalString,
+  size: OptionalNumber,
+  sizeleft: OptionalNumber,
+  timeleft: OptionalString,
+  estimatedCompletionTime: OptionalString,
+  protocol: OptionalString,
+  downloadClient: OptionalString,
+  indexer: OptionalString,
+  outputPath: OptionalString,
+})
+export type QueueRecord = typeof QueueRecordSchema.Type
 
-export interface ConfigSummary {
-  readonly rootFolders: ReadonlyArray<RootFolder>
-  readonly qualityProfiles: ReadonlyArray<QualityProfile>
-}
+export const HistoryRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  date: OptionalString,
+  eventType: Schema.String,
+  sourceTitle: OptionalString,
+  movieTitle: OptionalString,
+  year: OptionalNumber,
+  quality: OptionalString,
+  downloadClient: OptionalString,
+  releaseGroup: OptionalString,
+  size: OptionalNumber,
+  downloadId: OptionalString,
+})
+export type HistoryRecord = typeof HistoryRecordSchema.Type
 
-export interface SearchResult {
-  readonly query: string
-  readonly count: number
-  readonly results: ReadonlyArray<MovieLookupResult>
-}
+export const CollectionRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  title: Schema.String,
+  tmdbId: Schema.Number,
+  monitored: OptionalBoolean,
+  searchOnAdd: OptionalBoolean,
+})
+export type CollectionRecord = typeof CollectionRecordSchema.Type
 
-export interface ExistsResult {
-  readonly tmdbId: number
-  readonly exists: boolean
-  readonly movie?: MovieRecord
-}
+export const ConfigSummarySchema = Schema.Struct({
+  rootFolders: Schema.Array(RootFolderSchema),
+  qualityProfiles: Schema.Array(QualityProfileSchema),
+})
+export type ConfigSummary = typeof ConfigSummarySchema.Type
 
-export interface AddMovieOptions {
-  readonly qualityProfileId?: number
-  readonly searchForMovie: boolean
-}
+export const SearchResultSchema = Schema.Struct({
+  query: Schema.String,
+  count: Schema.Number,
+  results: Schema.Array(MovieLookupResultSchema),
+})
+export type SearchResult = typeof SearchResultSchema.Type
 
-export interface AddMovieApiOptions {
-  readonly qualityProfileId: number
-  readonly rootFolderPath: string
-  readonly searchForMovie: boolean
-}
+export const ExistsResultSchema = Schema.Struct({
+  tmdbId: Schema.Number,
+  exists: Schema.Boolean,
+  movie: Schema.optional(MovieRecordSchema),
+})
+export type ExistsResult = typeof ExistsResultSchema.Type
 
-export interface AddMovieResult {
-  readonly added: boolean
-  readonly movie: MovieRecord
-  readonly qualityProfileId: number
-  readonly rootFolderPath: string
-  readonly searchForMovie: boolean
-}
+export const AddMovieOptionsSchema = Schema.Struct({
+  qualityProfileId: OptionalNumber,
+  searchForMovie: Schema.Boolean,
+})
+export type AddMovieOptions = typeof AddMovieOptionsSchema.Type
 
-export interface AddCollectionOptions {
-  readonly searchForMovies: boolean
-  readonly resultLimit: number
-}
+export const AddMovieApiOptionsSchema = Schema.Struct({
+  qualityProfileId: Schema.Number,
+  rootFolderPath: Schema.String,
+  searchForMovie: Schema.Boolean,
+})
+export type AddMovieApiOptions = typeof AddMovieApiOptionsSchema.Type
 
-export type AddCollectionMovieAction = 'added' | 'skipped' | 'failed'
+export const AddMovieResultSchema = Schema.Struct({
+  added: Schema.Boolean,
+  movie: MovieRecordSchema,
+  qualityProfileId: Schema.Number,
+  rootFolderPath: Schema.String,
+  searchForMovie: Schema.Boolean,
+})
+export type AddMovieResult = typeof AddMovieResultSchema.Type
 
-export interface AddCollectionMovieResult {
-  readonly action: AddCollectionMovieAction
-  readonly tmdbId: number
-  readonly title: string
-  readonly year?: number | undefined
-  readonly movieId?: number | undefined
-  readonly reason?: string | undefined
-}
+export const AddCollectionOptionsSchema = Schema.Struct({
+  searchForMovies: Schema.Boolean,
+  resultLimit: Schema.Number,
+})
+export type AddCollectionOptions = typeof AddCollectionOptionsSchema.Type
 
-export interface AddCollectionResult {
-  readonly collectionTmdbId: number
-  readonly title: string
-  readonly totalMovies: number
-  readonly added: number
-  readonly skipped: number
-  readonly failed: number
-  readonly searchForMovies: boolean
-  readonly monitored: boolean
-  readonly searchOnAdd: boolean
-  readonly records: ReadonlyArray<AddCollectionMovieResult>
-  readonly recordsTruncated: boolean
-}
+export const AddCollectionMovieActionSchema = Schema.Literals(['added', 'skipped', 'failed'])
+export type AddCollectionMovieAction = typeof AddCollectionMovieActionSchema.Type
 
-export interface CollectionInfoResult {
-  readonly collection: CollectionRecord
-}
+export const AddCollectionMovieResultSchema = Schema.Struct({
+  action: AddCollectionMovieActionSchema,
+  tmdbId: Schema.Number,
+  title: Schema.String,
+  year: OptionalNumber,
+  movieId: OptionalNumber,
+  reason: OptionalString,
+})
+export type AddCollectionMovieResult = typeof AddCollectionMovieResultSchema.Type
 
-export interface RemoveMovieOptions {
-  readonly deleteFiles: boolean
-}
+export const AddCollectionResultSchema = Schema.Struct({
+  collectionTmdbId: Schema.Number,
+  title: Schema.String,
+  totalMovies: Schema.Number,
+  added: Schema.Number,
+  skipped: Schema.Number,
+  failed: Schema.Number,
+  searchForMovies: Schema.Boolean,
+  monitored: Schema.Boolean,
+  searchOnAdd: Schema.Boolean,
+  records: Schema.Array(AddCollectionMovieResultSchema),
+  recordsTruncated: Schema.Boolean,
+})
+export type AddCollectionResult = typeof AddCollectionResultSchema.Type
 
-export interface RemoveMovieResult {
-  readonly removed: boolean
-  readonly tmdbId: number
-  readonly deleteFiles: boolean
-}
+export const CollectionInfoResultSchema = Schema.Struct({ collection: CollectionRecordSchema })
+export type CollectionInfoResult = typeof CollectionInfoResultSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const RemoveMovieOptionsSchema = Schema.Struct({ deleteFiles: Schema.Boolean })
+export type RemoveMovieOptions = typeof RemoveMovieOptionsSchema.Type
 
-export interface CalendarOptions {
-  readonly days: number
-}
+export const RemoveMovieResultSchema = Schema.Struct({
+  removed: Schema.Boolean,
+  tmdbId: Schema.Number,
+  deleteFiles: Schema.Boolean,
+})
+export type RemoveMovieResult = typeof RemoveMovieResultSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly totalRecords: number
-  readonly records: ReadonlyArray<Record>
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
 
-export interface CalendarResult {
-  readonly days: number
-  readonly count: number
-  readonly records: ReadonlyArray<MovieReleaseRecord>
-}
+export const CalendarOptionsSchema = Schema.Struct({ days: Schema.Number })
+export type CalendarOptions = typeof CalendarOptionsSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    totalRecords: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+
+export const CalendarResultSchema = Schema.Struct({
+  days: Schema.Number,
+  count: Schema.Number,
+  records: Schema.Array(MovieReleaseRecordSchema),
+})
+export type CalendarResult = typeof CalendarResultSchema.Type

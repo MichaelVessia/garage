@@ -13,8 +13,17 @@ export {
   unreachable,
 } from './errors.js'
 export type { CaddyErrorCode } from './errors.js'
-export { JsonObjectSchema } from './api-schema.js'
 export { CaddyApiLive } from './http.js'
+export {
+  CaddyConfigValueSchema,
+  JsonObjectSchema,
+  ListResultSchema,
+  PkiCaSchema,
+  ReloadResultSchema,
+  RouteRecordSchema,
+  RouteSummarySchema,
+  UpstreamRecordSchema,
+} from './model.js'
 export type {
   CaddyConfigValue,
   JsonObject,

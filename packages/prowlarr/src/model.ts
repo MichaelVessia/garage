@@ -1,139 +1,161 @@
-export interface ProwlarrConfigValue {
-  readonly url: string
-  readonly apiKey: string
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly appName?: string | undefined
-  readonly version: string
-  readonly instanceName?: string | undefined
-  readonly branch?: string | undefined
-  readonly runtimeVersion?: string | undefined
-  readonly osName?: string | undefined
-  readonly osVersion?: string | undefined
-  readonly buildTime?: string | undefined
-  readonly isLinux?: boolean | undefined
-  readonly isProduction?: boolean | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export interface HealthRecord {
-  readonly source?: string | undefined
-  readonly type?: string | undefined
-  readonly message: string
-  readonly wikiUrl?: string | undefined
-}
+export const ProwlarrConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+})
+export type ProwlarrConfigValue = typeof ProwlarrConfigValueSchema.Type
 
-export interface IndexerRecord {
-  readonly id: number
-  readonly name: string
-  readonly protocol?: string | undefined
-  readonly enabled?: boolean | undefined
-  readonly priority?: number | undefined
-  readonly supportsSearch?: boolean | undefined
-  readonly supportsRss?: boolean | undefined
-  readonly implementation?: string | undefined
-  readonly implementationName?: string | undefined
-}
+export const SystemStatusSchema = Schema.Struct({
+  appName: OptionalString,
+  version: Schema.String,
+  instanceName: OptionalString,
+  branch: OptionalString,
+  runtimeVersion: OptionalString,
+  osName: OptionalString,
+  osVersion: OptionalString,
+  buildTime: OptionalString,
+  isLinux: OptionalBoolean,
+  isProduction: OptionalBoolean,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface IndexerStatsRecord {
-  readonly id: number
-  readonly name: string
-  readonly queries?: number | undefined
-  readonly grabs?: number | undefined
-  readonly failedQueries?: number | undefined
-  readonly failedGrabs?: number | undefined
-  readonly avgResponseTimeMs?: number | undefined
-}
+export const HealthRecordSchema = Schema.Struct({
+  source: OptionalString,
+  type: OptionalString,
+  message: Schema.String,
+  wikiUrl: OptionalString,
+})
+export type HealthRecord = typeof HealthRecordSchema.Type
 
-export type SearchProtocol = 'torrent' | 'usenet'
+export const IndexerRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  protocol: OptionalString,
+  enabled: OptionalBoolean,
+  priority: OptionalNumber,
+  supportsSearch: OptionalBoolean,
+  supportsRss: OptionalBoolean,
+  implementation: OptionalString,
+  implementationName: OptionalString,
+})
+export type IndexerRecord = typeof IndexerRecordSchema.Type
 
-export interface SearchOptions {
-  readonly limit: number
-  readonly protocol?: SearchProtocol | undefined
-  readonly category?: number | undefined
-  readonly type?: string | undefined
-}
+export const IndexerStatsRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  queries: OptionalNumber,
+  grabs: OptionalNumber,
+  failedQueries: OptionalNumber,
+  failedGrabs: OptionalNumber,
+  avgResponseTimeMs: OptionalNumber,
+})
+export type IndexerStatsRecord = typeof IndexerStatsRecordSchema.Type
 
-export interface TvSearchOptions {
-  readonly tvdbId: number
-  readonly season?: number | undefined
-  readonly episode?: number | undefined
-  readonly limit: number
-}
+export const SearchProtocolSchema = Schema.Literals(['torrent', 'usenet'])
+export type SearchProtocol = typeof SearchProtocolSchema.Type
 
-export interface MovieSearchOptions {
-  readonly imdbId?: string | undefined
-  readonly tmdbId?: number | undefined
-  readonly limit: number
-}
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  protocol: Schema.optional(SearchProtocolSchema),
+  category: OptionalNumber,
+  type: OptionalString,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
 
-export interface ReleaseRecord {
-  readonly guid?: string | undefined
-  readonly indexerId?: number | undefined
-  readonly indexer?: string | undefined
-  readonly title: string
-  readonly protocol?: string | undefined
-  readonly size?: number | undefined
-  readonly sizeMB?: number | undefined
-  readonly seeders?: number | undefined
-  readonly leechers?: number | undefined
-  readonly grabs?: number | undefined
-  readonly age?: number | undefined
-  readonly publishDate?: string | undefined
-  readonly downloadUrl?: string | undefined
-  readonly infoUrl?: string | undefined
-  readonly categories?: ReadonlyArray<string | number> | undefined
-}
+export const TvSearchOptionsSchema = Schema.Struct({
+  tvdbId: Schema.Number,
+  season: OptionalNumber,
+  episode: OptionalNumber,
+  limit: Schema.Number,
+})
+export type TvSearchOptions = typeof TvSearchOptionsSchema.Type
 
-export interface ApplicationRecord {
-  readonly id: number
-  readonly name: string
-  readonly implementation?: string | undefined
-  readonly syncLevel?: string | undefined
-  readonly tags?: ReadonlyArray<number> | undefined
-}
+export const MovieSearchOptionsSchema = Schema.Struct({
+  imdbId: OptionalString,
+  tmdbId: OptionalNumber,
+  limit: Schema.Number,
+})
+export type MovieSearchOptions = typeof MovieSearchOptionsSchema.Type
 
-export interface CommandResult {
-  readonly id?: number | undefined
-  readonly name: string
-  readonly status?: string | undefined
-  readonly queued?: string | undefined
-  readonly started?: string | undefined
-  readonly ended?: string | undefined
-}
+export const ReleaseRecordSchema = Schema.Struct({
+  guid: OptionalString,
+  indexerId: OptionalNumber,
+  indexer: OptionalString,
+  title: Schema.String,
+  protocol: OptionalString,
+  size: OptionalNumber,
+  sizeMB: OptionalNumber,
+  seeders: OptionalNumber,
+  leechers: OptionalNumber,
+  grabs: OptionalNumber,
+  age: OptionalNumber,
+  publishDate: OptionalString,
+  downloadUrl: OptionalString,
+  infoUrl: OptionalString,
+  categories: Schema.optional(Schema.Array(Schema.Union([Schema.String, Schema.Number]))),
+})
+export type ReleaseRecord = typeof ReleaseRecordSchema.Type
 
-export interface IndexerTestResult {
-  readonly indexerId: number
-  readonly passed: boolean
-  readonly httpStatus: number
-}
+export const ApplicationRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  implementation: OptionalString,
+  syncLevel: OptionalString,
+  tags: Schema.optional(Schema.Array(Schema.Number)),
+})
+export type ApplicationRecord = typeof ApplicationRecordSchema.Type
 
-export interface HistoryRecord {
-  readonly id?: number | undefined
-  readonly date?: string | undefined
-  readonly eventType: string
-  readonly indexerId?: number | undefined
-  readonly successful?: boolean | undefined
-  readonly query?: string | undefined
-  readonly queryType?: string | undefined
-  readonly results?: number | undefined
-  readonly elapsedTime?: number | string | undefined
-}
+export const CommandResultSchema = Schema.Struct({
+  id: OptionalNumber,
+  name: Schema.String,
+  status: OptionalString,
+  queued: OptionalString,
+  started: OptionalString,
+  ended: OptionalString,
+})
+export type CommandResult = typeof CommandResultSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const IndexerTestResultSchema = Schema.Struct({
+  indexerId: Schema.Number,
+  passed: Schema.Boolean,
+  httpStatus: Schema.Number,
+})
+export type IndexerTestResult = typeof IndexerTestResultSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly totalRecords: number
-  readonly records: ReadonlyArray<Record>
-}
+export const HistoryRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  date: OptionalString,
+  eventType: Schema.String,
+  indexerId: OptionalNumber,
+  successful: OptionalBoolean,
+  query: OptionalString,
+  queryType: OptionalString,
+  results: OptionalNumber,
+  elapsedTime: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
+})
+export type HistoryRecord = typeof HistoryRecordSchema.Type
 
-export interface SearchResult {
-  readonly query: string
-  readonly type: string
-  readonly count: number
-  readonly totalRecords: number
-  readonly records: ReadonlyArray<ReleaseRecord>
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    totalRecords: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+
+export const SearchResultSchema = Schema.Struct({
+  query: Schema.String,
+  type: Schema.String,
+  count: Schema.Number,
+  totalRecords: Schema.Number,
+  records: Schema.Array(ReleaseRecordSchema),
+})
+export type SearchResult = typeof SearchResultSchema.Type

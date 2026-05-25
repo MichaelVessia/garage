@@ -1,105 +1,125 @@
-export type JsonObject = Readonly<Record<string, unknown>>
+import { Schema } from 'effect'
 
-export interface TubearchivistConfigValue {
-  readonly url: string
-  readonly username: string
-  readonly password: string
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export interface SessionCookies {
-  readonly sessionId: string
-  readonly csrfToken: string
-}
+export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObjectSchema.Type
 
-export interface StatusResult {
-  readonly url: string
-  readonly health?: string | undefined
-  readonly config: JsonObject
-  readonly stats: {
-    readonly video: JsonObject
-    readonly channel: JsonObject
-    readonly download: JsonObject
-    readonly watch: JsonObject
-  }
-}
+export const TubearchivistConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  username: Schema.String,
+  password: Schema.String,
+})
+export type TubearchivistConfigValue = typeof TubearchivistConfigValueSchema.Type
 
-export interface ChannelRecord {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly subscribed?: boolean | undefined
-  readonly active?: boolean | undefined
-  readonly lastRefresh?: string | undefined
-}
+export const SessionCookiesSchema = Schema.Struct({
+  sessionId: Schema.String,
+  csrfToken: Schema.String,
+})
+export type SessionCookies = typeof SessionCookiesSchema.Type
 
-export interface VideoRecord {
-  readonly youtubeId: string
-  readonly title?: string | undefined
-  readonly channel?: string | undefined
-  readonly published?: string | undefined
-  readonly videoType?: string | undefined
-  readonly watched?: boolean | undefined
-}
+const StatusStatsSchema = Schema.Struct({
+  video: JsonObjectSchema,
+  channel: JsonObjectSchema,
+  download: JsonObjectSchema,
+  watch: JsonObjectSchema,
+})
 
-export interface DownloadRecord {
-  readonly youtubeId: string
-  readonly title?: string | undefined
-  readonly channel?: string | undefined
-  readonly status?: string | undefined
-  readonly videoType?: string | undefined
-}
+export const StatusResultSchema = Schema.Struct({
+  url: Schema.String,
+  health: OptionalString,
+  config: JsonObjectSchema,
+  stats: StatusStatsSchema,
+})
+export type StatusResult = typeof StatusResultSchema.Type
 
-export interface PlaylistRecord {
-  readonly playlistId: string
-  readonly name?: string | undefined
-  readonly channel?: string | undefined
-  readonly subscribed?: boolean | undefined
-  readonly entries?: number | undefined
-}
+export const ChannelRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  subscribed: OptionalBoolean,
+  active: OptionalBoolean,
+  lastRefresh: OptionalString,
+})
+export type ChannelRecord = typeof ChannelRecordSchema.Type
 
-export interface TaskRecord {
-  readonly name?: string | undefined
-  readonly status?: string | undefined
-  readonly dateDone?: string | undefined
-  readonly args?: ReadonlyArray<unknown> | undefined
-  readonly kwargs?: JsonObject | undefined
-  readonly taskId?: string | undefined
-  readonly error?: unknown
-}
+export const VideoRecordSchema = Schema.Struct({
+  youtubeId: Schema.String,
+  title: OptionalString,
+  channel: OptionalString,
+  published: OptionalString,
+  videoType: OptionalString,
+  watched: OptionalBoolean,
+})
+export type VideoRecord = typeof VideoRecordSchema.Type
 
-export interface SearchResult {
-  readonly queryType?: string | undefined
-  readonly query: string
-  readonly videos: ListResult<VideoRecord>
-  readonly channels: ListResult<ChannelRecord>
-  readonly playlists: ListResult<PlaylistRecord>
-}
+export const DownloadRecordSchema = Schema.Struct({
+  youtubeId: Schema.String,
+  title: OptionalString,
+  channel: OptionalString,
+  status: OptionalString,
+  videoType: OptionalString,
+})
+export type DownloadRecord = typeof DownloadRecordSchema.Type
 
-export interface SubscriptionResult {
-  readonly target: string
-  readonly subscribed: boolean
-  readonly response: JsonObject
-  readonly note?: string | undefined
-}
+export const PlaylistRecordSchema = Schema.Struct({
+  playlistId: Schema.String,
+  name: OptionalString,
+  channel: OptionalString,
+  subscribed: OptionalBoolean,
+  entries: OptionalNumber,
+})
+export type PlaylistRecord = typeof PlaylistRecordSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const TaskRecordSchema = Schema.Struct({
+  name: OptionalString,
+  status: OptionalString,
+  dateDone: OptionalString,
+  args: Schema.optional(Schema.Array(Schema.Unknown)),
+  kwargs: Schema.optional(JsonObjectSchema),
+  taskId: OptionalString,
+  error: Schema.optional(Schema.Unknown),
+})
+export type TaskRecord = typeof TaskRecordSchema.Type
 
-export interface SearchOptions extends LimitOptions {
-  readonly query: string
-}
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    total: OptionalNumber,
+    records: Schema.Array(record),
+    moreAvailable: OptionalBoolean,
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export interface IdOptions {
-  readonly id: string
-}
+export const SearchResultSchema = Schema.Struct({
+  queryType: OptionalString,
+  query: Schema.String,
+  videos: ListResultSchema(VideoRecordSchema),
+  channels: ListResultSchema(ChannelRecordSchema),
+  playlists: ListResultSchema(PlaylistRecordSchema),
+})
+export type SearchResult = typeof SearchResultSchema.Type
 
-export interface SubscriptionOptions {
-  readonly target: string
-}
+export const SubscriptionResultSchema = Schema.Struct({
+  target: Schema.String,
+  subscribed: Schema.Boolean,
+  response: JsonObjectSchema,
+  note: OptionalString,
+})
+export type SubscriptionResult = typeof SubscriptionResultSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly total?: number | undefined
-  readonly records: ReadonlyArray<Record>
-  readonly moreAvailable?: boolean | undefined
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
+
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  query: Schema.String,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
+
+export const IdOptionsSchema = Schema.Struct({ id: Schema.String })
+export type IdOptions = typeof IdOptionsSchema.Type
+
+export const SubscriptionOptionsSchema = Schema.Struct({ target: Schema.String })
+export type SubscriptionOptions = typeof SubscriptionOptionsSchema.Type

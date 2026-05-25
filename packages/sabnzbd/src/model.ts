@@ -1,98 +1,113 @@
-export interface SabnzbdConfigValue {
-  readonly url: string
-  readonly apiKey: string
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly version?: string | undefined
-  readonly uptime?: string | undefined
-  readonly paused?: boolean | undefined
-  readonly pausedAll?: boolean | undefined
-  readonly speedlimit?: string | undefined
-  readonly speedlimitAbs?: string | undefined
-  readonly diskspace1Norm?: string | undefined
-  readonly diskspace2Norm?: string | undefined
-  readonly haveWarnings?: boolean | undefined
-  readonly warnings?: ReadonlyArray<string> | undefined
-  readonly newRelease?: string | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface VersionResult {
-  readonly version: string
-}
+export const SabnzbdConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+})
+export type SabnzbdConfigValue = typeof SabnzbdConfigValueSchema.Type
 
-export interface QueueSlot {
-  readonly nzoId: string
-  readonly filename: string
-  readonly status?: string | undefined
-  readonly priority?: string | undefined
-  readonly category?: string | undefined
-  readonly mb?: string | undefined
-  readonly mbleft?: string | undefined
-  readonly percentage?: string | undefined
-  readonly timeleft?: string | undefined
-}
+export const SystemStatusSchema = Schema.Struct({
+  version: OptionalString,
+  uptime: OptionalString,
+  paused: OptionalBoolean,
+  pausedAll: OptionalBoolean,
+  speedlimit: OptionalString,
+  speedlimitAbs: OptionalString,
+  diskspace1Norm: OptionalString,
+  diskspace2Norm: OptionalString,
+  haveWarnings: OptionalBoolean,
+  warnings: OptionalStringArray,
+  newRelease: OptionalString,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface QueueResult {
-  readonly status?: string | undefined
-  readonly paused?: boolean | undefined
-  readonly speed?: string | undefined
-  readonly speedlimit?: string | undefined
-  readonly timeleft?: string | undefined
-  readonly mb?: string | undefined
-  readonly mbleft?: string | undefined
-  readonly noofslots?: number | undefined
-  readonly count: number
-  readonly totalRecords: number
-  readonly slots: ReadonlyArray<QueueSlot>
-}
+export const VersionResultSchema = Schema.Struct({ version: Schema.String })
+export type VersionResult = typeof VersionResultSchema.Type
 
-export interface HistorySlot {
-  readonly nzoId: string
-  readonly name: string
-  readonly status?: string | undefined
-  readonly category?: string | undefined
-  readonly bytes?: number | undefined
-  readonly failMessage?: string | undefined
-  readonly storage?: string | undefined
-  readonly completed?: number | undefined
-}
+export const QueueSlotSchema = Schema.Struct({
+  nzoId: Schema.String,
+  filename: Schema.String,
+  status: OptionalString,
+  priority: OptionalString,
+  category: OptionalString,
+  mb: OptionalString,
+  mbleft: OptionalString,
+  percentage: OptionalString,
+  timeleft: OptionalString,
+})
+export type QueueSlot = typeof QueueSlotSchema.Type
 
-export interface HistoryResult {
-  readonly totalSize?: string | undefined
-  readonly monthSize?: string | undefined
-  readonly weekSize?: string | undefined
-  readonly daySize?: string | undefined
-  readonly noofslots?: number | undefined
-  readonly count: number
-  readonly totalRecords: number
-  readonly slots: ReadonlyArray<HistorySlot>
-}
+export const QueueResultSchema = Schema.Struct({
+  status: OptionalString,
+  paused: OptionalBoolean,
+  speed: OptionalString,
+  speedlimit: OptionalString,
+  timeleft: OptionalString,
+  mb: OptionalString,
+  mbleft: OptionalString,
+  noofslots: OptionalNumber,
+  count: Schema.Number,
+  totalRecords: Schema.Number,
+  slots: Schema.Array(QueueSlotSchema),
+})
+export type QueueResult = typeof QueueResultSchema.Type
 
-export type SabnzbdAction = 'pause' | 'resume' | 'delete'
+export const HistorySlotSchema = Schema.Struct({
+  nzoId: Schema.String,
+  name: Schema.String,
+  status: OptionalString,
+  category: OptionalString,
+  bytes: OptionalNumber,
+  failMessage: OptionalString,
+  storage: OptionalString,
+  completed: OptionalNumber,
+})
+export type HistorySlot = typeof HistorySlotSchema.Type
 
-export interface ActionResult {
-  readonly action: SabnzbdAction
-  readonly ok: boolean
-  readonly nzoId?: string | undefined
-  readonly deleteFiles?: boolean | undefined
-}
+export const HistoryResultSchema = Schema.Struct({
+  totalSize: OptionalString,
+  monthSize: OptionalString,
+  weekSize: OptionalString,
+  daySize: OptionalString,
+  noofslots: OptionalNumber,
+  count: Schema.Number,
+  totalRecords: Schema.Number,
+  slots: Schema.Array(HistorySlotSchema),
+})
+export type HistoryResult = typeof HistoryResultSchema.Type
 
-export interface ServerUsage {
-  readonly total?: number | undefined
-  readonly month?: number | undefined
-  readonly week?: number | undefined
-  readonly day?: number | undefined
-}
+export const SabnzbdActionSchema = Schema.Literals(['pause', 'resume', 'delete'])
+export type SabnzbdAction = typeof SabnzbdActionSchema.Type
 
-export interface ServerStats extends ServerUsage {
-  readonly servers: Readonly<Record<string, ServerUsage>>
-}
+export const ActionResultSchema = Schema.Struct({
+  action: SabnzbdActionSchema,
+  ok: Schema.Boolean,
+  nzoId: OptionalString,
+  deleteFiles: OptionalBoolean,
+})
+export type ActionResult = typeof ActionResultSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const ServerUsageSchema = Schema.Struct({
+  total: OptionalNumber,
+  month: OptionalNumber,
+  week: OptionalNumber,
+  day: OptionalNumber,
+})
+export type ServerUsage = typeof ServerUsageSchema.Type
 
-export interface DeleteOptions {
-  readonly deleteFiles: boolean
-}
+export const ServerStatsSchema = Schema.Struct({
+  ...ServerUsageSchema.fields,
+  servers: Schema.Record(Schema.String, ServerUsageSchema),
+})
+export type ServerStats = typeof ServerStatsSchema.Type
+
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
+
+export const DeleteOptionsSchema = Schema.Struct({ deleteFiles: Schema.Boolean })
+export type DeleteOptions = typeof DeleteOptionsSchema.Type

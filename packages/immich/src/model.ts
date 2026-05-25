@@ -1,164 +1,197 @@
-export interface ImmichConfigValue {
-  readonly url: string
-  readonly apiKey: string
-}
+import { Schema } from 'effect'
 
-export interface VersionParts {
-  readonly major: number
-  readonly minor: number
-  readonly patch: number
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export interface SystemStatus {
-  readonly version: string
-  readonly versionParts: VersionParts
-  readonly ping?: string | undefined
-}
+export const ImmichConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+})
+export type ImmichConfigValue = typeof ImmichConfigValueSchema.Type
 
-export interface UserUsageRecord {
-  readonly userId: string
-  readonly userName?: string | undefined
-  readonly photos: number
-  readonly videos: number
-  readonly usageBytes: number
-  readonly quotaSizeInBytes?: number | undefined
-}
+export const VersionPartsSchema = Schema.Struct({
+  major: Schema.Number,
+  minor: Schema.Number,
+  patch: Schema.Number,
+})
+export type VersionParts = typeof VersionPartsSchema.Type
 
-export interface Statistics {
-  readonly photos: number
-  readonly videos: number
-  readonly usageBytes: number
-  readonly usagePhotosBytes: number
-  readonly usageVideosBytes: number
-  readonly perUser: ReadonlyArray<UserUsageRecord>
-}
+export const SystemStatusSchema = Schema.Struct({
+  version: Schema.String,
+  versionParts: VersionPartsSchema,
+  ping: OptionalString,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface StorageStatus {
-  readonly diskSize?: string | undefined
-  readonly diskUse?: string | undefined
-  readonly diskAvailable?: string | undefined
-  readonly diskSizeRaw?: number | undefined
-  readonly diskUseRaw?: number | undefined
-  readonly diskAvailableRaw?: number | undefined
-  readonly diskUsagePercentage?: number | undefined
-}
+export const UserUsageRecordSchema = Schema.Struct({
+  userId: Schema.String,
+  userName: OptionalString,
+  photos: Schema.Number,
+  videos: Schema.Number,
+  usageBytes: Schema.Number,
+  quotaSizeInBytes: OptionalNumber,
+})
+export type UserUsageRecord = typeof UserUsageRecordSchema.Type
 
-export interface UserRecord {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly email?: string | undefined
-  readonly isAdmin?: boolean | undefined
-  readonly quotaSizeInBytes?: number | undefined
-  readonly quotaUsageInBytes?: number | undefined
-  readonly status?: string | undefined
-}
+export const StatisticsSchema = Schema.Struct({
+  photos: Schema.Number,
+  videos: Schema.Number,
+  usageBytes: Schema.Number,
+  usagePhotosBytes: Schema.Number,
+  usageVideosBytes: Schema.Number,
+  perUser: Schema.Array(UserUsageRecordSchema),
+})
+export type Statistics = typeof StatisticsSchema.Type
 
-export interface UsersResult extends ListResult<UserRecord> {
-  readonly note?: string | undefined
-}
+export const StorageStatusSchema = Schema.Struct({
+  diskSize: OptionalString,
+  diskUse: OptionalString,
+  diskAvailable: OptionalString,
+  diskSizeRaw: OptionalNumber,
+  diskUseRaw: OptionalNumber,
+  diskAvailableRaw: OptionalNumber,
+  diskUsagePercentage: OptionalNumber,
+})
+export type StorageStatus = typeof StorageStatusSchema.Type
 
-export interface CurrentUser {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly email?: string | undefined
-  readonly isAdmin?: boolean | undefined
-  readonly storageLabel?: string | undefined
-  readonly quotaSizeInBytes?: number | undefined
-  readonly quotaUsageInBytes?: number | undefined
-}
+export const UserRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  email: OptionalString,
+  isAdmin: OptionalBoolean,
+  quotaSizeInBytes: OptionalNumber,
+  quotaUsageInBytes: OptionalNumber,
+  status: OptionalString,
+})
+export type UserRecord = typeof UserRecordSchema.Type
 
-export interface AlbumSummary {
-  readonly id: string
-  readonly albumName?: string | undefined
-  readonly assetCount?: number | undefined
-  readonly createdAt?: string | undefined
-  readonly ownerId?: string | undefined
-}
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export interface AssetExif {
-  readonly make?: string | undefined
-  readonly model?: string | undefined
-}
+export const UsersResultSchema = Schema.Struct({
+  ...ListResultSchema(UserRecordSchema).fields,
+  note: OptionalString,
+})
+export type UsersResult = typeof UsersResultSchema.Type
 
-export interface AssetRecord {
-  readonly id: string
-  readonly type?: string | undefined
-  readonly originalFileName?: string | undefined
-  readonly fileCreatedAt?: string | undefined
-  readonly exifInfo?: AssetExif | undefined
-}
+export const CurrentUserSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  email: OptionalString,
+  isAdmin: OptionalBoolean,
+  storageLabel: OptionalString,
+  quotaSizeInBytes: OptionalNumber,
+  quotaUsageInBytes: OptionalNumber,
+})
+export type CurrentUser = typeof CurrentUserSchema.Type
 
-export interface AlbumInfo {
-  readonly id: string
-  readonly albumName?: string | undefined
-  readonly assetCount?: number | undefined
-  readonly createdAt?: string | undefined
-  readonly updatedAt?: string | undefined
-  readonly ownerId?: string | undefined
-  readonly shared?: boolean | undefined
-  readonly hasSharedLink?: boolean | undefined
-  readonly assets: ListResult<AssetRecord>
-  readonly moreAssetsAvailable: boolean
-}
+export const AlbumSummarySchema = Schema.Struct({
+  id: Schema.String,
+  albumName: OptionalString,
+  assetCount: OptionalNumber,
+  createdAt: OptionalString,
+  ownerId: OptionalString,
+})
+export type AlbumSummary = typeof AlbumSummarySchema.Type
 
-export interface SearchResult {
-  readonly mode: 'smart' | 'metadata'
-  readonly query: string
-  readonly total: number
-  readonly count: number
-  readonly records: ReadonlyArray<AssetRecord>
-}
+export const AssetExifSchema = Schema.Struct({
+  make: OptionalString,
+  model: OptionalString,
+})
+export type AssetExif = typeof AssetExifSchema.Type
 
-export interface PersonRecord {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly birthDate?: string | undefined
-  readonly isFavorite?: boolean | undefined
-  readonly isHidden?: boolean | undefined
-  readonly updatedAt?: string | undefined
-}
+export const AssetRecordSchema = Schema.Struct({
+  id: Schema.String,
+  type: OptionalString,
+  originalFileName: OptionalString,
+  fileCreatedAt: OptionalString,
+  exifInfo: Schema.optional(AssetExifSchema),
+})
+export type AssetRecord = typeof AssetRecordSchema.Type
 
-export interface PeopleResult extends ListResult<PersonRecord> {
-  readonly total?: number | undefined
-  readonly hidden?: number | undefined
-  readonly hasNextPage?: boolean | undefined
-}
+export const AlbumInfoSchema = Schema.Struct({
+  id: Schema.String,
+  albumName: OptionalString,
+  assetCount: OptionalNumber,
+  createdAt: OptionalString,
+  updatedAt: OptionalString,
+  ownerId: OptionalString,
+  shared: OptionalBoolean,
+  hasSharedLink: OptionalBoolean,
+  assets: ListResultSchema(AssetRecordSchema),
+  moreAssetsAvailable: Schema.Boolean,
+})
+export type AlbumInfo = typeof AlbumInfoSchema.Type
 
-export interface JobCounts {
-  readonly active?: number | undefined
-  readonly completed?: number | undefined
-  readonly failed?: number | undefined
-  readonly delayed?: number | undefined
-  readonly waiting?: number | undefined
-  readonly paused?: number | undefined
-}
+export const SearchModeSchema = Schema.Literals(['smart', 'metadata'])
+export const SearchResultSchema = Schema.Struct({
+  mode: SearchModeSchema,
+  query: Schema.String,
+  total: Schema.Number,
+  count: Schema.Number,
+  records: Schema.Array(AssetRecordSchema),
+})
+export type SearchResult = typeof SearchResultSchema.Type
 
-export interface JobRecord {
-  readonly queue: string
-  readonly paused?: boolean | undefined
-  readonly active?: boolean | undefined
-  readonly counts: JobCounts
-}
+export const PersonRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  birthDate: OptionalString,
+  isFavorite: OptionalBoolean,
+  isHidden: OptionalBoolean,
+  updatedAt: OptionalString,
+})
+export type PersonRecord = typeof PersonRecordSchema.Type
 
-export interface TagRecord {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly value?: string | undefined
-}
+export const PeopleResultSchema = Schema.Struct({
+  ...ListResultSchema(PersonRecordSchema).fields,
+  total: OptionalNumber,
+  hidden: OptionalNumber,
+  hasNextPage: OptionalBoolean,
+})
+export type PeopleResult = typeof PeopleResultSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const JobCountsSchema = Schema.Struct({
+  active: OptionalNumber,
+  completed: OptionalNumber,
+  failed: OptionalNumber,
+  delayed: OptionalNumber,
+  waiting: OptionalNumber,
+  paused: OptionalNumber,
+})
+export type JobCounts = typeof JobCountsSchema.Type
 
-export interface SearchOptions extends LimitOptions {
-  readonly query: string
-}
+export const JobRecordSchema = Schema.Struct({
+  queue: Schema.String,
+  paused: OptionalBoolean,
+  active: OptionalBoolean,
+  counts: JobCountsSchema,
+})
+export type JobRecord = typeof JobRecordSchema.Type
 
-export interface AlbumInfoOptions extends LimitOptions {
-  readonly id: string
-}
+export const TagRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  value: OptionalString,
+})
+export type TagRecord = typeof TagRecordSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly records: ReadonlyArray<Record>
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
+
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  query: Schema.String,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
+
+export const AlbumInfoOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  id: Schema.String,
+})
+export type AlbumInfoOptions = typeof AlbumInfoOptionsSchema.Type

@@ -1,78 +1,92 @@
-export type JsonObject = Readonly<Record<string, unknown>>
+import { Schema } from 'effect'
 
-export interface ProcessResult {
-  readonly exitCode: number
-  readonly stdout: string
-  readonly stderr: string
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObjectSchema.Type
 
-export interface WhoisOptions {
-  readonly target: string
-}
+export const ProcessResultSchema = Schema.Struct({
+  exitCode: Schema.Number,
+  stdout: Schema.String,
+  stderr: Schema.String,
+})
+export type ProcessResult = typeof ProcessResultSchema.Type
 
-export interface PingOptions {
-  readonly target: string
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly total?: number | undefined
-  readonly records: ReadonlyArray<Record>
-  readonly moreAvailable?: boolean | undefined
-}
+export const WhoisOptionsSchema = Schema.Struct({ target: Schema.String })
+export type WhoisOptions = typeof WhoisOptionsSchema.Type
 
-export interface PeerRecord {
-  readonly id?: string | undefined
-  readonly hostName?: string | undefined
-  readonly dnsName?: string | undefined
-  readonly ips: ReadonlyArray<string>
-  readonly os?: string | undefined
-  readonly online?: boolean | undefined
-  readonly active?: boolean | undefined
-  readonly exitNode?: boolean | undefined
-  readonly exitNodeOption?: boolean | undefined
-  readonly relay?: string | undefined
-  readonly lastSeen?: string | undefined
-  readonly allowedIps?: ReadonlyArray<string> | undefined
-  readonly tags?: ReadonlyArray<string> | undefined
-}
+export const PingOptionsSchema = Schema.Struct({ target: Schema.String })
+export type PingOptions = typeof PingOptionsSchema.Type
 
-export interface StatusResult {
-  readonly backendState?: string | undefined
-  readonly version?: string | undefined
-  readonly tailnetName?: string | undefined
-  readonly magicDnsSuffix?: string | undefined
-  readonly magicDnsEnabled?: boolean | undefined
-  readonly self?: PeerRecord | undefined
-  readonly peerCount: number
-  readonly onlinePeerCount: number
-  readonly exitNodeCount: number
-  readonly currentExitNode?: PeerRecord | undefined
-  readonly health: ReadonlyArray<string>
-  readonly peers: ListResult<PeerRecord>
-}
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    total: OptionalNumber,
+    records: Schema.Array(record),
+    moreAvailable: OptionalBoolean,
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export interface CurrentExitNodeResult {
-  readonly usingExitNode: boolean
-  readonly peer?: PeerRecord | undefined
-}
+export const PeerRecordSchema = Schema.Struct({
+  id: OptionalString,
+  hostName: OptionalString,
+  dnsName: OptionalString,
+  ips: Schema.Array(Schema.String),
+  os: OptionalString,
+  online: OptionalBoolean,
+  active: OptionalBoolean,
+  exitNode: OptionalBoolean,
+  exitNodeOption: OptionalBoolean,
+  relay: OptionalString,
+  lastSeen: OptionalString,
+  allowedIps: OptionalStringArray,
+  tags: OptionalStringArray,
+})
+export type PeerRecord = typeof PeerRecordSchema.Type
 
-export interface DnsResult {
-  readonly output: string
-  readonly lines: ReadonlyArray<string>
-}
+export const StatusResultSchema = Schema.Struct({
+  backendState: OptionalString,
+  version: OptionalString,
+  tailnetName: OptionalString,
+  magicDnsSuffix: OptionalString,
+  magicDnsEnabled: OptionalBoolean,
+  self: Schema.optional(PeerRecordSchema),
+  peerCount: Schema.Number,
+  onlinePeerCount: Schema.Number,
+  exitNodeCount: Schema.Number,
+  currentExitNode: Schema.optional(PeerRecordSchema),
+  health: Schema.Array(Schema.String),
+  peers: ListResultSchema(PeerRecordSchema),
+})
+export type StatusResult = typeof StatusResultSchema.Type
 
-export interface IpResult {
-  readonly ipv4?: string | undefined
-  readonly ipv6?: string | undefined
-}
+export const CurrentExitNodeResultSchema = Schema.Struct({
+  usingExitNode: Schema.Boolean,
+  peer: Schema.optional(PeerRecordSchema),
+})
+export type CurrentExitNodeResult = typeof CurrentExitNodeResultSchema.Type
 
-export interface PingResult {
-  readonly target: string
-  readonly output: string
-  readonly lines: ReadonlyArray<string>
-}
+export const DnsResultSchema = Schema.Struct({
+  output: Schema.String,
+  lines: Schema.Array(Schema.String),
+})
+export type DnsResult = typeof DnsResultSchema.Type
+
+export const IpResultSchema = Schema.Struct({
+  ipv4: OptionalString,
+  ipv6: OptionalString,
+})
+export type IpResult = typeof IpResultSchema.Type
+
+export const PingResultSchema = Schema.Struct({
+  target: Schema.String,
+  output: Schema.String,
+  lines: Schema.Array(Schema.String),
+})
+export type PingResult = typeof PingResultSchema.Type

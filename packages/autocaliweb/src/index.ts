@@ -13,6 +13,20 @@ export {
 export type { AutocaliwebErrorCode } from './errors.js'
 export { AutocaliwebApiLive } from './http.js'
 export {
+  AutocaliwebConfigValueSchema,
+  BookInfoOptionsSchema,
+  BookInfoRecordSchema,
+  BookRecordSchema,
+  CatalogEntrySchema,
+  DownloadLinkSchema,
+  LimitOptionsSchema,
+  ListResultSchema,
+  SearchOptionsSchema,
+  SearchResultSchema,
+  StatsResultSchema,
+  StatusResultSchema,
+} from './model.js'
+export {
   bookInfo,
   books,
   catalog,

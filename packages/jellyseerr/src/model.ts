@@ -1,87 +1,111 @@
-export interface JellyseerrConfigValue {
-  readonly url: string
-  readonly apiKey: string
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly version?: string | undefined
-  readonly commitTag?: string | undefined
-  readonly updateAvailable?: boolean | undefined
-  readonly commitsBehind?: number | undefined
-  readonly restartRequired?: boolean | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStatusValue = Schema.optional(Schema.Union([Schema.Number, Schema.String]))
 
-export type RequestFilter = 'pending' | 'all'
-export type StatusValue = number | string
+export const JellyseerrConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+})
+export type JellyseerrConfigValue = typeof JellyseerrConfigValueSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const SystemStatusSchema = Schema.Struct({
+  version: OptionalString,
+  commitTag: OptionalString,
+  updateAvailable: OptionalBoolean,
+  commitsBehind: OptionalNumber,
+  restartRequired: OptionalBoolean,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface RequestListOptions extends LimitOptions {
-  readonly filter: RequestFilter
-}
+export const RequestFilterSchema = Schema.Literals(['pending', 'all'])
+export type RequestFilter = typeof RequestFilterSchema.Type
 
-export interface SearchOptions extends LimitOptions {
-  readonly query: string
-}
+export const StatusValueSchema = Schema.Union([Schema.Number, Schema.String])
+export type StatusValue = typeof StatusValueSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly totalRecords: number
-  readonly records: ReadonlyArray<Record>
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
 
-export interface MediaSummary {
-  readonly id: number
-  readonly tmdbId?: number | undefined
-  readonly mediaType?: string | undefined
-  readonly status?: StatusValue | undefined
-  readonly title?: string | undefined
-  readonly mediaAdded?: string | undefined
-}
+export const RequestListOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  filter: RequestFilterSchema,
+})
+export type RequestListOptions = typeof RequestListOptionsSchema.Type
 
-export interface RequestRecord {
-  readonly id: number
-  readonly status?: StatusValue | undefined
-  readonly type?: string | undefined
-  readonly createdAt?: string | undefined
-  readonly updatedAt?: string | undefined
-  readonly requestedBy?: string | undefined
-  readonly media: MediaSummary
-}
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  query: Schema.String,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
 
-export type RequestCounts = Readonly<Record<string, number>>
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    totalRecords: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export interface SearchRecord {
-  readonly id: number
-  readonly mediaType?: string | undefined
-  readonly title?: string | undefined
-  readonly releaseDate?: string | undefined
-  readonly firstAirDate?: string | undefined
-  readonly overview?: string | undefined
-}
+export const MediaSummarySchema = Schema.Struct({
+  id: Schema.Number,
+  tmdbId: OptionalNumber,
+  mediaType: OptionalString,
+  status: OptionalStatusValue,
+  title: OptionalString,
+  mediaAdded: OptionalString,
+})
+export type MediaSummary = typeof MediaSummarySchema.Type
 
-export interface UserRecord {
-  readonly id: number
-  readonly email?: string | undefined
-  readonly displayName?: string | undefined
-  readonly username?: string | undefined
-  readonly userType?: number | undefined
-  readonly permissions?: number | undefined
-}
+export const RequestRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  status: OptionalStatusValue,
+  type: OptionalString,
+  createdAt: OptionalString,
+  updatedAt: OptionalString,
+  requestedBy: OptionalString,
+  media: MediaSummarySchema,
+})
+export type RequestRecord = typeof RequestRecordSchema.Type
 
-export interface IssueRecord {
-  readonly id: number
-  readonly issueType?: string | undefined
-  readonly status?: StatusValue | undefined
-  readonly createdAt?: string | undefined
-  readonly createdBy?: string | undefined
-  readonly media: MediaSummary
-}
+export const RequestCountsSchema = Schema.Record(Schema.String, Schema.Number)
+export type RequestCounts = typeof RequestCountsSchema.Type
 
-export interface DeleteRequestResult {
-  readonly deleted: boolean
-  readonly requestId: number
-  readonly httpStatus: number
-}
+export const SearchRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  mediaType: OptionalString,
+  title: OptionalString,
+  releaseDate: OptionalString,
+  firstAirDate: OptionalString,
+  overview: OptionalString,
+})
+export type SearchRecord = typeof SearchRecordSchema.Type
+
+export const UserRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  email: OptionalString,
+  displayName: OptionalString,
+  username: OptionalString,
+  userType: OptionalNumber,
+  permissions: OptionalNumber,
+})
+export type UserRecord = typeof UserRecordSchema.Type
+
+export const IssueRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  issueType: OptionalString,
+  status: OptionalStatusValue,
+  createdAt: OptionalString,
+  createdBy: OptionalString,
+  media: MediaSummarySchema,
+})
+export type IssueRecord = typeof IssueRecordSchema.Type
+
+export const DeleteRequestResultSchema = Schema.Struct({
+  deleted: Schema.Boolean,
+  requestId: Schema.Number,
+  httpStatus: Schema.Number,
+})
+export type DeleteRequestResult = typeof DeleteRequestResultSchema.Type

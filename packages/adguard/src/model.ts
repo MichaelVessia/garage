@@ -1,141 +1,162 @@
-export interface AdguardConfigValue {
-  readonly url: string
-  readonly username: string
-  readonly password: string
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly version?: string | undefined
-  readonly running?: boolean | undefined
-  readonly protectionEnabled?: boolean | undefined
-  readonly dnsAddresses?: ReadonlyArray<string> | undefined
-  readonly dnsPort?: number | undefined
-  readonly httpPort?: number | undefined
-  readonly protectionDisabledDuration?: number | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface VersionResult {
-  readonly version?: string | undefined
-}
+export const AdguardConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  username: Schema.String,
+  password: Schema.String,
+})
+export type AdguardConfigValue = typeof AdguardConfigValueSchema.Type
 
-export interface TopRecord {
-  readonly name: string
-  readonly count: number
-}
+export const SystemStatusSchema = Schema.Struct({
+  version: OptionalString,
+  running: OptionalBoolean,
+  protectionEnabled: OptionalBoolean,
+  dnsAddresses: OptionalStringArray,
+  dnsPort: OptionalNumber,
+  httpPort: OptionalNumber,
+  protectionDisabledDuration: OptionalNumber,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface Stats {
-  readonly numDnsQueries?: number | undefined
-  readonly numBlockedFiltering?: number | undefined
-  readonly numReplacedSafebrowsing?: number | undefined
-  readonly numReplacedParental?: number | undefined
-  readonly numReplacedSafesearch?: number | undefined
-  readonly avgProcessingTime?: number | undefined
-  readonly timeUnits?: string | undefined
-  readonly topQueriedDomains: ReadonlyArray<TopRecord>
-  readonly topBlockedDomains: ReadonlyArray<TopRecord>
-  readonly topClients: ReadonlyArray<TopRecord>
-}
+export const VersionResultSchema = Schema.Struct({ version: OptionalString })
+export type VersionResult = typeof VersionResultSchema.Type
 
-export interface StatsInfo {
-  readonly interval?: number | undefined
-}
+export const TopRecordSchema = Schema.Struct({
+  name: Schema.String,
+  count: Schema.Number,
+})
+export type TopRecord = typeof TopRecordSchema.Type
 
-export interface QueryLogEntry {
-  readonly time?: string | undefined
-  readonly client?: string | undefined
-  readonly question?: string | undefined
-  readonly type?: string | undefined
-  readonly status?: string | undefined
-  readonly reason?: string | undefined
-  readonly elapsedMs?: string | undefined
-  readonly answer: string
-}
+export const StatsSchema = Schema.Struct({
+  numDnsQueries: OptionalNumber,
+  numBlockedFiltering: OptionalNumber,
+  numReplacedSafebrowsing: OptionalNumber,
+  numReplacedParental: OptionalNumber,
+  numReplacedSafesearch: OptionalNumber,
+  avgProcessingTime: OptionalNumber,
+  timeUnits: OptionalString,
+  topQueriedDomains: Schema.Array(TopRecordSchema),
+  topBlockedDomains: Schema.Array(TopRecordSchema),
+  topClients: Schema.Array(TopRecordSchema),
+})
+export type Stats = typeof StatsSchema.Type
 
-export interface PersistentClient {
-  readonly name?: string | undefined
-  readonly ids?: ReadonlyArray<string> | undefined
-  readonly tags?: ReadonlyArray<string> | undefined
-  readonly upstreams?: ReadonlyArray<string> | undefined
-  readonly filteringEnabled?: boolean | undefined
-  readonly useGlobalSettings?: boolean | undefined
-  readonly blockedServices?: ReadonlyArray<string> | undefined
-}
+export const StatsInfoSchema = Schema.Struct({ interval: OptionalNumber })
+export type StatsInfo = typeof StatsInfoSchema.Type
 
-export interface AutoClient {
-  readonly name?: string | undefined
-  readonly ip?: string | undefined
-  readonly source?: string | undefined
-}
+export const QueryLogEntrySchema = Schema.Struct({
+  time: OptionalString,
+  client: OptionalString,
+  question: OptionalString,
+  type: OptionalString,
+  status: OptionalString,
+  reason: OptionalString,
+  elapsedMs: OptionalString,
+  answer: Schema.String,
+})
+export type QueryLogEntry = typeof QueryLogEntrySchema.Type
 
-export interface ClientsResult {
-  readonly configured: ReadonlyArray<PersistentClient>
-  readonly autoCount: number
-  readonly autoSample: ReadonlyArray<AutoClient>
-}
+export const PersistentClientSchema = Schema.Struct({
+  name: OptionalString,
+  ids: OptionalStringArray,
+  tags: OptionalStringArray,
+  upstreams: OptionalStringArray,
+  filteringEnabled: OptionalBoolean,
+  useGlobalSettings: OptionalBoolean,
+  blockedServices: OptionalStringArray,
+})
+export type PersistentClient = typeof PersistentClientSchema.Type
 
-export interface ActiveClient {
-  readonly ip: string
-  readonly name?: string | undefined
-  readonly ids?: ReadonlyArray<string> | undefined
-  readonly tags?: ReadonlyArray<string> | undefined
-  readonly upstreams?: ReadonlyArray<string> | undefined
-  readonly source?: string | undefined
-}
+export const AutoClientSchema = Schema.Struct({
+  name: OptionalString,
+  ip: OptionalString,
+  source: OptionalString,
+})
+export type AutoClient = typeof AutoClientSchema.Type
 
-export interface FilterRecord {
-  readonly id?: number | undefined
-  readonly name?: string | undefined
-  readonly enabled?: boolean | undefined
-  readonly rulesCount?: number | undefined
-  readonly lastUpdated?: string | undefined
-  readonly url?: string | undefined
-}
+export const ClientsResultSchema = Schema.Struct({
+  configured: Schema.Array(PersistentClientSchema),
+  autoCount: Schema.Number,
+  autoSample: Schema.Array(AutoClientSchema),
+})
+export type ClientsResult = typeof ClientsResultSchema.Type
 
-export interface FiltersResult {
-  readonly enabled?: boolean | undefined
-  readonly intervalHours?: number | undefined
-  readonly userRulesCount: number
-  readonly blocklists: ReadonlyArray<FilterRecord>
-  readonly allowlists: ReadonlyArray<FilterRecord>
-}
+export const ActiveClientSchema = Schema.Struct({
+  ip: Schema.String,
+  name: OptionalString,
+  ids: OptionalStringArray,
+  tags: OptionalStringArray,
+  upstreams: OptionalStringArray,
+  source: OptionalString,
+})
+export type ActiveClient = typeof ActiveClientSchema.Type
 
-export type JsonObject = Readonly<Record<string, unknown>>
+export const FilterRecordSchema = Schema.Struct({
+  id: OptionalNumber,
+  name: OptionalString,
+  enabled: OptionalBoolean,
+  rulesCount: OptionalNumber,
+  lastUpdated: OptionalString,
+  url: OptionalString,
+})
+export type FilterRecord = typeof FilterRecordSchema.Type
 
-export interface DhcpStatus {
-  readonly enabled?: boolean | undefined
-  readonly interfaceName?: string | undefined
-  readonly v4?: JsonObject | undefined
-  readonly v6?: JsonObject | undefined
-  readonly leaseCount: number
-  readonly staticLeaseCount: number
-  readonly leases: ReadonlyArray<JsonObject>
-  readonly staticLeases: ReadonlyArray<JsonObject>
-}
+export const FiltersResultSchema = Schema.Struct({
+  enabled: OptionalBoolean,
+  intervalHours: OptionalNumber,
+  userRulesCount: Schema.Number,
+  blocklists: Schema.Array(FilterRecordSchema),
+  allowlists: Schema.Array(FilterRecordSchema),
+})
+export type FiltersResult = typeof FiltersResultSchema.Type
 
-export interface ProtectionState {
-  readonly protectionEnabled?: boolean | undefined
-  readonly protectionDisabledDuration?: number | undefined
-}
+export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObjectSchema.Type
 
-export type ProtectionToggleState = 'on' | 'off'
+export const DhcpStatusSchema = Schema.Struct({
+  enabled: OptionalBoolean,
+  interfaceName: OptionalString,
+  v4: Schema.optional(JsonObjectSchema),
+  v6: Schema.optional(JsonObjectSchema),
+  leaseCount: Schema.Number,
+  staticLeaseCount: Schema.Number,
+  leases: Schema.Array(JsonObjectSchema),
+  staticLeases: Schema.Array(JsonObjectSchema),
+})
+export type DhcpStatus = typeof DhcpStatusSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const ProtectionStateSchema = Schema.Struct({
+  protectionEnabled: OptionalBoolean,
+  protectionDisabledDuration: OptionalNumber,
+})
+export type ProtectionState = typeof ProtectionStateSchema.Type
 
-export interface SearchOptions extends LimitOptions {
-  readonly query: string
-}
+export const ProtectionToggleStateSchema = Schema.Literals(['on', 'off'])
+export type ProtectionToggleState = typeof ProtectionToggleStateSchema.Type
 
-export interface ClientLookupOptions {
-  readonly ip: string
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
 
-export interface ProtectionToggleOptions {
-  readonly state: ProtectionToggleState
-}
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  query: Schema.String,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly records: ReadonlyArray<Record>
-}
+export const ClientLookupOptionsSchema = Schema.Struct({ ip: Schema.String })
+export type ClientLookupOptions = typeof ClientLookupOptionsSchema.Type
+
+export const ProtectionToggleOptionsSchema = Schema.Struct({ state: ProtectionToggleStateSchema })
+export type ProtectionToggleOptions = typeof ProtectionToggleOptionsSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>

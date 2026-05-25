@@ -1,95 +1,115 @@
-export interface JellyfinConfigValue {
-  readonly url: string
-  readonly apiKey: string
-}
+import { Schema } from 'effect'
 
-export interface SystemStatus {
-  readonly serverName?: string | undefined
-  readonly version?: string | undefined
-  readonly id?: string | undefined
-  readonly operatingSystem?: string | undefined
-  readonly productName?: string | undefined
-  readonly localAddress?: string | undefined
-}
+const OptionalString = Schema.optional(Schema.String)
+const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalBoolean = Schema.optional(Schema.Boolean)
+const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
 
-export interface UserRecord {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly lastActivityDate?: string | undefined
-  readonly isAdministrator?: boolean | undefined
-  readonly isDisabled?: boolean | undefined
-}
+export const JellyfinConfigValueSchema = Schema.Struct({
+  url: Schema.String,
+  apiKey: Schema.String,
+})
+export type JellyfinConfigValue = typeof JellyfinConfigValueSchema.Type
 
-export interface LibraryRecord {
-  readonly name?: string | undefined
-  readonly collectionType?: string | undefined
-  readonly itemId?: string | undefined
-  readonly locations?: ReadonlyArray<string> | undefined
-}
+export const SystemStatusSchema = Schema.Struct({
+  serverName: OptionalString,
+  version: OptionalString,
+  id: OptionalString,
+  operatingSystem: OptionalString,
+  productName: OptionalString,
+  localAddress: OptionalString,
+})
+export type SystemStatus = typeof SystemStatusSchema.Type
 
-export interface SessionRecord {
-  readonly sessionId?: string | undefined
-  readonly user?: string | undefined
-  readonly client?: string | undefined
-  readonly device?: string | undefined
-  readonly appVersion?: string | undefined
-  readonly lastActivityDate?: string | undefined
-  readonly nowPlaying?: string | undefined
-  readonly playMethod?: string | undefined
-}
+export const UserRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  lastActivityDate: OptionalString,
+  isAdministrator: OptionalBoolean,
+  isDisabled: OptionalBoolean,
+})
+export type UserRecord = typeof UserRecordSchema.Type
 
-export interface NowPlayingRecord {
-  readonly user?: string | undefined
-  readonly device?: string | undefined
-  readonly client?: string | undefined
-  readonly item: string
-  readonly type?: string | undefined
-  readonly series?: string | undefined
-  readonly season?: number | undefined
-  readonly episode?: number | undefined
-  readonly positionTicks?: number | undefined
-  readonly runtimeTicks?: number | undefined
-  readonly isPaused?: boolean | undefined
-  readonly playMethod?: string | undefined
-}
+export const LibraryRecordSchema = Schema.Struct({
+  name: OptionalString,
+  collectionType: OptionalString,
+  itemId: OptionalString,
+  locations: OptionalStringArray,
+})
+export type LibraryRecord = typeof LibraryRecordSchema.Type
 
-export interface ItemRecord {
-  readonly id: string
-  readonly name: string
-  readonly type?: string | undefined
-  readonly series?: string | undefined
-  readonly season?: number | undefined
-  readonly episode?: number | undefined
-  readonly dateCreated?: string | undefined
-  readonly productionYear?: number | undefined
-}
+export const SessionRecordSchema = Schema.Struct({
+  sessionId: OptionalString,
+  user: OptionalString,
+  client: OptionalString,
+  device: OptionalString,
+  appVersion: OptionalString,
+  lastActivityDate: OptionalString,
+  nowPlaying: OptionalString,
+  playMethod: OptionalString,
+})
+export type SessionRecord = typeof SessionRecordSchema.Type
 
-export type LibraryStats = Readonly<Record<string, number>>
+export const NowPlayingRecordSchema = Schema.Struct({
+  user: OptionalString,
+  device: OptionalString,
+  client: OptionalString,
+  item: Schema.String,
+  type: OptionalString,
+  series: OptionalString,
+  season: OptionalNumber,
+  episode: OptionalNumber,
+  positionTicks: OptionalNumber,
+  runtimeTicks: OptionalNumber,
+  isPaused: OptionalBoolean,
+  playMethod: OptionalString,
+})
+export type NowPlayingRecord = typeof NowPlayingRecordSchema.Type
 
-export interface ScheduledTaskRecord {
-  readonly id: string
-  readonly name?: string | undefined
-  readonly state?: string | undefined
-  readonly lastExecutionResult?: string | undefined
-  readonly lastEndTime?: string | undefined
-  readonly category?: string | undefined
-}
+export const ItemRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  type: OptionalString,
+  series: OptionalString,
+  season: OptionalNumber,
+  episode: OptionalNumber,
+  dateCreated: OptionalString,
+  productionYear: OptionalNumber,
+})
+export type ItemRecord = typeof ItemRecordSchema.Type
 
-export interface RunTaskResult {
-  readonly started: boolean
-  readonly taskId: string
-  readonly httpStatus: number
-}
+export const LibraryStatsSchema = Schema.Record(Schema.String, Schema.Number)
+export type LibraryStats = typeof LibraryStatsSchema.Type
 
-export interface LimitOptions {
-  readonly limit: number
-}
+export const ScheduledTaskRecordSchema = Schema.Struct({
+  id: Schema.String,
+  name: OptionalString,
+  state: OptionalString,
+  lastExecutionResult: OptionalString,
+  lastEndTime: OptionalString,
+  category: OptionalString,
+})
+export type ScheduledTaskRecord = typeof ScheduledTaskRecordSchema.Type
 
-export interface SearchOptions extends LimitOptions {
-  readonly query: string
-}
+export const RunTaskResultSchema = Schema.Struct({
+  started: Schema.Boolean,
+  taskId: Schema.String,
+  httpStatus: Schema.Number,
+})
+export type RunTaskResult = typeof RunTaskResultSchema.Type
 
-export interface ListResult<Record> {
-  readonly count: number
-  readonly records: ReadonlyArray<Record>
-}
+export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptionsSchema.Type
+
+export const SearchOptionsSchema = Schema.Struct({
+  limit: Schema.Number,
+  query: Schema.String,
+})
+export type SearchOptions = typeof SearchOptionsSchema.Type
+
+export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+  Schema.Struct({
+    count: Schema.Number,
+    records: Schema.Array(record),
+  })
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>

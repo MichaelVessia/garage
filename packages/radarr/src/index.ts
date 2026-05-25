@@ -18,6 +18,36 @@ export {
 } from './errors.js'
 export type { RadarrErrorCode } from './errors.js'
 export { RadarrApiLive } from './http.js'
+export {
+  AddCollectionMovieActionSchema,
+  AddCollectionMovieResultSchema,
+  AddCollectionOptionsSchema,
+  AddCollectionResultSchema,
+  AddMovieApiOptionsSchema,
+  AddMovieOptionsSchema,
+  AddMovieResultSchema,
+  CalendarOptionsSchema,
+  CalendarResultSchema,
+  CollectionInfoResultSchema,
+  CollectionRecordSchema,
+  ConfigSummarySchema,
+  ExistsResultSchema,
+  HistoryRecordSchema,
+  LimitOptionsSchema,
+  ListResultSchema,
+  MovieCollectionSummarySchema,
+  MovieLookupResultSchema,
+  MovieRecordSchema,
+  MovieReleaseRecordSchema,
+  QualityProfileSchema,
+  QueueRecordSchema,
+  RadarrConfigValueSchema,
+  RemoveMovieOptionsSchema,
+  RemoveMovieResultSchema,
+  RootFolderSchema,
+  SearchResultSchema,
+  SystemStatusSchema,
+} from './model.js'
 export type {
   AddCollectionMovieAction,
   AddCollectionMovieResult,
