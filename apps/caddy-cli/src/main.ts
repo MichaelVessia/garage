@@ -1,4 +1,4 @@
-import { BunFileSystem, BunHttpClient } from '@effect/platform-bun'
+import { BunFileSystem, BunHttpClient, BunRuntime } from '@effect/platform-bun'
 import { CaddyApiLive, CaddyConfigLive } from '@garage/caddy'
 import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
 import { Console, Effect, Layer } from 'effect'
@@ -27,4 +27,4 @@ const program = executeCaddy(Bun.argv.slice(2)).pipe(
   Effect.provide(Live)
 )
 
-await Effect.runPromise(program)
+BunRuntime.runMain(program)

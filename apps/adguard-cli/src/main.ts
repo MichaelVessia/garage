@@ -1,4 +1,4 @@
-import { BunHttpClient } from '@effect/platform-bun'
+import { BunHttpClient, BunRuntime } from '@effect/platform-bun'
 import { AdguardApiLive, AdguardConfigLive } from '@garage/adguard'
 import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
 import { Console, Effect, Layer } from 'effect'
@@ -25,4 +25,4 @@ const program = executeAdguard(Bun.argv.slice(2)).pipe(
   Effect.provide(Live)
 )
 
-await Effect.runPromise(program)
+BunRuntime.runMain(program)

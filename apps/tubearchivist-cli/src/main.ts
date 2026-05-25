@@ -1,4 +1,4 @@
-import { BunFileSystem, BunHttpClient, BunPath } from '@effect/platform-bun'
+import { BunFileSystem, BunHttpClient, BunPath, BunRuntime } from '@effect/platform-bun'
 import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
 import { TubearchivistApiLive, TubearchivistConfigLive } from '@garage/tubearchivist'
 import { Console, Effect, Layer } from 'effect'
@@ -29,4 +29,4 @@ const program = executeTubearchivist(Bun.argv.slice(2)).pipe(
   Effect.provide(Live)
 )
 
-await Effect.runPromise(program)
+BunRuntime.runMain(program)

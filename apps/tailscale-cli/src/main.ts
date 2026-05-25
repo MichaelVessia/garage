@@ -1,4 +1,4 @@
-import { BunHttpClient, BunServices } from '@effect/platform-bun'
+import { BunHttpClient, BunRuntime, BunServices } from '@effect/platform-bun'
 import { cliObservabilityLayer, renderEnvelope } from '@garage/cli-protocol'
 import { TailscaleApiLive } from '@garage/tailscale'
 import { Console, Effect, Layer } from 'effect'
@@ -24,4 +24,4 @@ const program = executeTailscale(Bun.argv.slice(2)).pipe(
   Effect.provide(Live)
 )
 
-await Effect.runPromise(program)
+BunRuntime.runMain(program)
