@@ -83,42 +83,52 @@ export const CaddyApiLive = Layer.effect(
   CaddyApi,
   Effect.gen(function* () {
     const caddyConfig = yield* CaddyConfig
-    const config = yield* caddyConfig.get()
     const client = yield* HttpClient.HttpClient
+    const withConfig = <A, E, R>(
+      f: (config: CaddyConfigValue) => Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E | CaddyError, R> => caddyConfig.get().pipe(Effect.flatMap(f))
 
     return CaddyApi.of({
       config: Effect.fn('CaddyApi.config')(
         function* () {
-          return yield* getJson(client, config, '/config/', JsonObjectSchema)
+          return yield* withConfig((config) => getJson(client, config, '/config/', JsonObjectSchema))
         },
         Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyApi', method: 'config' })
       ),
       routes: Effect.fn('CaddyApi.routes')(
         function* () {
-          const result = yield* getJson(client, config, '/config/', RoutesConfigSchema)
-          yield* Effect.annotateCurrentSpan({ 'caddy.route_count': result.count })
-          return result
+          return yield* withConfig(
+            Effect.fn('CaddyApi.routes.configured')(function* (config) {
+              const result = yield* getJson(client, config, '/config/', RoutesConfigSchema)
+              yield* Effect.annotateCurrentSpan({ 'caddy.route_count': result.count })
+              return result
+            })
+          )
         },
         Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyApi', method: 'routes' })
       ),
       upstreams: Effect.fn('CaddyApi.upstreams')(
         function* () {
-          return yield* getJson(client, config, '/reverse_proxy/upstreams', Schema.Array(UpstreamSchema)).pipe(
-            Effect.map(listResult)
+          return yield* withConfig((config) =>
+            getJson(client, config, '/reverse_proxy/upstreams', Schema.Array(UpstreamSchema)).pipe(
+              Effect.map(listResult)
+            )
           )
         },
         Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyApi', method: 'upstreams' })
       ),
       pkiCa: Effect.fn('CaddyApi.pkiCa')(
         function* () {
-          return yield* getJson(client, config, '/pki/ca/local', PkiCaSchema)
+          return yield* withConfig((config) => getJson(client, config, '/pki/ca/local', PkiCaSchema))
         },
         Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyApi', method: 'pkiCa' })
       ),
       reload: Effect.fn('CaddyApi.reload')(
         function* (nextConfig) {
-          return yield* postJsonStatus(client, config, '/load', nextConfig).pipe(
-            Effect.map((httpStatus) => ({ reloaded: true, httpStatus }))
+          return yield* withConfig((config) =>
+            postJsonStatus(client, config, '/load', nextConfig).pipe(
+              Effect.map((httpStatus) => ({ reloaded: true, httpStatus }))
+            )
           )
         },
         Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyApi', method: 'reload' })

@@ -198,30 +198,34 @@ export const TubearchivistApiLive = Layer.effect(
   TubearchivistApi,
   Effect.gen(function* () {
     const tubearchivistConfig = yield* TubearchivistConfig
-    const config = yield* tubearchivistConfig.get()
     const client = yield* HttpClient.HttpClient
     const cache = yield* TubearchivistSessionCache
+    const withConfig = <A, E, R>(
+      f: (config: TubearchivistConfigValue) => Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E | TubearchivistError, R> => tubearchivistConfig.get().pipe(Effect.flatMap(f))
 
     return TubearchivistApi.of({
       status: Effect.fn('TubearchivistApi.status')(
         function* () {
-          return yield* Effect.all(
-            {
-              health: getJson(client, config, cache, '/health/', Schema.String),
-              config: getJson(client, config, cache, '/appsettings/config/', JsonObjectSchema),
-              video: getJson(client, config, cache, '/stats/video/', JsonObjectSchema),
-              channel: getJson(client, config, cache, '/stats/channel/', JsonObjectSchema),
-              download: getJson(client, config, cache, '/stats/download/', JsonObjectSchema),
-              watch: getJson(client, config, cache, '/stats/watch/', JsonObjectSchema),
-            },
-            { concurrency: 1 }
-          ).pipe(
-            Effect.map((parts) => ({
-              url: normalizeBaseUrl(config.url),
-              health: parts.health,
-              config: parts.config,
-              stats: { video: parts.video, channel: parts.channel, download: parts.download, watch: parts.watch },
-            }))
+          return yield* withConfig((config) =>
+            Effect.all(
+              {
+                health: getJson(client, config, cache, '/health/', Schema.String),
+                config: getJson(client, config, cache, '/appsettings/config/', JsonObjectSchema),
+                video: getJson(client, config, cache, '/stats/video/', JsonObjectSchema),
+                channel: getJson(client, config, cache, '/stats/channel/', JsonObjectSchema),
+                download: getJson(client, config, cache, '/stats/download/', JsonObjectSchema),
+                watch: getJson(client, config, cache, '/stats/watch/', JsonObjectSchema),
+              },
+              { concurrency: 1 }
+            ).pipe(
+              Effect.map((parts) => ({
+                url: normalizeBaseUrl(config.url),
+                health: parts.health,
+                config: parts.config,
+                stats: { video: parts.video, channel: parts.channel, download: parts.download, watch: parts.watch },
+              }))
+            )
           )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'status' })
@@ -229,80 +233,86 @@ export const TubearchivistApiLive = Layer.effect(
       channels: Effect.fn('TubearchivistApi.channels')(
         function* (options) {
           yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': options.limit })
-          return yield* getJson(client, config, cache, '/channel/', ChannelResponseSchema(options.limit))
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, '/channel/', ChannelResponseSchema(options.limit))
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'channels' })
       ),
       channelInfo: Effect.fn('TubearchivistApi.channelInfo')(
         function* (options) {
-          return yield* getJson(client, config, cache, `/channel/${options.id}/`, ChannelDetailSchema)
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, `/channel/${options.id}/`, ChannelDetailSchema)
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'channelInfo' })
       ),
       subscribe: Effect.fn('TubearchivistApi.subscribe')(
         function* (options) {
-          return yield* postJson(
-            client,
-            config,
-            cache,
-            '/channel/',
-            subscriptionBody(options, true),
-            JsonObjectSchema
-          ).pipe(
-            Effect.map((response) => ({
-              target: options.target,
-              subscribed: true,
-              response,
-              note: 'Subscribe task queued. Run tasks to inspect Celery progress.',
-            }))
+          return yield* withConfig((config) =>
+            postJson(client, config, cache, '/channel/', subscriptionBody(options, true), JsonObjectSchema).pipe(
+              Effect.map((response) => ({
+                target: options.target,
+                subscribed: true,
+                response,
+                note: 'Subscribe task queued. Run tasks to inspect Celery progress.',
+              }))
+            )
           )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'subscribe' })
       ),
       unsubscribe: Effect.fn('TubearchivistApi.unsubscribe')(
         function* (options) {
-          return yield* postJson(
-            client,
-            config,
-            cache,
-            '/channel/',
-            subscriptionBody(options, false),
-            JsonObjectSchema
-          ).pipe(Effect.map((response) => ({ target: options.target, subscribed: false, response })))
+          return yield* withConfig((config) =>
+            postJson(client, config, cache, '/channel/', subscriptionBody(options, false), JsonObjectSchema).pipe(
+              Effect.map((response) => ({ target: options.target, subscribed: false, response }))
+            )
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'unsubscribe' })
       ),
       videos: Effect.fn('TubearchivistApi.videos')(
         function* (options) {
           yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': options.limit })
-          return yield* getJson(client, config, cache, '/video/', VideoResponseSchema(options.limit), [['page', 0]])
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, '/video/', VideoResponseSchema(options.limit), [['page', 0]])
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'videos' })
       ),
       videoInfo: Effect.fn('TubearchivistApi.videoInfo')(
         function* (options) {
-          return yield* getJson(client, config, cache, `/video/${options.id}/`, VideoDetailSchema)
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, `/video/${options.id}/`, VideoDetailSchema)
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'videoInfo' })
       ),
       downloads: Effect.fn('TubearchivistApi.downloads')(
         function* (options) {
           yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': options.limit })
-          return yield* getJson(client, config, cache, '/download/', DownloadResponseSchema(options.limit))
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, '/download/', DownloadResponseSchema(options.limit))
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'downloads' })
       ),
       playlists: Effect.fn('TubearchivistApi.playlists')(
         function* (options) {
           yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': options.limit })
-          return yield* getJson(client, config, cache, '/playlist/', PlaylistResponseSchema(options.limit))
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, '/playlist/', PlaylistResponseSchema(options.limit))
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'playlists' })
       ),
       tasks: Effect.fn('TubearchivistApi.tasks')(
         function* (options) {
           yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': options.limit })
-          return yield* getJson(client, config, cache, '/task/by-name/', TasksSchema(options.limit))
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, '/task/by-name/', TasksSchema(options.limit))
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'tasks' })
       ),
@@ -312,9 +322,11 @@ export const TubearchivistApiLive = Layer.effect(
             'tubearchivist.query_length': options.query.length,
             'tubearchivist.limit': options.limit,
           })
-          return yield* getJson(client, config, cache, '/search/', SearchResponseSchema(options.query, options.limit), [
-            ['query', options.query],
-          ])
+          return yield* withConfig((config) =>
+            getJson(client, config, cache, '/search/', SearchResponseSchema(options.query, options.limit), [
+              ['query', options.query],
+            ])
+          )
         },
         Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'search' })
       ),
