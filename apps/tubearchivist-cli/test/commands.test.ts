@@ -1,9 +1,28 @@
+import * as BunFileSystem from '@effect/platform-bun/BunFileSystem'
+import * as BunPath from '@effect/platform-bun/BunPath'
 import { assert, it } from '@effect/vitest'
-import { TubearchivistApi, TubearchivistConfig, envMissing } from '@garage/tubearchivist'
+import { TubearchivistApi, TubearchivistConfig, TubearchivistSessionCache, envMissing } from '@garage/tubearchivist'
 import type { LimitOptions, SearchOptions, SubscriptionOptions } from '@garage/tubearchivist'
-import { Effect, Layer, Ref } from 'effect'
+import { ConfigProvider, Effect, Layer, Ref } from 'effect'
+import { FileSystem } from 'effect/FileSystem'
+import { Path } from 'effect/Path'
 
 import { executeTubearchivist } from '../src/index.js'
+import { TubearchivistSessionCacheFileLive } from '../src/session-cache.js'
+
+const encodeHex = (value: string): string =>
+  [...new TextEncoder().encode(value)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+
+const sessionCacheRoot = '/tmp/garage-tubearchivist-cache-test'
+const SessionCacheTestLayer = TubearchivistSessionCacheFileLive.pipe(
+  Layer.provideMerge(
+    Layer.mergeAll(
+      BunFileSystem.layer,
+      BunPath.layer,
+      ConfigProvider.layer(ConfigProvider.fromEnv({ env: { TMPDIR: sessionCacheRoot, USER: 'cache-user' } }))
+    )
+  )
+)
 
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
   get: Effect.succeed({ url: 'http://tubearchivist.example.test', username: 'admin', password: 'secret' }),
@@ -155,4 +174,25 @@ it.effect('remaining commands dispatch and missing env on subcommands returns an
     }
     assert.strictEqual(missing.error.code, 'TUBEARCHIVIST_ENV_MISSING')
   })
+)
+
+it.effect('file session cache reads cache location from ConfigProvider env', () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem
+    const path = yield* Path
+    const session = { sessionId: 'sid', csrfToken: 'csrf' }
+    const key = 'http://tubearchivist.example.test'
+    const expectedFile = path.join(
+      sessionCacheRoot,
+      `tubearchivist-${encodeHex('cache-user')}`,
+      `${encodeHex(key)}.json`
+    )
+    const cache = yield* TubearchivistSessionCache
+
+    yield* cache.write(key, session)
+
+    assert.deepStrictEqual(yield* cache.read(key), session)
+    assert.strictEqual(yield* fs.readFileString(expectedFile, 'utf-8'), '{"sessionId":"sid","csrfToken":"csrf"}')
+    yield* fs.remove(sessionCacheRoot, { force: true, recursive: true })
+  }).pipe(Effect.provide(Layer.mergeAll(SessionCacheTestLayer, BunFileSystem.layer, BunPath.layer)))
 )

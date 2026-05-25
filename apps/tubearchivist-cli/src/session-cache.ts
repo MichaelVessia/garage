@@ -1,6 +1,6 @@
-import { TubearchivistSessionCache } from '@garage/tubearchivist'
+import { SessionCookiesSchema, TubearchivistSessionCache } from '@garage/tubearchivist'
 import type { SessionCookies } from '@garage/tubearchivist'
-import { Effect, Layer } from 'effect'
+import { Config, Effect, Layer, Schema } from 'effect'
 import { FileSystem } from 'effect/FileSystem'
 import { Path } from 'effect/Path'
 
@@ -9,13 +9,20 @@ const missingSession: SessionCookies | undefined = undefined
 const encodeHex = (value: string): string =>
   [...new TextEncoder().encode(value)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 
-const cacheDirectory = (path: Path): string => {
-  const tmp = Bun.env.TMPDIR ?? '/tmp'
-  const user = Bun.env.UID ?? Bun.env.USER ?? 'user'
-  return path.join(tmp, `tubearchivist-${encodeHex(user)}`)
-}
+const encodeSession = Schema.encodeSync(Schema.fromJsonString(SessionCookiesSchema))
 
-const sessionPath = (path: Path, key: string): string => path.join(cacheDirectory(path), `${encodeHex(key)}.json`)
+const cacheDirectory = (path: Path): Effect.Effect<string> =>
+  Effect.gen(function* () {
+    const tmp = yield* Config.string('TMPDIR').pipe(Effect.orElseSucceed(() => '/tmp'))
+    const user = yield* Config.string('UID').pipe(
+      Config.orElse(() => Config.string('USER')),
+      Effect.orElseSucceed(() => 'user')
+    )
+    return path.join(tmp, `tubearchivist-${encodeHex(user)}`)
+  })
+
+const sessionPath = (path: Path, key: string): Effect.Effect<string> =>
+  cacheDirectory(path).pipe(Effect.map((directory) => path.join(directory, `${encodeHex(key)}.json`)))
 
 const isJsonObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -40,17 +47,20 @@ export const TubearchivistSessionCacheFileLive = Layer.effect(
     const path = yield* Path
     return TubearchivistSessionCache.of({
       read: (key) =>
-        fs.readFileString(sessionPath(path, key), 'utf-8').pipe(
+        sessionPath(path, key).pipe(
+          Effect.flatMap((file) => fs.readFileString(file, 'utf-8')),
           Effect.match({
             onFailure: () => missingSession,
             onSuccess: decodeSession,
           })
         ),
       write: (key, session) =>
-        fs.makeDirectory(cacheDirectory(path), { mode: 0o700, recursive: true }).pipe(
-          Effect.andThen(() => fs.writeFileString(sessionPath(path, key), JSON.stringify(session), { mode: 0o600 })),
-          Effect.ignore
-        ),
+        Effect.gen(function* () {
+          const directory = yield* cacheDirectory(path)
+          const file = yield* sessionPath(path, key)
+          yield* fs.makeDirectory(directory, { mode: 0o700, recursive: true })
+          yield* fs.writeFileString(file, encodeSession(session), { mode: 0o600 })
+        }).pipe(Effect.ignore),
     })
   })
 )
