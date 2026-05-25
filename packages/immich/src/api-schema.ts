@@ -1,5 +1,20 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
+import {
+  AlbumInfoSchema as DomainAlbumInfoSchema,
+  AlbumSummarySchema as DomainAlbumSummarySchema,
+  CurrentUserSchema as DomainCurrentUserSchema,
+  JobRecordSchema as DomainJobRecordSchema,
+  ListResultSchema as DomainListResultSchema,
+  PeopleResultSchema as DomainPeopleResultSchema,
+  PersonRecordSchema as DomainPersonRecordSchema,
+  SearchResultSchema as DomainSearchResultSchema,
+  StatisticsSchema as DomainStatisticsSchema,
+  StorageStatusSchema as DomainStorageStatusSchema,
+  TagRecordSchema as DomainTagRecordSchema,
+  UserRecordSchema as DomainUserRecordSchema,
+  VersionPartsSchema as DomainVersionPartsSchema,
+} from './model.js'
 import type {
   AlbumInfo,
   AlbumSummary,
@@ -14,7 +29,6 @@ import type {
   SearchResult,
   Statistics,
   StorageStatus,
-  SystemStatus,
   TagRecord,
   UserRecord,
   UsersResult,
@@ -24,17 +38,12 @@ const NullableString = Schema.optional(Schema.NullOr(Schema.String))
 const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
 const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
 
-export const VersionSchema = Schema.Struct({
-  major: Schema.Number,
-  minor: Schema.Number,
-  patch: Schema.Number,
-})
+const VersionApiSchema = Schema.Struct({ major: Schema.Number, minor: Schema.Number, patch: Schema.Number })
+export const VersionSchema = VersionApiSchema.pipe(Schema.decodeTo(DomainVersionPartsSchema))
 
-export const PingSchema = Schema.Struct({
-  res: NullableString,
-})
+export const PingSchema = Schema.Struct({ res: NullableString })
 
-export const StatisticsUserSchema = Schema.Struct({
+const StatisticsUserSchema = Schema.Struct({
   userId: Schema.String,
   userName: NullableString,
   photos: Schema.Number,
@@ -43,7 +52,7 @@ export const StatisticsUserSchema = Schema.Struct({
   quotaSizeInBytes: NullableNumber,
 })
 
-export const StatisticsSchema = Schema.Struct({
+const StatisticsApiSchema = Schema.Struct({
   photos: Schema.Number,
   videos: Schema.Number,
   usage: Schema.Number,
@@ -52,7 +61,7 @@ export const StatisticsSchema = Schema.Struct({
   usageByUser: Schema.Array(StatisticsUserSchema),
 })
 
-export const StorageSchema = Schema.Struct({
+const StorageApiSchema = Schema.Struct({
   diskSize: NullableString,
   diskUse: NullableString,
   diskAvailable: NullableString,
@@ -62,7 +71,7 @@ export const StorageSchema = Schema.Struct({
   diskUsagePercentage: NullableNumber,
 })
 
-export const UserSchema = Schema.Struct({
+const UserApiSchema = Schema.Struct({
   id: Schema.String,
   name: NullableString,
   email: NullableString,
@@ -73,7 +82,7 @@ export const UserSchema = Schema.Struct({
   storageLabel: NullableString,
 })
 
-export const AlbumSchema = Schema.Struct({
+const AlbumApiSchema = Schema.Struct({
   id: Schema.String,
   albumName: NullableString,
   assetCount: NullableNumber,
@@ -84,12 +93,9 @@ export const AlbumSchema = Schema.Struct({
   hasSharedLink: NullableBoolean,
 })
 
-const ExifSchema = Schema.Struct({
-  make: NullableString,
-  model: NullableString,
-})
+const ExifSchema = Schema.Struct({ make: NullableString, model: NullableString })
 
-export const AssetSchema = Schema.Struct({
+const AssetApiSchema = Schema.Struct({
   id: Schema.String,
   type: NullableString,
   originalFileName: NullableString,
@@ -97,7 +103,7 @@ export const AssetSchema = Schema.Struct({
   exifInfo: Schema.optional(Schema.NullOr(ExifSchema)),
 })
 
-export const AlbumInfoSchema = Schema.Struct({
+const AlbumInfoApiSchema = Schema.Struct({
   id: Schema.String,
   albumName: NullableString,
   assetCount: NullableNumber,
@@ -106,20 +112,17 @@ export const AlbumInfoSchema = Schema.Struct({
   ownerId: NullableString,
   shared: NullableBoolean,
   hasSharedLink: NullableBoolean,
-  assets: Schema.optional(Schema.NullOr(Schema.Array(AssetSchema))),
+  assets: Schema.optional(Schema.NullOr(Schema.Array(AssetApiSchema))),
 })
 
 const SearchAssetsSchema = Schema.Struct({
   total: Schema.Number,
   count: Schema.Number,
-  items: Schema.Array(AssetSchema),
+  items: Schema.Array(AssetApiSchema),
 })
+const SearchResponseApiSchema = Schema.Struct({ assets: SearchAssetsSchema })
 
-export const SearchResponseSchema = Schema.Struct({
-  assets: SearchAssetsSchema,
-})
-
-export const PersonSchema = Schema.Struct({
+const PersonApiSchema = Schema.Struct({
   id: Schema.String,
   name: NullableString,
   birthDate: NullableString,
@@ -128,14 +131,14 @@ export const PersonSchema = Schema.Struct({
   updatedAt: NullableString,
 })
 
-export const PeopleResponseSchema = Schema.Struct({
+const PeopleResponseApiSchema = Schema.Struct({
   total: NullableNumber,
   hidden: NullableNumber,
   hasNextPage: NullableBoolean,
-  people: Schema.Array(PersonSchema),
+  people: Schema.Array(PersonApiSchema),
 })
 
-export const JobCountsSchema = Schema.Struct({
+const JobCountsApiSchema = Schema.Struct({
   active: NullableNumber,
   completed: NullableNumber,
   failed: NullableNumber,
@@ -144,36 +147,20 @@ export const JobCountsSchema = Schema.Struct({
   paused: NullableNumber,
 })
 
-const QueueStatusSchema = Schema.Struct({
-  isPaused: NullableBoolean,
-  isActive: NullableBoolean,
-})
+const QueueStatusSchema = Schema.Struct({ isPaused: NullableBoolean, isActive: NullableBoolean })
 
-export const JobStatusSchema = Schema.Struct({
+const JobStatusSchema = Schema.Struct({
   queueStatus: Schema.optional(Schema.NullOr(QueueStatusSchema)),
-  jobCounts: Schema.optional(Schema.NullOr(JobCountsSchema)),
+  jobCounts: Schema.optional(Schema.NullOr(JobCountsApiSchema)),
 })
 
-export const JobsSchema = Schema.Record(Schema.String, JobStatusSchema)
+const JobsApiSchema = Schema.Record(Schema.String, JobStatusSchema)
 
-export const TagSchema = Schema.Struct({
-  id: Schema.String,
-  name: NullableString,
-  value: NullableString,
-})
+const TagApiSchema = Schema.Struct({ id: Schema.String, name: NullableString, value: NullableString })
 
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
-export const toSystemStatus = (
-  versionParts: typeof VersionSchema.Type,
-  ping: typeof PingSchema.Type
-): SystemStatus => ({
-  version: `${versionParts.major}.${versionParts.minor}.${versionParts.patch}`,
-  versionParts,
-  ping: fromNullable(ping.res),
-})
-
-export const toStatistics = (stats: typeof StatisticsSchema.Type): Statistics => ({
+const statisticsFromApi = (stats: typeof StatisticsApiSchema.Type): Statistics => ({
   photos: stats.photos,
   videos: stats.videos,
   usageBytes: stats.usage,
@@ -189,7 +176,30 @@ export const toStatistics = (stats: typeof StatisticsSchema.Type): Statistics =>
   })),
 })
 
-export const toStorageStatus = (storage: typeof StorageSchema.Type): StorageStatus => ({
+const statisticsToApi = (stats: Statistics): typeof StatisticsApiSchema.Type => ({
+  photos: stats.photos,
+  videos: stats.videos,
+  usage: stats.usageBytes,
+  usagePhotos: stats.usagePhotosBytes,
+  usageVideos: stats.usageVideosBytes,
+  usageByUser: stats.perUser.map((user) => ({
+    userId: user.userId,
+    userName: user.userName,
+    photos: user.photos,
+    videos: user.videos,
+    usage: user.usageBytes,
+    quotaSizeInBytes: user.quotaSizeInBytes,
+  })),
+})
+
+export const StatisticsSchema = StatisticsApiSchema.pipe(
+  Schema.decodeTo(DomainStatisticsSchema, {
+    decode: SchemaGetter.transform(statisticsFromApi),
+    encode: SchemaGetter.transform(statisticsToApi),
+  })
+)
+
+const storageFromApi = (storage: typeof StorageApiSchema.Type): StorageStatus => ({
   diskSize: fromNullable(storage.diskSize),
   diskUse: fromNullable(storage.diskUse),
   diskAvailable: fromNullable(storage.diskAvailable),
@@ -199,7 +209,24 @@ export const toStorageStatus = (storage: typeof StorageSchema.Type): StorageStat
   diskUsagePercentage: fromNullable(storage.diskUsagePercentage),
 })
 
-export const toUserRecord = (user: typeof UserSchema.Type): UserRecord => ({
+const storageToApi = (storage: StorageStatus): typeof StorageApiSchema.Type => ({
+  diskSize: storage.diskSize,
+  diskUse: storage.diskUse,
+  diskAvailable: storage.diskAvailable,
+  diskSizeRaw: storage.diskSizeRaw,
+  diskUseRaw: storage.diskUseRaw,
+  diskAvailableRaw: storage.diskAvailableRaw,
+  diskUsagePercentage: storage.diskUsagePercentage,
+})
+
+export const StorageSchema = StorageApiSchema.pipe(
+  Schema.decodeTo(DomainStorageStatusSchema, {
+    decode: SchemaGetter.transform(storageFromApi),
+    encode: SchemaGetter.transform(storageToApi),
+  })
+)
+
+const userRecordFromApi = (user: typeof UserApiSchema.Type): UserRecord => ({
   id: user.id,
   name: fromNullable(user.name),
   email: fromNullable(user.email),
@@ -209,7 +236,24 @@ export const toUserRecord = (user: typeof UserSchema.Type): UserRecord => ({
   status: fromNullable(user.status),
 })
 
-export const toCurrentUser = (user: typeof UserSchema.Type): CurrentUser => ({
+const userRecordToApi = (user: UserRecord): typeof UserApiSchema.Type => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  isAdmin: user.isAdmin,
+  quotaSizeInBytes: user.quotaSizeInBytes,
+  quotaUsageInBytes: user.quotaUsageInBytes,
+  status: user.status,
+})
+
+export const UserSchema = UserApiSchema.pipe(
+  Schema.decodeTo(DomainUserRecordSchema, {
+    decode: SchemaGetter.transform(userRecordFromApi),
+    encode: SchemaGetter.transform(userRecordToApi),
+  })
+)
+
+const currentUserFromApi = (user: typeof UserApiSchema.Type): CurrentUser => ({
   id: user.id,
   name: fromNullable(user.name),
   email: fromNullable(user.email),
@@ -219,7 +263,24 @@ export const toCurrentUser = (user: typeof UserSchema.Type): CurrentUser => ({
   quotaUsageInBytes: fromNullable(user.quotaUsageInBytes),
 })
 
-export const toAlbumSummary = (album: typeof AlbumSchema.Type): AlbumSummary => ({
+const currentUserToApi = (user: CurrentUser): typeof UserApiSchema.Type => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  isAdmin: user.isAdmin,
+  storageLabel: user.storageLabel,
+  quotaSizeInBytes: user.quotaSizeInBytes,
+  quotaUsageInBytes: user.quotaUsageInBytes,
+})
+
+export const CurrentUserSchema = UserApiSchema.pipe(
+  Schema.decodeTo(DomainCurrentUserSchema, {
+    decode: SchemaGetter.transform(currentUserFromApi),
+    encode: SchemaGetter.transform(currentUserToApi),
+  })
+)
+
+const albumSummaryFromApi = (album: typeof AlbumApiSchema.Type): AlbumSummary => ({
   id: album.id,
   albumName: fromNullable(album.albumName),
   assetCount: fromNullable(album.assetCount),
@@ -227,52 +288,100 @@ export const toAlbumSummary = (album: typeof AlbumSchema.Type): AlbumSummary => 
   ownerId: fromNullable(album.ownerId),
 })
 
-const toAssetExif = (exif: typeof ExifSchema.Type | null | undefined): AssetExif | undefined =>
+const albumSummaryToApi = (album: AlbumSummary): typeof AlbumApiSchema.Type => ({
+  id: album.id,
+  albumName: album.albumName,
+  assetCount: album.assetCount,
+  createdAt: album.createdAt,
+  ownerId: album.ownerId,
+})
+
+export const AlbumSchema = AlbumApiSchema.pipe(
+  Schema.decodeTo(DomainAlbumSummarySchema, {
+    decode: SchemaGetter.transform(albumSummaryFromApi),
+    encode: SchemaGetter.transform(albumSummaryToApi),
+  })
+)
+
+const assetExifFromApi = (exif: typeof ExifSchema.Type | null | undefined): AssetExif | undefined =>
   exif === null || exif === undefined ? undefined : { make: fromNullable(exif.make), model: fromNullable(exif.model) }
 
-export const toAssetRecord = (asset: typeof AssetSchema.Type): AssetRecord => ({
+const assetRecordFromApi = (asset: typeof AssetApiSchema.Type): AssetRecord => ({
   id: asset.id,
   type: fromNullable(asset.type),
   originalFileName: fromNullable(asset.originalFileName),
   fileCreatedAt: fromNullable(asset.fileCreatedAt),
-  exifInfo: toAssetExif(asset.exifInfo),
+  exifInfo: assetExifFromApi(asset.exifInfo),
 })
 
-export const toListResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
-  count: records.length,
-  records,
+const assetRecordToApi = (asset: AssetRecord): typeof AssetApiSchema.Type => ({
+  id: asset.id,
+  type: asset.type,
+  originalFileName: asset.originalFileName,
+  fileCreatedAt: asset.fileCreatedAt,
+  exifInfo: asset.exifInfo,
 })
 
-export const toAlbumInfo = (album: typeof AlbumInfoSchema.Type, limit: number): AlbumInfo => {
-  const assets = fromNullable(album.assets) ?? []
-  const records = assets.slice(0, limit).map(toAssetRecord)
-  return {
-    id: album.id,
-    albumName: fromNullable(album.albumName),
-    assetCount: fromNullable(album.assetCount),
-    createdAt: fromNullable(album.createdAt),
-    updatedAt: fromNullable(album.updatedAt),
-    ownerId: fromNullable(album.ownerId),
-    shared: fromNullable(album.shared),
-    hasSharedLink: fromNullable(album.hasSharedLink),
-    assets: toListResult(records),
-    moreAssetsAvailable: records.length < assets.length,
+const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
+
+const albumInfoFromApi =
+  (limit: number) =>
+  (album: typeof AlbumInfoApiSchema.Type): AlbumInfo => {
+    const assets = fromNullable(album.assets) ?? []
+    const records = assets.slice(0, limit).map(assetRecordFromApi)
+    return {
+      id: album.id,
+      albumName: fromNullable(album.albumName),
+      assetCount: fromNullable(album.assetCount),
+      createdAt: fromNullable(album.createdAt),
+      updatedAt: fromNullable(album.updatedAt),
+      ownerId: fromNullable(album.ownerId),
+      shared: fromNullable(album.shared),
+      hasSharedLink: fromNullable(album.hasSharedLink),
+      assets: listResult(records),
+      moreAssetsAvailable: records.length < assets.length,
+    }
   }
-}
 
-export const toSearchResult = (
-  mode: 'smart' | 'metadata',
-  query: string,
-  response: typeof SearchResponseSchema.Type
-): SearchResult => ({
-  mode,
-  query,
-  total: response.assets.total,
-  count: response.assets.count,
-  records: response.assets.items.map(toAssetRecord),
+const albumInfoToApi = (album: AlbumInfo): typeof AlbumInfoApiSchema.Type => ({
+  id: album.id,
+  albumName: album.albumName,
+  assetCount: album.assetCount,
+  createdAt: album.createdAt,
+  updatedAt: album.updatedAt,
+  ownerId: album.ownerId,
+  shared: album.shared,
+  hasSharedLink: album.hasSharedLink,
+  assets: album.assets.records.map(assetRecordToApi),
 })
 
-export const toPersonRecord = (person: typeof PersonSchema.Type): PersonRecord => ({
+export const AlbumInfoSchema = (limit: number) =>
+  AlbumInfoApiSchema.pipe(
+    Schema.decodeTo(DomainAlbumInfoSchema, {
+      decode: SchemaGetter.transform(albumInfoFromApi(limit)),
+      encode: SchemaGetter.transform(albumInfoToApi),
+    })
+  )
+
+export const SearchResponseSchema = (mode: 'smart' | 'metadata', query: string) =>
+  SearchResponseApiSchema.pipe(
+    Schema.decodeTo(DomainSearchResultSchema, {
+      decode: SchemaGetter.transform(
+        (response: typeof SearchResponseApiSchema.Type): SearchResult => ({
+          mode,
+          query,
+          total: response.assets.total,
+          count: response.assets.count,
+          records: response.assets.items.map(assetRecordFromApi),
+        })
+      ),
+      encode: SchemaGetter.transform((result: SearchResult) => ({
+        assets: { total: result.total, count: result.count, items: result.records.map(assetRecordToApi) },
+      })),
+    })
+  )
+
+const personRecordFromApi = (person: typeof PersonApiSchema.Type): PersonRecord => ({
   id: person.id,
   name: fromNullable(person.name),
   birthDate: fromNullable(person.birthDate),
@@ -281,8 +390,24 @@ export const toPersonRecord = (person: typeof PersonSchema.Type): PersonRecord =
   updatedAt: fromNullable(person.updatedAt),
 })
 
-export const toPeopleResult = (response: typeof PeopleResponseSchema.Type): PeopleResult => {
-  const records = response.people.map(toPersonRecord)
+const personRecordToApi = (person: PersonRecord): typeof PersonApiSchema.Type => ({
+  id: person.id,
+  name: person.name,
+  birthDate: person.birthDate,
+  isFavorite: person.isFavorite,
+  isHidden: person.isHidden,
+  updatedAt: person.updatedAt,
+})
+
+export const PersonSchema = PersonApiSchema.pipe(
+  Schema.decodeTo(DomainPersonRecordSchema, {
+    decode: SchemaGetter.transform(personRecordFromApi),
+    encode: SchemaGetter.transform(personRecordToApi),
+  })
+)
+
+const peopleResultFromApi = (response: typeof PeopleResponseApiSchema.Type): PeopleResult => {
+  const records = response.people.map(personRecordFromApi)
   return {
     count: records.length,
     records,
@@ -292,7 +417,21 @@ export const toPeopleResult = (response: typeof PeopleResponseSchema.Type): Peop
   }
 }
 
-const toJobCounts = (counts: typeof JobCountsSchema.Type | null | undefined): JobCounts =>
+const peopleResultToApi = (result: PeopleResult): typeof PeopleResponseApiSchema.Type => ({
+  total: result.total,
+  hidden: result.hidden,
+  hasNextPage: result.hasNextPage,
+  people: result.records.map(personRecordToApi),
+})
+
+export const PeopleResponseSchema = PeopleResponseApiSchema.pipe(
+  Schema.decodeTo(DomainPeopleResultSchema, {
+    decode: SchemaGetter.transform(peopleResultFromApi),
+    encode: SchemaGetter.transform(peopleResultToApi),
+  })
+)
+
+const jobCountsFromApi = (counts: typeof JobCountsApiSchema.Type | null | undefined): JobCounts =>
   counts === null || counts === undefined
     ? {}
     : {
@@ -304,22 +443,59 @@ const toJobCounts = (counts: typeof JobCountsSchema.Type | null | undefined): Jo
         paused: fromNullable(counts.paused),
       }
 
-export const toJobRecords = (jobs: typeof JobsSchema.Type): ReadonlyArray<JobRecord> =>
-  Object.entries(jobs).map(([queue, status]) => ({
+const jobCountsToApi = (counts: JobCounts): typeof JobCountsApiSchema.Type => ({
+  active: counts.active,
+  completed: counts.completed,
+  failed: counts.failed,
+  delayed: counts.delayed,
+  waiting: counts.waiting,
+  paused: counts.paused,
+})
+
+const jobRecordsFromApi = (jobs: typeof JobsApiSchema.Type): ListResult<JobRecord> => {
+  const records = Object.entries(jobs).map(([queue, status]) => ({
     queue,
     paused: fromNullable(status.queueStatus?.isPaused),
     active: fromNullable(status.queueStatus?.isActive),
-    counts: toJobCounts(status.jobCounts),
+    counts: jobCountsFromApi(status.jobCounts),
   }))
+  return listResult(records)
+}
 
-export const toTagRecord = (tag: typeof TagSchema.Type): TagRecord => ({
+const jobRecordsToApi = (jobs: ListResult<JobRecord>): typeof JobsApiSchema.Type =>
+  Object.fromEntries(
+    jobs.records.map((job) => [
+      job.queue,
+      { queueStatus: { isPaused: job.paused, isActive: job.active }, jobCounts: jobCountsToApi(job.counts) },
+    ])
+  )
+
+export const JobsSchema = JobsApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainJobRecordSchema), {
+    decode: SchemaGetter.transform(jobRecordsFromApi),
+    encode: SchemaGetter.transform(jobRecordsToApi),
+  })
+)
+
+const tagRecordFromApi = (tag: typeof TagApiSchema.Type): TagRecord => ({
   id: tag.id,
   name: fromNullable(tag.name),
   value: fromNullable(tag.value),
 })
 
-export const toUsersResult = (records: ReadonlyArray<UserRecord>, note?: string | undefined): UsersResult => ({
+const tagRecordToApi = (tag: TagRecord): typeof TagApiSchema.Type => ({ id: tag.id, name: tag.name, value: tag.value })
+
+export const TagSchema = TagApiSchema.pipe(
+  Schema.decodeTo(DomainTagRecordSchema, {
+    decode: SchemaGetter.transform(tagRecordFromApi),
+    encode: SchemaGetter.transform(tagRecordToApi),
+  })
+)
+
+export const usersResult = (records: ReadonlyArray<UserRecord>, note?: string | undefined): UsersResult => ({
   count: records.length,
   records,
   note,
 })
+
+export const recordsList = listResult

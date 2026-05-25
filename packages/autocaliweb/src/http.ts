@@ -2,7 +2,7 @@ import { Effect, Layer } from 'effect'
 import type { Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
-import { BookInfoSchema, StatsSchema, toBookInfoRecord, toStatsResult } from './api-schema.js'
+import { BookInfoSchema, StatsSchema } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { AutocaliwebError } from './errors.js'
 import type { AutocaliwebConfigValue, BookRecord, CatalogEntry, ListResult } from './model.js'
@@ -108,7 +108,7 @@ export const AutocaliwebApiLive = Layer.effect(
     const config = yield* autocaliwebConfig.get
     const client = yield* HttpClient.HttpClient
 
-    const stats = getJson(client, config, '/opds/stats', StatsSchema).pipe(Effect.map(toStatsResult))
+    const stats = getJson(client, config, '/opds/stats', StatsSchema)
     const catalog = getFeed(client, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
 
     return AutocaliwebApi.of({
@@ -128,10 +128,7 @@ export const AutocaliwebApiLive = Layer.effect(
             return { query: options.query, total: feed.books.length, count: records.length, records }
           })
         ),
-      bookInfo: (options) =>
-        getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema).pipe(
-          Effect.map(toBookInfoRecord)
-        ),
+      bookInfo: (options) => getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema),
       shelves: getFeed(client, config, '/opds/shelfindex').pipe(
         Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
       ),

@@ -11,15 +11,6 @@ import {
   RootFolderSchema,
   SeriesRecordSchema,
   StatusSchema,
-  toEpisodeRecord,
-  toHistoryRecord,
-  toListResult,
-  toLookupResult,
-  toMissingRecord,
-  toQualityProfile,
-  toQueueRecord,
-  toRootFolder,
-  toSeriesRecord,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { SonarrError } from './errors.js'
@@ -118,7 +109,7 @@ const lookupByTvdbId = (
   tvdbId: number
 ): Effect.Effect<Option.Option<SeriesLookupResult>, SonarrError> =>
   getJson(client, config, '/api/v3/series/lookup', Schema.Array(LookupSeriesSchema), [['term', `tvdb:${tvdbId}`]]).pipe(
-    Effect.map((results) => optionFromUndefined(results[0]).pipe(Option.map(toLookupResult)))
+    Effect.map((results) => optionFromUndefined(results[0]))
   )
 
 const currentCalendarRange = (days: number): Effect.Effect<ReadonlyArray<readonly [string, string]>> =>
@@ -141,22 +132,14 @@ export const SonarrApiLive = Layer.effect(
 
     return SonarrApi.of({
       status: getJson(client, config, '/api/v3/system/status', StatusSchema),
-      rootFolders: getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema)).pipe(
-        Effect.map((folders) => folders.map(toRootFolder))
-      ),
-      qualityProfiles: getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema)).pipe(
-        Effect.map((profiles) => profiles.map(toQualityProfile))
-      ),
+      rootFolders: getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema)),
+      qualityProfiles: getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema)),
       lookupSeries: (query) =>
-        getJson(client, config, '/api/v3/series/lookup', Schema.Array(LookupSeriesSchema), [['term', query]]).pipe(
-          Effect.map((results) => results.map(toLookupResult))
-        ),
+        getJson(client, config, '/api/v3/series/lookup', Schema.Array(LookupSeriesSchema), [['term', query]]),
       lookupSeriesByTvdbId: (tvdbId) => lookupByTvdbId(client, config, tvdbId),
       getSeriesByTvdbId: (tvdbId) =>
         getJson(client, config, '/api/v3/series', Schema.Array(SeriesRecordSchema)).pipe(
-          Effect.map((records) =>
-            optionFromUndefined(records.find((record) => record.tvdbId === tvdbId)).pipe(Option.map(toSeriesRecord))
-          )
+          Effect.map((records) => optionFromUndefined(records.find((record) => record.tvdbId === tvdbId)))
         ),
       addSeries: (lookup, options) =>
         postJson(
@@ -173,7 +156,7 @@ export const SonarrApiLive = Layer.effect(
             addOptions: { searchForMissingEpisodes: options.searchForMissingEpisodes },
           },
           SeriesRecordSchema
-        ).pipe(Effect.map(toSeriesRecord)),
+        ),
       removeSeries: (seriesId, options) =>
         deleteJson(client, config, `/api/v3/series/${seriesId}`, Schema.Unknown, [
           ['deleteFiles', options.deleteFiles],
@@ -183,7 +166,7 @@ export const SonarrApiLive = Layer.effect(
           ['pageSize', limit],
           ['includeSeries', true],
           ['includeEpisode', true],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toQueueRecord)))),
+        ]),
       calendar: (days) =>
         currentCalendarRange(days).pipe(
           Effect.flatMap((range) =>
@@ -192,20 +175,19 @@ export const SonarrApiLive = Layer.effect(
               ['includeSeries', true],
               ['unmonitored', false],
             ])
-          ),
-          Effect.map((records) => records.map(toEpisodeRecord))
+          )
         ),
       missing: (limit) =>
         getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
           ['pageSize', limit],
           ['includeSeries', true],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toMissingRecord)))),
+        ]),
       history: (limit) =>
         getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
           ['pageSize', limit],
           ['includeSeries', true],
           ['includeEpisode', true],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toHistoryRecord)))),
+        ]),
     })
   })
 )

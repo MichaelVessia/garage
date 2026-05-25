@@ -6,27 +6,19 @@ import {
   ActiveClientsSchema,
   ClientsSchema,
   DhcpStatusSchema,
+  FilteringRulesSchema,
   FilteringStatusSchema,
   JsonObjectSchema,
+  ProtectionStateStatusSchema,
   QueryLogResponseSchema,
   StatsInfoSchema,
   StatsSchema,
   StatusSchema,
-  toActiveClients,
-  toClientsResult,
-  toDhcpStatus,
-  toFiltersResult,
-  toListResult,
-  toProtectionState,
-  toQueryLogEntry,
-  toStats,
-  toStatsInfo,
-  toSystemStatus,
-  toVersionResult,
+  VersionStatusSchema,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { AdguardError } from './errors.js'
-import type { AdguardConfigValue } from './model.js'
+import type { AdguardConfigValue, ListResult } from './model.js'
 import { AdguardApi, AdguardConfig } from './services.js'
 
 const normalizeBaseUrl = (baseUrl: string): string => {
@@ -102,6 +94,8 @@ const getJson = <A, I, RD, RE>(
 ): Effect.Effect<A, AdguardError, RD> =>
   executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
 
+const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
+
 const postStatus = (
   client: HttpClient.HttpClient,
   config: AdguardConfigValue,
@@ -126,34 +120,28 @@ export const AdguardApiLive = Layer.effect(
     const client = yield* HttpClient.HttpClient
 
     return AdguardApi.of({
-      status: getJson(client, config, '/status', StatusSchema).pipe(Effect.map(toSystemStatus)),
-      version: getJson(client, config, '/status', StatusSchema).pipe(Effect.map(toVersionResult)),
-      stats: getJson(client, config, '/stats', StatsSchema).pipe(Effect.map(toStats)),
-      statsInfo: getJson(client, config, '/stats_info', StatsInfoSchema).pipe(Effect.map(toStatsInfo)),
-      queryLog: (options) =>
-        getJson(client, config, '/querylog', QueryLogResponseSchema, [['limit', options.limit]]).pipe(
-          Effect.map((response) => toListResult(response.data.map(toQueryLogEntry)))
-        ),
+      status: getJson(client, config, '/status', StatusSchema),
+      version: getJson(client, config, '/status', VersionStatusSchema),
+      stats: getJson(client, config, '/stats', StatsSchema),
+      statsInfo: getJson(client, config, '/stats_info', StatsInfoSchema),
+      queryLog: (options) => getJson(client, config, '/querylog', QueryLogResponseSchema, [['limit', options.limit]]),
       queryLogSearch: (options) =>
         getJson(client, config, '/querylog', QueryLogResponseSchema, [
           ['search', options.query],
           ['limit', options.limit],
-        ]).pipe(Effect.map((response) => toListResult(response.data.map(toQueryLogEntry)))),
-      clients: getJson(client, config, '/clients', ClientsSchema).pipe(Effect.map(toClientsResult)),
+        ]),
+      clients: getJson(client, config, '/clients', ClientsSchema),
       clientsActive: (options) =>
         getJson(client, config, '/clients/find', ActiveClientsSchema, [['ip0', options.ip]]).pipe(
-          Effect.map((records) => toListResult(toActiveClients(records)))
+          Effect.map(listResult)
         ),
-      filters: getJson(client, config, '/filtering/status', FilteringStatusSchema).pipe(Effect.map(toFiltersResult)),
-      rules: getJson(client, config, '/filtering/status', FilteringStatusSchema).pipe(
-        Effect.map((status) => toListResult(status.user_rules ?? []))
-      ),
+      filters: getJson(client, config, '/filtering/status', FilteringStatusSchema),
+      rules: getJson(client, config, '/filtering/status', FilteringRulesSchema),
       dnsConfig: getJson(client, config, '/dns_info', JsonObjectSchema),
-      dhcpStatus: getJson(client, config, '/dhcp/status', DhcpStatusSchema).pipe(Effect.map(toDhcpStatus)),
+      dhcpStatus: getJson(client, config, '/dhcp/status', DhcpStatusSchema),
       protectionToggle: (options) =>
         postStatus(client, config, '/protection', { enabled: options.state === 'on', duration: 0 }).pipe(
-          Effect.flatMap(() => getJson(client, config, '/status', StatusSchema)),
-          Effect.map(toProtectionState)
+          Effect.flatMap(() => getJson(client, config, '/status', ProtectionStateStatusSchema))
         ),
     })
   })

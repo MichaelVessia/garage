@@ -11,15 +11,6 @@ import {
   TasksSchema,
   VideoDetailSchema,
   VideoResponseSchema,
-  toChannel,
-  toChannelList,
-  toDownloadList,
-  toJsonObject,
-  toPlaylistList,
-  toSearchResult,
-  toTaskList,
-  toVideo,
-  toVideoList,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { TubearchivistError } from './errors.js'
@@ -208,13 +199,11 @@ export const TubearchivistApiLive = Layer.effect(
       status: Effect.all(
         {
           health: getJson(client, config, cache, '/health/', Schema.String),
-          config: getJson(client, config, cache, '/appsettings/config/', JsonObjectSchema).pipe(
-            Effect.map(toJsonObject)
-          ),
-          video: getJson(client, config, cache, '/stats/video/', JsonObjectSchema).pipe(Effect.map(toJsonObject)),
-          channel: getJson(client, config, cache, '/stats/channel/', JsonObjectSchema).pipe(Effect.map(toJsonObject)),
-          download: getJson(client, config, cache, '/stats/download/', JsonObjectSchema).pipe(Effect.map(toJsonObject)),
-          watch: getJson(client, config, cache, '/stats/watch/', JsonObjectSchema).pipe(Effect.map(toJsonObject)),
+          config: getJson(client, config, cache, '/appsettings/config/', JsonObjectSchema),
+          video: getJson(client, config, cache, '/stats/video/', JsonObjectSchema),
+          channel: getJson(client, config, cache, '/stats/channel/', JsonObjectSchema),
+          download: getJson(client, config, cache, '/stats/download/', JsonObjectSchema),
+          watch: getJson(client, config, cache, '/stats/watch/', JsonObjectSchema),
         },
         { concurrency: 1 }
       ).pipe(
@@ -225,47 +214,30 @@ export const TubearchivistApiLive = Layer.effect(
           stats: { video: parts.video, channel: parts.channel, download: parts.download, watch: parts.watch },
         }))
       ),
-      channels: (options) =>
-        getJson(client, config, cache, '/channel/', ChannelResponseSchema).pipe(
-          Effect.map((response) => toChannelList(response, options.limit))
-        ),
-      channelInfo: (options) =>
-        getJson(client, config, cache, `/channel/${options.id}/`, ChannelDetailSchema).pipe(Effect.map(toChannel)),
+      channels: (options) => getJson(client, config, cache, '/channel/', ChannelResponseSchema(options.limit)),
+      channelInfo: (options) => getJson(client, config, cache, `/channel/${options.id}/`, ChannelDetailSchema),
       subscribe: (options) =>
         postJson(client, config, cache, '/channel/', subscriptionBody(options, true), JsonObjectSchema).pipe(
           Effect.map((response) => ({
             target: options.target,
             subscribed: true,
-            response: toJsonObject(response),
+            response,
             note: 'Subscribe task queued. Run tasks to inspect Celery progress.',
           }))
         ),
       unsubscribe: (options) =>
         postJson(client, config, cache, '/channel/', subscriptionBody(options, false), JsonObjectSchema).pipe(
-          Effect.map((response) => ({ target: options.target, subscribed: false, response: toJsonObject(response) }))
+          Effect.map((response) => ({ target: options.target, subscribed: false, response }))
         ),
-      videos: (options) =>
-        getJson(client, config, cache, '/video/', VideoResponseSchema, [['page', 0]]).pipe(
-          Effect.map((response) => toVideoList(response, options.limit))
-        ),
-      videoInfo: (options) =>
-        getJson(client, config, cache, `/video/${options.id}/`, VideoDetailSchema).pipe(Effect.map(toVideo)),
-      downloads: (options) =>
-        getJson(client, config, cache, '/download/', DownloadResponseSchema).pipe(
-          Effect.map((response) => toDownloadList(response, options.limit))
-        ),
-      playlists: (options) =>
-        getJson(client, config, cache, '/playlist/', PlaylistResponseSchema).pipe(
-          Effect.map((response) => toPlaylistList(response, options.limit))
-        ),
-      tasks: (options) =>
-        getJson(client, config, cache, '/task/by-name/', TasksSchema).pipe(
-          Effect.map((records) => toTaskList(records, options.limit))
-        ),
+      videos: (options) => getJson(client, config, cache, '/video/', VideoResponseSchema(options.limit), [['page', 0]]),
+      videoInfo: (options) => getJson(client, config, cache, `/video/${options.id}/`, VideoDetailSchema),
+      downloads: (options) => getJson(client, config, cache, '/download/', DownloadResponseSchema(options.limit)),
+      playlists: (options) => getJson(client, config, cache, '/playlist/', PlaylistResponseSchema(options.limit)),
+      tasks: (options) => getJson(client, config, cache, '/task/by-name/', TasksSchema(options.limit)),
       search: (options) =>
-        getJson(client, config, cache, '/search/', SearchResponseSchema, [['query', options.query]]).pipe(
-          Effect.map((response) => toSearchResult(options.query, response, options.limit))
-        ),
+        getJson(client, config, cache, '/search/', SearchResponseSchema(options.query, options.limit), [
+          ['query', options.query],
+        ]),
     })
   })
 )

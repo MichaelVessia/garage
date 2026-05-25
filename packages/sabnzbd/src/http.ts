@@ -9,16 +9,10 @@ import {
   QueueResponseSchema,
   ServerStatsSchema,
   VersionResponseSchema,
-  toActionResult,
-  toHistoryResult,
-  toQueueResult,
-  toServerStats,
-  toSystemStatus,
-  toVersionResult,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { SabnzbdError } from './errors.js'
-import type { SabnzbdConfigValue } from './model.js'
+import type { SabnzbdAction, SabnzbdConfigValue } from './model.js'
 import { SabnzbdApi, SabnzbdConfig } from './services.js'
 
 const normalizeBaseUrl = (baseUrl: string): string => {
@@ -79,6 +73,13 @@ const getJson = <A, I, RD, RE>(
     schema
   )
 
+const actionResult = (action: SabnzbdAction, ok: boolean, nzoId?: string, deleteFiles?: boolean) => ({
+  action,
+  ok,
+  nzoId,
+  deleteFiles,
+})
+
 export const SabnzbdApiLive = Layer.effect(
   SabnzbdApi,
   Effect.gen(function* () {
@@ -87,33 +88,29 @@ export const SabnzbdApiLive = Layer.effect(
     const client = yield* HttpClient.HttpClient
 
     return SabnzbdApi.of({
-      status: getJson(client, config, 'fullstatus', FullStatusResponseSchema).pipe(
-        Effect.map((response) => toSystemStatus(response.status))
-      ),
-      version: getJson(client, config, 'version', VersionResponseSchema).pipe(Effect.map(toVersionResult)),
+      status: getJson(client, config, 'fullstatus', FullStatusResponseSchema),
+      version: getJson(client, config, 'version', VersionResponseSchema),
       queue: (options) =>
         getJson(client, config, 'queue', QueueResponseSchema, [
           ['start', 0],
           ['limit', options.limit],
-        ]).pipe(Effect.map(toQueueResult)),
+        ]),
       history: (options) =>
         getJson(client, config, 'history', HistoryResponseSchema, [
           ['start', 0],
           ['limit', options.limit],
-        ]).pipe(Effect.map(toHistoryResult)),
-      pause: getJson(client, config, 'pause', ActionResponseSchema).pipe(
-        Effect.map((response) => toActionResult('pause', response))
-      ),
+        ]),
+      pause: getJson(client, config, 'pause', ActionResponseSchema).pipe(Effect.map((ok) => actionResult('pause', ok))),
       resume: getJson(client, config, 'resume', ActionResponseSchema).pipe(
-        Effect.map((response) => toActionResult('resume', response))
+        Effect.map((ok) => actionResult('resume', ok))
       ),
       delete: (nzoId, options) =>
         getJson(client, config, 'queue', ActionResponseSchema, [
           ['name', 'delete'],
           ['value', nzoId],
           ['del_files', options.deleteFiles ? 1 : 0],
-        ]).pipe(Effect.map((response) => toActionResult('delete', response, nzoId, options.deleteFiles))),
-      serverStats: getJson(client, config, 'server_stats', ServerStatsSchema).pipe(Effect.map(toServerStats)),
+        ]).pipe(Effect.map((ok) => actionResult('delete', ok, nzoId, options.deleteFiles))),
+      serverStats: getJson(client, config, 'server_stats', ServerStatsSchema),
     })
   })
 )

@@ -10,18 +10,10 @@ import {
   SessionSchema,
   SystemInfoSchema,
   UserSchema,
-  toItemRecord,
-  toLibraryRecord,
-  toLibraryStats,
-  toListResult,
-  toScheduledTaskRecord,
-  toSessionRecord,
-  toSystemStatus,
-  toUserRecord,
 } from './api-schema.js'
 import { decodeError, httpError, notFound, unreachable } from './errors.js'
 import type { JellyfinError } from './errors.js'
-import type { JellyfinConfigValue } from './model.js'
+import type { JellyfinConfigValue, ListResult } from './model.js'
 import { JellyfinApi, JellyfinConfig } from './services.js'
 
 const normalizeBaseUrl = (baseUrl: string): string => {
@@ -88,16 +80,18 @@ const getJson = <A, I, RD, RE>(
 ): Effect.Effect<A, JellyfinError, RD> =>
   executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
 
+const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
+
 const enabledUserId = (
   client: HttpClient.HttpClient,
   config: JellyfinConfigValue
 ): Effect.Effect<string, JellyfinError> =>
   getJson(client, config, '/Users', Schema.Array(UserSchema)).pipe(
     Effect.flatMap((users) => {
-      const selected = users.find((user) => user.Policy?.IsDisabled !== true)
+      const selected = users.find((user) => user.isDisabled !== true)
       return selected === undefined
         ? Effect.fail(notFound('No enabled Jellyfin user found'))
-        : Effect.succeed(selected.Id)
+        : Effect.succeed(selected.id)
     })
   )
 
@@ -109,16 +103,12 @@ export const JellyfinApiLive = Layer.effect(
     const client = yield* HttpClient.HttpClient
 
     return JellyfinApi.of({
-      status: getJson(client, config, '/System/Info', SystemInfoSchema).pipe(Effect.map(toSystemStatus)),
-      users: getJson(client, config, '/Users', Schema.Array(UserSchema)).pipe(
-        Effect.map((users) => toListResult(users.map(toUserRecord)))
-      ),
+      status: getJson(client, config, '/System/Info', SystemInfoSchema),
+      users: getJson(client, config, '/Users', Schema.Array(UserSchema)).pipe(Effect.map(listResult)),
       libraries: getJson(client, config, '/Library/VirtualFolders', Schema.Array(LibrarySchema)).pipe(
-        Effect.map((libraries) => toListResult(libraries.map(toLibraryRecord)))
+        Effect.map(listResult)
       ),
-      sessions: getJson(client, config, '/Sessions', Schema.Array(SessionSchema)).pipe(
-        Effect.map((sessions) => toListResult(sessions.map(toSessionRecord)))
-      ),
+      sessions: getJson(client, config, '/Sessions', Schema.Array(SessionSchema)).pipe(Effect.map(listResult)),
       recentlyAdded: (options) =>
         enabledUserId(client, config).pipe(
           Effect.flatMap((userId) =>
@@ -126,7 +116,7 @@ export const JellyfinApiLive = Layer.effect(
               ['Limit', options.limit],
             ])
           ),
-          Effect.map((items) => toListResult(items.map(toItemRecord)))
+          Effect.map(listResult)
         ),
       itemSearch: (options) =>
         enabledUserId(client, config).pipe(
@@ -137,12 +127,11 @@ export const JellyfinApiLive = Layer.effect(
               ['IncludeItemTypes', 'Movie,Series,Episode'],
               ['Limit', options.limit],
             ])
-          ),
-          Effect.map((response) => toListResult(response.Items.map(toItemRecord)))
+          )
         ),
-      libraryStats: getJson(client, config, '/Items/Counts', LibraryStatsSchema).pipe(Effect.map(toLibraryStats)),
+      libraryStats: getJson(client, config, '/Items/Counts', LibraryStatsSchema),
       scheduledTasks: getJson(client, config, '/ScheduledTasks', Schema.Array(ScheduledTaskSchema)).pipe(
-        Effect.map((tasks) => toListResult(tasks.map(toScheduledTaskRecord)))
+        Effect.map(listResult)
       ),
       runTask: (taskId) =>
         executeStatus(

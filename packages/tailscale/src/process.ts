@@ -1,10 +1,9 @@
 import { Effect, Layer, Schema } from 'effect'
 
-import { JsonObjectSchema, StatusJsonSchema, toExitNodeList, toStatusResult } from './api-schema.js'
-import type { StatusJson } from './api-schema.js'
+import { ExitNodeListSchema, JsonObjectSchema, StatusResultSchema } from './api-schema.js'
 import { commandFailed, decodeError, notRunning } from './errors.js'
 import type { TailscaleError } from './errors.js'
-import type { JsonObject, ProcessResult, StatusResult } from './model.js'
+import type { JsonObject, ListResult, PeerRecord, ProcessResult, StatusResult } from './model.js'
 import { TailscaleApi, TailscaleProcess } from './services.js'
 import type { TailscaleProcessService } from './services.js'
 
@@ -21,24 +20,36 @@ const expectSuccess = (args: ReadonlyArray<string>, result: ProcessResult): Effe
     ? Effect.succeed(result.stdout)
     : Effect.fail(commandFailed(commandName(args), result.exitCode, commandOutput(result)))
 
-const decodeStatusJson = (input: string): Effect.Effect<StatusJson, TailscaleError> =>
-  Schema.decodeUnknownEffect(Schema.fromJsonString(StatusJsonSchema))(input).pipe(
+const decodeJson = <A, I, RD, RE>(
+  input: string,
+  schema: Schema.Codec<A, I, RD, RE>
+): Effect.Effect<A, TailscaleError, RD> =>
+  Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(input).pipe(
     Effect.mapError((issue) => decodeError(issue.message))
   )
 
-const statusJson = (process: TailscaleProcessService): Effect.Effect<StatusJson, TailscaleError> => {
+const statusText = (process: TailscaleProcessService): Effect.Effect<string, TailscaleError> => {
   const args = ['status', '--json']
-  return process.run(args).pipe(
-    Effect.flatMap((result) => expectSuccess(args, result)),
-    Effect.flatMap(decodeStatusJson)
-  )
+  return process.run(args).pipe(Effect.flatMap((result) => expectSuccess(args, result)))
 }
 
 const requireRunning = (status: StatusResult): Effect.Effect<void, TailscaleError> =>
   status.backendState === 'Running' ? Effect.void : Effect.fail(notRunning(status.backendState))
 
 const statusResult = (process: TailscaleProcessService, limit: number): Effect.Effect<StatusResult, TailscaleError> =>
-  statusJson(process).pipe(Effect.map((status) => toStatusResult(status, limit)))
+  statusText(process).pipe(Effect.flatMap((json) => decodeJson(json, StatusResultSchema(limit))))
+
+const exitNodeList = (
+  process: TailscaleProcessService,
+  limit: number
+): Effect.Effect<readonly [StatusResult, ListResult<PeerRecord>], TailscaleError> =>
+  statusText(process).pipe(
+    Effect.flatMap((json) =>
+      Effect.all([decodeJson(json, StatusResultSchema(1)), decodeJson(json, ExitNodeListSchema(limit))], {
+        concurrency: 1,
+      })
+    )
+  )
 
 const runText = (
   process: TailscaleProcessService,
@@ -66,19 +77,14 @@ export const TailscaleApiLive = Layer.effect(
     return TailscaleApi.of({
       status: (options) => statusResult(process, options.limit),
       peers: (options) =>
-        statusJson(process).pipe(
-          Effect.map((status) => toStatusResult(status, options.limit)),
-          Effect.flatMap((status) => requireRunning(status).pipe(Effect.as(status))),
-          Effect.map((status) => status.peers)
+        statusResult(process, options.limit).pipe(
+          Effect.flatMap((status) => requireRunning(status).pipe(Effect.as(status.peers)))
         ),
       exitNodes: (options) =>
-        statusJson(process).pipe(
-          Effect.flatMap((json) =>
-            requireRunning(toStatusResult(json, options.limit)).pipe(Effect.as(toExitNodeList(json, options.limit)))
-          )
+        exitNodeList(process, options.limit).pipe(
+          Effect.flatMap(([status, nodes]) => requireRunning(status).pipe(Effect.as(nodes)))
         ),
-      currentExitNode: statusJson(process).pipe(
-        Effect.map((json) => toStatusResult(json, 1)),
+      currentExitNode: statusResult(process, 1).pipe(
         Effect.flatMap((status) => requireRunning(status).pipe(Effect.as(status))),
         Effect.map((status) => ({ usingExitNode: status.currentExitNode !== undefined, peer: status.currentExitNode }))
       ),

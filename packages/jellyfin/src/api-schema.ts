@@ -1,11 +1,19 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
+import {
+  ItemRecordSchema as DomainItemRecordSchema,
+  LibraryRecordSchema as DomainLibraryRecordSchema,
+  LibraryStatsSchema as DomainLibraryStatsSchema,
+  ListResultSchema as DomainListResultSchema,
+  ScheduledTaskRecordSchema as DomainScheduledTaskRecordSchema,
+  SessionRecordSchema as DomainSessionRecordSchema,
+  SystemStatusSchema as DomainSystemStatusSchema,
+  UserRecordSchema as DomainUserRecordSchema,
+} from './model.js'
 import type {
   ItemRecord,
   LibraryRecord,
-  LibraryStats,
   ListResult,
-  NowPlayingRecord,
   ScheduledTaskRecord,
   SessionRecord,
   SystemStatus,
@@ -17,7 +25,7 @@ const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
 const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
 const NullableStringArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.String)))
 
-export const SystemInfoSchema = Schema.Struct({
+const SystemInfoApiSchema = Schema.Struct({
   ServerName: NullableString,
   Version: NullableString,
   Id: NullableString,
@@ -31,21 +39,21 @@ const PolicySchema = Schema.Struct({
   IsDisabled: NullableBoolean,
 })
 
-export const UserSchema = Schema.Struct({
+const UserApiSchema = Schema.Struct({
   Id: Schema.String,
   Name: NullableString,
   LastActivityDate: NullableString,
   Policy: Schema.optional(Schema.NullOr(PolicySchema)),
 })
 
-export const LibrarySchema = Schema.Struct({
+const LibraryApiSchema = Schema.Struct({
   Name: NullableString,
   CollectionType: NullableString,
   ItemId: NullableString,
   Locations: NullableStringArray,
 })
 
-export const BaseItemSchema = Schema.Struct({
+const BaseItemApiSchema = Schema.Struct({
   Id: Schema.String,
   Name: Schema.String,
   Type: NullableString,
@@ -63,29 +71,29 @@ const PlayStateSchema = Schema.Struct({
   IsPaused: NullableBoolean,
 })
 
-export const SessionSchema = Schema.Struct({
+const SessionApiSchema = Schema.Struct({
   Id: NullableString,
   UserName: NullableString,
   Client: NullableString,
   DeviceName: NullableString,
   ApplicationVersion: NullableString,
   LastActivityDate: NullableString,
-  NowPlayingItem: Schema.optional(Schema.NullOr(BaseItemSchema)),
+  NowPlayingItem: Schema.optional(Schema.NullOr(BaseItemApiSchema)),
   PlayState: Schema.optional(Schema.NullOr(PlayStateSchema)),
 })
 
-export const ItemsResponseSchema = Schema.Struct({
-  Items: Schema.Array(BaseItemSchema),
+const ItemsResponseApiSchema = Schema.Struct({
+  Items: Schema.Array(BaseItemApiSchema),
 })
 
-export const LibraryStatsSchema = Schema.Record(Schema.String, Schema.Number)
+export const LibraryStatsSchema = DomainLibraryStatsSchema
 
 const TaskResultSchema = Schema.Struct({
   Status: NullableString,
   EndTimeUtc: NullableString,
 })
 
-export const ScheduledTaskSchema = Schema.Struct({
+const ScheduledTaskApiSchema = Schema.Struct({
   Id: Schema.String,
   Name: NullableString,
   State: NullableString,
@@ -95,7 +103,7 @@ export const ScheduledTaskSchema = Schema.Struct({
 
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
-export const toSystemStatus = (info: typeof SystemInfoSchema.Type): SystemStatus => ({
+const systemStatusFromApi = (info: typeof SystemInfoApiSchema.Type): SystemStatus => ({
   serverName: fromNullable(info.ServerName),
   version: fromNullable(info.Version),
   id: fromNullable(info.Id),
@@ -104,7 +112,23 @@ export const toSystemStatus = (info: typeof SystemInfoSchema.Type): SystemStatus
   localAddress: fromNullable(info.LocalAddress),
 })
 
-export const toUserRecord = (user: typeof UserSchema.Type): UserRecord => ({
+const systemStatusToApi = (status: SystemStatus): typeof SystemInfoApiSchema.Type => ({
+  ServerName: status.serverName,
+  Version: status.version,
+  Id: status.id,
+  OperatingSystem: status.operatingSystem,
+  ProductName: status.productName,
+  LocalAddress: status.localAddress,
+})
+
+export const SystemInfoSchema = SystemInfoApiSchema.pipe(
+  Schema.decodeTo(DomainSystemStatusSchema, {
+    decode: SchemaGetter.transform(systemStatusFromApi),
+    encode: SchemaGetter.transform(systemStatusToApi),
+  })
+)
+
+const userRecordFromApi = (user: typeof UserApiSchema.Type): UserRecord => ({
   id: user.Id,
   name: fromNullable(user.Name),
   lastActivityDate: fromNullable(user.LastActivityDate),
@@ -112,14 +136,42 @@ export const toUserRecord = (user: typeof UserSchema.Type): UserRecord => ({
   isDisabled: fromNullable(user.Policy?.IsDisabled),
 })
 
-export const toLibraryRecord = (library: typeof LibrarySchema.Type): LibraryRecord => ({
+const userRecordToApi = (user: UserRecord): typeof UserApiSchema.Type => ({
+  Id: user.id,
+  Name: user.name,
+  LastActivityDate: user.lastActivityDate,
+  Policy: { IsAdministrator: user.isAdministrator, IsDisabled: user.isDisabled },
+})
+
+export const UserSchema = UserApiSchema.pipe(
+  Schema.decodeTo(DomainUserRecordSchema, {
+    decode: SchemaGetter.transform(userRecordFromApi),
+    encode: SchemaGetter.transform(userRecordToApi),
+  })
+)
+
+const libraryRecordFromApi = (library: typeof LibraryApiSchema.Type): LibraryRecord => ({
   name: fromNullable(library.Name),
   collectionType: fromNullable(library.CollectionType),
   itemId: fromNullable(library.ItemId),
   locations: fromNullable(library.Locations),
 })
 
-export const toSessionRecord = (session: typeof SessionSchema.Type): SessionRecord => ({
+const libraryRecordToApi = (library: LibraryRecord): typeof LibraryApiSchema.Type => ({
+  Name: library.name,
+  CollectionType: library.collectionType,
+  ItemId: library.itemId,
+  Locations: library.locations,
+})
+
+export const LibrarySchema = LibraryApiSchema.pipe(
+  Schema.decodeTo(DomainLibraryRecordSchema, {
+    decode: SchemaGetter.transform(libraryRecordFromApi),
+    encode: SchemaGetter.transform(libraryRecordToApi),
+  })
+)
+
+const sessionRecordFromApi = (session: typeof SessionApiSchema.Type): SessionRecord => ({
   sessionId: fromNullable(session.Id),
   user: fromNullable(session.UserName),
   client: fromNullable(session.Client),
@@ -130,29 +182,25 @@ export const toSessionRecord = (session: typeof SessionSchema.Type): SessionReco
   playMethod: fromNullable(session.PlayState?.PlayMethod),
 })
 
-export const toNowPlayingRecord = (session: typeof SessionSchema.Type): NowPlayingRecord | undefined => {
-  const item = session.NowPlayingItem
-  if (item === null || item === undefined) {
-    return undefined
-  }
+const sessionRecordToApi = (session: SessionRecord): typeof SessionApiSchema.Type => ({
+  Id: session.sessionId,
+  UserName: session.user,
+  Client: session.client,
+  DeviceName: session.device,
+  ApplicationVersion: session.appVersion,
+  LastActivityDate: session.lastActivityDate,
+  NowPlayingItem: session.nowPlaying === undefined ? undefined : { Id: '', Name: session.nowPlaying },
+  PlayState: { PlayMethod: session.playMethod },
+})
 
-  return {
-    user: fromNullable(session.UserName),
-    device: fromNullable(session.DeviceName),
-    client: fromNullable(session.Client),
-    item: item.Name,
-    type: fromNullable(item.Type),
-    series: fromNullable(item.SeriesName),
-    season: fromNullable(item.ParentIndexNumber),
-    episode: fromNullable(item.IndexNumber),
-    positionTicks: fromNullable(session.PlayState?.PositionTicks),
-    runtimeTicks: fromNullable(item.RunTimeTicks),
-    isPaused: fromNullable(session.PlayState?.IsPaused),
-    playMethod: fromNullable(session.PlayState?.PlayMethod),
-  }
-}
+export const SessionSchema = SessionApiSchema.pipe(
+  Schema.decodeTo(DomainSessionRecordSchema, {
+    decode: SchemaGetter.transform(sessionRecordFromApi),
+    encode: SchemaGetter.transform(sessionRecordToApi),
+  })
+)
 
-export const toItemRecord = (item: typeof BaseItemSchema.Type): ItemRecord => ({
+const itemRecordFromApi = (item: typeof BaseItemApiSchema.Type): ItemRecord => ({
   id: item.Id,
   name: item.Name,
   type: fromNullable(item.Type),
@@ -163,7 +211,25 @@ export const toItemRecord = (item: typeof BaseItemSchema.Type): ItemRecord => ({
   productionYear: fromNullable(item.ProductionYear),
 })
 
-export const toScheduledTaskRecord = (task: typeof ScheduledTaskSchema.Type): ScheduledTaskRecord => ({
+const itemRecordToApi = (item: ItemRecord): typeof BaseItemApiSchema.Type => ({
+  Id: item.id,
+  Name: item.name,
+  Type: item.type,
+  SeriesName: item.series,
+  ParentIndexNumber: item.season,
+  IndexNumber: item.episode,
+  DateCreated: item.dateCreated,
+  ProductionYear: item.productionYear,
+})
+
+export const BaseItemSchema = BaseItemApiSchema.pipe(
+  Schema.decodeTo(DomainItemRecordSchema, {
+    decode: SchemaGetter.transform(itemRecordFromApi),
+    encode: SchemaGetter.transform(itemRecordToApi),
+  })
+)
+
+const scheduledTaskRecordFromApi = (task: typeof ScheduledTaskApiSchema.Type): ScheduledTaskRecord => ({
   id: task.Id,
   name: fromNullable(task.Name),
   state: fromNullable(task.State),
@@ -172,9 +238,33 @@ export const toScheduledTaskRecord = (task: typeof ScheduledTaskSchema.Type): Sc
   category: fromNullable(task.Category),
 })
 
-export const toListResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
-  count: records.length,
-  records,
+const scheduledTaskRecordToApi = (task: ScheduledTaskRecord): typeof ScheduledTaskApiSchema.Type => ({
+  Id: task.id,
+  Name: task.name,
+  State: task.state,
+  LastExecutionResult: { Status: task.lastExecutionResult, EndTimeUtc: task.lastEndTime },
+  Category: task.category,
 })
 
-export const toLibraryStats = (stats: typeof LibraryStatsSchema.Type): LibraryStats => stats
+export const ScheduledTaskSchema = ScheduledTaskApiSchema.pipe(
+  Schema.decodeTo(DomainScheduledTaskRecordSchema, {
+    decode: SchemaGetter.transform(scheduledTaskRecordFromApi),
+    encode: SchemaGetter.transform(scheduledTaskRecordToApi),
+  })
+)
+
+const itemsResponseFromApi = (response: typeof ItemsResponseApiSchema.Type): ListResult<ItemRecord> => {
+  const records = response.Items.map(itemRecordFromApi)
+  return { count: records.length, records }
+}
+
+const itemsResponseToApi = (result: ListResult<ItemRecord>): typeof ItemsResponseApiSchema.Type => ({
+  Items: result.records.map(itemRecordToApi),
+})
+
+export const ItemsResponseSchema = ItemsResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainItemRecordSchema), {
+    decode: SchemaGetter.transform(itemsResponseFromApi),
+    encode: SchemaGetter.transform(itemsResponseToApi),
+  })
+)

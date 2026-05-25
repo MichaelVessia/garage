@@ -1,19 +1,10 @@
 import { Effect, Layer, Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
-import {
-  JsonObjectSchema,
-  PkiCaSchema,
-  RoutesConfigSchema,
-  UpstreamSchema,
-  toListResult,
-  toPkiCa,
-  toRouteSummaries,
-  toUpstreamRecord,
-} from './api-schema.js'
+import { JsonObjectSchema, PkiCaSchema, RoutesConfigSchema, UpstreamSchema } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { CaddyError } from './errors.js'
-import type { CaddyConfigValue } from './model.js'
+import type { CaddyConfigValue, ListResult } from './model.js'
 import { CaddyApi, CaddyConfig } from './services.js'
 
 const normalizeBaseUrl = (baseUrl: string): string => {
@@ -70,6 +61,8 @@ const getJson = <A, I, RD, RE>(
 ): Effect.Effect<A, CaddyError, RD> =>
   executeJson(client, HttpClientRequest.get(endpoint(config, path)).pipe(withJsonHeaders), schema)
 
+const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
+
 const postJsonStatus = (
   client: HttpClient.HttpClient,
   config: CaddyConfigValue,
@@ -95,11 +88,11 @@ export const CaddyApiLive = Layer.effect(
 
     return CaddyApi.of({
       config: getJson(client, config, '/config/', JsonObjectSchema),
-      routes: getJson(client, config, '/config/', RoutesConfigSchema).pipe(Effect.map(toRouteSummaries)),
+      routes: getJson(client, config, '/config/', RoutesConfigSchema),
       upstreams: getJson(client, config, '/reverse_proxy/upstreams', Schema.Array(UpstreamSchema)).pipe(
-        Effect.map((records) => toListResult(records.map(toUpstreamRecord)))
+        Effect.map(listResult)
       ),
-      pkiCa: getJson(client, config, '/pki/ca/local', PkiCaSchema).pipe(Effect.map(toPkiCa)),
+      pkiCa: getJson(client, config, '/pki/ca/local', PkiCaSchema),
       reload: (nextConfig) =>
         postJsonStatus(client, config, '/load', nextConfig).pipe(
           Effect.map((httpStatus) => ({ reloaded: true, httpStatus }))

@@ -10,15 +10,6 @@ import {
   IndexerStatsResponseSchema,
   ReleaseRecordSchema,
   StatusSchema,
-  toApplicationRecord,
-  toCommandResult,
-  toHealthRecord,
-  toHistoryRecord,
-  toIndexerRecord,
-  toIndexerStatsRecord,
-  toListResult,
-  toReleaseRecord,
-  toSystemStatus,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { ProwlarrError } from './errors.js'
@@ -156,37 +147,25 @@ export const ProwlarrApiLive = Layer.effect(
     const client = yield* HttpClient.HttpClient
 
     return ProwlarrApi.of({
-      status: getJson(client, config, '/api/v1/system/status', StatusSchema).pipe(Effect.map(toSystemStatus)),
-      health: getJson(client, config, '/api/v1/health', Schema.Array(HealthRecordSchema)).pipe(
-        Effect.map((records) => records.map(toHealthRecord))
-      ),
-      indexers: getJson(client, config, '/api/v1/indexer', Schema.Array(IndexerRecordSchema)).pipe(
-        Effect.map((records) => records.map(toIndexerRecord))
-      ),
-      indexerStats: getJson(client, config, '/api/v1/indexerstats', IndexerStatsResponseSchema).pipe(
-        Effect.map((response) => response.indexers.map(toIndexerStatsRecord))
-      ),
+      status: getJson(client, config, '/api/v1/system/status', StatusSchema),
+      health: getJson(client, config, '/api/v1/health', Schema.Array(HealthRecordSchema)),
+      indexers: getJson(client, config, '/api/v1/indexer', Schema.Array(IndexerRecordSchema)),
+      indexerStats: getJson(client, config, '/api/v1/indexerstats', IndexerStatsResponseSchema),
       search: (query, options) =>
-        getJson(client, config, '/api/v1/search', Schema.Array(ReleaseRecordSchema), searchParams(query, options)).pipe(
-          Effect.map((records) => records.map(toReleaseRecord))
-        ),
+        getJson(client, config, '/api/v1/search', Schema.Array(ReleaseRecordSchema), searchParams(query, options)),
       testIndexer: (indexerId) =>
         getJson(client, config, `/api/v1/indexer/${indexerId}`, Schema.Unknown).pipe(
           Effect.flatMap((indexer) => postIndexerTest(client, config, indexerId, indexer))
         ),
-      applications: getJson(client, config, '/api/v1/applications', Schema.Array(ApplicationRecordSchema)).pipe(
-        Effect.map((records) => records.map(toApplicationRecord))
-      ),
-      sync: postJson(client, config, '/api/v1/command', { name: 'ApplicationIndexerSync' }, CommandRecordSchema).pipe(
-        Effect.map(toCommandResult)
-      ),
+      applications: getJson(client, config, '/api/v1/applications', Schema.Array(ApplicationRecordSchema)),
+      sync: postJson(client, config, '/api/v1/command', { name: 'ApplicationIndexerSync' }, CommandRecordSchema),
       history: (limit) =>
         getJson(client, config, '/api/v1/history', HistoryResponseSchema, [
           ['page', 1],
           ['pageSize', limit],
           ['sortKey', 'date'],
           ['sortDirection', 'descending'],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toHistoryRecord)))),
+        ]),
     })
   })
 )

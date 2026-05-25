@@ -1,10 +1,19 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
+import {
+  IssueRecordSchema as DomainIssueRecordSchema,
+  ListResultSchema as DomainListResultSchema,
+  MediaSummarySchema as DomainMediaSummarySchema,
+  RequestCountsSchema as DomainRequestCountsSchema,
+  RequestRecordSchema as DomainRequestRecordSchema,
+  SearchRecordSchema as DomainSearchRecordSchema,
+  SystemStatusSchema as DomainSystemStatusSchema,
+  UserRecordSchema as DomainUserRecordSchema,
+} from './model.js'
 import type {
   IssueRecord,
   ListResult,
   MediaSummary,
-  RequestCounts,
   RequestRecord,
   SearchRecord,
   StatusValue,
@@ -17,7 +26,7 @@ const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
 const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
 const StatusValueSchema = Schema.optional(Schema.NullOr(Schema.Union([Schema.Number, Schema.String])))
 
-export const StatusSchema = Schema.Struct({
+const StatusApiSchema = Schema.Struct({
   version: NullableString,
   commitTag: NullableString,
   updateAvailable: NullableBoolean,
@@ -30,7 +39,7 @@ const UserSummarySchema = Schema.Struct({
   username: NullableString,
 })
 
-export const MediaSchema = Schema.Struct({
+const MediaApiSchema = Schema.Struct({
   id: Schema.Number,
   tmdbId: NullableNumber,
   mediaType: NullableString,
@@ -40,17 +49,17 @@ export const MediaSchema = Schema.Struct({
   mediaAdded: NullableString,
 })
 
-export const RequestSchema = Schema.Struct({
+const RequestApiSchema = Schema.Struct({
   id: Schema.Number,
   status: StatusValueSchema,
   type: NullableString,
   createdAt: NullableString,
   updatedAt: NullableString,
   requestedBy: Schema.optional(Schema.NullOr(UserSummarySchema)),
-  media: MediaSchema,
+  media: MediaApiSchema,
 })
 
-export const RequestsResponseSchema = Schema.Struct({
+const RequestsResponseApiSchema = Schema.Struct({
   pageInfo: Schema.optional(
     Schema.NullOr(
       Schema.Struct({
@@ -59,12 +68,12 @@ export const RequestsResponseSchema = Schema.Struct({
     )
   ),
   totalResults: NullableNumber,
-  results: Schema.Array(RequestSchema),
+  results: Schema.Array(RequestApiSchema),
 })
 
-export const RequestCountsSchema = Schema.Record(Schema.String, Schema.Number)
+export const RequestCountsSchema = DomainRequestCountsSchema
 
-export const SearchRecordSchema = Schema.Struct({
+const SearchRecordApiSchema = Schema.Struct({
   id: Schema.Number,
   mediaType: NullableString,
   title: NullableString,
@@ -74,7 +83,7 @@ export const SearchRecordSchema = Schema.Struct({
   overview: NullableString,
 })
 
-export const SearchResponseSchema = Schema.Struct({
+const SearchResponseApiSchema = Schema.Struct({
   pageInfo: Schema.optional(
     Schema.NullOr(
       Schema.Struct({
@@ -83,12 +92,10 @@ export const SearchResponseSchema = Schema.Struct({
     )
   ),
   totalResults: NullableNumber,
-  results: Schema.Array(SearchRecordSchema),
+  results: Schema.Array(SearchRecordApiSchema),
 })
 
-export const MediaResponseSchema = MediaSchema
-
-export const MediaListResponseSchema = Schema.Struct({
+const MediaListResponseApiSchema = Schema.Struct({
   pageInfo: Schema.optional(
     Schema.NullOr(
       Schema.Struct({
@@ -97,10 +104,10 @@ export const MediaListResponseSchema = Schema.Struct({
     )
   ),
   totalResults: NullableNumber,
-  results: Schema.Array(MediaSchema),
+  results: Schema.Array(MediaApiSchema),
 })
 
-export const UserRecordSchema = Schema.Struct({
+const UserRecordApiSchema = Schema.Struct({
   id: Schema.Number,
   email: NullableString,
   displayName: NullableString,
@@ -111,7 +118,7 @@ export const UserRecordSchema = Schema.Struct({
   permissions: NullableNumber,
 })
 
-export const UserListResponseSchema = Schema.Struct({
+const UserListResponseApiSchema = Schema.Struct({
   pageInfo: Schema.optional(
     Schema.NullOr(
       Schema.Struct({
@@ -120,19 +127,19 @@ export const UserListResponseSchema = Schema.Struct({
     )
   ),
   totalResults: NullableNumber,
-  results: Schema.Array(UserRecordSchema),
+  results: Schema.Array(UserRecordApiSchema),
 })
 
-export const IssueRecordSchema = Schema.Struct({
+const IssueRecordApiSchema = Schema.Struct({
   id: Schema.Number,
   issueType: NullableString,
   status: StatusValueSchema,
   createdAt: NullableString,
   createdBy: Schema.optional(Schema.NullOr(UserSummarySchema)),
-  media: MediaSchema,
+  media: MediaApiSchema,
 })
 
-export const IssueListResponseSchema = Schema.Struct({
+const IssueListResponseApiSchema = Schema.Struct({
   pageInfo: Schema.optional(
     Schema.NullOr(
       Schema.Struct({
@@ -141,7 +148,7 @@ export const IssueListResponseSchema = Schema.Struct({
     )
   ),
   totalResults: NullableNumber,
-  results: Schema.Array(IssueRecordSchema),
+  results: Schema.Array(IssueRecordApiSchema),
 })
 
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
@@ -158,7 +165,7 @@ const totalRecords = (response: {
   readonly results: ReadonlyArray<unknown>
 }): number => fromNullable(response.totalResults) ?? fromNullable(response.pageInfo?.results) ?? response.results.length
 
-export const toSystemStatus = (status: typeof StatusSchema.Type): SystemStatus => ({
+const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus => ({
   version: fromNullable(status.version),
   commitTag: fromNullable(status.commitTag),
   updateAvailable: fromNullable(status.updateAvailable),
@@ -166,35 +173,78 @@ export const toSystemStatus = (status: typeof StatusSchema.Type): SystemStatus =
   restartRequired: fromNullable(status.restartRequired),
 })
 
-const toStatusValue = (value: number | string | null | undefined): StatusValue | undefined => fromNullable(value)
+const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type => ({
+  version: status.version,
+  commitTag: status.commitTag,
+  updateAvailable: status.updateAvailable,
+  commitsBehind: status.commitsBehind,
+  restartRequired: status.restartRequired,
+})
 
-export const toMediaSummary = (media: typeof MediaSchema.Type): MediaSummary => ({
+export const StatusSchema = StatusApiSchema.pipe(
+  Schema.decodeTo(DomainSystemStatusSchema, {
+    decode: SchemaGetter.transform(systemStatusFromApi),
+    encode: SchemaGetter.transform(systemStatusToApi),
+  })
+)
+
+const statusValueFromApi = (value: number | string | null | undefined): StatusValue | undefined => fromNullable(value)
+
+const mediaSummaryFromApi = (media: typeof MediaApiSchema.Type): MediaSummary => ({
   id: media.id,
   tmdbId: fromNullable(media.tmdbId),
   mediaType: fromNullable(media.mediaType),
-  status: toStatusValue(media.status),
+  status: statusValueFromApi(media.status),
   title: titleFrom(media.title, media.name),
   mediaAdded: fromNullable(media.mediaAdded),
 })
 
-export const toRequestRecord = (request: typeof RequestSchema.Type): RequestRecord => ({
+const mediaSummaryToApi = (media: MediaSummary): typeof MediaApiSchema.Type => ({
+  id: media.id,
+  tmdbId: media.tmdbId,
+  mediaType: media.mediaType,
+  status: media.status,
+  title: media.title,
+  mediaAdded: media.mediaAdded,
+})
+
+export const MediaSchema = MediaApiSchema.pipe(
+  Schema.decodeTo(DomainMediaSummarySchema, {
+    decode: SchemaGetter.transform(mediaSummaryFromApi),
+    encode: SchemaGetter.transform(mediaSummaryToApi),
+  })
+)
+
+export const MediaResponseSchema = MediaSchema
+
+const requestRecordFromApi = (request: typeof RequestApiSchema.Type): RequestRecord => ({
   id: request.id,
-  status: toStatusValue(request.status),
+  status: statusValueFromApi(request.status),
   type: fromNullable(request.type),
   createdAt: fromNullable(request.createdAt),
   updatedAt: fromNullable(request.updatedAt),
   requestedBy: requesterName(request.requestedBy),
-  media: toMediaSummary(request.media),
+  media: mediaSummaryFromApi(request.media),
 })
 
-export const toRequestListResult = (response: typeof RequestsResponseSchema.Type): ListResult<RequestRecord> => {
-  const records = response.results.map(toRequestRecord)
-  return { count: records.length, totalRecords: totalRecords(response), records }
-}
+const requestRecordToApi = (request: RequestRecord): typeof RequestApiSchema.Type => ({
+  id: request.id,
+  status: request.status,
+  type: request.type,
+  createdAt: request.createdAt,
+  updatedAt: request.updatedAt,
+  requestedBy: request.requestedBy === undefined ? undefined : { displayName: request.requestedBy },
+  media: mediaSummaryToApi(request.media),
+})
 
-export const toRequestCounts = (counts: typeof RequestCountsSchema.Type): RequestCounts => counts
+export const RequestSchema = RequestApiSchema.pipe(
+  Schema.decodeTo(DomainRequestRecordSchema, {
+    decode: SchemaGetter.transform(requestRecordFromApi),
+    encode: SchemaGetter.transform(requestRecordToApi),
+  })
+)
 
-export const toSearchRecord = (record: typeof SearchRecordSchema.Type): SearchRecord => ({
+const searchRecordFromApi = (record: typeof SearchRecordApiSchema.Type): SearchRecord => ({
   id: record.id,
   mediaType: fromNullable(record.mediaType),
   title: titleFrom(record.title, record.name),
@@ -203,17 +253,16 @@ export const toSearchRecord = (record: typeof SearchRecordSchema.Type): SearchRe
   overview: fromNullable(record.overview),
 })
 
-export const toSearchListResult = (response: typeof SearchResponseSchema.Type): ListResult<SearchRecord> => {
-  const records = response.results.map(toSearchRecord)
-  return { count: records.length, totalRecords: totalRecords(response), records }
-}
+const searchRecordToApi = (record: SearchRecord): typeof SearchRecordApiSchema.Type => ({
+  id: record.id,
+  mediaType: record.mediaType,
+  title: record.title,
+  releaseDate: record.releaseDate,
+  firstAirDate: record.firstAirDate,
+  overview: record.overview,
+})
 
-export const toMediaListResult = (response: typeof MediaListResponseSchema.Type): ListResult<MediaSummary> => {
-  const records = response.results.map(toMediaSummary)
-  return { count: records.length, totalRecords: totalRecords(response), records }
-}
-
-export const toUserRecord = (record: typeof UserRecordSchema.Type): UserRecord => ({
+const userRecordFromApi = (record: typeof UserRecordApiSchema.Type): UserRecord => ({
   id: record.id,
   email: fromNullable(record.email),
   displayName: fromNullable(record.displayName),
@@ -222,21 +271,115 @@ export const toUserRecord = (record: typeof UserRecordSchema.Type): UserRecord =
   permissions: fromNullable(record.permissions),
 })
 
-export const toUserListResult = (response: typeof UserListResponseSchema.Type): ListResult<UserRecord> => {
-  const records = response.results.map(toUserRecord)
-  return { count: records.length, totalRecords: totalRecords(response), records }
-}
-
-export const toIssueRecord = (record: typeof IssueRecordSchema.Type): IssueRecord => ({
+const userRecordToApi = (record: UserRecord): typeof UserRecordApiSchema.Type => ({
   id: record.id,
-  issueType: fromNullable(record.issueType),
-  status: toStatusValue(record.status),
-  createdAt: fromNullable(record.createdAt),
-  createdBy: requesterName(record.createdBy),
-  media: toMediaSummary(record.media),
+  email: record.email,
+  displayName: record.displayName,
+  jellyfinUsername: record.username,
+  username: record.username,
+  userType: record.userType,
+  permissions: record.permissions,
 })
 
-export const toIssueListResult = (response: typeof IssueListResponseSchema.Type): ListResult<IssueRecord> => {
-  const records = response.results.map(toIssueRecord)
+const issueRecordFromApi = (record: typeof IssueRecordApiSchema.Type): IssueRecord => ({
+  id: record.id,
+  issueType: fromNullable(record.issueType),
+  status: statusValueFromApi(record.status),
+  createdAt: fromNullable(record.createdAt),
+  createdBy: requesterName(record.createdBy),
+  media: mediaSummaryFromApi(record.media),
+})
+
+const issueRecordToApi = (record: IssueRecord): typeof IssueRecordApiSchema.Type => ({
+  id: record.id,
+  issueType: record.issueType,
+  status: record.status,
+  createdAt: record.createdAt,
+  createdBy: record.createdBy === undefined ? undefined : { displayName: record.createdBy },
+  media: mediaSummaryToApi(record.media),
+})
+
+const requestListFromApi = (response: typeof RequestsResponseApiSchema.Type): ListResult<RequestRecord> => {
+  const records = response.results.map(requestRecordFromApi)
   return { count: records.length, totalRecords: totalRecords(response), records }
 }
+
+const requestListToApi = (result: ListResult<RequestRecord>): typeof RequestsResponseApiSchema.Type => ({
+  totalResults: result.totalRecords,
+  results: result.records.map(requestRecordToApi),
+})
+
+export const RequestsResponseSchema = RequestsResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainRequestRecordSchema), {
+    decode: SchemaGetter.transform(requestListFromApi),
+    encode: SchemaGetter.transform(requestListToApi),
+  })
+)
+
+const searchListFromApi = (response: typeof SearchResponseApiSchema.Type): ListResult<SearchRecord> => {
+  const records = response.results.map(searchRecordFromApi)
+  return { count: records.length, totalRecords: totalRecords(response), records }
+}
+
+const searchListToApi = (result: ListResult<SearchRecord>): typeof SearchResponseApiSchema.Type => ({
+  totalResults: result.totalRecords,
+  results: result.records.map(searchRecordToApi),
+})
+
+export const SearchResponseSchema = SearchResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainSearchRecordSchema), {
+    decode: SchemaGetter.transform(searchListFromApi),
+    encode: SchemaGetter.transform(searchListToApi),
+  })
+)
+
+const mediaListFromApi = (response: typeof MediaListResponseApiSchema.Type): ListResult<MediaSummary> => {
+  const records = response.results.map(mediaSummaryFromApi)
+  return { count: records.length, totalRecords: totalRecords(response), records }
+}
+
+const mediaListToApi = (result: ListResult<MediaSummary>): typeof MediaListResponseApiSchema.Type => ({
+  totalResults: result.totalRecords,
+  results: result.records.map(mediaSummaryToApi),
+})
+
+export const MediaListResponseSchema = MediaListResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainMediaSummarySchema), {
+    decode: SchemaGetter.transform(mediaListFromApi),
+    encode: SchemaGetter.transform(mediaListToApi),
+  })
+)
+
+const userListFromApi = (response: typeof UserListResponseApiSchema.Type): ListResult<UserRecord> => {
+  const records = response.results.map(userRecordFromApi)
+  return { count: records.length, totalRecords: totalRecords(response), records }
+}
+
+const userListToApi = (result: ListResult<UserRecord>): typeof UserListResponseApiSchema.Type => ({
+  totalResults: result.totalRecords,
+  results: result.records.map(userRecordToApi),
+})
+
+export const UserListResponseSchema = UserListResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainUserRecordSchema), {
+    decode: SchemaGetter.transform(userListFromApi),
+    encode: SchemaGetter.transform(userListToApi),
+  })
+)
+
+const issueListFromApi = (response: typeof IssueListResponseApiSchema.Type): ListResult<IssueRecord> => {
+  const records = response.results.map(issueRecordFromApi)
+  return { count: records.length, totalRecords: totalRecords(response), records }
+}
+
+const issueListToApi = (result: ListResult<IssueRecord>): typeof IssueListResponseApiSchema.Type => ({
+  totalResults: result.totalRecords,
+  results: result.records.map(issueRecordToApi),
+})
+
+export const IssueListResponseSchema = IssueListResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainIssueRecordSchema), {
+    decode: SchemaGetter.transform(issueListFromApi),
+    encode: SchemaGetter.transform(issueListToApi),
+  })
+)

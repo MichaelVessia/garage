@@ -1,5 +1,11 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
+import {
+  ListResultSchema as DomainListResultSchema,
+  PkiCaSchema as DomainPkiCaSchema,
+  RouteSummarySchema as DomainRouteSummarySchema,
+  UpstreamRecordSchema as DomainUpstreamRecordSchema,
+} from './model.js'
 import type { JsonObject, ListResult, PkiCa, RouteRecord, RouteSummary, UpstreamRecord } from './model.js'
 
 const NullableString = Schema.optional(Schema.NullOr(Schema.String))
@@ -14,7 +20,7 @@ const ServerSchema = Schema.Struct({
   routes: Schema.optional(Schema.NullOr(Schema.Array(JsonObjectSchema))),
 })
 
-export const RoutesConfigSchema = Schema.Struct({
+const RoutesConfigApiSchema = Schema.Struct({
   apps: Schema.optional(
     Schema.NullOr(
       Schema.Struct({
@@ -30,14 +36,14 @@ export const RoutesConfigSchema = Schema.Struct({
   ),
 })
 
-export const UpstreamSchema = Schema.Struct({
+const UpstreamApiSchema = Schema.Struct({
   address: NullableString,
   num_requests: NullableNumber,
   fails: NullableNumber,
   healthy: NullableBoolean,
 })
 
-export const PkiCaSchema = Schema.Struct({
+const PkiCaApiSchema = Schema.Struct({
   id: NullableString,
   name: NullableString,
   root_common_name: NullableString,
@@ -70,34 +76,65 @@ const collectUpstreams = (value: unknown): ReadonlyArray<string> => {
   return [...direct, ...Object.values(value).flatMap(collectUpstreams)]
 }
 
-const toRouteRecord = (route: JsonObject): RouteRecord => ({
+const routeRecordFromApi = (route: JsonObject): RouteRecord => ({
   match: Array.isArray(route.match) ? route.match.filter(isJsonObject) : undefined,
   upstreams: collectUpstreams(route),
 })
 
-export const toListResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
+const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
   count: records.length,
   records,
 })
 
-export const toRouteSummaries = (config: typeof RoutesConfigSchema.Type): ListResult<RouteSummary> => {
+const routeSummariesFromApi = (config: typeof RoutesConfigApiSchema.Type): ListResult<RouteSummary> => {
   const servers = config.apps?.http?.servers ?? {}
   const records = Object.entries(servers).map(([server, value]) => ({
     server,
     listen: fromNullable(value.listen),
-    routes: (value.routes ?? []).map(toRouteRecord),
+    routes: (value.routes ?? []).map(routeRecordFromApi),
   }))
-  return toListResult(records)
+  return listResult(records)
 }
 
-export const toUpstreamRecord = (upstream: typeof UpstreamSchema.Type): UpstreamRecord => ({
+const routeSummariesToApi = (result: ListResult<RouteSummary>): typeof RoutesConfigApiSchema.Type => ({
+  apps: {
+    http: {
+      servers: Object.fromEntries(
+        result.records.map((record) => [record.server, { listen: record.listen, routes: record.routes }])
+      ),
+    },
+  },
+})
+
+export const RoutesConfigSchema = RoutesConfigApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainRouteSummarySchema), {
+    decode: SchemaGetter.transform(routeSummariesFromApi),
+    encode: SchemaGetter.transform(routeSummariesToApi),
+  })
+)
+
+const upstreamRecordFromApi = (upstream: typeof UpstreamApiSchema.Type): UpstreamRecord => ({
   address: fromNullable(upstream.address),
   numRequests: fromNullable(upstream.num_requests),
   fails: fromNullable(upstream.fails),
   healthy: fromNullable(upstream.healthy),
 })
 
-export const toPkiCa = (ca: typeof PkiCaSchema.Type): PkiCa => ({
+const upstreamRecordToApi = (upstream: UpstreamRecord): typeof UpstreamApiSchema.Type => ({
+  address: upstream.address,
+  num_requests: upstream.numRequests,
+  fails: upstream.fails,
+  healthy: upstream.healthy,
+})
+
+export const UpstreamSchema = UpstreamApiSchema.pipe(
+  Schema.decodeTo(DomainUpstreamRecordSchema, {
+    decode: SchemaGetter.transform(upstreamRecordFromApi),
+    encode: SchemaGetter.transform(upstreamRecordToApi),
+  })
+)
+
+const pkiCaFromApi = (ca: typeof PkiCaApiSchema.Type): PkiCa => ({
   id: fromNullable(ca.id),
   name: fromNullable(ca.name),
   rootCommonName: fromNullable(ca.root_common_name),
@@ -105,3 +142,19 @@ export const toPkiCa = (ca: typeof PkiCaSchema.Type): PkiCa => ({
   rootCertificate: fromNullable(ca.root_certificate),
   intermediateCertificate: fromNullable(ca.intermediate_certificate),
 })
+
+const pkiCaToApi = (ca: PkiCa): typeof PkiCaApiSchema.Type => ({
+  id: ca.id,
+  name: ca.name,
+  root_common_name: ca.rootCommonName,
+  intermediate_common_name: ca.intermediateCommonName,
+  root_certificate: ca.rootCertificate,
+  intermediate_certificate: ca.intermediateCertificate,
+})
+
+export const PkiCaSchema = PkiCaApiSchema.pipe(
+  Schema.decodeTo(DomainPkiCaSchema, {
+    decode: SchemaGetter.transform(pkiCaFromApi),
+    encode: SchemaGetter.transform(pkiCaToApi),
+  })
+)

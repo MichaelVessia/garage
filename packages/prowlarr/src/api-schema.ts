@@ -1,5 +1,16 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
+import {
+  ApplicationRecordSchema as DomainApplicationRecordSchema,
+  CommandResultSchema as DomainCommandResultSchema,
+  HealthRecordSchema as DomainHealthRecordSchema,
+  HistoryRecordSchema as DomainHistoryRecordSchema,
+  IndexerRecordSchema as DomainIndexerRecordSchema,
+  IndexerStatsRecordSchema as DomainIndexerStatsRecordSchema,
+  ListResultSchema as DomainListResultSchema,
+  ReleaseRecordSchema as DomainReleaseRecordSchema,
+  SystemStatusSchema as DomainSystemStatusSchema,
+} from './model.js'
 import type {
   ApplicationRecord,
   CommandResult,
@@ -20,7 +31,7 @@ const NullableNumberArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.Nu
 const ReleaseCategorySchema = Schema.Union([Schema.String, Schema.Number])
 const ElapsedTimeSchema = Schema.optional(Schema.NullOr(Schema.Union([Schema.String, Schema.Number])))
 
-export const StatusSchema = Schema.Struct({
+const StatusApiSchema = Schema.Struct({
   appName: NullableString,
   version: Schema.String,
   instanceName: NullableString,
@@ -33,14 +44,14 @@ export const StatusSchema = Schema.Struct({
   isProduction: NullableBoolean,
 })
 
-export const HealthRecordSchema = Schema.Struct({
+const HealthRecordApiSchema = Schema.Struct({
   source: NullableString,
   type: NullableString,
   message: Schema.String,
   wikiUrl: NullableString,
 })
 
-export const IndexerRecordSchema = Schema.Struct({
+const IndexerRecordApiSchema = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   protocol: NullableString,
@@ -52,7 +63,7 @@ export const IndexerRecordSchema = Schema.Struct({
   implementationName: NullableString,
 })
 
-const IndexerStatsRecordSchema = Schema.Struct({
+const IndexerStatsRecordApiSchema = Schema.Struct({
   indexerId: Schema.Number,
   indexerName: Schema.String,
   numberOfQueries: NullableNumber,
@@ -62,11 +73,11 @@ const IndexerStatsRecordSchema = Schema.Struct({
   averageResponseTime: NullableNumber,
 })
 
-export const IndexerStatsResponseSchema = Schema.Struct({
-  indexers: Schema.Array(IndexerStatsRecordSchema),
+const IndexerStatsResponseApiSchema = Schema.Struct({
+  indexers: Schema.Array(IndexerStatsRecordApiSchema),
 })
 
-export const ReleaseRecordSchema = Schema.Struct({
+const ReleaseRecordApiSchema = Schema.Struct({
   guid: NullableString,
   indexerId: NullableNumber,
   indexer: NullableString,
@@ -83,7 +94,7 @@ export const ReleaseRecordSchema = Schema.Struct({
   categories: Schema.optional(Schema.NullOr(Schema.Array(ReleaseCategorySchema))),
 })
 
-export const ApplicationRecordSchema = Schema.Struct({
+const ApplicationRecordApiSchema = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   implementation: NullableString,
@@ -91,7 +102,7 @@ export const ApplicationRecordSchema = Schema.Struct({
   tags: NullableNumberArray,
 })
 
-export const CommandRecordSchema = Schema.Struct({
+const CommandRecordApiSchema = Schema.Struct({
   id: NullableNumber,
   name: Schema.String,
   status: NullableString,
@@ -108,7 +119,7 @@ const HistoryDataSchema = Schema.Struct({
   elapsedTime: ElapsedTimeSchema,
 })
 
-const HistoryRecordSchema = Schema.Struct({
+const HistoryRecordApiSchema = Schema.Struct({
   id: NullableNumber,
   date: NullableString,
   eventType: Schema.String,
@@ -116,17 +127,12 @@ const HistoryRecordSchema = Schema.Struct({
   data: Schema.optional(Schema.NullOr(HistoryDataSchema)),
 })
 
-export const HistoryResponseSchema = Schema.Struct({
-  totalRecords: NullableNumber,
-  records: Schema.Array(HistoryRecordSchema),
-})
-
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
 const sizeMB = (size: number | undefined): number | undefined =>
   size === undefined ? undefined : Math.floor(size / 1_048_576)
 
-export const toSystemStatus = (status: typeof StatusSchema.Type): SystemStatus => ({
+const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus => ({
   appName: fromNullable(status.appName),
   version: status.version,
   instanceName: fromNullable(status.instanceName),
@@ -139,14 +145,48 @@ export const toSystemStatus = (status: typeof StatusSchema.Type): SystemStatus =
   isProduction: fromNullable(status.isProduction),
 })
 
-export const toHealthRecord = (record: typeof HealthRecordSchema.Type): HealthRecord => ({
+const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type => ({
+  appName: status.appName,
+  version: status.version,
+  instanceName: status.instanceName,
+  branch: status.branch,
+  runtimeVersion: status.runtimeVersion,
+  osName: status.osName,
+  osVersion: status.osVersion,
+  buildTime: status.buildTime,
+  isLinux: status.isLinux,
+  isProduction: status.isProduction,
+})
+
+export const StatusSchema = StatusApiSchema.pipe(
+  Schema.decodeTo(DomainSystemStatusSchema, {
+    decode: SchemaGetter.transform(systemStatusFromApi),
+    encode: SchemaGetter.transform(systemStatusToApi),
+  })
+)
+
+const healthRecordFromApi = (record: typeof HealthRecordApiSchema.Type): HealthRecord => ({
   source: fromNullable(record.source),
   type: fromNullable(record.type),
   message: record.message,
   wikiUrl: fromNullable(record.wikiUrl),
 })
 
-export const toIndexerRecord = (record: typeof IndexerRecordSchema.Type): IndexerRecord => ({
+const healthRecordToApi = (record: HealthRecord): typeof HealthRecordApiSchema.Type => ({
+  source: record.source,
+  type: record.type,
+  message: record.message,
+  wikiUrl: record.wikiUrl,
+})
+
+export const HealthRecordSchema = HealthRecordApiSchema.pipe(
+  Schema.decodeTo(DomainHealthRecordSchema, {
+    decode: SchemaGetter.transform(healthRecordFromApi),
+    encode: SchemaGetter.transform(healthRecordToApi),
+  })
+)
+
+const indexerRecordFromApi = (record: typeof IndexerRecordApiSchema.Type): IndexerRecord => ({
   id: record.id,
   name: record.name,
   protocol: fromNullable(record.protocol),
@@ -158,7 +198,26 @@ export const toIndexerRecord = (record: typeof IndexerRecordSchema.Type): Indexe
   implementationName: fromNullable(record.implementationName),
 })
 
-export const toIndexerStatsRecord = (record: typeof IndexerStatsRecordSchema.Type): IndexerStatsRecord => ({
+const indexerRecordToApi = (record: IndexerRecord): typeof IndexerRecordApiSchema.Type => ({
+  id: record.id,
+  name: record.name,
+  protocol: record.protocol,
+  enable: record.enabled,
+  priority: record.priority,
+  supportsSearch: record.supportsSearch,
+  supportsRss: record.supportsRss,
+  implementation: record.implementation,
+  implementationName: record.implementationName,
+})
+
+export const IndexerRecordSchema = IndexerRecordApiSchema.pipe(
+  Schema.decodeTo(DomainIndexerRecordSchema, {
+    decode: SchemaGetter.transform(indexerRecordFromApi),
+    encode: SchemaGetter.transform(indexerRecordToApi),
+  })
+)
+
+const indexerStatsRecordFromApi = (record: typeof IndexerStatsRecordApiSchema.Type): IndexerStatsRecord => ({
   id: record.indexerId,
   name: record.indexerName,
   queries: fromNullable(record.numberOfQueries),
@@ -168,7 +227,17 @@ export const toIndexerStatsRecord = (record: typeof IndexerStatsRecordSchema.Typ
   avgResponseTimeMs: fromNullable(record.averageResponseTime),
 })
 
-export const toReleaseRecord = (record: typeof ReleaseRecordSchema.Type): ReleaseRecord => {
+const indexerStatsRecordToApi = (record: IndexerStatsRecord): typeof IndexerStatsRecordApiSchema.Type => ({
+  indexerId: record.id,
+  indexerName: record.name,
+  numberOfQueries: record.queries,
+  numberOfGrabs: record.grabs,
+  numberOfFailedQueries: record.failedQueries,
+  numberOfFailedGrabs: record.failedGrabs,
+  averageResponseTime: record.avgResponseTimeMs,
+})
+
+const releaseRecordFromApi = (record: typeof ReleaseRecordApiSchema.Type): ReleaseRecord => {
   const size = fromNullable(record.size)
 
   return {
@@ -190,7 +259,31 @@ export const toReleaseRecord = (record: typeof ReleaseRecordSchema.Type): Releas
   }
 }
 
-export const toApplicationRecord = (record: typeof ApplicationRecordSchema.Type): ApplicationRecord => ({
+const releaseRecordToApi = (record: ReleaseRecord): typeof ReleaseRecordApiSchema.Type => ({
+  guid: record.guid,
+  indexerId: record.indexerId,
+  indexer: record.indexer,
+  title: record.title,
+  protocol: record.protocol,
+  size: record.size,
+  seeders: record.seeders,
+  leechers: record.leechers,
+  grabs: record.grabs,
+  age: record.age,
+  publishDate: record.publishDate,
+  downloadUrl: record.downloadUrl,
+  infoUrl: record.infoUrl,
+  categories: record.categories,
+})
+
+export const ReleaseRecordSchema = ReleaseRecordApiSchema.pipe(
+  Schema.decodeTo(DomainReleaseRecordSchema, {
+    decode: SchemaGetter.transform(releaseRecordFromApi),
+    encode: SchemaGetter.transform(releaseRecordToApi),
+  })
+)
+
+const applicationRecordFromApi = (record: typeof ApplicationRecordApiSchema.Type): ApplicationRecord => ({
   id: record.id,
   name: record.name,
   implementation: fromNullable(record.implementation),
@@ -198,7 +291,22 @@ export const toApplicationRecord = (record: typeof ApplicationRecordSchema.Type)
   tags: fromNullable(record.tags),
 })
 
-export const toCommandResult = (record: typeof CommandRecordSchema.Type): CommandResult => ({
+const applicationRecordToApi = (record: ApplicationRecord): typeof ApplicationRecordApiSchema.Type => ({
+  id: record.id,
+  name: record.name,
+  implementation: record.implementation,
+  syncLevel: record.syncLevel,
+  tags: record.tags,
+})
+
+export const ApplicationRecordSchema = ApplicationRecordApiSchema.pipe(
+  Schema.decodeTo(DomainApplicationRecordSchema, {
+    decode: SchemaGetter.transform(applicationRecordFromApi),
+    encode: SchemaGetter.transform(applicationRecordToApi),
+  })
+)
+
+const commandResultFromApi = (record: typeof CommandRecordApiSchema.Type): CommandResult => ({
   id: fromNullable(record.id),
   name: record.name,
   status: fromNullable(record.status),
@@ -207,7 +315,23 @@ export const toCommandResult = (record: typeof CommandRecordSchema.Type): Comman
   ended: fromNullable(record.ended),
 })
 
-export const toHistoryRecord = (record: typeof HistoryRecordSchema.Type): HistoryRecord => ({
+const commandResultToApi = (record: CommandResult): typeof CommandRecordApiSchema.Type => ({
+  id: record.id,
+  name: record.name,
+  status: record.status,
+  queued: record.queued,
+  started: record.started,
+  ended: record.ended,
+})
+
+export const CommandRecordSchema = CommandRecordApiSchema.pipe(
+  Schema.decodeTo(DomainCommandResultSchema, {
+    decode: SchemaGetter.transform(commandResultFromApi),
+    encode: SchemaGetter.transform(commandResultToApi),
+  })
+)
+
+const historyRecordFromApi = (record: typeof HistoryRecordApiSchema.Type): HistoryRecord => ({
   id: fromNullable(record.id),
   date: fromNullable(record.date),
   eventType: record.eventType,
@@ -219,11 +343,57 @@ export const toHistoryRecord = (record: typeof HistoryRecordSchema.Type): Histor
   elapsedTime: fromNullable(record.data?.elapsedTime),
 })
 
-export const toListResult = <Record>(
-  response: { readonly totalRecords?: number | null | undefined; readonly records: ReadonlyArray<unknown> },
-  records: ReadonlyArray<Record>
-): ListResult<Record> => ({
-  count: records.length,
-  totalRecords: fromNullable(response.totalRecords) ?? records.length,
-  records,
+const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApiSchema.Type => ({
+  id: record.id,
+  date: record.date,
+  eventType: record.eventType,
+  indexerId: record.indexerId,
+  data: {
+    successful: record.successful,
+    query: record.query,
+    queryType: record.queryType,
+    results: record.results,
+    elapsedTime: record.elapsedTime,
+  },
 })
+
+const HistoryRecordSchema = HistoryRecordApiSchema.pipe(
+  Schema.decodeTo(DomainHistoryRecordSchema, {
+    decode: SchemaGetter.transform(historyRecordFromApi),
+    encode: SchemaGetter.transform(historyRecordToApi),
+  })
+)
+
+export const IndexerStatsResponseSchema = IndexerStatsResponseApiSchema.pipe(
+  Schema.decodeTo(Schema.Array(DomainIndexerStatsRecordSchema), {
+    decode: SchemaGetter.transform((response: typeof IndexerStatsResponseApiSchema.Type) =>
+      response.indexers.map(indexerStatsRecordFromApi)
+    ),
+    encode: SchemaGetter.transform((records: ReadonlyArray<IndexerStatsRecord>) => ({
+      indexers: records.map(indexerStatsRecordToApi),
+    })),
+  })
+)
+
+const HistoryResponseApiSchema = Schema.Struct({
+  totalRecords: NullableNumber,
+  records: Schema.Array(HistoryRecordSchema),
+})
+
+const historyResponseFromApi = (response: typeof HistoryResponseApiSchema.Type): ListResult<HistoryRecord> => ({
+  count: response.records.length,
+  totalRecords: fromNullable(response.totalRecords) ?? response.records.length,
+  records: response.records,
+})
+
+const historyResponseToApi = (result: ListResult<HistoryRecord>): typeof HistoryResponseApiSchema.Type => ({
+  totalRecords: result.totalRecords,
+  records: result.records,
+})
+
+export const HistoryResponseSchema = HistoryResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainHistoryRecordSchema), {
+    decode: SchemaGetter.transform(historyResponseFromApi),
+    encode: SchemaGetter.transform(historyResponseToApi),
+  })
+)

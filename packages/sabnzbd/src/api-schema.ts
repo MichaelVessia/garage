@@ -1,16 +1,20 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
+import {
+  HistoryResultSchema as DomainHistoryResultSchema,
+  QueueResultSchema as DomainQueueResultSchema,
+  ServerStatsSchema as DomainServerStatsSchema,
+  SystemStatusSchema as DomainSystemStatusSchema,
+  VersionResultSchema as DomainVersionResultSchema,
+} from './model.js'
 import type {
-  ActionResult,
   HistoryResult,
   HistorySlot,
   QueueResult,
   QueueSlot,
-  SabnzbdAction,
   ServerStats,
   ServerUsage,
   SystemStatus,
-  VersionResult,
 } from './model.js'
 
 const NullableString = Schema.optional(Schema.NullOr(Schema.String))
@@ -19,7 +23,7 @@ const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
 const NullableStringArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.String)))
 const ActionStatusSchema = Schema.optional(Schema.NullOr(Schema.Union([Schema.Boolean, Schema.String])))
 
-export const StatusSchema = Schema.Struct({
+const StatusApiSchema = Schema.Struct({
   version: NullableString,
   uptime: NullableString,
   paused: NullableBoolean,
@@ -33,15 +37,15 @@ export const StatusSchema = Schema.Struct({
   new_release: NullableString,
 })
 
-export const FullStatusResponseSchema = Schema.Struct({
-  status: StatusSchema,
+const FullStatusResponseApiSchema = Schema.Struct({
+  status: StatusApiSchema,
 })
 
-export const VersionResponseSchema = Schema.Struct({
+const VersionResponseApiSchema = Schema.Struct({
   version: Schema.String,
 })
 
-const QueueSlotSchema = Schema.Struct({
+const QueueSlotApiSchema = Schema.Struct({
   nzo_id: Schema.String,
   filename: Schema.String,
   status: NullableString,
@@ -63,14 +67,14 @@ const QueueSchema = Schema.Struct({
   mbleft: NullableString,
   noofslots: NullableNumber,
   noofslots_total: NullableNumber,
-  slots: Schema.Array(QueueSlotSchema),
+  slots: Schema.Array(QueueSlotApiSchema),
 })
 
-export const QueueResponseSchema = Schema.Struct({
+const QueueResponseApiSchema = Schema.Struct({
   queue: QueueSchema,
 })
 
-const HistorySlotSchema = Schema.Struct({
+const HistorySlotApiSchema = Schema.Struct({
   nzo_id: Schema.String,
   name: Schema.String,
   status: NullableString,
@@ -87,35 +91,35 @@ const HistorySchema = Schema.Struct({
   week_size: NullableString,
   day_size: NullableString,
   noofslots: NullableNumber,
-  slots: Schema.Array(HistorySlotSchema),
+  slots: Schema.Array(HistorySlotApiSchema),
 })
 
-export const HistoryResponseSchema = Schema.Struct({
+const HistoryResponseApiSchema = Schema.Struct({
   history: HistorySchema,
 })
 
-export const ActionResponseSchema = Schema.Struct({
+const ActionResponseApiSchema = Schema.Struct({
   status: ActionStatusSchema,
 })
 
-const ServerUsageSchema = Schema.Struct({
+const ServerUsageApiSchema = Schema.Struct({
   total: NullableNumber,
   month: NullableNumber,
   week: NullableNumber,
   day: NullableNumber,
 })
 
-export const ServerStatsSchema = Schema.Struct({
+const ServerStatsApiSchema = Schema.Struct({
   total: NullableNumber,
   month: NullableNumber,
   week: NullableNumber,
   day: NullableNumber,
-  servers: Schema.Record(Schema.String, ServerUsageSchema),
+  servers: Schema.Record(Schema.String, ServerUsageApiSchema),
 })
 
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
-export const toSystemStatus = (status: typeof StatusSchema.Type): SystemStatus => ({
+const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus => ({
   version: fromNullable(status.version),
   uptime: fromNullable(status.uptime),
   paused: fromNullable(status.paused),
@@ -129,11 +133,44 @@ export const toSystemStatus = (status: typeof StatusSchema.Type): SystemStatus =
   newRelease: fromNullable(status.new_release),
 })
 
-export const toVersionResult = (response: typeof VersionResponseSchema.Type): VersionResult => ({
-  version: response.version,
+const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type => ({
+  version: status.version,
+  uptime: status.uptime,
+  paused: status.paused,
+  paused_all: status.pausedAll,
+  speedlimit: status.speedlimit,
+  speedlimit_abs: status.speedlimitAbs,
+  diskspace1_norm: status.diskspace1Norm,
+  diskspace2_norm: status.diskspace2Norm,
+  have_warnings: status.haveWarnings,
+  warnings: status.warnings,
+  new_release: status.newRelease,
 })
 
-export const toQueueSlot = (slot: typeof QueueSlotSchema.Type): QueueSlot => ({
+export const StatusSchema = StatusApiSchema.pipe(
+  Schema.decodeTo(DomainSystemStatusSchema, {
+    decode: SchemaGetter.transform(systemStatusFromApi),
+    encode: SchemaGetter.transform(systemStatusToApi),
+  })
+)
+
+const fullStatusFromApi = (response: typeof FullStatusResponseApiSchema.Type): SystemStatus =>
+  systemStatusFromApi(response.status)
+
+const fullStatusToApi = (status: SystemStatus): typeof FullStatusResponseApiSchema.Type => ({
+  status: systemStatusToApi(status),
+})
+
+export const FullStatusResponseSchema = FullStatusResponseApiSchema.pipe(
+  Schema.decodeTo(DomainSystemStatusSchema, {
+    decode: SchemaGetter.transform(fullStatusFromApi),
+    encode: SchemaGetter.transform(fullStatusToApi),
+  })
+)
+
+export const VersionResponseSchema = VersionResponseApiSchema.pipe(Schema.decodeTo(DomainVersionResultSchema))
+
+const queueSlotFromApi = (slot: typeof QueueSlotApiSchema.Type): QueueSlot => ({
   nzoId: slot.nzo_id,
   filename: slot.filename,
   status: fromNullable(slot.status),
@@ -145,8 +182,20 @@ export const toQueueSlot = (slot: typeof QueueSlotSchema.Type): QueueSlot => ({
   timeleft: fromNullable(slot.timeleft),
 })
 
-export const toQueueResult = (response: typeof QueueResponseSchema.Type): QueueResult => {
-  const slots = response.queue.slots.map(toQueueSlot)
+const queueSlotToApi = (slot: QueueSlot): typeof QueueSlotApiSchema.Type => ({
+  nzo_id: slot.nzoId,
+  filename: slot.filename,
+  status: slot.status,
+  priority: slot.priority,
+  cat: slot.category,
+  mb: slot.mb,
+  mbleft: slot.mbleft,
+  percentage: slot.percentage,
+  timeleft: slot.timeleft,
+})
+
+const queueResultFromApi = (response: typeof QueueResponseApiSchema.Type): QueueResult => {
+  const slots = response.queue.slots.map(queueSlotFromApi)
   return {
     status: fromNullable(response.queue.status),
     paused: fromNullable(response.queue.paused),
@@ -163,7 +212,29 @@ export const toQueueResult = (response: typeof QueueResponseSchema.Type): QueueR
   }
 }
 
-export const toHistorySlot = (slot: typeof HistorySlotSchema.Type): HistorySlot => ({
+const queueResultToApi = (result: QueueResult): typeof QueueResponseApiSchema.Type => ({
+  queue: {
+    status: result.status,
+    paused: result.paused,
+    speed: result.speed,
+    speedlimit: result.speedlimit,
+    timeleft: result.timeleft,
+    mb: result.mb,
+    mbleft: result.mbleft,
+    noofslots: result.noofslots,
+    noofslots_total: result.totalRecords,
+    slots: result.slots.map(queueSlotToApi),
+  },
+})
+
+export const QueueResponseSchema = QueueResponseApiSchema.pipe(
+  Schema.decodeTo(DomainQueueResultSchema, {
+    decode: SchemaGetter.transform(queueResultFromApi),
+    encode: SchemaGetter.transform(queueResultToApi),
+  })
+)
+
+const historySlotFromApi = (slot: typeof HistorySlotApiSchema.Type): HistorySlot => ({
   nzoId: slot.nzo_id,
   name: slot.name,
   status: fromNullable(slot.status),
@@ -174,8 +245,19 @@ export const toHistorySlot = (slot: typeof HistorySlotSchema.Type): HistorySlot 
   completed: fromNullable(slot.completed),
 })
 
-export const toHistoryResult = (response: typeof HistoryResponseSchema.Type): HistoryResult => {
-  const slots = response.history.slots.map(toHistorySlot)
+const historySlotToApi = (slot: HistorySlot): typeof HistorySlotApiSchema.Type => ({
+  nzo_id: slot.nzoId,
+  name: slot.name,
+  status: slot.status,
+  category: slot.category,
+  bytes: slot.bytes,
+  fail_message: slot.failMessage,
+  storage: slot.storage,
+  completed: slot.completed,
+})
+
+const historyResultFromApi = (response: typeof HistoryResponseApiSchema.Type): HistoryResult => {
+  const slots = response.history.slots.map(historySlotFromApi)
   return {
     totalSize: fromNullable(response.history.total_size),
     monthSize: fromNullable(response.history.month_size),
@@ -188,36 +270,76 @@ export const toHistoryResult = (response: typeof HistoryResponseSchema.Type): Hi
   }
 }
 
-const actionOk = (status: boolean | string | null | undefined): boolean => status === true || status === 'true'
-
-export const toActionResult = (
-  action: SabnzbdAction,
-  response: typeof ActionResponseSchema.Type,
-  nzoId?: string,
-  deleteFiles?: boolean
-): ActionResult => ({
-  action,
-  ok: actionOk(response.status),
-  nzoId,
-  deleteFiles,
+const historyResultToApi = (result: HistoryResult): typeof HistoryResponseApiSchema.Type => ({
+  history: {
+    total_size: result.totalSize,
+    month_size: result.monthSize,
+    week_size: result.weekSize,
+    day_size: result.daySize,
+    noofslots: result.totalRecords,
+    slots: result.slots.map(historySlotToApi),
+  },
 })
 
-const toServerUsage = (usage: typeof ServerUsageSchema.Type): ServerUsage => ({
+export const HistoryResponseSchema = HistoryResponseApiSchema.pipe(
+  Schema.decodeTo(DomainHistoryResultSchema, {
+    decode: SchemaGetter.transform(historyResultFromApi),
+    encode: SchemaGetter.transform(historyResultToApi),
+  })
+)
+
+const actionOk = (status: boolean | string | null | undefined): boolean => status === true || status === 'true'
+
+export const ActionResponseSchema = ActionResponseApiSchema.pipe(
+  Schema.decodeTo(Schema.Boolean, {
+    decode: SchemaGetter.transform((response: typeof ActionResponseApiSchema.Type) => actionOk(response.status)),
+    encode: SchemaGetter.transform((ok: boolean) => ({ status: ok })),
+  })
+)
+
+const serverUsageFromApi = (usage: typeof ServerUsageApiSchema.Type): ServerUsage => ({
   total: fromNullable(usage.total),
   month: fromNullable(usage.month),
   week: fromNullable(usage.week),
   day: fromNullable(usage.day),
 })
 
-const toServers = (
-  servers: Readonly<Record<string, typeof ServerUsageSchema.Type>>
-): Readonly<Record<string, ServerUsage>> =>
-  Object.fromEntries(Object.entries(servers).map(([name, usage]) => [name, toServerUsage(usage)]))
+const serverUsageToApi = (usage: ServerUsage): typeof ServerUsageApiSchema.Type => ({
+  total: usage.total,
+  month: usage.month,
+  week: usage.week,
+  day: usage.day,
+})
 
-export const toServerStats = (stats: typeof ServerStatsSchema.Type): ServerStats => ({
+const serversFromApi = (
+  servers: Readonly<Record<string, typeof ServerUsageApiSchema.Type>>
+): Readonly<Record<string, ServerUsage>> =>
+  Object.fromEntries(Object.entries(servers).map(([name, usage]) => [name, serverUsageFromApi(usage)]))
+
+const serversToApi = (
+  servers: Readonly<Record<string, ServerUsage>>
+): Readonly<Record<string, typeof ServerUsageApiSchema.Type>> =>
+  Object.fromEntries(Object.entries(servers).map(([name, usage]) => [name, serverUsageToApi(usage)]))
+
+const serverStatsFromApi = (stats: typeof ServerStatsApiSchema.Type): ServerStats => ({
   total: fromNullable(stats.total),
   month: fromNullable(stats.month),
   week: fromNullable(stats.week),
   day: fromNullable(stats.day),
-  servers: toServers(stats.servers),
+  servers: serversFromApi(stats.servers),
 })
+
+const serverStatsToApi = (stats: ServerStats): typeof ServerStatsApiSchema.Type => ({
+  total: stats.total,
+  month: stats.month,
+  week: stats.week,
+  day: stats.day,
+  servers: serversToApi(stats.servers),
+})
+
+export const ServerStatsSchema = ServerStatsApiSchema.pipe(
+  Schema.decodeTo(DomainServerStatsSchema, {
+    decode: SchemaGetter.transform(serverStatsFromApi),
+    encode: SchemaGetter.transform(serverStatsToApi),
+  })
+)

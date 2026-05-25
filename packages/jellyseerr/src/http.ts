@@ -12,15 +12,6 @@ import {
   SearchResponseSchema,
   StatusSchema,
   UserListResponseSchema,
-  toIssueListResult,
-  toMediaListResult,
-  toMediaSummary,
-  toRequestCounts,
-  toRequestListResult,
-  toRequestRecord,
-  toSearchListResult,
-  toSystemStatus,
-  toUserListResult,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { JellyseerrError } from './errors.js'
@@ -121,50 +112,38 @@ export const JellyseerrApiLive = Layer.effect(
     const client = yield* HttpClient.HttpClient
 
     return JellyseerrApi.of({
-      status: getJson(client, config, '/api/v1/status', StatusSchema).pipe(Effect.map(toSystemStatus)),
+      status: getJson(client, config, '/api/v1/status', StatusSchema),
       requests: (options) =>
         getJson(client, config, '/api/v1/request', RequestsResponseSchema, [
           ['take', options.limit],
           ['sort', 'added'],
           ['filter', options.filter],
-        ]).pipe(Effect.map(toRequestListResult)),
-      requestCounts: getJson(client, config, '/api/v1/request/count', RequestCountsSchema).pipe(
-        Effect.map(toRequestCounts)
-      ),
+        ]),
+      requestCounts: getJson(client, config, '/api/v1/request/count', RequestCountsSchema),
       search: (options) =>
         getJson(client, config, '/api/v1/search', SearchResponseSchema, [
           ['query', options.query],
           ['take', options.limit],
-        ]).pipe(Effect.map(toSearchListResult)),
-      mediaStatus: (mediaId) =>
-        getJson(client, config, `/api/v1/media/${mediaId}`, MediaResponseSchema).pipe(Effect.map(toMediaSummary)),
+        ]),
+      mediaStatus: (mediaId) => getJson(client, config, `/api/v1/media/${mediaId}`, MediaResponseSchema),
       recentlyAdded: (options) =>
         getJson(client, config, '/api/v1/media', MediaListResponseSchema, [
           ['filter', 'available'],
           ['sort', 'mediaAdded'],
           ['take', options.limit],
-        ]).pipe(Effect.map(toMediaListResult)),
-      approve: (requestId) =>
-        postJson(client, config, `/api/v1/request/${requestId}/approve`, RequestSchema).pipe(
-          Effect.map(toRequestRecord)
-        ),
-      decline: (requestId) =>
-        postJson(client, config, `/api/v1/request/${requestId}/decline`, RequestSchema).pipe(
-          Effect.map(toRequestRecord)
-        ),
+        ]),
+      approve: (requestId) => postJson(client, config, `/api/v1/request/${requestId}/approve`, RequestSchema),
+      decline: (requestId) => postJson(client, config, `/api/v1/request/${requestId}/decline`, RequestSchema),
       deleteRequest: (requestId) =>
         deleteStatus(client, config, `/api/v1/request/${requestId}`).pipe(
           Effect.map((httpStatus) => ({ deleted: true, requestId, httpStatus }))
         ),
-      users: (options) =>
-        getJson(client, config, '/api/v1/user', UserListResponseSchema, [['take', options.limit]]).pipe(
-          Effect.map(toUserListResult)
-        ),
+      users: (options) => getJson(client, config, '/api/v1/user', UserListResponseSchema, [['take', options.limit]]),
       issues: (options) =>
         getJson(client, config, '/api/v1/issue', IssueListResponseSchema, [
           ['take', options.limit],
           ['filter', 'open'],
-        ]).pipe(Effect.map(toIssueListResult)),
+        ]),
     })
   })
 )

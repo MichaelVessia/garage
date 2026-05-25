@@ -13,16 +13,6 @@ import {
   QueueResponseSchema,
   RootFolderSchema,
   StatusSchema,
-  toCollectionRecord,
-  toHistoryRecord,
-  toListResult,
-  toLookupResult,
-  toMovieRecord,
-  toMovieReleaseRecord,
-  toQualityProfile,
-  toQueueRecord,
-  toRootFolder,
-  toSystemStatus,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { RadarrError } from './errors.js'
@@ -138,7 +128,7 @@ const lookupByTmdbId = (
   tmdbId: number
 ): Effect.Effect<Option.Option<MovieLookupResult>, RadarrError> =>
   getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', `tmdb:${tmdbId}`]]).pipe(
-    Effect.map((results) => optionFromUndefined(results[0]).pipe(Option.map(toLookupResult)))
+    Effect.map((results) => optionFromUndefined(results[0]))
   )
 
 const currentCalendarRange = (days: number): Effect.Effect<ReadonlyArray<readonly [string, string]>> =>
@@ -160,21 +150,15 @@ export const RadarrApiLive = Layer.effect(
     const client = yield* HttpClient.HttpClient
 
     return RadarrApi.of({
-      status: getJson(client, config, '/api/v3/system/status', StatusSchema).pipe(Effect.map(toSystemStatus)),
-      rootFolders: getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema)).pipe(
-        Effect.map((folders) => folders.map(toRootFolder))
-      ),
-      qualityProfiles: getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema)).pipe(
-        Effect.map((profiles) => profiles.map(toQualityProfile))
-      ),
+      status: getJson(client, config, '/api/v3/system/status', StatusSchema),
+      rootFolders: getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema)),
+      qualityProfiles: getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema)),
       lookupMovies: (query) =>
-        getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', query]]).pipe(
-          Effect.map((results) => results.map(toLookupResult))
-        ),
+        getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', query]]),
       lookupMovieByTmdbId: (tmdbId) => lookupByTmdbId(client, config, tmdbId),
       getMovieByTmdbId: (tmdbId) =>
         getJson(client, config, '/api/v3/movie', Schema.Array(MovieRecordSchema), [['tmdbId', tmdbId]]).pipe(
-          Effect.map((records) => optionFromUndefined(records[0]).pipe(Option.map(toMovieRecord)))
+          Effect.map((records) => optionFromUndefined(records[0]))
         ),
       addMovie: (lookup, options) =>
         postJson(
@@ -193,15 +177,13 @@ export const RadarrApiLive = Layer.effect(
             addOptions: { searchForMovie: options.searchForMovie },
           },
           MovieRecordSchema
-        ).pipe(Effect.map(toMovieRecord)),
+        ),
       removeMovie: (movieId, options) =>
         deleteJson(client, config, `/api/v3/movie/${movieId}`, Schema.Unknown, [
           ['deleteFiles', options.deleteFiles],
           ['addImportExclusion', false],
         ]).pipe(Effect.asVoid),
-      collections: getJson(client, config, '/api/v3/collection', Schema.Array(CollectionRecordSchema)).pipe(
-        Effect.map((collections) => collections.map(toCollectionRecord))
-      ),
+      collections: getJson(client, config, '/api/v3/collection', Schema.Array(CollectionRecordSchema)),
       setCollectionMonitoring: (collectionId) =>
         Effect.gen(function* () {
           const collection = yield* getJson(client, config, `/api/v3/collection/${collectionId}`, JsonObjectSchema)
@@ -218,7 +200,7 @@ export const RadarrApiLive = Layer.effect(
           ['pageSize', limit],
           ['includeUnknownMovieItems', true],
           ['includeMovie', true],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toQueueRecord)))),
+        ]),
       calendar: (days) =>
         currentCalendarRange(days).pipe(
           Effect.flatMap((range) =>
@@ -226,8 +208,7 @@ export const RadarrApiLive = Layer.effect(
               ...range,
               ['unmonitored', false],
             ])
-          ),
-          Effect.map((records) => records.map(toMovieReleaseRecord))
+          )
         ),
       missing: (limit) =>
         getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
@@ -235,14 +216,14 @@ export const RadarrApiLive = Layer.effect(
           ['monitored', true],
           ['sortKey', 'releaseDate'],
           ['sortDirection', 'descending'],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toMovieReleaseRecord)))),
+        ]),
       history: (limit) =>
         getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
           ['pageSize', limit],
           ['includeMovie', true],
           ['sortKey', 'date'],
           ['sortDirection', 'descending'],
-        ]).pipe(Effect.map((response) => toListResult(response, response.records.map(toHistoryRecord)))),
+        ]),
     })
   })
 )

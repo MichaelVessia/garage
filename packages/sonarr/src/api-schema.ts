@@ -1,17 +1,19 @@
-import { Schema } from 'effect'
+import { Schema, SchemaGetter } from 'effect'
 
-import type {
-  EpisodeRecord,
-  HistoryRecord,
-  ListResult,
-  QualityProfile,
-  QueueRecord,
-  RootFolder,
-  SeriesLookupResult,
-  SeriesRecord,
+import {
+  EpisodeRecordSchema as DomainEpisodeRecordSchema,
+  HistoryRecordSchema as DomainHistoryRecordSchema,
+  ListResultSchema as DomainListResultSchema,
+  QualityProfileSchema as DomainQualityProfileSchema,
+  QueueRecordSchema as DomainQueueRecordSchema,
+  RootFolderSchema as DomainRootFolderSchema,
+  SeriesLookupResultSchema as DomainSeriesLookupResultSchema,
+  SeriesRecordSchema as DomainSeriesRecordSchema,
+  SystemStatusSchema as DomainSystemStatusSchema,
 } from './model.js'
+import type { EpisodeRecord, HistoryRecord, ListResult, QueueRecord, RootFolder, SeriesLookupResult } from './model.js'
 
-export const StatusSchema = Schema.Struct({
+const StatusApiSchema = Schema.Struct({
   appName: Schema.String,
   version: Schema.String,
   instanceName: Schema.optional(Schema.String),
@@ -27,7 +29,9 @@ export const StatusSchema = Schema.Struct({
   branch: Schema.optional(Schema.String),
 })
 
-export const RootFolderSchema = Schema.Struct({
+export const StatusSchema = StatusApiSchema.pipe(Schema.decodeTo(DomainSystemStatusSchema))
+
+const RootFolderApiSchema = Schema.Struct({
   id: Schema.Number,
   path: Schema.String,
   freeSpace: Schema.optional(Schema.Number),
@@ -35,7 +39,7 @@ export const RootFolderSchema = Schema.Struct({
   unmappedFolders: Schema.optional(Schema.Array(Schema.Unknown)),
 })
 
-export const QualityProfileSchema = Schema.Struct({
+const QualityProfileApiSchema = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   upgradeAllowed: Schema.optional(Schema.Boolean),
@@ -44,7 +48,9 @@ export const QualityProfileSchema = Schema.Struct({
   cutoffFormatScore: Schema.optional(Schema.Number),
 })
 
-export const LookupSeriesSchema = Schema.Struct({
+export const QualityProfileSchema = QualityProfileApiSchema.pipe(Schema.decodeTo(DomainQualityProfileSchema))
+
+const LookupSeriesApiSchema = Schema.Struct({
   title: Schema.String,
   year: Schema.optional(Schema.Number),
   tvdbId: Schema.Number,
@@ -69,7 +75,7 @@ const SeriesStatisticsSchema = Schema.Struct({
   percentOfEpisodes: Schema.optional(Schema.Number),
 })
 
-export const SeriesRecordSchema = Schema.Struct({
+const SeriesRecordApiSchema = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
   tvdbId: Schema.Number,
@@ -83,6 +89,8 @@ export const SeriesRecordSchema = Schema.Struct({
   seriesType: Schema.optional(Schema.String),
   statistics: Schema.optional(SeriesStatisticsSchema),
 })
+
+export const SeriesRecordSchema = SeriesRecordApiSchema.pipe(Schema.decodeTo(DomainSeriesRecordSchema))
 
 const SeriesSummarySchema = Schema.Struct({
   title: Schema.String,
@@ -111,7 +119,7 @@ const QueueStatusMessageSchema = Schema.Struct({
   messages: Schema.Array(Schema.String),
 })
 
-const QueueRecordSchema = Schema.Struct({
+const QueueRecordApiSchema = Schema.Struct({
   id: Schema.optional(Schema.Number),
   title: Schema.String,
   series: Schema.optional(SeriesSummarySchema),
@@ -134,12 +142,7 @@ const QueueRecordSchema = Schema.Struct({
   outputPath: Schema.optional(Schema.String),
 })
 
-export const QueueResponseSchema = Schema.Struct({
-  totalRecords: Schema.optional(Schema.Number),
-  records: Schema.Array(QueueRecordSchema),
-})
-
-const MissingRecordSchema = Schema.Struct({
+const MissingRecordApiSchema = Schema.Struct({
   id: Schema.optional(Schema.Number),
   title: Schema.String,
   seasonNumber: Schema.optional(Schema.Number),
@@ -152,12 +155,7 @@ const MissingRecordSchema = Schema.Struct({
   series: Schema.optional(SeriesSummarySchema),
 })
 
-export const MissingResponseSchema = Schema.Struct({
-  totalRecords: Schema.optional(Schema.Number),
-  records: Schema.Array(MissingRecordSchema),
-})
-
-export const EpisodeRecordSchema = Schema.Struct({
+const EpisodeRecordApiSchema = Schema.Struct({
   id: Schema.optional(Schema.Number),
   title: Schema.String,
   seasonNumber: Schema.optional(Schema.Number),
@@ -169,7 +167,7 @@ export const EpisodeRecordSchema = Schema.Struct({
   series: SeriesSummarySchema,
 })
 
-export const HistoryRecordSchema = Schema.Struct({
+const HistoryRecordApiSchema = Schema.Struct({
   id: Schema.optional(Schema.Number),
   date: Schema.optional(Schema.String),
   eventType: Schema.String,
@@ -189,12 +187,7 @@ export const HistoryRecordSchema = Schema.Struct({
   ),
 })
 
-export const HistoryResponseSchema = Schema.Struct({
-  totalRecords: Schema.optional(Schema.Number),
-  records: Schema.Array(HistoryRecordSchema),
-})
-
-const toTvdbUrl = (tvdbId: number): string => `https://thetvdb.com/dereferrer/series/${tvdbId}`
+const tvdbUrl = (tvdbId: number): string => `https://thetvdb.com/dereferrer/series/${tvdbId}`
 
 const parseOptionalNumber = (value: string | undefined): number | undefined => {
   if (value === undefined) {
@@ -212,11 +205,11 @@ const statusMessages = (
   messages: ReadonlyArray<typeof QueueStatusMessageSchema.Type> | undefined
 ): ReadonlyArray<string> => messages?.flatMap((message) => message.messages) ?? []
 
-export const toLookupResult = (series: typeof LookupSeriesSchema.Type): SeriesLookupResult => ({
+const lookupResultFromApi = (series: typeof LookupSeriesApiSchema.Type): SeriesLookupResult => ({
   title: series.title,
   year: series.year,
   tvdbId: series.tvdbId,
-  tvdbUrl: toTvdbUrl(series.tvdbId),
+  tvdbUrl: tvdbUrl(series.tvdbId),
   titleSlug: series.titleSlug,
   imdbId: series.imdbId,
   tmdbId: series.tmdbId,
@@ -229,22 +222,30 @@ export const toLookupResult = (series: typeof LookupSeriesSchema.Type): SeriesLo
   overview: series.overview,
 })
 
-export const toSeriesRecord = (series: typeof SeriesRecordSchema.Type): SeriesRecord => ({
-  id: series.id,
+const lookupResultToApi = (series: SeriesLookupResult): typeof LookupSeriesApiSchema.Type => ({
   title: series.title,
-  tvdbId: series.tvdbId,
   year: series.year,
-  path: series.path,
-  monitored: series.monitored,
+  tvdbId: series.tvdbId,
+  titleSlug: series.titleSlug,
+  imdbId: series.imdbId,
+  tmdbId: series.tmdbId,
   status: series.status,
-  qualityProfileId: series.qualityProfileId,
   network: series.network,
-  seasonFolder: series.seasonFolder,
-  seriesType: series.seriesType,
-  statistics: series.statistics,
+  genres: series.genres,
+  runtime: series.runtime,
+  firstAired: series.firstAired,
+  remotePoster: series.remotePoster,
+  overview: series.overview,
 })
 
-export const toRootFolder = (folder: typeof RootFolderSchema.Type): RootFolder => ({
+export const LookupSeriesSchema = LookupSeriesApiSchema.pipe(
+  Schema.decodeTo(DomainSeriesLookupResultSchema, {
+    decode: SchemaGetter.transform(lookupResultFromApi),
+    encode: SchemaGetter.transform(lookupResultToApi),
+  })
+)
+
+const rootFolderFromApi = (folder: typeof RootFolderApiSchema.Type): RootFolder => ({
   id: folder.id,
   path: folder.path,
   freeSpace: folder.freeSpace,
@@ -252,22 +253,27 @@ export const toRootFolder = (folder: typeof RootFolderSchema.Type): RootFolder =
   unmappedFolderCount: folder.unmappedFolders?.length ?? 0,
 })
 
-export const toQualityProfile = (profile: typeof QualityProfileSchema.Type): QualityProfile => ({
-  id: profile.id,
-  name: profile.name,
-  upgradeAllowed: profile.upgradeAllowed,
-  cutoff: profile.cutoff,
-  minFormatScore: profile.minFormatScore,
-  cutoffFormatScore: profile.cutoffFormatScore,
+const rootFolderToApi = (folder: RootFolder): typeof RootFolderApiSchema.Type => ({
+  id: folder.id,
+  path: folder.path,
+  freeSpace: folder.freeSpace,
+  accessible: folder.accessible,
 })
 
-const toQueueEpisodeFields = (record: typeof QueueRecordSchema.Type): Partial<QueueRecord> => ({
+export const RootFolderSchema = RootFolderApiSchema.pipe(
+  Schema.decodeTo(DomainRootFolderSchema, {
+    decode: SchemaGetter.transform(rootFolderFromApi),
+    encode: SchemaGetter.transform(rootFolderToApi),
+  })
+)
+
+const queueEpisodeFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => ({
   ...(record.seasonNumber === undefined ? {} : { seasonNumber: record.seasonNumber }),
   ...(record.episode?.episodeNumber === undefined ? {} : { episodeNumber: record.episode.episodeNumber }),
   ...(record.episode?.title === undefined ? {} : { episodeTitle: record.episode.title }),
 })
 
-const toQueueStatusFields = (record: typeof QueueRecordSchema.Type): Partial<QueueRecord> => ({
+const queueStatusFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => ({
   ...(record.trackedDownloadStatus === undefined ? {} : { trackedDownloadStatus: record.trackedDownloadStatus }),
   ...(record.trackedDownloadState === undefined ? {} : { trackedDownloadState: record.trackedDownloadState }),
   statusMessages: statusMessages(record.statusMessages),
@@ -276,7 +282,7 @@ const toQueueStatusFields = (record: typeof QueueRecordSchema.Type): Partial<Que
     : { errorMessage: record.errorMessage }),
 })
 
-const toQueueTransferFields = (record: typeof QueueRecordSchema.Type): Partial<QueueRecord> => ({
+const queueTransferFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => ({
   ...(record.quality?.quality?.name === undefined ? {} : { quality: record.quality.quality.name }),
   languages: languageNames(record.languages),
   ...(record.size === undefined ? {} : { size: record.size }),
@@ -289,17 +295,50 @@ const toQueueTransferFields = (record: typeof QueueRecordSchema.Type): Partial<Q
   ...(record.outputPath === undefined ? {} : { outputPath: record.outputPath }),
 })
 
-export const toQueueRecord = (record: typeof QueueRecordSchema.Type): QueueRecord => ({
+const queueRecordFromApi = (record: typeof QueueRecordApiSchema.Type): QueueRecord => ({
   ...(record.id === undefined ? {} : { id: record.id }),
   title: record.title,
   seriesTitle: record.series?.title ?? 'Unknown Series',
-  ...toQueueEpisodeFields(record),
+  ...queueEpisodeFieldsFromApi(record),
   status: record.status,
-  ...toQueueStatusFields(record),
-  ...toQueueTransferFields(record),
+  ...queueStatusFieldsFromApi(record),
+  ...queueTransferFieldsFromApi(record),
 })
 
-export const toEpisodeRecord = (record: typeof EpisodeRecordSchema.Type): EpisodeRecord => ({
+const queueRecordToApi = (record: QueueRecord): typeof QueueRecordApiSchema.Type => ({
+  id: record.id,
+  title: record.title,
+  series: { title: record.seriesTitle },
+  seasonNumber: record.seasonNumber,
+  episode:
+    record.episodeTitle === undefined
+      ? undefined
+      : { title: record.episodeTitle, seasonNumber: record.seasonNumber, episodeNumber: record.episodeNumber },
+  status: record.status,
+  trackedDownloadStatus: record.trackedDownloadStatus,
+  trackedDownloadState: record.trackedDownloadState,
+  statusMessages: record.statusMessages?.map((message) => ({ messages: [message] })),
+  errorMessage: record.errorMessage,
+  quality: record.quality === undefined ? undefined : { quality: { name: record.quality } },
+  languages: record.languages?.map((name, id) => ({ id, name })),
+  size: record.size,
+  sizeleft: record.sizeleft,
+  timeleft: record.timeleft,
+  estimatedCompletionTime: record.estimatedCompletionTime,
+  protocol: record.protocol,
+  downloadClient: record.downloadClient,
+  indexer: record.indexer,
+  outputPath: record.outputPath,
+})
+
+const QueueRecordSchema = QueueRecordApiSchema.pipe(
+  Schema.decodeTo(DomainQueueRecordSchema, {
+    decode: SchemaGetter.transform(queueRecordFromApi),
+    encode: SchemaGetter.transform(queueRecordToApi),
+  })
+)
+
+const episodeRecordFromApi = (record: typeof EpisodeRecordApiSchema.Type): EpisodeRecord => ({
   ...(record.id === undefined ? {} : { id: record.id }),
   title: record.title,
   seriesTitle: record.series.title,
@@ -313,7 +352,26 @@ export const toEpisodeRecord = (record: typeof EpisodeRecordSchema.Type): Episod
   ...(record.overview === undefined ? {} : { overview: record.overview }),
 })
 
-export const toMissingRecord = (record: typeof MissingRecordSchema.Type): EpisodeRecord => ({
+const episodeRecordToApi = (record: EpisodeRecord): typeof EpisodeRecordApiSchema.Type => ({
+  id: record.id,
+  title: record.title,
+  seasonNumber: record.seasonNumber,
+  episodeNumber: record.episodeNumber,
+  airDateUtc: record.airDateUtc,
+  hasFile: record.hasFile,
+  monitored: record.monitored,
+  overview: record.overview,
+  series: { title: record.seriesTitle, status: record.seriesStatus, network: record.network },
+})
+
+export const EpisodeRecordSchema = EpisodeRecordApiSchema.pipe(
+  Schema.decodeTo(DomainEpisodeRecordSchema, {
+    decode: SchemaGetter.transform(episodeRecordFromApi),
+    encode: SchemaGetter.transform(episodeRecordToApi),
+  })
+)
+
+const missingRecordFromApi = (record: typeof MissingRecordApiSchema.Type): EpisodeRecord => ({
   ...(record.id === undefined ? {} : { id: record.id }),
   title: record.title,
   seriesTitle: record.series?.title ?? 'Unknown Series',
@@ -328,13 +386,33 @@ export const toMissingRecord = (record: typeof MissingRecordSchema.Type): Episod
   ...(record.overview === undefined ? {} : { overview: record.overview }),
 })
 
-const toHistoryEpisodeFields = (record: typeof HistoryRecordSchema.Type): Partial<HistoryRecord> => ({
+const missingRecordToApi = (record: EpisodeRecord): typeof MissingRecordApiSchema.Type => ({
+  id: record.id,
+  title: record.title,
+  seasonNumber: record.seasonNumber,
+  episodeNumber: record.episodeNumber,
+  airDateUtc: record.airDateUtc,
+  hasFile: record.hasFile,
+  monitored: record.monitored,
+  lastSearchTime: record.lastSearchTime,
+  overview: record.overview,
+  series: { title: record.seriesTitle, status: record.seriesStatus, network: record.network },
+})
+
+const MissingRecordSchema = MissingRecordApiSchema.pipe(
+  Schema.decodeTo(DomainEpisodeRecordSchema, {
+    decode: SchemaGetter.transform(missingRecordFromApi),
+    encode: SchemaGetter.transform(missingRecordToApi),
+  })
+)
+
+const historyEpisodeFieldsFromApi = (record: typeof HistoryRecordApiSchema.Type): Partial<HistoryRecord> => ({
   ...(record.episode?.seasonNumber === undefined ? {} : { seasonNumber: record.episode.seasonNumber }),
   ...(record.episode?.episodeNumber === undefined ? {} : { episodeNumber: record.episode.episodeNumber }),
   ...(record.episode?.title === undefined ? {} : { episodeTitle: record.episode.title }),
 })
 
-const toHistoryDataFields = (record: typeof HistoryRecordSchema.Type): Partial<HistoryRecord> => {
+const historyDataFieldsFromApi = (record: typeof HistoryRecordApiSchema.Type): Partial<HistoryRecord> => {
   const size = parseOptionalNumber(record.data?.size)
 
   return {
@@ -347,23 +425,106 @@ const toHistoryDataFields = (record: typeof HistoryRecordSchema.Type): Partial<H
   }
 }
 
-export const toHistoryRecord = (record: typeof HistoryRecordSchema.Type): HistoryRecord => ({
+const historyRecordFromApi = (record: typeof HistoryRecordApiSchema.Type): HistoryRecord => ({
   ...(record.id === undefined ? {} : { id: record.id }),
   ...(record.date === undefined ? {} : { date: record.date }),
   eventType: record.eventType,
   ...(record.sourceTitle === undefined ? {} : { sourceTitle: record.sourceTitle }),
   seriesTitle: record.series?.title ?? 'Unknown Series',
-  ...toHistoryEpisodeFields(record),
+  ...historyEpisodeFieldsFromApi(record),
   ...(record.quality?.quality?.name === undefined ? {} : { quality: record.quality.quality.name }),
   languages: languageNames(record.languages),
-  ...toHistoryDataFields(record),
+  ...historyDataFieldsFromApi(record),
 })
 
-export const toListResult = <Record>(
-  response: { readonly totalRecords?: number | undefined; readonly records: ReadonlyArray<unknown> },
-  records: ReadonlyArray<Record>
-): ListResult<Record> => ({
-  count: records.length,
-  totalRecords: response.totalRecords ?? records.length,
-  records,
+const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApiSchema.Type => ({
+  id: record.id,
+  date: record.date,
+  eventType: record.eventType,
+  sourceTitle: record.sourceTitle,
+  series: { title: record.seriesTitle },
+  episode:
+    record.episodeTitle === undefined
+      ? undefined
+      : { title: record.episodeTitle, seasonNumber: record.seasonNumber, episodeNumber: record.episodeNumber },
+  quality: record.quality === undefined ? undefined : { quality: { name: record.quality } },
+  languages: record.languages?.map((name, id) => ({ id, name })),
+  downloadId: record.downloadId,
+  data: { downloadClient: record.downloadClient, releaseGroup: record.releaseGroup, size: record.size?.toString() },
 })
+
+const HistoryRecordSchema = HistoryRecordApiSchema.pipe(
+  Schema.decodeTo(DomainHistoryRecordSchema, {
+    decode: SchemaGetter.transform(historyRecordFromApi),
+    encode: SchemaGetter.transform(historyRecordToApi),
+  })
+)
+
+const QueueResponseApiSchema = Schema.Struct({
+  totalRecords: Schema.optional(Schema.Number),
+  records: Schema.Array(QueueRecordSchema),
+})
+
+const MissingResponseApiSchema = Schema.Struct({
+  totalRecords: Schema.optional(Schema.Number),
+  records: Schema.Array(MissingRecordSchema),
+})
+
+const HistoryResponseApiSchema = Schema.Struct({
+  totalRecords: Schema.optional(Schema.Number),
+  records: Schema.Array(HistoryRecordSchema),
+})
+
+const queueResponseFromApi = (response: typeof QueueResponseApiSchema.Type): ListResult<QueueRecord> => ({
+  count: response.records.length,
+  totalRecords: response.totalRecords ?? response.records.length,
+  records: response.records,
+})
+
+const queueResponseToApi = (result: ListResult<QueueRecord>): typeof QueueResponseApiSchema.Type => ({
+  totalRecords: result.totalRecords,
+  records: result.records,
+})
+
+export const QueueResponseSchema = QueueResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainQueueRecordSchema), {
+    decode: SchemaGetter.transform(queueResponseFromApi),
+    encode: SchemaGetter.transform(queueResponseToApi),
+  })
+)
+
+const missingResponseFromApi = (response: typeof MissingResponseApiSchema.Type): ListResult<EpisodeRecord> => ({
+  count: response.records.length,
+  totalRecords: response.totalRecords ?? response.records.length,
+  records: response.records,
+})
+
+const missingResponseToApi = (result: ListResult<EpisodeRecord>): typeof MissingResponseApiSchema.Type => ({
+  totalRecords: result.totalRecords,
+  records: result.records,
+})
+
+export const MissingResponseSchema = MissingResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainEpisodeRecordSchema), {
+    decode: SchemaGetter.transform(missingResponseFromApi),
+    encode: SchemaGetter.transform(missingResponseToApi),
+  })
+)
+
+const historyResponseFromApi = (response: typeof HistoryResponseApiSchema.Type): ListResult<HistoryRecord> => ({
+  count: response.records.length,
+  totalRecords: response.totalRecords ?? response.records.length,
+  records: response.records,
+})
+
+const historyResponseToApi = (result: ListResult<HistoryRecord>): typeof HistoryResponseApiSchema.Type => ({
+  totalRecords: result.totalRecords,
+  records: result.records,
+})
+
+export const HistoryResponseSchema = HistoryResponseApiSchema.pipe(
+  Schema.decodeTo(DomainListResultSchema(DomainHistoryRecordSchema), {
+    decode: SchemaGetter.transform(historyResponseFromApi),
+    encode: SchemaGetter.transform(historyResponseToApi),
+  })
+)

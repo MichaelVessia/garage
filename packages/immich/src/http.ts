@@ -4,6 +4,7 @@ import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstab
 import {
   AlbumInfoSchema,
   AlbumSchema,
+  CurrentUserSchema,
   JobsSchema,
   PeopleResponseSchema,
   PersonSchema,
@@ -14,24 +15,12 @@ import {
   TagSchema,
   UserSchema,
   VersionSchema,
-  toAlbumInfo,
-  toAlbumSummary,
-  toCurrentUser,
-  toJobRecords,
-  toListResult,
-  toPeopleResult,
-  toPersonRecord,
-  toSearchResult,
-  toStatistics,
-  toStorageStatus,
-  toSystemStatus,
-  toTagRecord,
-  toUserRecord,
-  toUsersResult,
+  recordsList,
+  usersResult,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { ImmichError } from './errors.js'
-import type { ImmichConfigValue, SearchOptions } from './model.js'
+import type { ImmichConfigValue, SearchOptions, SearchResult, SystemStatus, VersionParts } from './model.js'
 import { ImmichApi, ImmichConfig } from './services.js'
 
 const normalizeBaseUrl = (baseUrl: string): string => {
@@ -112,14 +101,20 @@ const metadataSearch = (
   client: HttpClient.HttpClient,
   config: ImmichConfigValue,
   options: SearchOptions
-): Effect.Effect<ReturnType<typeof toSearchResult>, ImmichError> =>
+): Effect.Effect<SearchResult, ImmichError> =>
   postJson(
     client,
     config,
     '/search/metadata',
     { originalFileName: options.query, size: options.limit },
-    SearchResponseSchema
-  ).pipe(Effect.map((response) => toSearchResult('metadata', options.query, response)))
+    SearchResponseSchema('metadata', options.query)
+  )
+
+const systemStatus = (versionParts: VersionParts, ping: typeof PingSchema.Type): SystemStatus => ({
+  version: `${versionParts.major}.${versionParts.minor}.${versionParts.patch}`,
+  versionParts,
+  ping: ping.res === null ? undefined : ping.res,
+})
 
 export const ImmichApiLive = Layer.effect(
   ImmichApi,
@@ -132,61 +127,55 @@ export const ImmichApiLive = Layer.effect(
       status: Effect.all({
         version: getJson(client, config, '/server/version', VersionSchema),
         ping: getJson(client, config, '/server/ping', PingSchema),
-      }).pipe(Effect.map(({ version, ping }) => toSystemStatus(version, ping))),
-      stats: getJson(client, config, '/server/statistics', StatisticsSchema).pipe(Effect.map(toStatistics)),
-      storage: getJson(client, config, '/server/storage', StorageSchema).pipe(Effect.map(toStorageStatus)),
+      }).pipe(Effect.map(({ version, ping }) => systemStatus(version, ping))),
+      stats: getJson(client, config, '/server/statistics', StatisticsSchema),
+      storage: getJson(client, config, '/server/storage', StorageSchema),
       users: getJson(client, config, '/admin/users', Schema.Array(UserSchema)).pipe(
-        Effect.map((records) => toUsersResult(records.map(toUserRecord))),
+        Effect.map((records) => usersResult(records)),
         Effect.matchEffect({
           onFailure: () =>
             getJson(client, config, '/users', Schema.Array(UserSchema)).pipe(
-              Effect.map((records) =>
-                toUsersResult(records.map(toUserRecord), 'admin fields unavailable: API key lacks adminUser.read')
-              )
+              Effect.map((records) => usersResult(records, 'admin fields unavailable: API key lacks adminUser.read'))
             ),
           onSuccess: (result) => Effect.succeed(result),
         })
       ),
-      me: getJson(client, config, '/users/me', UserSchema).pipe(Effect.map(toCurrentUser)),
+      me: getJson(client, config, '/users/me', CurrentUserSchema),
       albums: (options) =>
         getJson(client, config, '/albums', Schema.Array(AlbumSchema)).pipe(
-          Effect.map((records) => toListResult(records.slice(0, options.limit).map(toAlbumSummary)))
+          Effect.map((records) => recordsList(records.slice(0, options.limit)))
         ),
-      albumInfo: (options) =>
-        getJson(client, config, `/albums/${options.id}`, AlbumInfoSchema).pipe(
-          Effect.map((album) => toAlbumInfo(album, options.limit))
-        ),
+      albumInfo: (options) => getJson(client, config, `/albums/${options.id}`, AlbumInfoSchema(options.limit)),
       search: (options) =>
         postJson(
           client,
           config,
           '/search/smart',
           { query: options.query, size: options.limit },
-          SearchResponseSchema
+          SearchResponseSchema('smart', options.query)
         ).pipe(
           Effect.matchEffect({
             onFailure: () => metadataSearch(client, config, options),
             onSuccess: (response) =>
-              response.assets.count > 0
-                ? Effect.succeed(toSearchResult('smart', options.query, response))
-                : metadataSearch(client, config, options),
+              response.count > 0 ? Effect.succeed(response) : metadataSearch(client, config, options),
           })
         ),
       recent: (options) =>
-        postJson(client, config, '/search/metadata', { size: options.limit, order: 'desc' }, SearchResponseSchema).pipe(
-          Effect.map((response) => toSearchResult('metadata', 'recent', response))
+        postJson(
+          client,
+          config,
+          '/search/metadata',
+          { size: options.limit, order: 'desc' },
+          SearchResponseSchema('metadata', 'recent')
         ),
       people: (options) =>
         getJson(client, config, '/people', PeopleResponseSchema, [
           ['withHidden', false],
           ['size', options.limit],
-        ]).pipe(Effect.map(toPeopleResult)),
-      personInfo: (personId) =>
-        getJson(client, config, `/people/${personId}`, PersonSchema).pipe(Effect.map(toPersonRecord)),
-      jobs: getJson(client, config, '/jobs', JobsSchema).pipe(Effect.map((jobs) => toListResult(toJobRecords(jobs)))),
-      tags: getJson(client, config, '/tags', Schema.Array(TagSchema)).pipe(
-        Effect.map((records) => toListResult(records.map(toTagRecord)))
-      ),
+        ]),
+      personInfo: (personId) => getJson(client, config, `/people/${personId}`, PersonSchema),
+      jobs: getJson(client, config, '/jobs', JobsSchema),
+      tags: getJson(client, config, '/tags', Schema.Array(TagSchema)).pipe(Effect.map(recordsList)),
     })
   })
 )

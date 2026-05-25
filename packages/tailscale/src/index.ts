@@ -1,4 +1,4 @@
-export { StatusJsonSchema, toExitNodeList, toPeerList, toStatusResult } from './api-schema.js'
+export { ExitNodeListSchema, PeerListSchema, StatusJsonSchema } from './api-schema.js'
 export {
   TailscaleCliMissingError,
   TailscaleCommandFailedError,
