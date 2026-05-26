@@ -84,14 +84,14 @@ type SonarrInvocation = CommandInvocation<SonarrCliResult, SonarrCliError, Sonar
 
 const defaultQualityProfileAction = Effect.fn('sonarrCli.defaultQualityProfileAction')(function* (
   tvdbId: number,
-  description = 'Add a selected series to Sonarr'
+  description?: string
 ): Effect.fn.Return<NextAction, SonarrError, SonarrConfig> {
   const sonarrConfig = yield* SonarrConfig
   const values = yield* sonarrConfig.get()
 
   return {
     command: addCommandTemplate,
-    description,
+    description: description ?? 'Add a selected series to Sonarr',
     params: {
       'tvdb-id': { value: tvdbId, description: 'TVDB series ID' },
       'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Sonarr quality profile ID' },

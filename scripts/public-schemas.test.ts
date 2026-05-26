@@ -129,9 +129,15 @@ it('exports public schemas for normalized models and envelopes', () => {
 })
 
 it('rejects invalid public options at runtime', () => {
-  assert.throws(() => Schema.decodeUnknownSync(ProwlarrSearchOptionsSchema)({ limit: 10, protocol: 'invalid' }))
-  assert.throws(() => Schema.decodeUnknownSync(ProtectionToggleOptionsSchema)({ state: 'invalid' }))
-  assert.throws(() => Schema.decodeUnknownSync(DeleteOptionsSchema)({ deleteFiles: 'yes' }))
+  assert.throws(() => {
+    Schema.decodeUnknownSync(ProwlarrSearchOptionsSchema)({ limit: 10, protocol: 'invalid' })
+  })
+  assert.throws(() => {
+    Schema.decodeUnknownSync(ProtectionToggleOptionsSchema)({ state: 'invalid' })
+  })
+  assert.throws(() => {
+    Schema.decodeUnknownSync(DeleteOptionsSchema)({ deleteFiles: 'yes' })
+  })
 })
 
 it('preserves underlying causes on transport, process, and decode errors', () => {

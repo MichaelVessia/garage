@@ -93,14 +93,14 @@ type RadarrInvocation = CommandInvocation<RadarrCliResult, RadarrCliError, Radar
 
 const defaultQualityProfileAction = Effect.fn('radarrCli.defaultQualityProfileAction')(function* (
   tmdbId: number,
-  description = 'Add a selected movie to Radarr'
+  description?: string
 ): Effect.fn.Return<NextAction, RadarrError, RadarrConfig> {
   const radarrConfig = yield* RadarrConfig
   const values = yield* radarrConfig.get()
 
   return {
     command: addCommandTemplate,
-    description,
+    description: description ?? 'Add a selected movie to Radarr',
     params: {
       'tmdb-id': { value: tmdbId, description: 'TMDB movie ID' },
       'quality-profile-id': { default: values.defaultQualityProfileId, description: 'Radarr quality profile ID' },

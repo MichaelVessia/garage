@@ -207,7 +207,7 @@ const createGitTag = Effect.fn('createGitTag')(function* (tagName: string) {
   const result = yield* runCommand('git', ['tag', tagName])
 
   if (result.exitCode !== 0) {
-    return yield* Effect.fail(new Error(`git tag failed for ${tagName}: ${commandOutput(result)}`))
+    yield* Effect.fail(new Error(`git tag failed for ${tagName}: ${commandOutput(result)}`))
   }
 })
 
@@ -244,25 +244,25 @@ const writeCommand = Effect.fn('writeCommand')(function* (args: readonly string[
   const packageOutputPath = valueAfter(args, '--package-output')
 
   if (baseRef === undefined || headRef === undefined || packageOutputPath === undefined) {
-    return yield* Effect.fail(new Error(usage))
+    yield* Effect.fail(new Error(usage))
+  } else {
+    const changedFiles = yield* changedFilesBetween(baseRef, headRef)
+    const cliNames = yield* discoverCliNames()
+    const packageNames = affectedCliPackages(changedFiles, cliNames)
+    yield* writeAutomaticChangeset(packageNames)
+    yield* writePackageOutput(packageOutputPath, packageNames)
   }
-
-  const changedFiles = yield* changedFilesBetween(baseRef, headRef)
-  const cliNames = yield* discoverCliNames()
-  const packageNames = affectedCliPackages(changedFiles, cliNames)
-  yield* writeAutomaticChangeset(packageNames)
-  yield* writePackageOutput(packageOutputPath, packageNames)
 })
 
 const tagCommand = Effect.fn('tagCommand')(function* (args: readonly string[]) {
   const packageOutputPath = valueAfter(args, '--package-output')
 
   if (packageOutputPath === undefined) {
-    return yield* Effect.fail(new Error(usage))
+    yield* Effect.fail(new Error(usage))
+  } else {
+    const packageNames = yield* readPackageOutput(packageOutputPath)
+    yield* tagReleasedPackages(packageNames)
   }
-
-  const packageNames = yield* readPackageOutput(packageOutputPath)
-  yield* tagReleasedPackages(packageNames)
 })
 
 export const runCliVersioning = Effect.fn('runCliVersioning')(function* (args: readonly string[]) {
@@ -278,7 +278,7 @@ export const runCliVersioning = Effect.fn('runCliVersioning')(function* (args: r
     return
   }
 
-  return yield* Effect.fail(new Error(usage))
+  yield* Effect.fail(new Error(usage))
 })
 
 const reportCliVersioningFailure = Effect.fn('runCliVersioning.onFailure')(function* (failure: Error) {

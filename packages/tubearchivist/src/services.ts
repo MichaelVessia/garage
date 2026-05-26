@@ -26,8 +26,8 @@ export class TubearchivistConfig extends Context.Service<
 >()('@garage/tubearchivist/services/TubearchivistConfig') {}
 
 export interface TubearchivistSessionCacheService {
-  readonly read: (key: string) => Effect.Effect<SessionCookies | undefined, never, never>
-  readonly write: (key: string, session: SessionCookies) => Effect.Effect<void, never, never>
+  readonly read: (key: string) => Effect.Effect<SessionCookies | undefined>
+  readonly write: (key: string, session: SessionCookies) => Effect.Effect<void>
 }
 
 export class TubearchivistSessionCache extends Context.Service<

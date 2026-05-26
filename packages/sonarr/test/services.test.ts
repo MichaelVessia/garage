@@ -5,7 +5,7 @@ import { SonarrConfig, SonarrConfigLive } from '../src/index.js'
 
 const assertConfig = (actual: {
   readonly url: string
-  readonly apiKey: Redacted.Redacted<string>
+  readonly apiKey: Redacted.Redacted
   readonly defaultQualityProfileId: number
 }): void => {
   assert.strictEqual(actual.url, 'http://sonarr.test')

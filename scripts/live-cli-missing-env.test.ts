@@ -106,15 +106,21 @@ interface CliRunResult {
   readonly exitCode: number
 }
 
-const streamText = (stream: Readable | null): Promise<string> => (stream === null ? Promise.resolve('') : text(stream))
+const streamText = async (stream: Readable | null): Promise<string> => {
+  if (stream === null) {
+    return ''
+  }
 
-const exitCode = (subprocess: ReturnType<typeof spawn>): Promise<number> => {
+  return await text(stream)
+}
+
+const exitCode = async (subprocess: ReturnType<typeof spawn>): Promise<number> => {
   const deferred = Promise.withResolvers<number>()
   subprocess.on('error', deferred.reject)
   subprocess.on('close', (code) => {
     deferred.resolve(code ?? 1)
   })
-  return deferred.promise
+  return await deferred.promise
 }
 
 const runCliMain = (entrypoint: string): Effect.Effect<CliRunResult, Error> =>

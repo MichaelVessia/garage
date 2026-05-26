@@ -492,7 +492,7 @@ export const TagSchema = TagApiSchema.pipe(
   })
 )
 
-export const usersResult = (records: ReadonlyArray<UserRecord>, note?: string | undefined): UsersResult => ({
+export const usersResult = (records: ReadonlyArray<UserRecord>, note?: string): UsersResult => ({
   count: records.length,
   records,
   note,

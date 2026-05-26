@@ -112,11 +112,7 @@ const fromNullable = <A>(value: A | null | undefined): A | undefined => (value =
 const paginateTotal = (paginate: typeof PaginateSchema.Type | null | undefined): number | undefined =>
   paginate === null || paginate === undefined ? undefined : fromNullable(paginate.total_hits)
 
-const listResult = <Record>(
-  records: ReadonlyArray<Record>,
-  limit: number,
-  total?: number | undefined
-): ListResult<Record> => {
+const listResult = <Record>(records: ReadonlyArray<Record>, limit: number, total?: number): ListResult<Record> => {
   const limited = records.slice(0, limit)
   return {
     count: limited.length,
@@ -232,7 +228,7 @@ const listResponse = <ApiRecord, DomainRecord>(
   records: ReadonlyArray<ApiRecord>,
   limit: number,
   mapper: (record: ApiRecord) => DomainRecord,
-  total?: number | undefined
+  total?: number
 ): ListResult<DomainRecord> => listResult(records.map(mapper), limit, total)
 
 export const ChannelResponseSchema = (limit: number) =>
