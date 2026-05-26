@@ -1,5 +1,11 @@
 # @garage/immich-cli
 
+## 0.0.6
+
+### Patch Changes
+
+- Automatic CLI release for changed app or package code.
+
 ## 0.0.5
 
 ### Patch Changes
