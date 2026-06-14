@@ -43,6 +43,11 @@
             bunNix = ./bun.nix;
           };
 
+          # Bun 1.3.x can hang indefinitely with isolated installs in this
+          # workspace monorepo under Nix. Hoisted installs still use the
+          # bun2nix-provided cache, but avoid the isolated-linker deadlock.
+          bunInstallFlags = "--linker=hoisted";
+
           dontUseBunBuild = true;
           dontUseBunCheck = true;
           dontUseBunInstall = true;
