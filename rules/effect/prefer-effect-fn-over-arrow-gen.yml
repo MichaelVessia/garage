@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: prefer-effect-fn-over-arrow-gen
+language: tsx
+severity: error
+message: "Named arrow returning Effect.gen — use Effect.fn('<scope>.<name>')(function* (…) { … }) so the call gets a traced span"
+
+rule:
+  any:
+    - pattern: "const $NAME = ($$$PARAMS) => Effect.gen($$$BODY)"
+    - pattern: "const $NAME = ($$$PARAMS) => Effect.gen($$$BODY).pipe($$$OPS)"
+    - pattern: "const $NAME = ($$$PARAMS): $RET => Effect.gen($$$BODY)"
+    - pattern: "const $NAME = ($$$PARAMS): $RET => Effect.gen($$$BODY).pipe($$$OPS)"
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+note: |
+  Effect.fn gives every call a traced span named after the function; an arrow
+  wrapping Effect.gen gives nothing. (See repos/effect-smol/LLMS.md: "Avoid
+  creating functions that return an Effect.gen, use Effect.fn instead.")
+
+  The oxlint plugin's prefer-effect-fn catches `const x = Effect.gen(...)`;
+  this rule covers the parameterised form. Generic arrows
+  (`const f = <A>(...) =>`) are intentionally not matched — Effect.fn is a
+  value, so it cannot carry the type parameter.
+
+  ```ts
+  // Avoid
+  const upsert = (client: ApiClient, record: Record) =>
+    Effect.gen(function* () {
+      yield* client.put(record)
+    })
+
+  // Prefer — span name follows '<scope>.<name>'
+  const upsert = Effect.fn('radarr.upsert')(function* (
+    client: ApiClient,
+    record: Record
+  ) {
+    yield* client.put(record)
+  })
+
+  // Hoist trailing .pipe operators into Effect.fn's args slot
+  const runLeg = Effect.fn('checks.runLeg')(
+    function* (leg: Leg) { /* body */ },
+    Effect.scoped,
+    Effect.catchTag('RequestError', recover),
+  )
+
+  // Where a span is deliberately unwanted, say so with Effect.fnUntraced
+  const render = Effect.fnUntraced(function* (data: ViewData) { /* body */ })
+  ```
+
+  Suppress with: // ast-grep-ignore: prefer-effect-fn-over-arrow-gen
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/test/**"
+  - "**/node_modules/**"

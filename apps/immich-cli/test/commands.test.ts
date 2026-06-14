@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import { ImmichApi, ImmichConfig, envMissing } from '@garage/immich'
 import type { AlbumInfoOptions, LimitOptions, SearchOptions } from '@garage/immich'
-import { Effect, Layer, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import { executeImmich } from '../src/index.js'
 

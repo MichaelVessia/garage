@@ -1,17 +1,17 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
-const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
+const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const SabnzbdConfigValueSchema = Schema.Struct({
+export const SabnzbdConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
 })
-export type SabnzbdConfigValue = typeof SabnzbdConfigValueSchema.Type
+export type SabnzbdConfigValue = typeof SabnzbdConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   version: OptionalString,
   uptime: OptionalString,
   paused: OptionalBoolean,
@@ -24,12 +24,12 @@ export const SystemStatusSchema = Schema.Struct({
   warnings: OptionalStringArray,
   newRelease: OptionalString,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const VersionResultSchema = Schema.Struct({ version: Schema.String })
-export type VersionResult = typeof VersionResultSchema.Type
+export const VersionResult = Schema.Struct({ version: Schema.String })
+export type VersionResult = typeof VersionResult.Type
 
-export const QueueSlotSchema = Schema.Struct({
+export const QueueSlot = Schema.Struct({
   nzoId: Schema.String,
   filename: Schema.String,
   status: OptionalString,
@@ -40,9 +40,9 @@ export const QueueSlotSchema = Schema.Struct({
   percentage: OptionalString,
   timeleft: OptionalString,
 })
-export type QueueSlot = typeof QueueSlotSchema.Type
+export type QueueSlot = typeof QueueSlot.Type
 
-export const QueueResultSchema = Schema.Struct({
+export const QueueResult = Schema.Struct({
   status: OptionalString,
   paused: OptionalBoolean,
   speed: OptionalString,
@@ -53,11 +53,11 @@ export const QueueResultSchema = Schema.Struct({
   noofslots: OptionalNumber,
   count: Schema.Number,
   totalRecords: Schema.Number,
-  slots: Schema.Array(QueueSlotSchema),
+  slots: Schema.Array(QueueSlot),
 })
-export type QueueResult = typeof QueueResultSchema.Type
+export type QueueResult = typeof QueueResult.Type
 
-export const HistorySlotSchema = Schema.Struct({
+export const HistorySlot = Schema.Struct({
   nzoId: Schema.String,
   name: Schema.String,
   status: OptionalString,
@@ -67,9 +67,9 @@ export const HistorySlotSchema = Schema.Struct({
   storage: OptionalString,
   completed: OptionalNumber,
 })
-export type HistorySlot = typeof HistorySlotSchema.Type
+export type HistorySlot = typeof HistorySlot.Type
 
-export const HistoryResultSchema = Schema.Struct({
+export const HistoryResult = Schema.Struct({
   totalSize: OptionalString,
   monthSize: OptionalString,
   weekSize: OptionalString,
@@ -77,37 +77,37 @@ export const HistoryResultSchema = Schema.Struct({
   noofslots: OptionalNumber,
   count: Schema.Number,
   totalRecords: Schema.Number,
-  slots: Schema.Array(HistorySlotSchema),
+  slots: Schema.Array(HistorySlot),
 })
-export type HistoryResult = typeof HistoryResultSchema.Type
+export type HistoryResult = typeof HistoryResult.Type
 
-export const SabnzbdActionSchema = Schema.Literals(['pause', 'resume', 'delete'])
-export type SabnzbdAction = typeof SabnzbdActionSchema.Type
+export const SabnzbdAction = Schema.Literals(['pause', 'resume', 'delete'])
+export type SabnzbdAction = typeof SabnzbdAction.Type
 
-export const ActionResultSchema = Schema.Struct({
-  action: SabnzbdActionSchema,
+export const ActionResult = Schema.Struct({
+  action: SabnzbdAction,
   ok: Schema.Boolean,
   nzoId: OptionalString,
   deleteFiles: OptionalBoolean,
 })
-export type ActionResult = typeof ActionResultSchema.Type
+export type ActionResult = typeof ActionResult.Type
 
-export const ServerUsageSchema = Schema.Struct({
+export const ServerUsage = Schema.Struct({
   total: OptionalNumber,
   month: OptionalNumber,
   week: OptionalNumber,
   day: OptionalNumber,
 })
-export type ServerUsage = typeof ServerUsageSchema.Type
+export type ServerUsage = typeof ServerUsage.Type
 
-export const ServerStatsSchema = Schema.Struct({
-  ...ServerUsageSchema.fields,
-  servers: Schema.Record(Schema.String, ServerUsageSchema),
+export const ServerStats = Schema.Struct({
+  ...ServerUsage.fields,
+  servers: Schema.Record(Schema.String, ServerUsage),
 })
-export type ServerStats = typeof ServerStatsSchema.Type
+export type ServerStats = typeof ServerStats.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const DeleteOptionsSchema = Schema.Struct({ deleteFiles: Schema.Boolean })
-export type DeleteOptions = typeof DeleteOptionsSchema.Type
+export const DeleteOptions = Schema.Struct({ deleteFiles: Schema.Boolean })
+export type DeleteOptions = typeof DeleteOptions.Type

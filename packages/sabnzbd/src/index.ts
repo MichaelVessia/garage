@@ -15,21 +15,6 @@ export {
 export type { SabnzbdErrorCode } from './errors.js'
 export { SabnzbdApiLive } from './http.js'
 export {
-  ActionResultSchema,
-  DeleteOptionsSchema,
-  HistoryResultSchema,
-  HistorySlotSchema,
-  LimitOptionsSchema,
-  QueueResultSchema,
-  QueueSlotSchema,
-  SabnzbdActionSchema,
-  SabnzbdConfigValueSchema,
-  ServerStatsSchema,
-  ServerUsageSchema,
-  SystemStatusSchema,
-  VersionResultSchema,
-} from './model.js'
-export type {
   ActionResult,
   DeleteOptions,
   HistoryResult,

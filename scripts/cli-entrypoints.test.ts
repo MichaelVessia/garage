@@ -1,58 +1,85 @@
-import { access, readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import * as BunServices from '@effect/platform-bun/BunServices'
+import { assert, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
+import * as Option from 'effect/Option'
+import * as Path from 'effect/Path'
+import { describe } from 'vitest'
 
-import { describe, expect, it } from 'vitest'
-
-const cliEntrypoints = async (): Promise<ReadonlyArray<string>> => {
-  const entries = await readdir('apps', { withFileTypes: true })
-  const paths = await Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory() && entry.name.endsWith('-cli'))
-      .map(async (entry) => {
-        const path = join('apps', entry.name, 'src', 'main.ts')
-
-        try {
-          await access(path)
-          return path
-        } catch {
-          return null
-        }
-      })
+const cliEntrypoints = Effect.fn('cli-entrypoints.cliEntrypoints')(function* () {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const entries = yield* fs.readDirectory('apps')
+  const candidates = Arr.filter(entries, (entry) => entry.endsWith('-cli'))
+  const maybePaths = yield* Effect.forEach(
+    candidates,
+    (entry) =>
+      Effect.gen(function* () {
+        const entrypoint = path.join('apps', entry, 'src', 'main.ts')
+        const present = yield* fs.exists(entrypoint)
+        return present ? Option.some(entrypoint) : Option.none<string>()
+      }),
+    { concurrency: 'unbounded' }
   )
 
-  return paths.filter((path): path is string => path !== null)
-}
+  return Arr.getSomes(maybePaths)
+})
 
 describe('CLI entrypoints', () => {
-  it('run main programs through the Bun Effect runtime', async () => {
-    const entrypoints = await cliEntrypoints()
+  it.effect('run main programs through the Bun Effect runtime', () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const entrypoints = yield* cliEntrypoints()
 
-    expect(entrypoints.length).toBeGreaterThan(0)
+      assert.isTrue(Arr.isReadonlyArrayNonEmpty(entrypoints))
 
-    for (const entrypoint of entrypoints) {
-      const source = await readFile(entrypoint, 'utf-8')
+      yield* Effect.forEach(
+        entrypoints,
+        (entrypoint) =>
+          Effect.gen(function* () {
+            const source = yield* fs.readFileString(entrypoint)
 
-      expect(source, `${entrypoint} should import BunRuntime`).toMatch(
-        /import\s+\{[^}]*\bBunRuntime\b[^}]*\}\s+from\s+'@effect\/platform-bun'/su
+            assert.match(
+              source,
+              /import\s+\{[^}]*\bBunRuntime\b[^}]*\}\s+from\s+'@effect\/platform-bun'/su,
+              `${entrypoint} should import BunRuntime`
+            )
+            assert.include(source, 'BunRuntime.runMain(program)', `${entrypoint} should use BunRuntime.runMain`)
+            assert.notInclude(source, 'Effect.runPromise(program)', `${entrypoint} should not bypass the runtime`)
+          }),
+        { concurrency: 'unbounded' }
       )
-      expect(source, `${entrypoint} should use BunRuntime.runMain`).toContain('BunRuntime.runMain(program)')
-      expect(source, `${entrypoint} should not bypass the runtime`).not.toContain('Effect.runPromise(program)')
-    }
-  })
+    }).pipe(Effect.provide(BunServices.layer))
+  )
 
-  it('keep Effect layer diagnostics enabled in main programs', async () => {
-    const entrypoints = await cliEntrypoints()
+  it.effect('keep Effect layer diagnostics enabled in main programs', () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const entrypoints = yield* cliEntrypoints()
 
-    expect(entrypoints.length).toBeGreaterThan(0)
+      assert.isTrue(Arr.isReadonlyArrayNonEmpty(entrypoints))
 
-    for (const entrypoint of entrypoints) {
-      const source = await readFile(entrypoint, 'utf-8')
+      yield* Effect.forEach(
+        entrypoints,
+        (entrypoint) =>
+          Effect.gen(function* () {
+            const source = yield* fs.readFileString(entrypoint)
 
-      expect(source, `${entrypoint} should not suppress strictEffectProvide`).not.toContain('strictEffectProvide')
-      expect(source, `${entrypoint} should not provide the Live layer directly`).not.toContain('Effect.provide(Live)')
-      expect(source, `${entrypoint} should hide platform layers from provideMerge`).not.toMatch(
-        /Layer\.provideMerge\([^)]*Bun(?:FileSystem|HttpClient|Path|Services)\.layer/su
+            assert.notInclude(source, 'strictEffectProvide', `${entrypoint} should not suppress strictEffectProvide`)
+            assert.notInclude(
+              source,
+              'Effect.provide(Live)',
+              `${entrypoint} should not provide the Live layer directly`
+            )
+            assert.notMatch(
+              source,
+              /Layer\.provideMerge\([^)]*Bun(?:FileSystem|HttpClient|Path|Services)\.layer/su,
+              `${entrypoint} should hide platform layers from provideMerge`
+            )
+          }),
+        { concurrency: 'unbounded' }
       )
-    }
-  })
+    }).pipe(Effect.provide(BunServices.layer))
+  )
 })

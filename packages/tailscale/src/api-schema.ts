@@ -1,19 +1,25 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
+import type * as Order from 'effect/Order'
+import * as R from 'effect/Record'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
 
 import {
-  ListResultSchema as DomainListResultSchema,
-  PeerRecordSchema as DomainPeerRecordSchema,
-  StatusResultSchema as DomainStatusResultSchema,
+  ListResult as DomainListResult,
+  PeerRecord as DomainPeerRecord,
+  StatusResult as DomainStatusResult,
 } from './model.js'
-import type { ListResult, PeerRecord, StatusResult } from './model.js'
+import type { ListResult, PeerRecord, StatusResult as StatusResultType } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
-const NullableStringArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.String)))
+const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
+const NullableBoolean = Schema.NullOr(Schema.Boolean).pipe(Schema.optional)
+const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObject.Type
 
-const PeerApiSchema = Schema.Struct({
+const PeerApi = Schema.Struct({
   ID: NullableString,
   PublicKey: NullableString,
   HostName: NullableString,
@@ -30,27 +36,27 @@ const PeerApiSchema = Schema.Struct({
   Tags: NullableStringArray,
 })
 
-const TailnetSchema = Schema.Struct({
+const Tailnet = Schema.Struct({
   Name: NullableString,
   MagicDNSSuffix: NullableString,
   MagicDNSEnabled: NullableBoolean,
 })
 
-export const StatusJsonSchema = Schema.Struct({
+export const StatusJson = Schema.Struct({
   Version: NullableString,
   BackendState: NullableString,
   MagicDNSSuffix: NullableString,
-  Health: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
-  CurrentTailnet: Schema.optional(Schema.NullOr(TailnetSchema)),
-  Self: Schema.optional(Schema.NullOr(PeerApiSchema)),
-  Peer: Schema.optional(Schema.NullOr(Schema.Record(Schema.String, PeerApiSchema))),
+  Health: Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional),
+  CurrentTailnet: Schema.NullOr(Tailnet).pipe(Schema.optional),
+  Self: Schema.NullOr(PeerApi).pipe(Schema.optional),
+  Peer: Schema.NullOr(Schema.Record(Schema.String, PeerApi)).pipe(Schema.optional),
 })
 
-export type StatusJson = typeof StatusJsonSchema.Type
+export type StatusJson = typeof StatusJson.Type
 
-const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
+const toUndefined = <A>(value: A) => Option.getOrUndefined(Option.fromNullishOr(value))
 
-const firstString = (values: ReadonlyArray<string> | null | undefined): string | undefined => values?.[0]
+const firstString = (values: ReadonlyArray<string>): Option.Option<string> => Arr.head(values)
 
 const listResult = <Record>(records: ReadonlyArray<Record>, limit: number): ListResult<Record> => {
   const limited = records.slice(0, limit)
@@ -62,27 +68,40 @@ const listResult = <Record>(records: ReadonlyArray<Record>, limit: number): List
   }
 }
 
-const peerName = (peer: PeerRecord): string => peer.hostName ?? peer.dnsName ?? firstString(peer.ips) ?? ''
+const peerName = (peer: PeerRecord): string =>
+  Option.getOrElse(
+    Option.orElse(
+      Option.orElse(Option.fromNullishOr(peer.hostName), () => Option.fromNullishOr(peer.dnsName)),
+      () => firstString(peer.ips)
+    ),
+    () => ''
+  )
 
-const sortPeers = (left: PeerRecord, right: PeerRecord): number => peerName(left).localeCompare(peerName(right))
+const byPeerName: Order.Order<PeerRecord> = (left, right) => {
+  const compared = peerName(left).localeCompare(peerName(right))
+  if (compared < 0) {
+    return -1
+  }
+  return compared > 0 ? 1 : 0
+}
 
-const peerRecordFromApi = (key: string | undefined, peer: typeof PeerApiSchema.Type): PeerRecord => ({
-  id: fromNullable(peer.ID) ?? key,
-  hostName: fromNullable(peer.HostName),
-  dnsName: fromNullable(peer.DNSName),
+const peerRecordFromApi = (key: Option.Option<string>, peer: typeof PeerApi.Type): PeerRecord => ({
+  id: toUndefined(peer.ID) ?? Option.getOrUndefined(key),
+  hostName: toUndefined(peer.HostName),
+  dnsName: toUndefined(peer.DNSName),
   ips: peer.TailscaleIPs ?? [],
-  os: fromNullable(peer.OS),
-  online: fromNullable(peer.Online),
-  active: fromNullable(peer.Active),
-  exitNode: fromNullable(peer.ExitNode),
-  exitNodeOption: fromNullable(peer.ExitNodeOption),
-  relay: fromNullable(peer.Relay),
-  lastSeen: fromNullable(peer.LastSeen),
-  allowedIps: fromNullable(peer.AllowedIPs),
-  tags: fromNullable(peer.Tags),
+  os: toUndefined(peer.OS),
+  online: toUndefined(peer.Online),
+  active: toUndefined(peer.Active),
+  exitNode: toUndefined(peer.ExitNode),
+  exitNodeOption: toUndefined(peer.ExitNodeOption),
+  relay: toUndefined(peer.Relay),
+  lastSeen: toUndefined(peer.LastSeen),
+  allowedIps: toUndefined(peer.AllowedIPs),
+  tags: toUndefined(peer.Tags),
 })
 
-const peerRecordToApi = (peer: PeerRecord): typeof PeerApiSchema.Type => ({
+const peerRecordToApi = (peer: PeerRecord): typeof PeerApi.Type => ({
   ID: peer.id,
   HostName: peer.hostName,
   DNSName: peer.dnsName,
@@ -99,23 +118,26 @@ const peerRecordToApi = (peer: PeerRecord): typeof PeerApiSchema.Type => ({
 })
 
 const peersFromApi = (status: StatusJson): ReadonlyArray<PeerRecord> =>
-  Object.entries(status.Peer ?? {})
-    .map(([key, peer]) => peerRecordFromApi(key, peer))
-    .sort(sortPeers)
+  Arr.sort(
+    Arr.map(R.toEntries(status.Peer ?? {}), ([key, peer]) => peerRecordFromApi(Option.some(key), peer)),
+    byPeerName
+  )
 
 const statusResultFromApi =
   (limit: number) =>
-  (status: StatusJson): StatusResult => {
+  (status: StatusJson): StatusResultType => {
     const records = peersFromApi(status)
     const exitNodes = records.filter((peer) => peer.exitNodeOption === true)
     const currentExitNode = records.find((peer) => peer.exitNode === true)
     return {
-      backendState: fromNullable(status.BackendState),
-      version: fromNullable(status.Version),
-      tailnetName: fromNullable(status.CurrentTailnet?.Name),
-      magicDnsSuffix: fromNullable(status.CurrentTailnet?.MagicDNSSuffix) ?? fromNullable(status.MagicDNSSuffix),
-      magicDnsEnabled: fromNullable(status.CurrentTailnet?.MagicDNSEnabled),
-      self: status.Self === null || status.Self === undefined ? undefined : peerRecordFromApi(undefined, status.Self),
+      backendState: toUndefined(status.BackendState),
+      version: toUndefined(status.Version),
+      tailnetName: toUndefined(status.CurrentTailnet?.Name),
+      magicDnsSuffix: toUndefined(status.CurrentTailnet?.MagicDNSSuffix) ?? toUndefined(status.MagicDNSSuffix),
+      magicDnsEnabled: toUndefined(status.CurrentTailnet?.MagicDNSEnabled),
+      self: Option.getOrUndefined(
+        Option.map(Option.fromNullishOr(status.Self), (self) => peerRecordFromApi(Option.none(), self))
+      ),
       peerCount: records.length,
       onlinePeerCount: records.filter((peer) => peer.online === true).length,
       exitNodeCount: exitNodes.length,
@@ -125,7 +147,12 @@ const statusResultFromApi =
     }
   }
 
-const statusResultToApi = (status: StatusResult): StatusJson => ({
+const peerEntry = (peer: PeerRecord): readonly [string, typeof PeerApi.Type] => [
+  peer.id ?? peerName(peer),
+  peerRecordToApi(peer),
+]
+
+const statusResultToApi = (status: StatusResultType): StatusJson => ({
   Version: status.version,
   BackendState: status.backendState,
   MagicDNSSuffix: status.magicDnsSuffix,
@@ -135,13 +162,13 @@ const statusResultToApi = (status: StatusResult): StatusJson => ({
     MagicDNSSuffix: status.magicDnsSuffix,
     MagicDNSEnabled: status.magicDnsEnabled,
   },
-  Self: status.self === undefined ? undefined : peerRecordToApi(status.self),
-  Peer: Object.fromEntries(status.peers.records.map((peer) => [peer.id ?? peerName(peer), peerRecordToApi(peer)])),
+  Self: Option.getOrUndefined(Option.map(Option.fromNullishOr(status.self), peerRecordToApi)),
+  Peer: R.fromEntries(Arr.map(status.peers.records, peerEntry)),
 })
 
-export const StatusResultSchema = (limit: number) =>
-  StatusJsonSchema.pipe(
-    Schema.decodeTo(DomainStatusResultSchema, {
+export const StatusResult = (limit: number) =>
+  StatusJson.pipe(
+    Schema.decodeTo(DomainStatusResult, {
       decode: SchemaGetter.transform(statusResultFromApi(limit)),
       encode: SchemaGetter.transform(statusResultToApi),
     })
@@ -153,12 +180,12 @@ const peerListFromApi =
     listResult(peersFromApi(status), limit)
 
 const peerListToApi = (result: ListResult<PeerRecord>): StatusJson => ({
-  Peer: Object.fromEntries(result.records.map((peer) => [peer.id ?? peerName(peer), peerRecordToApi(peer)])),
+  Peer: R.fromEntries(Arr.map(result.records, peerEntry)),
 })
 
-export const PeerListSchema = (limit: number) =>
-  StatusJsonSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainPeerRecordSchema), {
+export const PeerList = (limit: number) =>
+  StatusJson.pipe(
+    Schema.decodeTo(DomainListResult(DomainPeerRecord), {
       decode: SchemaGetter.transform(peerListFromApi(limit)),
       encode: SchemaGetter.transform(peerListToApi),
     })
@@ -172,9 +199,9 @@ const exitNodeListFromApi =
       limit
     )
 
-export const ExitNodeListSchema = (limit: number) =>
-  StatusJsonSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainPeerRecordSchema), {
+export const ExitNodeList = (limit: number) =>
+  StatusJson.pipe(
+    Schema.decodeTo(DomainListResult(DomainPeerRecord), {
       decode: SchemaGetter.transform(exitNodeListFromApi(limit)),
       encode: SchemaGetter.transform(peerListToApi),
     })

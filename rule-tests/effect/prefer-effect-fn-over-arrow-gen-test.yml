@@ -1,0 +1,14 @@
+id: prefer-effect-fn-over-arrow-gen
+
+valid:
+  - |
+    const upsert = Effect.fn("radarr.upsert")(function* (client, record) {
+      yield* client.put(record);
+    });
+
+invalid:
+  - |
+    const upsert = (client, record) =>
+      Effect.gen(function* () {
+        yield* client.put(record);
+      });

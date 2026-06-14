@@ -1,13 +1,14 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
 
 import {
-  ChannelRecordSchema as DomainChannelRecordSchema,
-  DownloadRecordSchema as DomainDownloadRecordSchema,
-  ListResultSchema as DomainListResultSchema,
-  PlaylistRecordSchema as DomainPlaylistRecordSchema,
-  SearchResultSchema as DomainSearchResultSchema,
-  TaskRecordSchema as DomainTaskRecordSchema,
-  VideoRecordSchema as DomainVideoRecordSchema,
+  ChannelRecord as DomainChannelRecord,
+  DownloadRecord as DomainDownloadRecord,
+  ListResult as DomainListResult,
+  PlaylistRecord as DomainPlaylistRecord,
+  SearchResult as DomainSearchResult,
+  TaskRecord as DomainTaskRecord,
+  VideoRecord as DomainVideoRecord,
 } from './model.js'
 import type {
   ChannelRecord,
@@ -19,18 +20,19 @@ import type {
   VideoRecord,
 } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
-const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
+const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
+const NullableBoolean = Schema.Boolean.pipe(Schema.NullOr, Schema.optional)
+const NullableNumber = Schema.Number.pipe(Schema.NullOr, Schema.optional)
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObject.Type
 
-const PaginateSchema = Schema.Struct({
+const PaginateApi = Schema.Struct({
   total_hits: NullableNumber,
   page_size: NullableNumber,
 })
 
-const ChannelApiSchema = Schema.Struct({
+const ChannelApi = Schema.Struct({
   channel_id: Schema.String,
   channel_name: NullableString,
   channel_subscribed: NullableBoolean,
@@ -38,19 +40,19 @@ const ChannelApiSchema = Schema.Struct({
   channel_last_refresh: NullableString,
 })
 
-const VideoChannelSchema = Schema.Struct({ channel_name: NullableString })
-const PlayerSchema = Schema.Struct({ watched: NullableBoolean })
+const VideoChannelApi = Schema.Struct({ channel_name: NullableString })
+const PlayerApi = Schema.Struct({ watched: NullableBoolean })
 
-const VideoApiSchema = Schema.Struct({
+const VideoApi = Schema.Struct({
   youtube_id: Schema.String,
   title: NullableString,
-  channel: Schema.optional(Schema.NullOr(VideoChannelSchema)),
+  channel: VideoChannelApi.pipe(Schema.NullOr, Schema.optional),
   published: NullableString,
   vid_type: NullableString,
-  player: Schema.optional(Schema.NullOr(PlayerSchema)),
+  player: PlayerApi.pipe(Schema.NullOr, Schema.optional),
 })
 
-const DownloadApiSchema = Schema.Struct({
+const DownloadApi = Schema.Struct({
   youtube_id: Schema.String,
   title: NullableString,
   channel_name: NullableString,
@@ -58,58 +60,60 @@ const DownloadApiSchema = Schema.Struct({
   vid_type: NullableString,
 })
 
-const PlaylistApiSchema = Schema.Struct({
+const PlaylistApi = Schema.Struct({
   playlist_id: Schema.String,
   playlist_name: NullableString,
   playlist_channel: NullableString,
   playlist_subscribed: NullableBoolean,
-  playlist_entries: Schema.optional(Schema.NullOr(Schema.Array(Schema.Unknown))),
+  playlist_entries: Schema.Array(Schema.Unknown).pipe(Schema.NullOr, Schema.optional),
 })
 
-const TaskApiSchema = Schema.Struct({
+const TaskApi = Schema.Struct({
   name: NullableString,
   status: NullableString,
   date_done: NullableString,
-  args: Schema.optional(Schema.NullOr(Schema.Array(Schema.Unknown))),
-  kwargs: Schema.optional(Schema.NullOr(JsonObjectSchema)),
+  args: Schema.Array(Schema.Unknown).pipe(Schema.NullOr, Schema.optional),
+  kwargs: JsonObject.pipe(Schema.NullOr, Schema.optional),
   task_id: NullableString,
   result: Schema.optional(Schema.Unknown),
 })
 
-const ChannelResponseApiSchema = Schema.Struct({
-  data: Schema.Array(ChannelApiSchema),
-  paginate: Schema.optional(Schema.NullOr(PaginateSchema)),
+const ChannelResponseApi = Schema.Struct({
+  data: Schema.Array(ChannelApi),
+  paginate: PaginateApi.pipe(Schema.NullOr, Schema.optional),
 })
 
-const VideoResponseApiSchema = Schema.Struct({
-  data: Schema.Array(VideoApiSchema),
-  paginate: Schema.optional(Schema.NullOr(PaginateSchema)),
+const VideoResponseApi = Schema.Struct({
+  data: Schema.Array(VideoApi),
+  paginate: PaginateApi.pipe(Schema.NullOr, Schema.optional),
 })
 
-const DownloadResponseApiSchema = Schema.Struct({
-  data: Schema.Array(DownloadApiSchema),
-  paginate: Schema.optional(Schema.NullOr(PaginateSchema)),
+const DownloadResponseApi = Schema.Struct({
+  data: Schema.Array(DownloadApi),
+  paginate: PaginateApi.pipe(Schema.NullOr, Schema.optional),
 })
 
-const PlaylistResponseApiSchema = Schema.Struct({
-  data: Schema.Array(PlaylistApiSchema),
-  paginate: Schema.optional(Schema.NullOr(PaginateSchema)),
+const PlaylistResponseApi = Schema.Struct({
+  data: Schema.Array(PlaylistApi),
+  paginate: PaginateApi.pipe(Schema.NullOr, Schema.optional),
 })
 
-const TasksApiSchema = Schema.Array(TaskApiSchema)
+const TasksApi = Schema.Array(TaskApi)
 
-const SearchResponseApiSchema = Schema.Struct({
+const SearchResponseApi = Schema.Struct({
   queryType: NullableString,
   results: Schema.Struct({
-    video_results: Schema.optional(Schema.NullOr(Schema.Array(VideoApiSchema))),
-    channel_results: Schema.optional(Schema.NullOr(Schema.Array(ChannelApiSchema))),
-    playlist_results: Schema.optional(Schema.NullOr(Schema.Array(PlaylistApiSchema))),
+    video_results: Schema.Array(VideoApi).pipe(Schema.NullOr, Schema.optional),
+    channel_results: Schema.Array(ChannelApi).pipe(Schema.NullOr, Schema.optional),
+    playlist_results: Schema.Array(PlaylistApi).pipe(Schema.NullOr, Schema.optional),
   }),
 })
 
+// oxlint-disable-next-line effect/prefer-option-over-null -- wire-to-domain bridge: domain records intentionally use `T | undefined` (Schema.optional), so this collapses both null and undefined to the domain `undefined`.
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
-const paginateTotal = (paginate: typeof PaginateSchema.Type | null | undefined): number | undefined =>
+// oxlint-disable-next-line effect/prefer-option-over-null -- accepts the decoded wire `paginate` (nullable optional) and returns the domain `total` which is `number | undefined` (Schema.optional).
+const paginateTotal = (paginate: typeof PaginateApi.Type | null | undefined): number | undefined =>
   paginate === null || paginate === undefined ? undefined : fromNullable(paginate.total_hits)
 
 const listResult = <Record>(records: ReadonlyArray<Record>, limit: number, total?: number): ListResult<Record> => {
@@ -122,7 +126,7 @@ const listResult = <Record>(records: ReadonlyArray<Record>, limit: number, total
   }
 }
 
-const channelFromApi = (channel: typeof ChannelApiSchema.Type): ChannelRecord => ({
+const channelFromApi = (channel: typeof ChannelApi.Type): ChannelRecord => ({
   id: channel.channel_id,
   name: fromNullable(channel.channel_name),
   subscribed: fromNullable(channel.channel_subscribed),
@@ -130,7 +134,7 @@ const channelFromApi = (channel: typeof ChannelApiSchema.Type): ChannelRecord =>
   lastRefresh: fromNullable(channel.channel_last_refresh),
 })
 
-const channelToApi = (channel: ChannelRecord): typeof ChannelApiSchema.Type => ({
+const channelToApi = (channel: ChannelRecord): typeof ChannelApi.Type => ({
   channel_id: channel.id,
   channel_name: channel.name,
   channel_subscribed: channel.subscribed,
@@ -138,14 +142,14 @@ const channelToApi = (channel: ChannelRecord): typeof ChannelApiSchema.Type => (
   channel_last_refresh: channel.lastRefresh,
 })
 
-export const ChannelDetailSchema = ChannelApiSchema.pipe(
-  Schema.decodeTo(DomainChannelRecordSchema, {
+export const ChannelDetailSchema = ChannelApi.pipe(
+  Schema.decodeTo(DomainChannelRecord, {
     decode: SchemaGetter.transform(channelFromApi),
     encode: SchemaGetter.transform(channelToApi),
   })
 )
 
-const videoFromApi = (video: typeof VideoApiSchema.Type): VideoRecord => ({
+const videoFromApi = (video: typeof VideoApi.Type): VideoRecord => ({
   youtubeId: video.youtube_id,
   title: fromNullable(video.title),
   channel: video.channel === null || video.channel === undefined ? undefined : fromNullable(video.channel.channel_name),
@@ -154,7 +158,7 @@ const videoFromApi = (video: typeof VideoApiSchema.Type): VideoRecord => ({
   watched: video.player === null || video.player === undefined ? undefined : fromNullable(video.player.watched),
 })
 
-const videoToApi = (video: VideoRecord): typeof VideoApiSchema.Type => ({
+const videoToApi = (video: VideoRecord): typeof VideoApi.Type => ({
   youtube_id: video.youtubeId,
   title: video.title,
   channel: video.channel === undefined ? undefined : { channel_name: video.channel },
@@ -163,14 +167,14 @@ const videoToApi = (video: VideoRecord): typeof VideoApiSchema.Type => ({
   player: { watched: video.watched },
 })
 
-export const VideoDetailSchema = VideoApiSchema.pipe(
-  Schema.decodeTo(DomainVideoRecordSchema, {
+export const VideoDetailSchema = VideoApi.pipe(
+  Schema.decodeTo(DomainVideoRecord, {
     decode: SchemaGetter.transform(videoFromApi),
     encode: SchemaGetter.transform(videoToApi),
   })
 )
 
-const downloadFromApi = (download: typeof DownloadApiSchema.Type): DownloadRecord => ({
+const downloadFromApi = (download: typeof DownloadApi.Type): DownloadRecord => ({
   youtubeId: download.youtube_id,
   title: fromNullable(download.title),
   channel: fromNullable(download.channel_name),
@@ -178,7 +182,7 @@ const downloadFromApi = (download: typeof DownloadApiSchema.Type): DownloadRecor
   videoType: fromNullable(download.vid_type),
 })
 
-const downloadToApi = (download: DownloadRecord): typeof DownloadApiSchema.Type => ({
+const downloadToApi = (download: DownloadRecord): typeof DownloadApi.Type => ({
   youtube_id: download.youtubeId,
   title: download.title,
   channel_name: download.channel,
@@ -186,7 +190,7 @@ const downloadToApi = (download: DownloadRecord): typeof DownloadApiSchema.Type 
   vid_type: download.videoType,
 })
 
-const playlistFromApi = (playlist: typeof PlaylistApiSchema.Type): PlaylistRecord => ({
+const playlistFromApi = (playlist: typeof PlaylistApi.Type): PlaylistRecord => ({
   playlistId: playlist.playlist_id,
   name: fromNullable(playlist.playlist_name),
   channel: fromNullable(playlist.playlist_channel),
@@ -197,14 +201,14 @@ const playlistFromApi = (playlist: typeof PlaylistApiSchema.Type): PlaylistRecor
       : playlist.playlist_entries.length,
 })
 
-const playlistToApi = (playlist: PlaylistRecord): typeof PlaylistApiSchema.Type => ({
+const playlistToApi = (playlist: PlaylistRecord): typeof PlaylistApi.Type => ({
   playlist_id: playlist.playlistId,
   playlist_name: playlist.name,
   playlist_channel: playlist.channel,
   playlist_subscribed: playlist.subscribed,
 })
 
-const taskFromApi = (task: typeof TaskApiSchema.Type): TaskRecord => ({
+const taskFromApi = (task: typeof TaskApi.Type): TaskRecord => ({
   name: fromNullable(task.name),
   status: fromNullable(task.status),
   dateDone: fromNullable(task.date_done),
@@ -214,7 +218,7 @@ const taskFromApi = (task: typeof TaskApiSchema.Type): TaskRecord => ({
   error: task.status === 'FAILURE' ? task.result : undefined,
 })
 
-const taskToApi = (task: TaskRecord): typeof TaskApiSchema.Type => ({
+const taskToApi = (task: TaskRecord): typeof TaskApi.Type => ({
   name: task.name,
   status: task.status,
   date_done: task.dateDone,
@@ -232,9 +236,9 @@ const listResponse = <ApiRecord, DomainRecord>(
 ): ListResult<DomainRecord> => listResult(records.map(mapper), limit, total)
 
 export const ChannelResponseSchema = (limit: number) =>
-  ChannelResponseApiSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainChannelRecordSchema), {
-      decode: SchemaGetter.transform((response: typeof ChannelResponseApiSchema.Type) =>
+  ChannelResponseApi.pipe(
+    Schema.decodeTo(DomainListResult(DomainChannelRecord), {
+      decode: SchemaGetter.transform((response: typeof ChannelResponseApi.Type) =>
         listResponse(response.data, limit, channelFromApi, paginateTotal(response.paginate))
       ),
       encode: SchemaGetter.transform((result: ListResult<ChannelRecord>) => ({
@@ -245,9 +249,9 @@ export const ChannelResponseSchema = (limit: number) =>
   )
 
 export const VideoResponseSchema = (limit: number) =>
-  VideoResponseApiSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainVideoRecordSchema), {
-      decode: SchemaGetter.transform((response: typeof VideoResponseApiSchema.Type) =>
+  VideoResponseApi.pipe(
+    Schema.decodeTo(DomainListResult(DomainVideoRecord), {
+      decode: SchemaGetter.transform((response: typeof VideoResponseApi.Type) =>
         listResponse(response.data, limit, videoFromApi, paginateTotal(response.paginate))
       ),
       encode: SchemaGetter.transform((result: ListResult<VideoRecord>) => ({
@@ -258,9 +262,9 @@ export const VideoResponseSchema = (limit: number) =>
   )
 
 export const DownloadResponseSchema = (limit: number) =>
-  DownloadResponseApiSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainDownloadRecordSchema), {
-      decode: SchemaGetter.transform((response: typeof DownloadResponseApiSchema.Type) =>
+  DownloadResponseApi.pipe(
+    Schema.decodeTo(DomainListResult(DomainDownloadRecord), {
+      decode: SchemaGetter.transform((response: typeof DownloadResponseApi.Type) =>
         listResponse(response.data, limit, downloadFromApi, paginateTotal(response.paginate))
       ),
       encode: SchemaGetter.transform((result: ListResult<DownloadRecord>) => ({
@@ -271,9 +275,9 @@ export const DownloadResponseSchema = (limit: number) =>
   )
 
 export const PlaylistResponseSchema = (limit: number) =>
-  PlaylistResponseApiSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainPlaylistRecordSchema), {
-      decode: SchemaGetter.transform((response: typeof PlaylistResponseApiSchema.Type) =>
+  PlaylistResponseApi.pipe(
+    Schema.decodeTo(DomainListResult(DomainPlaylistRecord), {
+      decode: SchemaGetter.transform((response: typeof PlaylistResponseApi.Type) =>
         listResponse(response.data, limit, playlistFromApi, paginateTotal(response.paginate))
       ),
       encode: SchemaGetter.transform((result: ListResult<PlaylistRecord>) => ({
@@ -284,18 +288,18 @@ export const PlaylistResponseSchema = (limit: number) =>
   )
 
 export const TasksSchema = (limit: number) =>
-  TasksApiSchema.pipe(
-    Schema.decodeTo(DomainListResultSchema(DomainTaskRecordSchema), {
-      decode: SchemaGetter.transform((tasks: typeof TasksApiSchema.Type) => listResult(tasks.map(taskFromApi), limit)),
+  TasksApi.pipe(
+    Schema.decodeTo(DomainListResult(DomainTaskRecord), {
+      decode: SchemaGetter.transform((tasks: typeof TasksApi.Type) => listResult(tasks.map(taskFromApi), limit)),
       encode: SchemaGetter.transform((result: ListResult<TaskRecord>) => result.records.map(taskToApi)),
     })
   )
 
 export const SearchResponseSchema = (query: string, limit: number) =>
-  SearchResponseApiSchema.pipe(
-    Schema.decodeTo(DomainSearchResultSchema, {
+  SearchResponseApi.pipe(
+    Schema.decodeTo(DomainSearchResult, {
       decode: SchemaGetter.transform(
-        (response: typeof SearchResponseApiSchema.Type): SearchResult => ({
+        (response: typeof SearchResponseApi.Type): SearchResult => ({
           query,
           queryType: fromNullable(response.queryType),
           videos: listResult((response.results.video_results ?? []).map(videoFromApi), limit),

@@ -1,0 +1,11 @@
+id: no-raw-stdio-write
+
+valid:
+  - |
+    yield* Console.log(`done: ${count} items`);
+
+invalid:
+  - |
+    process.stdout.write(`done: ${count} items\n`);
+  - |
+    process.stderr.write(formatFailures(failed));

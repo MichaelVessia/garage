@@ -1,4 +1,8 @@
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { ImmichError } from './errors.js'
@@ -52,19 +56,19 @@ const readRequiredString = (name: string): Effect.Effect<string, ImmichError> =>
 const readRequiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
 
+const loadConfig = Effect.fn('ImmichConfig.get')(
+  function* () {
+    const url = yield* readRequiredString('IMMICH_URL')
+    const apiKey = yield* readRequiredSecret('IMMICH_API_KEY')
+    return { url, apiKey }
+  },
+  Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichConfig', method: 'get' })
+)
+
 export const ImmichConfigLive = Layer.effect(
   ImmichConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('IMMICH_URL')
-        const apiKey = yield* readRequiredSecret('IMMICH_API_KEY')
-        return { url, apiKey }
-      }).pipe(
-        Effect.withSpan('ImmichConfig.get'),
-        Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichConfig', method: 'get' })
-      )
-    )
+    const cachedGet = yield* Effect.cached(loadConfig())
     return ImmichConfig.of({ get: () => cachedGet })
   })
 )

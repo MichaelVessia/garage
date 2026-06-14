@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import { confirmationRequired } from './errors.js'
 import type { TubearchivistError } from './errors.js'

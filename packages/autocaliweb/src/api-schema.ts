@@ -1,27 +1,28 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
+import * as R from 'effect/Record'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
 
-import {
-  BookInfoRecordSchema as DomainBookInfoRecordSchema,
-  StatsResultSchema as DomainStatsResultSchema,
-} from './model.js'
+import { BookInfoRecord as DomainBookInfoRecord, StatsResult as DomainStatsResult } from './model.js'
 import type { BookInfoRecord, DownloadLink } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const StringArray = Schema.optional(Schema.Array(Schema.String))
+const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
+const StringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-const StatsApiSchema = Schema.Struct({
+const StatsApi = Schema.Struct({
   books: Schema.Number,
   authors: Schema.Number,
   categories: Schema.Number,
   series: Schema.Number,
 })
 
-export const StatsSchema = StatsApiSchema.pipe(Schema.decodeTo(DomainStatsResultSchema))
+export const StatsSchema = StatsApi.pipe(Schema.decodeTo(DomainStatsResult))
 
-const MainFormatSchema = Schema.Record(Schema.String, Schema.String)
-const OtherFormatsSchema = Schema.Record(Schema.String, Schema.String)
+const MainFormat = Schema.Record(Schema.String, Schema.String)
+const OtherFormats = Schema.Record(Schema.String, Schema.String)
 
-const BookInfoApiSchema = Schema.Struct({
+const BookInfoApi = Schema.Struct({
   pubdate: NullableString,
   title: NullableString,
   formats: StringArray,
@@ -35,38 +36,41 @@ const BookInfoApiSchema = Schema.Struct({
   rating: Schema.Union([Schema.String, Schema.Number]),
   authors: StringArray,
   title_sort: NullableString,
-  main_format: Schema.optional(MainFormatSchema),
-  other_formats: Schema.optional(OtherFormatsSchema),
+  main_format: Schema.optional(MainFormat),
+  other_formats: Schema.optional(OtherFormats),
 })
 
-const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
+const optional = <A>(value: Option.Option<A>) => Option.getOrUndefined(value)
 
-const fromFormats = (records: Readonly<Record<string, string>> | undefined): ReadonlyArray<DownloadLink> =>
-  Object.entries(records ?? {}).map(([format, href]) => ({ format, href }))
+const fromFormats = (records: Option.Option<Readonly<Record<string, string>>>): ReadonlyArray<DownloadLink> =>
+  Arr.map(R.toEntries(Option.getOrElse(records, () => ({}))), ([format, href]) => ({ format, href }))
 
-const bookInfoRecordFromApi = (book: typeof BookInfoApiSchema.Type): BookInfoRecord => {
-  const downloads = [...fromFormats(book.main_format), ...fromFormats(book.other_formats)]
+const bookInfoRecordFromApi = (book: typeof BookInfoApi.Type): BookInfoRecord => {
+  const downloads = [
+    ...fromFormats(Option.fromNullishOr(book.main_format)),
+    ...fromFormats(Option.fromNullishOr(book.other_formats)),
+  ]
   return {
     id: String(book.application_id),
     uuid: book.uuid,
     urn: `urn:uuid:${book.uuid}`,
-    title: fromNullable(book.title),
+    title: optional(Option.fromNullishOr(book.title)),
     authors: book.authors ?? [],
-    published: fromNullable(book.pubdate),
+    published: optional(Option.fromNullishOr(book.pubdate)),
     languages: book.languages ?? [],
     categories: book.tags ?? [],
-    summary: fromNullable(book.comments),
+    summary: optional(Option.fromNullishOr(book.comments)),
     downloads,
     formats: book.formats ?? [],
     tags: book.tags ?? [],
     rating: String(book.rating),
-    lastModified: fromNullable(book.last_modified),
-    authorSort: fromNullable(book.author_sort),
-    titleSort: fromNullable(book.title_sort),
+    lastModified: optional(Option.fromNullishOr(book.last_modified)),
+    authorSort: optional(Option.fromNullishOr(book.author_sort)),
+    titleSort: optional(Option.fromNullishOr(book.title_sort)),
   }
 }
 
-const bookInfoRecordToApi = (book: BookInfoRecord): typeof BookInfoApiSchema.Type => ({
+const bookInfoRecordToApi = (book: BookInfoRecord): typeof BookInfoApi.Type => ({
   pubdate: book.published,
   title: book.title,
   formats: book.formats,
@@ -82,8 +86,8 @@ const bookInfoRecordToApi = (book: BookInfoRecord): typeof BookInfoApiSchema.Typ
   title_sort: book.titleSort,
 })
 
-export const BookInfoSchema = BookInfoApiSchema.pipe(
-  Schema.decodeTo(DomainBookInfoRecordSchema, {
+export const BookInfoSchema = BookInfoApi.pipe(
+  Schema.decodeTo(DomainBookInfoRecord, {
     decode: SchemaGetter.transform(bookInfoRecordFromApi),
     encode: SchemaGetter.transform(bookInfoRecordToApi),
   })

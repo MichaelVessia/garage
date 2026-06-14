@@ -1,0 +1,16 @@
+id: no-unsafe-typecast-at-boundary
+snapshots:
+  ? |
+    const data = JSON.parse(body) as MyType;
+  : labels:
+    - source: JSON.parse(body) as MyType
+      style: primary
+      start: 13
+      end: 39
+  ? |
+    const payload = (await response.json()) as ApiResponse;
+  : labels:
+    - source: (await response.json()) as ApiResponse
+      style: primary
+      start: 16
+      end: 54

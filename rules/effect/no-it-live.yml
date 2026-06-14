@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-it-live
+language: tsx
+severity: error
+message: "Don't use it.live to test Effect.timeout / Effect.sleep / Schedule — drive virtual time with Effect.forkChild + TestClock.adjust"
+
+rule:
+  any:
+    - pattern: it.live($$$ARGS)
+    - pattern: it.live.$METHOD($$$ARGS)
+
+files:
+  - "apps/*/test/**/*.ts"
+  - "apps/*/test/**/*.tsx"
+  - "packages/*/test/**/*.ts"
+  - "packages/*/test/**/*.tsx"
+  - "scripts/**/*.test.ts"
+  - "scripts/**/*.test.tsx"
+
+note: |
+  `it.live` opts out of @effect/vitest's TestClock, so any test driven by
+  `Effect.timeout`, `Effect.sleep`, or `Schedule` has to wait in real
+  wall-clock time. That's slow on every run and flaky under CI jitter.
+
+  Fork the work and advance virtual time instead:
+
+  ```ts
+  import { assert, it } from '@effect/vitest'
+  import * as Effect from 'effect/Effect'
+  import * as Fiber from 'effect/Fiber'
+  import { TestClock } from 'effect/testing'
+
+  it.effect('fails with Timeout when the service never responds', () =>
+    Effect.gen(function* () {
+      const fiber = yield* Effect.forkChild(
+        Effect.result(run({ timeoutMs: 50 }))
+      )
+      yield* TestClock.adjust('100 millis')
+      const result = yield* Fiber.join(fiber)
+      assert.instanceOf(expectFailure(result), Timeout)
+    })
+  )
+  ```
+
+  Suppress with: // ast-grep-ignore: no-it-live
+
+  Reach for `it.live` only when the test genuinely needs the real runtime
+  (asserting on `Date.now()`, wall-clock I/O, real subprocess scheduling) —
+  virtual time can't observe any of those.

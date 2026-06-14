@@ -1,4 +1,8 @@
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { JellyseerrError } from './errors.js'
@@ -48,20 +52,20 @@ const readRequiredString = (name: string): Effect.Effect<string, JellyseerrError
 const readRequiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
 
+const loadConfig = Effect.fn('JellyseerrConfig.get')(
+  function* () {
+    const url = yield* readRequiredString('JELLYSEERR_URL')
+    const apiKey = yield* readRequiredSecret('JELLYSEERR_API_KEY')
+
+    return { url, apiKey }
+  },
+  Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrConfig', method: 'get' })
+)
+
 export const JellyseerrConfigLive = Layer.effect(
   JellyseerrConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('JELLYSEERR_URL')
-        const apiKey = yield* readRequiredSecret('JELLYSEERR_API_KEY')
-
-        return { url, apiKey }
-      }).pipe(
-        Effect.withSpan('JellyseerrConfig.get'),
-        Effect.annotateLogs({ package: '@garage/jellyseerr', service: 'JellyseerrConfig', method: 'get' })
-      )
-    )
+    const cachedGet = yield* Effect.cached(loadConfig())
     return JellyseerrConfig.of({ get: () => cachedGet })
   })
 )

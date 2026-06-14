@@ -35,7 +35,8 @@ import type {
   SystemStatus,
   UserRecord,
 } from '@garage/jellyfin'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Str from 'effect/String'
 
 import { confirmRunTaskFlag, envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
@@ -100,7 +101,7 @@ const itemSearchCommand = ({ args, parseFlags, parsePositiveInteger, recover, us
     Effect.gen(function* () {
       const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
-      if (query.length === 0) {
+      if (Str.isEmpty(query)) {
         return yield* wrap(Effect.fail(usageError('query is required')))
       }
       const value = parsed.values.get(limitFlag)

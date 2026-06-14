@@ -34,10 +34,12 @@ import type {
   TubearchivistError,
   VideoRecord,
 } from '@garage/tubearchivist'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import * as Str from 'effect/String'
 
 import { confirmUnsubscribeFlag, envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
-import type { RootResult } from './command-tree.js'
+import type { RootHealth, RootResult } from './command-tree.js'
 
 export type TubearchivistCliResult =
   | RootResult
@@ -84,7 +86,10 @@ const root = (
             name: 'tubearchivist',
             description: 'Agent-first TubeArchivist CLI',
             commands: commandTree,
-            health: { configured: true, health: result.health },
+            health: Option.match(Option.fromUndefinedOr(result.health), {
+              onNone: (): RootHealth => ({ configured: true, reachable: true }),
+              onSome: (health): RootHealth => ({ configured: true, health }),
+            }),
           },
         }),
     })
@@ -116,7 +121,7 @@ const subscribeCommand = ({ args, parseFlags, recover, usageError, wrap }: Tubea
     Effect.gen(function* () {
       const parsed = yield* parseFlags(args)
       const target = parsed.positionals.join(' ').trim()
-      if (target.length === 0) {
+      if (Str.isEmpty(target)) {
         return yield* wrap(Effect.fail(usageError('channel url or id is required')))
       }
       return yield* wrap(subscribe({ target }))
@@ -147,7 +152,7 @@ const searchCommand = ({
     Effect.gen(function* () {
       const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
-      if (query.length === 0) {
+      if (Str.isEmpty(query)) {
         return yield* wrap(Effect.fail(usageError('query is required')))
       }
       const value = parsed.values.get(limitFlag)

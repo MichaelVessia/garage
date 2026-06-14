@@ -15,30 +15,6 @@ export {
 export type { AdguardErrorCode } from './errors.js'
 export { AdguardApiLive } from './http.js'
 export {
-  ActiveClientSchema,
-  AdguardConfigValueSchema,
-  AutoClientSchema,
-  ClientLookupOptionsSchema,
-  ClientsResultSchema,
-  DhcpStatusSchema,
-  FilterRecordSchema,
-  FiltersResultSchema,
-  JsonObjectSchema,
-  LimitOptionsSchema,
-  ListResultSchema,
-  PersistentClientSchema,
-  ProtectionStateSchema,
-  ProtectionToggleOptionsSchema,
-  ProtectionToggleStateSchema,
-  QueryLogEntrySchema,
-  SearchOptionsSchema,
-  StatsInfoSchema,
-  StatsSchema,
-  SystemStatusSchema,
-  TopRecordSchema,
-  VersionResultSchema,
-} from './model.js'
-export type {
   ActiveClient,
   AdguardConfigValue,
   AutoClient,

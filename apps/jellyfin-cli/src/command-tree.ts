@@ -2,9 +2,13 @@ import type { CommandDescription, NextAction } from '@garage/cli-protocol'
 
 export interface RootHealth {
   readonly configured: boolean
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized CLI envelope output; omitted JSON keys, not Option wrappers, are the agent-facing contract (asserted in commands.test.ts).
   readonly version?: string | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized CLI envelope output; omitted JSON keys, not Option wrappers, are the agent-facing contract (asserted in commands.test.ts).
   readonly serverName?: string | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized CLI envelope output; omitted JSON keys, not Option wrappers, are the agent-facing contract (asserted in commands.test.ts).
   readonly reachable?: boolean | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized CLI envelope output; omitted JSON keys, not Option wrappers, are the agent-facing contract (asserted in commands.test.ts).
   readonly errorCode?: string | undefined
 }
 

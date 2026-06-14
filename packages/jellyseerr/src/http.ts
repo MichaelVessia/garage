@@ -1,5 +1,8 @@
-import { Effect, Layer, Redacted } from 'effect'
-import type { Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import type * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -32,7 +35,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string => {
   const query = queryString(params)
-  return query.length === 0
+  return Str.isEmpty(query)
     ? `${normalizeBaseUrl(config.url)}${path}`
     : `${normalizeBaseUrl(config.url)}${path}?${query}`
 }

@@ -1,0 +1,9 @@
+id: no-it-live
+
+valid:
+  - |
+    it.effect("advances virtual time", () => program);
+
+invalid:
+  - |
+    it.live("waits in real time", () => program);

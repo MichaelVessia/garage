@@ -1,5 +1,9 @@
 import { assert, it } from '@effect/vitest'
-import { ConfigProvider, Effect, Layer, Redacted, Ref } from 'effect'
+import * as ConfigProvider from 'effect/ConfigProvider'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import { SonarrConfig, SonarrConfigLive } from '../src/index.js'
 

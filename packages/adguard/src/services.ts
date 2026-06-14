@@ -1,4 +1,8 @@
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { AdguardError } from './errors.js'
@@ -55,17 +59,16 @@ const readRequiredSecret = (name: string) =>
 export const AdguardConfigLive = Layer.effect(
   AdguardConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
+    const readConfig = Effect.fn('AdguardConfig.get')(
+      function* () {
         const url = yield* readRequiredString('ADGUARD_URL')
         const username = yield* readRequiredString('ADGUARD_USERNAME')
         const password = yield* readRequiredSecret('ADGUARD_PASSWORD')
         return { url, username, password }
-      }).pipe(
-        Effect.withSpan('AdguardConfig.get'),
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardConfig', method: 'get' })
-      )
+      },
+      Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardConfig', method: 'get' })
     )
+    const cachedGet = yield* Effect.cached(readConfig())
     return AdguardConfig.of({ get: () => cachedGet })
   })
 )

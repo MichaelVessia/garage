@@ -1,30 +1,30 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export const ImmichConfigValueSchema = Schema.Struct({
+export const ImmichConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
 })
-export type ImmichConfigValue = typeof ImmichConfigValueSchema.Type
+export type ImmichConfigValue = typeof ImmichConfigValue.Type
 
-export const VersionPartsSchema = Schema.Struct({
+export const VersionParts = Schema.Struct({
   major: Schema.Number,
   minor: Schema.Number,
   patch: Schema.Number,
 })
-export type VersionParts = typeof VersionPartsSchema.Type
+export type VersionParts = typeof VersionParts.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   version: Schema.String,
-  versionParts: VersionPartsSchema,
+  versionParts: VersionParts,
   ping: OptionalString,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const UserUsageRecordSchema = Schema.Struct({
+export const UserUsageRecord = Schema.Struct({
   userId: Schema.String,
   userName: OptionalString,
   photos: Schema.Number,
@@ -32,19 +32,19 @@ export const UserUsageRecordSchema = Schema.Struct({
   usageBytes: Schema.Number,
   quotaSizeInBytes: OptionalNumber,
 })
-export type UserUsageRecord = typeof UserUsageRecordSchema.Type
+export type UserUsageRecord = typeof UserUsageRecord.Type
 
-export const StatisticsSchema = Schema.Struct({
+export const Statistics = Schema.Struct({
   photos: Schema.Number,
   videos: Schema.Number,
   usageBytes: Schema.Number,
   usagePhotosBytes: Schema.Number,
   usageVideosBytes: Schema.Number,
-  perUser: Schema.Array(UserUsageRecordSchema),
+  perUser: Schema.Array(UserUsageRecord),
 })
-export type Statistics = typeof StatisticsSchema.Type
+export type Statistics = typeof Statistics.Type
 
-export const StorageStatusSchema = Schema.Struct({
+export const StorageStatus = Schema.Struct({
   diskSize: OptionalString,
   diskUse: OptionalString,
   diskAvailable: OptionalString,
@@ -53,9 +53,9 @@ export const StorageStatusSchema = Schema.Struct({
   diskAvailableRaw: OptionalNumber,
   diskUsagePercentage: OptionalNumber,
 })
-export type StorageStatus = typeof StorageStatusSchema.Type
+export type StorageStatus = typeof StorageStatus.Type
 
-export const UserRecordSchema = Schema.Struct({
+export const UserRecord = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   email: OptionalString,
@@ -64,22 +64,22 @@ export const UserRecordSchema = Schema.Struct({
   quotaUsageInBytes: OptionalNumber,
   status: OptionalString,
 })
-export type UserRecord = typeof UserRecordSchema.Type
+export type UserRecord = typeof UserRecord.Type
 
-export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+export const ListResult = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
     count: Schema.Number,
     records: Schema.Array(record),
   })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
 
-export const UsersResultSchema = Schema.Struct({
-  ...ListResultSchema(UserRecordSchema).fields,
+export const UsersResult = Schema.Struct({
+  ...ListResult(UserRecord).fields,
   note: OptionalString,
 })
-export type UsersResult = typeof UsersResultSchema.Type
+export type UsersResult = typeof UsersResult.Type
 
-export const CurrentUserSchema = Schema.Struct({
+export const CurrentUser = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   email: OptionalString,
@@ -88,33 +88,33 @@ export const CurrentUserSchema = Schema.Struct({
   quotaSizeInBytes: OptionalNumber,
   quotaUsageInBytes: OptionalNumber,
 })
-export type CurrentUser = typeof CurrentUserSchema.Type
+export type CurrentUser = typeof CurrentUser.Type
 
-export const AlbumSummarySchema = Schema.Struct({
+export const AlbumSummary = Schema.Struct({
   id: Schema.String,
   albumName: OptionalString,
   assetCount: OptionalNumber,
   createdAt: OptionalString,
   ownerId: OptionalString,
 })
-export type AlbumSummary = typeof AlbumSummarySchema.Type
+export type AlbumSummary = typeof AlbumSummary.Type
 
-export const AssetExifSchema = Schema.Struct({
+export const AssetExif = Schema.Struct({
   make: OptionalString,
   model: OptionalString,
 })
-export type AssetExif = typeof AssetExifSchema.Type
+export type AssetExif = typeof AssetExif.Type
 
-export const AssetRecordSchema = Schema.Struct({
+export const AssetRecord = Schema.Struct({
   id: Schema.String,
   type: OptionalString,
   originalFileName: OptionalString,
   fileCreatedAt: OptionalString,
-  exifInfo: Schema.optional(AssetExifSchema),
+  exifInfo: Schema.optional(AssetExif),
 })
-export type AssetRecord = typeof AssetRecordSchema.Type
+export type AssetRecord = typeof AssetRecord.Type
 
-export const AlbumInfoSchema = Schema.Struct({
+export const AlbumInfo = Schema.Struct({
   id: Schema.String,
   albumName: OptionalString,
   assetCount: OptionalNumber,
@@ -123,22 +123,23 @@ export const AlbumInfoSchema = Schema.Struct({
   ownerId: OptionalString,
   shared: OptionalBoolean,
   hasSharedLink: OptionalBoolean,
-  assets: ListResultSchema(AssetRecordSchema),
+  assets: ListResult(AssetRecord),
   moreAssetsAvailable: Schema.Boolean,
 })
-export type AlbumInfo = typeof AlbumInfoSchema.Type
+export type AlbumInfo = typeof AlbumInfo.Type
 
-export const SearchModeSchema = Schema.Literals(['smart', 'metadata'])
-export const SearchResultSchema = Schema.Struct({
-  mode: SearchModeSchema,
+export const SearchMode = Schema.Literals(['smart', 'metadata'])
+export type SearchMode = typeof SearchMode.Type
+export const SearchResult = Schema.Struct({
+  mode: SearchMode,
   query: Schema.String,
   total: Schema.Number,
   count: Schema.Number,
-  records: Schema.Array(AssetRecordSchema),
+  records: Schema.Array(AssetRecord),
 })
-export type SearchResult = typeof SearchResultSchema.Type
+export type SearchResult = typeof SearchResult.Type
 
-export const PersonRecordSchema = Schema.Struct({
+export const PersonRecord = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   birthDate: OptionalString,
@@ -146,17 +147,17 @@ export const PersonRecordSchema = Schema.Struct({
   isHidden: OptionalBoolean,
   updatedAt: OptionalString,
 })
-export type PersonRecord = typeof PersonRecordSchema.Type
+export type PersonRecord = typeof PersonRecord.Type
 
-export const PeopleResultSchema = Schema.Struct({
-  ...ListResultSchema(PersonRecordSchema).fields,
+export const PeopleResult = Schema.Struct({
+  ...ListResult(PersonRecord).fields,
   total: OptionalNumber,
   hidden: OptionalNumber,
   hasNextPage: OptionalBoolean,
 })
-export type PeopleResult = typeof PeopleResultSchema.Type
+export type PeopleResult = typeof PeopleResult.Type
 
-export const JobCountsSchema = Schema.Struct({
+export const JobCounts = Schema.Struct({
   active: OptionalNumber,
   completed: OptionalNumber,
   failed: OptionalNumber,
@@ -164,34 +165,34 @@ export const JobCountsSchema = Schema.Struct({
   waiting: OptionalNumber,
   paused: OptionalNumber,
 })
-export type JobCounts = typeof JobCountsSchema.Type
+export type JobCounts = typeof JobCounts.Type
 
-export const JobRecordSchema = Schema.Struct({
+export const JobRecord = Schema.Struct({
   queue: Schema.String,
   paused: OptionalBoolean,
   active: OptionalBoolean,
-  counts: JobCountsSchema,
+  counts: JobCounts,
 })
-export type JobRecord = typeof JobRecordSchema.Type
+export type JobRecord = typeof JobRecord.Type
 
-export const TagRecordSchema = Schema.Struct({
+export const TagRecord = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   value: OptionalString,
 })
-export type TagRecord = typeof TagRecordSchema.Type
+export type TagRecord = typeof TagRecord.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const SearchOptionsSchema = Schema.Struct({
+export const SearchOptions = Schema.Struct({
   limit: Schema.Number,
   query: Schema.String,
 })
-export type SearchOptions = typeof SearchOptionsSchema.Type
+export type SearchOptions = typeof SearchOptions.Type
 
-export const AlbumInfoOptionsSchema = Schema.Struct({
+export const AlbumInfoOptions = Schema.Struct({
   limit: Schema.Number,
   id: Schema.String,
 })
-export type AlbumInfoOptions = typeof AlbumInfoOptionsSchema.Type
+export type AlbumInfoOptions = typeof AlbumInfoOptions.Type

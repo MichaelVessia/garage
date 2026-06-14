@@ -15,25 +15,6 @@ export {
 export type { ProwlarrErrorCode } from './errors.js'
 export { ProwlarrApiLive } from './http.js'
 export {
-  ApplicationRecordSchema,
-  CommandResultSchema,
-  HealthRecordSchema,
-  HistoryRecordSchema,
-  IndexerRecordSchema,
-  IndexerStatsRecordSchema,
-  IndexerTestResultSchema,
-  LimitOptionsSchema,
-  ListResultSchema,
-  MovieSearchOptionsSchema,
-  ProwlarrConfigValueSchema,
-  ReleaseRecordSchema,
-  SearchOptionsSchema,
-  SearchProtocolSchema,
-  SearchResultSchema,
-  SystemStatusSchema,
-  TvSearchOptionsSchema,
-} from './model.js'
-export type {
   ApplicationRecord,
   CommandResult,
   HealthRecord,
@@ -42,7 +23,7 @@ export type {
   IndexerStatsRecord,
   IndexerTestResult,
   LimitOptions,
-  ListResult,
+  ListResultSchema,
   MovieSearchOptions,
   ProwlarrConfigValue,
   ReleaseRecord,
@@ -52,6 +33,7 @@ export type {
   SystemStatus,
   TvSearchOptions,
 } from './model.js'
+export type { ListResult } from './model.js'
 export {
   applications,
   defaultHistoryLimit,

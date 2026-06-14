@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import { RadarrApi, RadarrConfig, envMissing } from '@garage/radarr'
 import type { MovieLookupResult, MovieRecord } from '@garage/radarr'
-import { Effect, Layer, Option, Redacted } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
 
 import { executeRadarr } from '../src/index.js'
 

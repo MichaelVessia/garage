@@ -1,19 +1,21 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as R from 'effect/Record'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
 
 import {
-  AlbumInfoSchema as DomainAlbumInfoSchema,
-  AlbumSummarySchema as DomainAlbumSummarySchema,
-  CurrentUserSchema as DomainCurrentUserSchema,
-  JobRecordSchema as DomainJobRecordSchema,
-  ListResultSchema as DomainListResultSchema,
-  PeopleResultSchema as DomainPeopleResultSchema,
-  PersonRecordSchema as DomainPersonRecordSchema,
-  SearchResultSchema as DomainSearchResultSchema,
-  StatisticsSchema as DomainStatisticsSchema,
-  StorageStatusSchema as DomainStorageStatusSchema,
-  TagRecordSchema as DomainTagRecordSchema,
-  UserRecordSchema as DomainUserRecordSchema,
-  VersionPartsSchema as DomainVersionPartsSchema,
+  AlbumInfo as DomainAlbumInfo,
+  AlbumSummary as DomainAlbumSummary,
+  CurrentUser as DomainCurrentUser,
+  JobRecord as DomainJobRecord,
+  ListResult as DomainListResult,
+  PeopleResult as DomainPeopleResult,
+  PersonRecord as DomainPersonRecord,
+  SearchResult as DomainSearchResult,
+  Statistics as DomainStatistics,
+  StorageStatus as DomainStorageStatus,
+  TagRecord as DomainTagRecord,
+  UserRecord as DomainUserRecord,
+  VersionParts as DomainVersionParts,
 } from './model.js'
 import type {
   AlbumInfo,
@@ -34,16 +36,17 @@ import type {
   UsersResult,
 } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
-const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
+const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
+const NullableNumber = Schema.Number.pipe(Schema.NullOr, Schema.optional)
+const NullableBoolean = Schema.Boolean.pipe(Schema.NullOr, Schema.optional)
 
-const VersionApiSchema = Schema.Struct({ major: Schema.Number, minor: Schema.Number, patch: Schema.Number })
-export const VersionSchema = VersionApiSchema.pipe(Schema.decodeTo(DomainVersionPartsSchema))
+const VersionApi = Schema.Struct({ major: Schema.Number, minor: Schema.Number, patch: Schema.Number })
+export const VersionSchema = VersionApi.pipe(Schema.decodeTo(DomainVersionParts))
 
-export const PingSchema = Schema.Struct({ res: NullableString })
+export const Ping = Schema.Struct({ res: NullableString })
+export type Ping = typeof Ping.Type
 
-const StatisticsUserSchema = Schema.Struct({
+const StatisticsUser = Schema.Struct({
   userId: Schema.String,
   userName: NullableString,
   photos: Schema.Number,
@@ -52,16 +55,16 @@ const StatisticsUserSchema = Schema.Struct({
   quotaSizeInBytes: NullableNumber,
 })
 
-const StatisticsApiSchema = Schema.Struct({
+const StatisticsApi = Schema.Struct({
   photos: Schema.Number,
   videos: Schema.Number,
   usage: Schema.Number,
   usagePhotos: Schema.Number,
   usageVideos: Schema.Number,
-  usageByUser: Schema.Array(StatisticsUserSchema),
+  usageByUser: Schema.Array(StatisticsUser),
 })
 
-const StorageApiSchema = Schema.Struct({
+const StorageApi = Schema.Struct({
   diskSize: NullableString,
   diskUse: NullableString,
   diskAvailable: NullableString,
@@ -71,7 +74,7 @@ const StorageApiSchema = Schema.Struct({
   diskUsagePercentage: NullableNumber,
 })
 
-const UserApiSchema = Schema.Struct({
+const UserApi = Schema.Struct({
   id: Schema.String,
   name: NullableString,
   email: NullableString,
@@ -82,7 +85,7 @@ const UserApiSchema = Schema.Struct({
   storageLabel: NullableString,
 })
 
-const AlbumApiSchema = Schema.Struct({
+const AlbumApi = Schema.Struct({
   id: Schema.String,
   albumName: NullableString,
   assetCount: NullableNumber,
@@ -93,17 +96,17 @@ const AlbumApiSchema = Schema.Struct({
   hasSharedLink: NullableBoolean,
 })
 
-const ExifSchema = Schema.Struct({ make: NullableString, model: NullableString })
+const Exif = Schema.Struct({ make: NullableString, model: NullableString })
 
-const AssetApiSchema = Schema.Struct({
+const AssetApi = Schema.Struct({
   id: Schema.String,
   type: NullableString,
   originalFileName: NullableString,
   fileCreatedAt: NullableString,
-  exifInfo: Schema.optional(Schema.NullOr(ExifSchema)),
+  exifInfo: Exif.pipe(Schema.NullOr, Schema.optional),
 })
 
-const AlbumInfoApiSchema = Schema.Struct({
+const AlbumInfoApi = Schema.Struct({
   id: Schema.String,
   albumName: NullableString,
   assetCount: NullableNumber,
@@ -112,17 +115,17 @@ const AlbumInfoApiSchema = Schema.Struct({
   ownerId: NullableString,
   shared: NullableBoolean,
   hasSharedLink: NullableBoolean,
-  assets: Schema.optional(Schema.NullOr(Schema.Array(AssetApiSchema))),
+  assets: Schema.Array(AssetApi).pipe(Schema.NullOr, Schema.optional),
 })
 
-const SearchAssetsSchema = Schema.Struct({
+const SearchAssets = Schema.Struct({
   total: Schema.Number,
   count: Schema.Number,
-  items: Schema.Array(AssetApiSchema),
+  items: Schema.Array(AssetApi),
 })
-const SearchResponseApiSchema = Schema.Struct({ assets: SearchAssetsSchema })
+const SearchResponseApi = Schema.Struct({ assets: SearchAssets })
 
-const PersonApiSchema = Schema.Struct({
+const PersonApi = Schema.Struct({
   id: Schema.String,
   name: NullableString,
   birthDate: NullableString,
@@ -131,14 +134,14 @@ const PersonApiSchema = Schema.Struct({
   updatedAt: NullableString,
 })
 
-const PeopleResponseApiSchema = Schema.Struct({
+const PeopleResponseApi = Schema.Struct({
   total: NullableNumber,
   hidden: NullableNumber,
   hasNextPage: NullableBoolean,
-  people: Schema.Array(PersonApiSchema),
+  people: Schema.Array(PersonApi),
 })
 
-const JobCountsApiSchema = Schema.Struct({
+const JobCountsApi = Schema.Struct({
   active: NullableNumber,
   completed: NullableNumber,
   failed: NullableNumber,
@@ -147,20 +150,21 @@ const JobCountsApiSchema = Schema.Struct({
   paused: NullableNumber,
 })
 
-const QueueStatusSchema = Schema.Struct({ isPaused: NullableBoolean, isActive: NullableBoolean })
+const QueueStatus = Schema.Struct({ isPaused: NullableBoolean, isActive: NullableBoolean })
 
-const JobStatusSchema = Schema.Struct({
-  queueStatus: Schema.optional(Schema.NullOr(QueueStatusSchema)),
-  jobCounts: Schema.optional(Schema.NullOr(JobCountsApiSchema)),
+const JobStatus = Schema.Struct({
+  queueStatus: QueueStatus.pipe(Schema.NullOr, Schema.optional),
+  jobCounts: JobCountsApi.pipe(Schema.NullOr, Schema.optional),
 })
 
-const JobsApiSchema = Schema.Record(Schema.String, JobStatusSchema)
+const JobsApi = Schema.Record(Schema.String, JobStatus)
 
-const TagApiSchema = Schema.Struct({ id: Schema.String, name: NullableString, value: NullableString })
+const TagApi = Schema.Struct({ id: Schema.String, name: NullableString, value: NullableString })
 
+// oxlint-disable-next-line effect/prefer-option-over-null -- bridges nullable wire values to the package's `T | undefined` domain model (built on Schema.optional); Option would require rewriting every model field and the JSON envelope contract.
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
-const statisticsFromApi = (stats: typeof StatisticsApiSchema.Type): Statistics => ({
+const statisticsFromApi = (stats: typeof StatisticsApi.Type): Statistics => ({
   photos: stats.photos,
   videos: stats.videos,
   usageBytes: stats.usage,
@@ -176,7 +180,7 @@ const statisticsFromApi = (stats: typeof StatisticsApiSchema.Type): Statistics =
   })),
 })
 
-const statisticsToApi = (stats: Statistics): typeof StatisticsApiSchema.Type => ({
+const statisticsToApi = (stats: Statistics): typeof StatisticsApi.Type => ({
   photos: stats.photos,
   videos: stats.videos,
   usage: stats.usageBytes,
@@ -192,14 +196,14 @@ const statisticsToApi = (stats: Statistics): typeof StatisticsApiSchema.Type => 
   })),
 })
 
-export const StatisticsSchema = StatisticsApiSchema.pipe(
-  Schema.decodeTo(DomainStatisticsSchema, {
+export const StatisticsSchema = StatisticsApi.pipe(
+  Schema.decodeTo(DomainStatistics, {
     decode: SchemaGetter.transform(statisticsFromApi),
     encode: SchemaGetter.transform(statisticsToApi),
   })
 )
 
-const storageFromApi = (storage: typeof StorageApiSchema.Type): StorageStatus => ({
+const storageFromApi = (storage: typeof StorageApi.Type): StorageStatus => ({
   diskSize: fromNullable(storage.diskSize),
   diskUse: fromNullable(storage.diskUse),
   diskAvailable: fromNullable(storage.diskAvailable),
@@ -209,7 +213,7 @@ const storageFromApi = (storage: typeof StorageApiSchema.Type): StorageStatus =>
   diskUsagePercentage: fromNullable(storage.diskUsagePercentage),
 })
 
-const storageToApi = (storage: StorageStatus): typeof StorageApiSchema.Type => ({
+const storageToApi = (storage: StorageStatus): typeof StorageApi.Type => ({
   diskSize: storage.diskSize,
   diskUse: storage.diskUse,
   diskAvailable: storage.diskAvailable,
@@ -219,14 +223,14 @@ const storageToApi = (storage: StorageStatus): typeof StorageApiSchema.Type => (
   diskUsagePercentage: storage.diskUsagePercentage,
 })
 
-export const StorageSchema = StorageApiSchema.pipe(
-  Schema.decodeTo(DomainStorageStatusSchema, {
+export const StorageSchema = StorageApi.pipe(
+  Schema.decodeTo(DomainStorageStatus, {
     decode: SchemaGetter.transform(storageFromApi),
     encode: SchemaGetter.transform(storageToApi),
   })
 )
 
-const userRecordFromApi = (user: typeof UserApiSchema.Type): UserRecord => ({
+const userRecordFromApi = (user: typeof UserApi.Type): UserRecord => ({
   id: user.id,
   name: fromNullable(user.name),
   email: fromNullable(user.email),
@@ -236,7 +240,7 @@ const userRecordFromApi = (user: typeof UserApiSchema.Type): UserRecord => ({
   status: fromNullable(user.status),
 })
 
-const userRecordToApi = (user: UserRecord): typeof UserApiSchema.Type => ({
+const userRecordToApi = (user: UserRecord): typeof UserApi.Type => ({
   id: user.id,
   name: user.name,
   email: user.email,
@@ -246,14 +250,14 @@ const userRecordToApi = (user: UserRecord): typeof UserApiSchema.Type => ({
   status: user.status,
 })
 
-export const UserSchema = UserApiSchema.pipe(
-  Schema.decodeTo(DomainUserRecordSchema, {
+export const UserSchema = UserApi.pipe(
+  Schema.decodeTo(DomainUserRecord, {
     decode: SchemaGetter.transform(userRecordFromApi),
     encode: SchemaGetter.transform(userRecordToApi),
   })
 )
 
-const currentUserFromApi = (user: typeof UserApiSchema.Type): CurrentUser => ({
+const currentUserFromApi = (user: typeof UserApi.Type): CurrentUser => ({
   id: user.id,
   name: fromNullable(user.name),
   email: fromNullable(user.email),
@@ -263,7 +267,7 @@ const currentUserFromApi = (user: typeof UserApiSchema.Type): CurrentUser => ({
   quotaUsageInBytes: fromNullable(user.quotaUsageInBytes),
 })
 
-const currentUserToApi = (user: CurrentUser): typeof UserApiSchema.Type => ({
+const currentUserToApi = (user: CurrentUser): typeof UserApi.Type => ({
   id: user.id,
   name: user.name,
   email: user.email,
@@ -273,14 +277,14 @@ const currentUserToApi = (user: CurrentUser): typeof UserApiSchema.Type => ({
   quotaUsageInBytes: user.quotaUsageInBytes,
 })
 
-export const CurrentUserSchema = UserApiSchema.pipe(
-  Schema.decodeTo(DomainCurrentUserSchema, {
+export const CurrentUserSchema = UserApi.pipe(
+  Schema.decodeTo(DomainCurrentUser, {
     decode: SchemaGetter.transform(currentUserFromApi),
     encode: SchemaGetter.transform(currentUserToApi),
   })
 )
 
-const albumSummaryFromApi = (album: typeof AlbumApiSchema.Type): AlbumSummary => ({
+const albumSummaryFromApi = (album: typeof AlbumApi.Type): AlbumSummary => ({
   id: album.id,
   albumName: fromNullable(album.albumName),
   assetCount: fromNullable(album.assetCount),
@@ -288,7 +292,7 @@ const albumSummaryFromApi = (album: typeof AlbumApiSchema.Type): AlbumSummary =>
   ownerId: fromNullable(album.ownerId),
 })
 
-const albumSummaryToApi = (album: AlbumSummary): typeof AlbumApiSchema.Type => ({
+const albumSummaryToApi = (album: AlbumSummary): typeof AlbumApi.Type => ({
   id: album.id,
   albumName: album.albumName,
   assetCount: album.assetCount,
@@ -296,17 +300,18 @@ const albumSummaryToApi = (album: AlbumSummary): typeof AlbumApiSchema.Type => (
   ownerId: album.ownerId,
 })
 
-export const AlbumSchema = AlbumApiSchema.pipe(
-  Schema.decodeTo(DomainAlbumSummarySchema, {
+export const AlbumSchema = AlbumApi.pipe(
+  Schema.decodeTo(DomainAlbumSummary, {
     decode: SchemaGetter.transform(albumSummaryFromApi),
     encode: SchemaGetter.transform(albumSummaryToApi),
   })
 )
 
-const assetExifFromApi = (exif: typeof ExifSchema.Type | null | undefined): AssetExif | undefined =>
+// oxlint-disable-next-line effect/prefer-option-over-null -- bridges the nullable wire exif value to the package's `T | undefined` domain model; Option would require rewriting AssetRecord and the JSON envelope contract.
+const assetExifFromApi = (exif: typeof Exif.Type | null | undefined): AssetExif | undefined =>
   exif === null || exif === undefined ? undefined : { make: fromNullable(exif.make), model: fromNullable(exif.model) }
 
-const assetRecordFromApi = (asset: typeof AssetApiSchema.Type): AssetRecord => ({
+const assetRecordFromApi = (asset: typeof AssetApi.Type): AssetRecord => ({
   id: asset.id,
   type: fromNullable(asset.type),
   originalFileName: fromNullable(asset.originalFileName),
@@ -314,7 +319,7 @@ const assetRecordFromApi = (asset: typeof AssetApiSchema.Type): AssetRecord => (
   exifInfo: assetExifFromApi(asset.exifInfo),
 })
 
-const assetRecordToApi = (asset: AssetRecord): typeof AssetApiSchema.Type => ({
+const assetRecordToApi = (asset: AssetRecord): typeof AssetApi.Type => ({
   id: asset.id,
   type: asset.type,
   originalFileName: asset.originalFileName,
@@ -326,7 +331,7 @@ const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> 
 
 const albumInfoFromApi =
   (limit: number) =>
-  (album: typeof AlbumInfoApiSchema.Type): AlbumInfo => {
+  (album: typeof AlbumInfoApi.Type): AlbumInfo => {
     const assets = fromNullable(album.assets) ?? []
     const records = assets.slice(0, limit).map(assetRecordFromApi)
     return {
@@ -343,7 +348,7 @@ const albumInfoFromApi =
     }
   }
 
-const albumInfoToApi = (album: AlbumInfo): typeof AlbumInfoApiSchema.Type => ({
+const albumInfoToApi = (album: AlbumInfo): typeof AlbumInfoApi.Type => ({
   id: album.id,
   albumName: album.albumName,
   assetCount: album.assetCount,
@@ -356,18 +361,18 @@ const albumInfoToApi = (album: AlbumInfo): typeof AlbumInfoApiSchema.Type => ({
 })
 
 export const AlbumInfoSchema = (limit: number) =>
-  AlbumInfoApiSchema.pipe(
-    Schema.decodeTo(DomainAlbumInfoSchema, {
+  AlbumInfoApi.pipe(
+    Schema.decodeTo(DomainAlbumInfo, {
       decode: SchemaGetter.transform(albumInfoFromApi(limit)),
       encode: SchemaGetter.transform(albumInfoToApi),
     })
   )
 
 export const SearchResponseSchema = (mode: 'smart' | 'metadata', query: string) =>
-  SearchResponseApiSchema.pipe(
-    Schema.decodeTo(DomainSearchResultSchema, {
+  SearchResponseApi.pipe(
+    Schema.decodeTo(DomainSearchResult, {
       decode: SchemaGetter.transform(
-        (response: typeof SearchResponseApiSchema.Type): SearchResult => ({
+        (response: typeof SearchResponseApi.Type): SearchResult => ({
           mode,
           query,
           total: response.assets.total,
@@ -381,7 +386,7 @@ export const SearchResponseSchema = (mode: 'smart' | 'metadata', query: string) 
     })
   )
 
-const personRecordFromApi = (person: typeof PersonApiSchema.Type): PersonRecord => ({
+const personRecordFromApi = (person: typeof PersonApi.Type): PersonRecord => ({
   id: person.id,
   name: fromNullable(person.name),
   birthDate: fromNullable(person.birthDate),
@@ -390,7 +395,7 @@ const personRecordFromApi = (person: typeof PersonApiSchema.Type): PersonRecord 
   updatedAt: fromNullable(person.updatedAt),
 })
 
-const personRecordToApi = (person: PersonRecord): typeof PersonApiSchema.Type => ({
+const personRecordToApi = (person: PersonRecord): typeof PersonApi.Type => ({
   id: person.id,
   name: person.name,
   birthDate: person.birthDate,
@@ -399,14 +404,14 @@ const personRecordToApi = (person: PersonRecord): typeof PersonApiSchema.Type =>
   updatedAt: person.updatedAt,
 })
 
-export const PersonSchema = PersonApiSchema.pipe(
-  Schema.decodeTo(DomainPersonRecordSchema, {
+export const PersonSchema = PersonApi.pipe(
+  Schema.decodeTo(DomainPersonRecord, {
     decode: SchemaGetter.transform(personRecordFromApi),
     encode: SchemaGetter.transform(personRecordToApi),
   })
 )
 
-const peopleResultFromApi = (response: typeof PeopleResponseApiSchema.Type): PeopleResult => {
+const peopleResultFromApi = (response: typeof PeopleResponseApi.Type): PeopleResult => {
   const records = response.people.map(personRecordFromApi)
   return {
     count: records.length,
@@ -417,21 +422,22 @@ const peopleResultFromApi = (response: typeof PeopleResponseApiSchema.Type): Peo
   }
 }
 
-const peopleResultToApi = (result: PeopleResult): typeof PeopleResponseApiSchema.Type => ({
+const peopleResultToApi = (result: PeopleResult): typeof PeopleResponseApi.Type => ({
   total: result.total,
   hidden: result.hidden,
   hasNextPage: result.hasNextPage,
   people: result.records.map(personRecordToApi),
 })
 
-export const PeopleResponseSchema = PeopleResponseApiSchema.pipe(
-  Schema.decodeTo(DomainPeopleResultSchema, {
+export const PeopleResponseSchema = PeopleResponseApi.pipe(
+  Schema.decodeTo(DomainPeopleResult, {
     decode: SchemaGetter.transform(peopleResultFromApi),
     encode: SchemaGetter.transform(peopleResultToApi),
   })
 )
 
-const jobCountsFromApi = (counts: typeof JobCountsApiSchema.Type | null | undefined): JobCounts =>
+// oxlint-disable-next-line effect/prefer-option-over-null -- accepts the nullable wire jobCounts value directly; the package models absence with `T | undefined`, and Option here would not change the decoded JobCounts shape.
+const jobCountsFromApi = (counts: typeof JobCountsApi.Type | null | undefined): JobCounts =>
   counts === null || counts === undefined
     ? {}
     : {
@@ -443,7 +449,7 @@ const jobCountsFromApi = (counts: typeof JobCountsApiSchema.Type | null | undefi
         paused: fromNullable(counts.paused),
       }
 
-const jobCountsToApi = (counts: JobCounts): typeof JobCountsApiSchema.Type => ({
+const jobCountsToApi = (counts: JobCounts): typeof JobCountsApi.Type => ({
   active: counts.active,
   completed: counts.completed,
   failed: counts.failed,
@@ -452,8 +458,8 @@ const jobCountsToApi = (counts: JobCounts): typeof JobCountsApiSchema.Type => ({
   paused: counts.paused,
 })
 
-const jobRecordsFromApi = (jobs: typeof JobsApiSchema.Type): ListResult<JobRecord> => {
-  const records = Object.entries(jobs).map(([queue, status]) => ({
+const jobRecordsFromApi = (jobs: typeof JobsApi.Type): ListResult<JobRecord> => {
+  const records = R.toEntries(jobs).map(([queue, status]) => ({
     queue,
     paused: fromNullable(status.queueStatus?.isPaused),
     active: fromNullable(status.queueStatus?.isActive),
@@ -462,31 +468,31 @@ const jobRecordsFromApi = (jobs: typeof JobsApiSchema.Type): ListResult<JobRecor
   return listResult(records)
 }
 
-const jobRecordsToApi = (jobs: ListResult<JobRecord>): typeof JobsApiSchema.Type =>
-  Object.fromEntries(
+const jobRecordsToApi = (jobs: ListResult<JobRecord>): typeof JobsApi.Type =>
+  R.fromEntries(
     jobs.records.map((job) => [
       job.queue,
       { queueStatus: { isPaused: job.paused, isActive: job.active }, jobCounts: jobCountsToApi(job.counts) },
     ])
   )
 
-export const JobsSchema = JobsApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(DomainJobRecordSchema), {
+export const JobsSchema = JobsApi.pipe(
+  Schema.decodeTo(DomainListResult(DomainJobRecord), {
     decode: SchemaGetter.transform(jobRecordsFromApi),
     encode: SchemaGetter.transform(jobRecordsToApi),
   })
 )
 
-const tagRecordFromApi = (tag: typeof TagApiSchema.Type): TagRecord => ({
+const tagRecordFromApi = (tag: typeof TagApi.Type): TagRecord => ({
   id: tag.id,
   name: fromNullable(tag.name),
   value: fromNullable(tag.value),
 })
 
-const tagRecordToApi = (tag: TagRecord): typeof TagApiSchema.Type => ({ id: tag.id, name: tag.name, value: tag.value })
+const tagRecordToApi = (tag: TagRecord): typeof TagApi.Type => ({ id: tag.id, name: tag.name, value: tag.value })
 
-export const TagSchema = TagApiSchema.pipe(
-  Schema.decodeTo(DomainTagRecordSchema, {
+export const TagSchema = TagApi.pipe(
+  Schema.decodeTo(DomainTagRecord, {
     decode: SchemaGetter.transform(tagRecordFromApi),
     encode: SchemaGetter.transform(tagRecordToApi),
   })

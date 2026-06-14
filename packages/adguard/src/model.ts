@@ -1,18 +1,18 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
-const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
+const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const AdguardConfigValueSchema = Schema.Struct({
+export const AdguardConfigValue = Schema.Struct({
   url: Schema.String,
   username: Schema.String,
   password: Schema.RedactedFromValue(Schema.String),
 })
-export type AdguardConfigValue = typeof AdguardConfigValueSchema.Type
+export type AdguardConfigValue = typeof AdguardConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   version: OptionalString,
   running: OptionalBoolean,
   protectionEnabled: OptionalBoolean,
@@ -21,18 +21,18 @@ export const SystemStatusSchema = Schema.Struct({
   httpPort: OptionalNumber,
   protectionDisabledDuration: OptionalNumber,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const VersionResultSchema = Schema.Struct({ version: OptionalString })
-export type VersionResult = typeof VersionResultSchema.Type
+export const VersionResult = Schema.Struct({ version: OptionalString })
+export type VersionResult = typeof VersionResult.Type
 
-export const TopRecordSchema = Schema.Struct({
+export const TopRecord = Schema.Struct({
   name: Schema.String,
   count: Schema.Number,
 })
-export type TopRecord = typeof TopRecordSchema.Type
+export type TopRecord = typeof TopRecord.Type
 
-export const StatsSchema = Schema.Struct({
+export const Stats = Schema.Struct({
   numDnsQueries: OptionalNumber,
   numBlockedFiltering: OptionalNumber,
   numReplacedSafebrowsing: OptionalNumber,
@@ -40,16 +40,16 @@ export const StatsSchema = Schema.Struct({
   numReplacedSafesearch: OptionalNumber,
   avgProcessingTime: OptionalNumber,
   timeUnits: OptionalString,
-  topQueriedDomains: Schema.Array(TopRecordSchema),
-  topBlockedDomains: Schema.Array(TopRecordSchema),
-  topClients: Schema.Array(TopRecordSchema),
+  topQueriedDomains: Schema.Array(TopRecord),
+  topBlockedDomains: Schema.Array(TopRecord),
+  topClients: Schema.Array(TopRecord),
 })
-export type Stats = typeof StatsSchema.Type
+export type Stats = typeof Stats.Type
 
-export const StatsInfoSchema = Schema.Struct({ interval: OptionalNumber })
-export type StatsInfo = typeof StatsInfoSchema.Type
+export const StatsInfo = Schema.Struct({ interval: OptionalNumber })
+export type StatsInfo = typeof StatsInfo.Type
 
-export const QueryLogEntrySchema = Schema.Struct({
+export const QueryLogEntry = Schema.Struct({
   time: OptionalString,
   client: OptionalString,
   question: OptionalString,
@@ -59,9 +59,9 @@ export const QueryLogEntrySchema = Schema.Struct({
   elapsedMs: OptionalString,
   answer: Schema.String,
 })
-export type QueryLogEntry = typeof QueryLogEntrySchema.Type
+export type QueryLogEntry = typeof QueryLogEntry.Type
 
-export const PersistentClientSchema = Schema.Struct({
+export const PersistentClient = Schema.Struct({
   name: OptionalString,
   ids: OptionalStringArray,
   tags: OptionalStringArray,
@@ -70,23 +70,23 @@ export const PersistentClientSchema = Schema.Struct({
   useGlobalSettings: OptionalBoolean,
   blockedServices: OptionalStringArray,
 })
-export type PersistentClient = typeof PersistentClientSchema.Type
+export type PersistentClient = typeof PersistentClient.Type
 
-export const AutoClientSchema = Schema.Struct({
+export const AutoClient = Schema.Struct({
   name: OptionalString,
   ip: OptionalString,
   source: OptionalString,
 })
-export type AutoClient = typeof AutoClientSchema.Type
+export type AutoClient = typeof AutoClient.Type
 
-export const ClientsResultSchema = Schema.Struct({
-  configured: Schema.Array(PersistentClientSchema),
+export const ClientsResult = Schema.Struct({
+  configured: Schema.Array(PersistentClient),
   autoCount: Schema.Number,
-  autoSample: Schema.Array(AutoClientSchema),
+  autoSample: Schema.Array(AutoClient),
 })
-export type ClientsResult = typeof ClientsResultSchema.Type
+export type ClientsResult = typeof ClientsResult.Type
 
-export const ActiveClientSchema = Schema.Struct({
+export const ActiveClient = Schema.Struct({
   ip: Schema.String,
   name: OptionalString,
   ids: OptionalStringArray,
@@ -94,9 +94,9 @@ export const ActiveClientSchema = Schema.Struct({
   upstreams: OptionalStringArray,
   source: OptionalString,
 })
-export type ActiveClient = typeof ActiveClientSchema.Type
+export type ActiveClient = typeof ActiveClient.Type
 
-export const FilterRecordSchema = Schema.Struct({
+export const FilterRecord = Schema.Struct({
   id: OptionalNumber,
   name: OptionalString,
   enabled: OptionalBoolean,
@@ -104,59 +104,59 @@ export const FilterRecordSchema = Schema.Struct({
   lastUpdated: OptionalString,
   url: OptionalString,
 })
-export type FilterRecord = typeof FilterRecordSchema.Type
+export type FilterRecord = typeof FilterRecord.Type
 
-export const FiltersResultSchema = Schema.Struct({
+export const FiltersResult = Schema.Struct({
   enabled: OptionalBoolean,
   intervalHours: OptionalNumber,
   userRulesCount: Schema.Number,
-  blocklists: Schema.Array(FilterRecordSchema),
-  allowlists: Schema.Array(FilterRecordSchema),
+  blocklists: Schema.Array(FilterRecord),
+  allowlists: Schema.Array(FilterRecord),
 })
-export type FiltersResult = typeof FiltersResultSchema.Type
+export type FiltersResult = typeof FiltersResult.Type
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
-export type JsonObject = typeof JsonObjectSchema.Type
+export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObject.Type
 
-export const DhcpStatusSchema = Schema.Struct({
+export const DhcpStatus = Schema.Struct({
   enabled: OptionalBoolean,
   interfaceName: OptionalString,
-  v4: Schema.optional(JsonObjectSchema),
-  v6: Schema.optional(JsonObjectSchema),
+  v4: Schema.optional(JsonObject),
+  v6: Schema.optional(JsonObject),
   leaseCount: Schema.Number,
   staticLeaseCount: Schema.Number,
-  leases: Schema.Array(JsonObjectSchema),
-  staticLeases: Schema.Array(JsonObjectSchema),
+  leases: Schema.Array(JsonObject),
+  staticLeases: Schema.Array(JsonObject),
 })
-export type DhcpStatus = typeof DhcpStatusSchema.Type
+export type DhcpStatus = typeof DhcpStatus.Type
 
-export const ProtectionStateSchema = Schema.Struct({
+export const ProtectionState = Schema.Struct({
   protectionEnabled: OptionalBoolean,
   protectionDisabledDuration: OptionalNumber,
 })
-export type ProtectionState = typeof ProtectionStateSchema.Type
+export type ProtectionState = typeof ProtectionState.Type
 
-export const ProtectionToggleStateSchema = Schema.Literals(['on', 'off'])
-export type ProtectionToggleState = typeof ProtectionToggleStateSchema.Type
+export const ProtectionToggleState = Schema.Literals(['on', 'off'])
+export type ProtectionToggleState = typeof ProtectionToggleState.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const SearchOptionsSchema = Schema.Struct({
+export const SearchOptions = Schema.Struct({
   limit: Schema.Number,
   query: Schema.String,
 })
-export type SearchOptions = typeof SearchOptionsSchema.Type
+export type SearchOptions = typeof SearchOptions.Type
 
-export const ClientLookupOptionsSchema = Schema.Struct({ ip: Schema.String })
-export type ClientLookupOptions = typeof ClientLookupOptionsSchema.Type
+export const ClientLookupOptions = Schema.Struct({ ip: Schema.String })
+export type ClientLookupOptions = typeof ClientLookupOptions.Type
 
-export const ProtectionToggleOptionsSchema = Schema.Struct({ state: ProtectionToggleStateSchema })
-export type ProtectionToggleOptions = typeof ProtectionToggleOptionsSchema.Type
+export const ProtectionToggleOptions = Schema.Struct({ state: ProtectionToggleState })
+export type ProtectionToggleOptions = typeof ProtectionToggleOptions.Type
 
-export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+export const ListResult = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
     count: Schema.Number,
     records: Schema.Array(record),
   })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>

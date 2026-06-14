@@ -1,5 +1,7 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Ref from 'effect/Ref'
 import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { CaddyApiLive, CaddyConfig, pkiCa, reload, routes, upstreams } from '../src/index.js'

@@ -1,50 +1,50 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
-export type JsonObject = typeof JsonObjectSchema.Type
+export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObject.Type
 
-export const TubearchivistConfigValueSchema = Schema.Struct({
+export const TubearchivistConfigValue = Schema.Struct({
   url: Schema.String,
   username: Schema.String,
   password: Schema.RedactedFromValue(Schema.String),
 })
-export type TubearchivistConfigValue = typeof TubearchivistConfigValueSchema.Type
+export type TubearchivistConfigValue = typeof TubearchivistConfigValue.Type
 
-export const SessionCookiesSchema = Schema.Struct({
+export const SessionCookies = Schema.Struct({
   sessionId: Schema.String,
   csrfToken: Schema.String,
 })
-export type SessionCookies = typeof SessionCookiesSchema.Type
+export type SessionCookies = typeof SessionCookies.Type
 
-const StatusStatsSchema = Schema.Struct({
-  video: JsonObjectSchema,
-  channel: JsonObjectSchema,
-  download: JsonObjectSchema,
-  watch: JsonObjectSchema,
+const StatusStats = Schema.Struct({
+  video: JsonObject,
+  channel: JsonObject,
+  download: JsonObject,
+  watch: JsonObject,
 })
 
-export const StatusResultSchema = Schema.Struct({
+export const StatusResult = Schema.Struct({
   url: Schema.String,
   health: OptionalString,
-  config: JsonObjectSchema,
-  stats: StatusStatsSchema,
+  config: JsonObject,
+  stats: StatusStats,
 })
-export type StatusResult = typeof StatusResultSchema.Type
+export type StatusResult = typeof StatusResult.Type
 
-export const ChannelRecordSchema = Schema.Struct({
+export const ChannelRecord = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   subscribed: OptionalBoolean,
   active: OptionalBoolean,
   lastRefresh: OptionalString,
 })
-export type ChannelRecord = typeof ChannelRecordSchema.Type
+export type ChannelRecord = typeof ChannelRecord.Type
 
-export const VideoRecordSchema = Schema.Struct({
+export const VideoRecord = Schema.Struct({
   youtubeId: Schema.String,
   title: OptionalString,
   channel: OptionalString,
@@ -52,74 +52,74 @@ export const VideoRecordSchema = Schema.Struct({
   videoType: OptionalString,
   watched: OptionalBoolean,
 })
-export type VideoRecord = typeof VideoRecordSchema.Type
+export type VideoRecord = typeof VideoRecord.Type
 
-export const DownloadRecordSchema = Schema.Struct({
+export const DownloadRecord = Schema.Struct({
   youtubeId: Schema.String,
   title: OptionalString,
   channel: OptionalString,
   status: OptionalString,
   videoType: OptionalString,
 })
-export type DownloadRecord = typeof DownloadRecordSchema.Type
+export type DownloadRecord = typeof DownloadRecord.Type
 
-export const PlaylistRecordSchema = Schema.Struct({
+export const PlaylistRecord = Schema.Struct({
   playlistId: Schema.String,
   name: OptionalString,
   channel: OptionalString,
   subscribed: OptionalBoolean,
   entries: OptionalNumber,
 })
-export type PlaylistRecord = typeof PlaylistRecordSchema.Type
+export type PlaylistRecord = typeof PlaylistRecord.Type
 
-export const TaskRecordSchema = Schema.Struct({
+export const TaskRecord = Schema.Struct({
   name: OptionalString,
   status: OptionalString,
   dateDone: OptionalString,
-  args: Schema.optional(Schema.Array(Schema.Unknown)),
-  kwargs: Schema.optional(JsonObjectSchema),
+  args: Schema.Array(Schema.Unknown).pipe(Schema.optional),
+  kwargs: Schema.optional(JsonObject),
   taskId: OptionalString,
   error: Schema.optional(Schema.Unknown),
 })
-export type TaskRecord = typeof TaskRecordSchema.Type
+export type TaskRecord = typeof TaskRecord.Type
 
-export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+export const ListResult = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
     count: Schema.Number,
     total: OptionalNumber,
     records: Schema.Array(record),
     moreAvailable: OptionalBoolean,
   })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
 
-export const SearchResultSchema = Schema.Struct({
+export const SearchResult = Schema.Struct({
   queryType: OptionalString,
   query: Schema.String,
-  videos: ListResultSchema(VideoRecordSchema),
-  channels: ListResultSchema(ChannelRecordSchema),
-  playlists: ListResultSchema(PlaylistRecordSchema),
+  videos: ListResult(VideoRecord),
+  channels: ListResult(ChannelRecord),
+  playlists: ListResult(PlaylistRecord),
 })
-export type SearchResult = typeof SearchResultSchema.Type
+export type SearchResult = typeof SearchResult.Type
 
-export const SubscriptionResultSchema = Schema.Struct({
+export const SubscriptionResult = Schema.Struct({
   target: Schema.String,
   subscribed: Schema.Boolean,
-  response: JsonObjectSchema,
+  response: JsonObject,
   note: OptionalString,
 })
-export type SubscriptionResult = typeof SubscriptionResultSchema.Type
+export type SubscriptionResult = typeof SubscriptionResult.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const SearchOptionsSchema = Schema.Struct({
+export const SearchOptions = Schema.Struct({
   limit: Schema.Number,
   query: Schema.String,
 })
-export type SearchOptions = typeof SearchOptionsSchema.Type
+export type SearchOptions = typeof SearchOptions.Type
 
-export const IdOptionsSchema = Schema.Struct({ id: Schema.String })
-export type IdOptions = typeof IdOptionsSchema.Type
+export const IdOptions = Schema.Struct({ id: Schema.String })
+export type IdOptions = typeof IdOptions.Type
 
-export const SubscriptionOptionsSchema = Schema.Struct({ target: Schema.String })
-export type SubscriptionOptions = typeof SubscriptionOptionsSchema.Type
+export const SubscriptionOptions = Schema.Struct({ target: Schema.String })
+export type SubscriptionOptions = typeof SubscriptionOptions.Type

@@ -1,5 +1,8 @@
 import { assert, it } from '@effect/vitest'
-import { ConfigProvider, Effect, Layer, Redacted } from 'effect'
+import * as ConfigProvider from 'effect/ConfigProvider'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
 
 import { AdguardConfig, AdguardConfigLive } from '../packages/adguard/src/index.js'
 import { AutocaliwebConfig, AutocaliwebConfigLive } from '../packages/autocaliweb/src/index.js'

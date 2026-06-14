@@ -1,11 +1,13 @@
-import { spawn } from 'node:child_process'
-import process from 'node:process'
-import type { Readable } from 'node:stream'
-import { text } from 'node:stream/consumers'
-
 import * as BunHttpClient from '@effect/platform-bun/BunHttpClient'
+import * as BunServices from '@effect/platform-bun/BunServices'
 import { assert, it } from '@effect/vitest'
-import { ConfigProvider, Effect, Layer, Schema } from 'effect'
+import * as ConfigProvider from 'effect/ConfigProvider'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as P from 'effect/Predicate'
+import * as Schema from 'effect/Schema'
+import * as Stream from 'effect/Stream'
+import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 import { executeAdguard } from '../apps/adguard-cli/src/index.js'
 import { executeAutocaliweb } from '../apps/autocaliweb-cli/src/index.js'
@@ -22,8 +24,7 @@ import { executeTubearchivist } from '../apps/tubearchivist-cli/src/index.js'
 import { AdguardApiLive, AdguardConfigLive } from '../packages/adguard/src/index.js'
 import { AutocaliwebApiLive, AutocaliwebConfigLive } from '../packages/autocaliweb/src/index.js'
 import { CaddyApiLive, CaddyConfigLive, decodeError as caddyDecodeError } from '../packages/caddy/src/index.js'
-import { CliEnvelopeSchema, cliObservabilityLayer } from '../packages/cli-protocol/src/index.js'
-import type { CliEnvelope } from '../packages/cli-protocol/src/index.js'
+import { CliEnvelope, cliObservabilityLayer } from '../packages/cli-protocol/src/index.js'
 import { ImmichApiLive, ImmichConfigLive } from '../packages/immich/src/index.js'
 import { JellyfinApiLive, JellyfinConfigLive } from '../packages/jellyfin/src/index.js'
 import { JellyseerrApiLive, JellyseerrConfigLive } from '../packages/jellyseerr/src/index.js'
@@ -94,7 +95,7 @@ const assertMissingEnvRoot = (envelope: CliEnvelope<unknown>): void => {
   if (!envelope.ok) {
     assert.fail('expected success envelope')
   }
-  if (typeof envelope.result !== 'object' || envelope.result === null || !('health' in envelope.result)) {
+  if (!P.isObject(envelope.result) || !('health' in envelope.result)) {
     assert.fail('expected root command result')
   }
   assert.deepStrictEqual(envelope.result.health, { configured: false })
@@ -106,52 +107,42 @@ interface CliRunResult {
   readonly exitCode: number
 }
 
-const streamText = async (stream: Readable | null): Promise<string> => {
-  if (stream === null) {
-    return ''
-  }
+const hostPath = globalThis.process.env.PATH ?? ''
 
-  return await text(stream)
-}
-
-const exitCode = async (subprocess: ReturnType<typeof spawn>): Promise<number> => {
-  const deferred = Promise.withResolvers<number>()
-  subprocess.on('error', deferred.reject)
-  subprocess.on('close', (code) => {
-    deferred.resolve(code ?? 1)
-  })
-  return await deferred.promise
-}
-
-const runCliMain = (entrypoint: string): Effect.Effect<CliRunResult, Error> =>
-  Effect.tryPromise({
-    try: async () => {
-      const subprocess = spawn('bun', [entrypoint], {
-        env: { PATH: process.env.PATH ?? '' },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      })
-      const [stdout, stderr, code] = await Promise.all([
-        streamText(subprocess.stdout),
-        streamText(subprocess.stderr),
-        exitCode(subprocess),
-      ])
-      return { stdout, stderr, exitCode: code }
-    },
-    catch: (cause) => new Error(String(cause)),
-  })
-
-const assertMainRendersMissingEnvRoot = (entrypoint: string): Effect.Effect<void, Error> =>
-  runCliMain(entrypoint).pipe(
-    Effect.tap((result) =>
-      Effect.sync(() => {
-        assert.strictEqual(result.exitCode, 0, result.stderr)
-        const parsed: unknown = JSON.parse(result.stdout)
-        const envelope = Schema.decodeUnknownSync(CliEnvelopeSchema(Schema.Unknown))(parsed)
-        assertMissingEnvRoot(envelope)
-      })
-    ),
-    Effect.asVoid
+const runCliMain = Effect.fn('live-cli-missing-env.runCliMain')(function* (entrypoint: string) {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  return yield* Effect.scoped(
+    Effect.gen(function* () {
+      const handle = yield* spawner.spawn(
+        ChildProcess.make('bun', [entrypoint], { env: { PATH: hostPath }, extendEnv: false })
+      )
+      const result = yield* Effect.all(
+        {
+          exitCode: handle.exitCode,
+          stdout: Stream.mkString(Stream.decodeText(handle.stdout)),
+          stderr: Stream.mkString(Stream.decodeText(handle.stderr)),
+        },
+        { concurrency: 'unbounded' }
+      )
+      const runResult: CliRunResult = {
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      }
+      return runResult
+    })
   )
+})
+
+const assertMainRendersMissingEnvRoot = Effect.fn('live-cli-missing-env.assertMainRendersMissingEnvRoot')(function* (
+  entrypoint: string
+) {
+  const result = yield* runCliMain(entrypoint)
+  assert.strictEqual(result.exitCode, 0, result.stderr)
+  const parsed: unknown = JSON.parse(result.stdout)
+  const envelope = Schema.decodeUnknownSync(CliEnvelope(Schema.Unknown))(parsed)
+  assertMissingEnvRoot(envelope)
+})
 
 it.effect('HTTP CLI root commands render missing-env envelopes with real live layers', () =>
   Effect.gen(function* () {
@@ -175,18 +166,25 @@ it.effect('HTTP CLI root commands render missing-env envelopes with real live la
   })
 )
 
-it.effect('HTTP CLI entrypoints render missing-env envelopes instead of throwing', () =>
-  Effect.gen(function* () {
-    yield* assertMainRendersMissingEnvRoot('apps/adguard-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/autocaliweb-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/caddy-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/immich-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/jellyfin-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/jellyseerr-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/prowlarr-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/radarr-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/sabnzbd-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/sonarr-cli/src/main.ts')
-    yield* assertMainRendersMissingEnvRoot('apps/tubearchivist-cli/src/main.ts')
-  })
+// Each assertion cold-spawns `bun <entrypoint>` (transpile + load all layers).
+// Eleven sequential spawns can exceed vitest's default 5s timeout when the full
+// `validate` run saturates the machine, so this subprocess test gets a generous
+// budget.
+it.effect(
+  'HTTP CLI entrypoints render missing-env envelopes instead of throwing',
+  () =>
+    Effect.gen(function* () {
+      yield* assertMainRendersMissingEnvRoot('apps/adguard-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/autocaliweb-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/caddy-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/immich-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/jellyfin-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/jellyseerr-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/prowlarr-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/radarr-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/sabnzbd-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/sonarr-cli/src/main.ts')
+      yield* assertMainRendersMissingEnvRoot('apps/tubearchivist-cli/src/main.ts')
+    }).pipe(Effect.provide(BunServices.layer)),
+  60_000
 )

@@ -1,5 +1,9 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { JellyfinApiLive, JellyfinConfig, recentlyAdded, runTask, status } from '../src/index.js'

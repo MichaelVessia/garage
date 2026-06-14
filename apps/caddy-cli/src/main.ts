@@ -1,7 +1,9 @@
 import { BunFileSystem, BunHttpClient, BunRuntime } from '@effect/platform-bun'
 import { CaddyApiLive, CaddyConfigLive } from '@garage/caddy'
 import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
-import { Console, Effect, Layer } from 'effect'
+import * as Console from 'effect/Console'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { CaddyConfigFileLive } from './config-file.js'

@@ -1,0 +1,25 @@
+id: no-effect-fn-rewrap
+snapshots:
+  ? |
+    const fn = Effect.fn("name")(function* (args) {
+      return yield* Effect.gen(function* () {
+        yield* doWork(args);
+      }).pipe(Effect.scoped);
+    });
+  : labels:
+    - source: |-
+        Effect.fn("name")(function* (args) {
+          return yield* Effect.gen(function* () {
+            yield* doWork(args);
+          }).pipe(Effect.scoped);
+        })
+      style: primary
+      start: 11
+      end: 143
+    - source: |-
+        return yield* Effect.gen(function* () {
+            yield* doWork(args);
+          }).pipe(Effect.scoped);
+      style: secondary
+      start: 50
+      end: 140

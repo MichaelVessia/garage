@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import type { CaddyError } from './errors.js'
 import type { JsonObject, ListResult, PkiCa, ReloadResult, RouteSummary, UpstreamRecord } from './model.js'

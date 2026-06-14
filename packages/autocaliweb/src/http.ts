@@ -1,5 +1,8 @@
-import { Effect, Layer, Redacted } from 'effect'
-import type { Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
+import type * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import { BookInfoSchema, StatsSchema } from './api-schema.js'
@@ -92,10 +95,11 @@ const collectBookFeed = (
       Effect.withSpan('autocaliweb.collectOpdsPage'),
       Effect.flatMap((feed) => {
         const nextRecords = [...records, ...feed.books].slice(0, limit)
-        if (nextRecords.length >= limit || feed.nextHref === undefined) {
-          return Effect.succeed(nextRecords)
-        }
-        return loop(feed.nextHref, nextRecords)
+        return Option.match(feed.nextHref, {
+          onNone: () => Effect.succeed(nextRecords),
+          onSome: (nextHref) =>
+            nextRecords.length >= limit ? Effect.succeed(nextRecords) : loop(nextHref, nextRecords),
+        })
       })
     )
 
@@ -122,8 +126,8 @@ export const AutocaliwebApiLive = Layer.effect(
               const statRecords = yield* loadStats(config)
               yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
               return {
-                title: feed.title,
-                updated: feed.updated,
+                title: Option.getOrUndefined(feed.title),
+                updated: Option.getOrUndefined(feed.updated),
                 catalogCount: feed.navigation.length,
                 stats: statRecords,
               }
@@ -179,6 +183,7 @@ export const AutocaliwebApiLive = Layer.effect(
       ),
       bookInfo: Effect.fn('AutocaliwebApi.bookInfo')(
         function* (options) {
+          // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
           yield* Effect.annotateCurrentSpan({ 'autocaliweb.book_uuid_present': options.uuid.length > 0 })
           return yield* withConfig((config) =>
             getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)

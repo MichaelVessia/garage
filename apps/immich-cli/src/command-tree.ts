@@ -2,9 +2,13 @@ import type { CommandDescription, NextAction } from '@garage/cli-protocol'
 
 export interface RootHealth {
   readonly configured: boolean
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized JSON envelope field; optional keys are omitted on the wire, and Option would render as `{ _tag, value }`, breaking the agent-facing output contract.
   readonly version?: string | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized JSON envelope field; optional keys are omitted on the wire, and Option would render as `{ _tag, value }`, breaking the agent-facing output contract.
   readonly ping?: string | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized JSON envelope field; optional keys are omitted on the wire, and Option would render as `{ _tag, value }`, breaking the agent-facing output contract.
   readonly reachable?: boolean | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- serialized JSON envelope field; optional keys are omitted on the wire, and Option would render as `{ _tag, value }`, breaking the agent-facing output contract.
   readonly errorCode?: string | undefined
 }
 

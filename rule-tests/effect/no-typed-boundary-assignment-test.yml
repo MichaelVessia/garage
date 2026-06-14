@@ -1,0 +1,9 @@
+id: no-typed-boundary-assignment
+
+valid:
+  - |
+    const payload: unknown = await response.json();
+
+invalid:
+  - |
+    const payload: ApiResponse = await response.json();

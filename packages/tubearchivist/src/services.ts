@@ -1,4 +1,11 @@
-import { Config, Context, Effect, Layer, Ref, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as HashMap from 'effect/HashMap'
+import * as Layer from 'effect/Layer'
+import type * as Option from 'effect/Option'
+import * as Ref from 'effect/Ref'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { TubearchivistError } from './errors.js'
@@ -26,7 +33,7 @@ export class TubearchivistConfig extends Context.Service<
 >()('@garage/tubearchivist/services/TubearchivistConfig') {}
 
 export interface TubearchivistSessionCacheService {
-  readonly read: (key: string) => Effect.Effect<SessionCookies | undefined>
+  readonly read: (key: string) => Effect.Effect<Option.Option<SessionCookies>>
   readonly write: (key: string, session: SessionCookies) => Effect.Effect<void>
 }
 
@@ -61,29 +68,28 @@ const readRequiredSecret = (name: string) =>
 export const TubearchivistConfigLive = Layer.effect(
   TubearchivistConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
+    const loadConfig = Effect.fn('TubearchivistConfig.get')(
+      function* () {
         const url = yield* readRequiredString('TUBEARCHIVIST_URL')
         const username = yield* readRequiredString('TUBEARCHIVIST_USERNAME')
         const password = yield* readRequiredSecret('TUBEARCHIVIST_PASSWORD')
         return { url, username, password }
-      }).pipe(
-        Effect.withSpan('TubearchivistConfig.get'),
-        Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistConfig', method: 'get' })
-      )
+      },
+      Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistConfig', method: 'get' })
     )
+    const cachedGet = yield* Effect.cached(loadConfig())
     return TubearchivistConfig.of({ get: () => cachedGet })
   })
 )
 
 export const TubearchivistSessionCacheMemoryLive = Layer.effect(
   TubearchivistSessionCache,
-  Ref.make<ReadonlyMap<string, SessionCookies>>(new Map<string, SessionCookies>()).pipe(
+  Ref.make<HashMap.HashMap<string, SessionCookies>>(HashMap.empty<string, SessionCookies>()).pipe(
     Effect.map((sessions) =>
       TubearchivistSessionCache.of({
         read: Effect.fn('TubearchivistSessionCache.read')(
           function* (key) {
-            return yield* Ref.get(sessions).pipe(Effect.map((records) => records.get(key)))
+            return yield* Ref.get(sessions).pipe(Effect.map((records) => HashMap.get(records, key)))
           },
           Effect.annotateLogs({
             package: '@garage/tubearchivist',
@@ -93,7 +99,7 @@ export const TubearchivistSessionCacheMemoryLive = Layer.effect(
         ),
         write: Effect.fn('TubearchivistSessionCache.write')(
           function* (key, session) {
-            yield* Ref.update(sessions, (records) => new Map(records).set(key, session))
+            yield* Ref.update(sessions, (records) => HashMap.set(records, key, session))
           },
           Effect.annotateLogs({
             package: '@garage/tubearchivist',

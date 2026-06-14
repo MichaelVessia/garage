@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-expect-in-it-effect
+language: tsx
+severity: error
+message: "Use assert.* from @effect/vitest instead of expect inside it.effect / it.effect.each / it.effect.prop / it.scoped / it.live"
+
+rule:
+  all:
+    - kind: call_expression
+    - pattern: expect($$$ARGS)
+  inside:
+    any:
+      - pattern: it.effect($$$)
+      - pattern: it.effect.each($$$)($$$)
+      - pattern: it.effect.prop($$$)
+      - pattern: it.effect.only($$$)
+      - pattern: it.effect.skip($$$)
+      - pattern: it.scoped($$$)
+      - pattern: it.live($$$)
+    stopBy: end
+
+files:
+  - "apps/**/*.test.ts"
+  - "apps/**/*.test.tsx"
+  - "apps/**/*.spec.ts"
+  - "packages/**/*.test.ts"
+  - "packages/**/*.test.tsx"
+  - "packages/**/*.spec.ts"
+  - "scripts/**/*.test.ts"
+  - "scripts/**/*.spec.ts"
+
+note: |
+  Vanilla `expect` from vitest runs outside the Effect runtime. Matcher
+  exceptions thrown inside an `Effect.gen` body escape the fiber instead of
+  failing the effect cleanly, so failure messages lose Effect context and
+  later `yield*` steps short-circuit in confusing ways.
+
+  Use `assert.*` from `@effect/vitest` instead.
+
+  Mapping:
+    expect(x).toBe(y)         -> assert.strictEqual(x, y)
+    expect(x).toEqual(y)      -> assert.deepStrictEqual(x, y)
+    expect(x).toStrictEqual(y)-> assert.deepStrictEqual(x, y)
+    expect(x).toBeTrue()      -> assert.isTrue(x)
+    expect(x).toBeFalse()     -> assert.isFalse(x)
+    expect(x).toBeDefined()   -> assert.isDefined(x)
+    expect(x).toBeUndefined() -> assert.isUndefined(x)
+    expect(fn).toThrow()      -> assert.throws(fn)
+
+  Pure `it()` blocks (non-Effect tests) keep `expect`.
+
+  ```typescript
+  // Bad
+  it.effect('parses target', () =>
+    Effect.gen(function* () {
+      const result = yield* parse('host:1234')
+      expect(result).toEqual({ host: 'host', port: 1234 })
+    })
+  )
+
+  // Good
+  import { assert } from '@effect/vitest'
+
+  it.effect('parses target', () =>
+    Effect.gen(function* () {
+      const result = yield* parse('host:1234')
+      assert.deepStrictEqual(result, { host: 'host', port: 1234 })
+    })
+  )
+  ```

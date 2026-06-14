@@ -1,4 +1,8 @@
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { AutocaliwebError } from './errors.js'
@@ -44,17 +48,16 @@ const readRequiredSecret = (name: string) =>
 export const AutocaliwebConfigLive = Layer.effect(
   AutocaliwebConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
+    const readConfig = Effect.fn('AutocaliwebConfig.get')(
+      function* () {
         const url = yield* readRequiredString('AUTOCALIWEB_URL')
         const username = yield* readRequiredString('AUTOCALIWEB_USERNAME')
         const password = yield* readRequiredSecret('AUTOCALIWEB_PASSWORD')
         return { url, username, password }
-      }).pipe(
-        Effect.withSpan('AutocaliwebConfig.get'),
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebConfig', method: 'get' })
-      )
+      },
+      Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebConfig', method: 'get' })
     )
+    const cachedGet = yield* Effect.cached(readConfig())
     return AutocaliwebConfig.of({ get: () => cachedGet })
   })
 )

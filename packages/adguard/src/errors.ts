@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 export const envFix =
   'Open a fresh shell so sops-nix exports ADGUARD_URL, ADGUARD_USERNAME, and ADGUARD_PASSWORD from modules/programs/shell.nix.'

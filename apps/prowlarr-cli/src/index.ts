@@ -40,7 +40,8 @@ import type {
   SearchResult,
   SystemStatus,
 } from '@garage/prowlarr'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Str from 'effect/String'
 
 import {
   appsCommandTemplate,
@@ -212,7 +213,7 @@ const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageE
         booleanFlags: [torrentsFlag, usenetFlag],
       })
       const query = parsed.positionals.join(' ').trim()
-      if (query.length === 0) {
+      if (Str.isEmpty(query)) {
         return yield* wrap(Effect.fail(usageError('search query is required')))
       }
 

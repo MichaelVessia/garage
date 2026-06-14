@@ -1,4 +1,9 @@
-import { DateTime, Effect, Layer, Option, Redacted, Schema } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -17,9 +22,6 @@ import type { SonarrError } from './errors.js'
 import type { SeriesLookupResult, SonarrConfigValue } from './model.js'
 import { SonarrApi, SonarrConfig } from './services.js'
 
-const optionFromUndefined = <A>(value: A | undefined): Option.Option<A> =>
-  value === undefined ? Option.none() : Option.some(value)
-
 const normalizeBaseUrl = (baseUrl: string): string => {
   const trimmed = baseUrl.trim()
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
@@ -34,6 +36,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string => {
   const query = queryString(params)
+  // oxlint-disable-next-line effect/no-length-comparison -- query is a string; checking for empty query string, not an array
   return query.length === 0
     ? `${normalizeBaseUrl(config.url)}${path}`
     : `${normalizeBaseUrl(config.url)}${path}?${query}`
@@ -109,7 +112,7 @@ const lookupByTvdbId = Effect.fn('sonarr.lookupByTvdbId')(function* (
   yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId })
   return yield* getJson(client, config, '/api/v3/series/lookup', Schema.Array(LookupSeriesSchema), [
     ['term', `tvdb:${tvdbId}`],
-  ]).pipe(Effect.map((results) => optionFromUndefined(results[0])))
+  ]).pipe(Effect.map((results) => Option.fromUndefinedOr(results[0])))
 })
 
 const currentCalendarRange = Effect.fn('sonarr.currentCalendarRange')(function* (
@@ -176,7 +179,7 @@ export const SonarrApiLive = Layer.effect(
           yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId })
           return yield* withConfig((config) =>
             getJson(client, config, '/api/v3/series', Schema.Array(SeriesRecordSchema)).pipe(
-              Effect.map((records) => optionFromUndefined(records.find((record) => record.tvdbId === tvdbId)))
+              Effect.map((records) => Option.fromUndefinedOr(records.find((record) => record.tvdbId === tvdbId)))
             )
           )
         },

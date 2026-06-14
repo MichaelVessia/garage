@@ -1,11 +1,10 @@
 import type { CommandDescription, NextAction } from '@garage/cli-protocol'
 
-export interface RootHealth {
-  readonly configured: boolean
-  readonly health?: string | undefined
-  readonly reachable?: boolean | undefined
-  readonly errorCode?: string | undefined
-}
+export type RootHealth =
+  | { readonly configured: false }
+  | { readonly configured: true; readonly reachable: false; readonly errorCode: string }
+  | { readonly configured: true; readonly reachable: true }
+  | { readonly configured: true; readonly health: string }
 
 export interface RootResult {
   readonly name: 'tubearchivist'

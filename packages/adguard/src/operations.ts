@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Str from 'effect/String'
 
 import type { AdguardError } from './errors.js'
 import type {
@@ -83,7 +84,7 @@ export const clientsActive = Effect.fn('adguard.clientsActive')(
   function* (
     options: ClientLookupOptions
   ): Effect.fn.Return<ListResult<ActiveClient>, AdguardError, AdguardApi | AdguardConfig> {
-    yield* Effect.annotateCurrentSpan({ 'adguard.client_ip_present': options.ip.length > 0 })
+    yield* Effect.annotateCurrentSpan({ 'adguard.client_ip_present': Str.isNonEmpty(options.ip) })
     const api = yield* AdguardApi
     return yield* api.clientsActive(options)
   },

@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 export const envFix =
   'Open a fresh shell so sops-nix exports JELLYSEERR_URL and JELLYSEERR_API_KEY from modules/programs/shell.nix.'

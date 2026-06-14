@@ -1,67 +1,72 @@
-import { Config, Effect, Layer, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Config from 'effect/Config'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import type { HttpClient } from 'effect/unstable/http'
 import { OtlpLogger, OtlpSerialization, OtlpTracer } from 'effect/unstable/observability'
 
-export const NextActionParamSchema = Schema.Struct({
+import { CliUsageError } from './errors'
+
+export const NextActionParam = Schema.Struct({
   value: Schema.optional(Schema.Unknown),
   default: Schema.optional(Schema.Unknown),
   description: Schema.String,
 })
-export type NextActionParam = typeof NextActionParamSchema.Type
+export type NextActionParam = typeof NextActionParam.Type
 
-export const NextActionSchema = Schema.Struct({
+export const NextAction = Schema.Struct({
   command: Schema.String,
   description: Schema.String,
-  params: Schema.optional(Schema.Record(Schema.String, NextActionParamSchema)),
+  params: Schema.optional(Schema.Record(Schema.String, NextActionParam)),
 })
-export type NextAction = typeof NextActionSchema.Type
+export type NextAction = typeof NextAction.Type
 
-export const SuccessEnvelopeSchema = <Result>(result: Schema.Codec<Result>) =>
+export const SuccessEnvelope = <Result>(result: Schema.Codec<Result>) =>
   Schema.Struct({
     ok: Schema.Literal(true),
     command: Schema.String,
     result,
-    next_actions: Schema.Array(NextActionSchema),
+    next_actions: Schema.Array(NextAction),
   })
-export type SuccessEnvelope<Result> = Schema.Schema.Type<ReturnType<typeof SuccessEnvelopeSchema<Result>>>
+export type SuccessEnvelope<Result> = Schema.Schema.Type<ReturnType<typeof SuccessEnvelope<Result>>>
 
-export const ErrorBodySchema = Schema.Struct({
+export const ErrorBody = Schema.Struct({
   code: Schema.String,
   message: Schema.String,
 })
-export type ErrorBody = typeof ErrorBodySchema.Type
+export type ErrorBody = typeof ErrorBody.Type
 
-export const ErrorEnvelopeSchema = Schema.Struct({
+export const ErrorEnvelope = Schema.Struct({
   ok: Schema.Literal(false),
   command: Schema.String,
-  error: ErrorBodySchema,
+  error: ErrorBody,
   fix: Schema.String,
-  next_actions: Schema.Array(NextActionSchema),
+  next_actions: Schema.Array(NextAction),
 })
-export type ErrorEnvelope = typeof ErrorEnvelopeSchema.Type
+export type ErrorEnvelope = typeof ErrorEnvelope.Type
 
-export const CliEnvelopeSchema = <Result>(result: Schema.Codec<Result>) =>
-  Schema.Union([SuccessEnvelopeSchema(result), ErrorEnvelopeSchema])
-export type CliEnvelope<Result> = Schema.Schema.Type<ReturnType<typeof CliEnvelopeSchema<Result>>>
+export const CliEnvelope = <Result>(result: Schema.Codec<Result>) =>
+  Schema.Union([SuccessEnvelope(result), ErrorEnvelope])
+export type CliEnvelope<Result> = Schema.Schema.Type<ReturnType<typeof CliEnvelope<Result>>>
 
-export const CliEnvelopeErrorSchema = Schema.Struct({
+export const CliEnvelopeError = Schema.Struct({
   code: Schema.String,
   message: Schema.String,
   fix: Schema.String,
 })
-export type CliEnvelopeError = typeof CliEnvelopeErrorSchema.Type
+export type CliEnvelopeError = typeof CliEnvelopeError.Type
 
-export class CliUsageError extends Schema.TaggedErrorClass<CliUsageError>()('CliUsageError', {
-  code: Schema.String,
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export { CliUsageError }
 
 export interface CliObservabilityOptions {
   readonly serviceName: string
   readonly serviceVersion: string
   readonly environment: string
+  // oxlint-disable-next-line effect/prefer-option-over-null -- public option bag constructed by out-of-scope app CLIs that pass plain string env vars
   readonly tracesUrl?: string | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- public option bag constructed by out-of-scope app CLIs that pass plain string env vars
   readonly logsUrl?: string | undefined
 }
 
@@ -69,13 +74,14 @@ export type CliObservabilityConfigOptions = Omit<CliObservabilityOptions, 'trace
 
 type OtlpRequirements = HttpClient.HttpClient | OtlpSerialization.OtlpSerialization
 
-const optionalUrl = (value: string | undefined): string | undefined =>
-  value === undefined || value.trim().length === 0 ? undefined : value
+const optionalUrl = (value: Option.Option<string>): Option.Option<string> =>
+  // oxlint-disable-next-line effect/no-length-comparison -- string emptiness check, not an array
+  Option.filter(value, (url) => url.trim().length > 0)
 
 const emptyObservabilityLayer: Layer.Layer<never, never, OtlpRequirements> = Layer.empty
 
-const optionalConfigString = (name: string): Effect.Effect<string | undefined, Config.ConfigError> =>
-  Config.option(Config.string(name)).pipe(Effect.map(Option.getOrUndefined))
+const optionalConfigString = (name: string): Effect.Effect<Option.Option<string>, Config.ConfigError> =>
+  Config.option(Config.string(name))
 
 export const cliObservabilityLayer = (
   options: CliObservabilityOptions
@@ -85,11 +91,14 @@ export const cliObservabilityLayer = (
     serviceVersion: options.serviceVersion,
     attributes: { 'deployment.environment': options.environment },
   }
-  const tracesUrl = optionalUrl(options.tracesUrl)
-  const logsUrl = optionalUrl(options.logsUrl)
-  const tracingLayer =
-    tracesUrl === undefined ? emptyObservabilityLayer : OtlpTracer.layer({ url: tracesUrl, resource })
-  const loggingLayer = logsUrl === undefined ? emptyObservabilityLayer : OtlpLogger.layer({ url: logsUrl, resource })
+  const tracingLayer = Option.match(optionalUrl(Option.fromNullishOr(options.tracesUrl)), {
+    onNone: () => emptyObservabilityLayer,
+    onSome: (url) => OtlpTracer.layer({ url, resource }),
+  })
+  const loggingLayer = Option.match(optionalUrl(Option.fromNullishOr(options.logsUrl)), {
+    onNone: () => emptyObservabilityLayer,
+    onSome: (url) => OtlpLogger.layer({ url, resource }),
+  })
 
   return Layer.mergeAll(tracingLayer, loggingLayer).pipe(Layer.provide(OtlpSerialization.layerJson))
 }
@@ -101,7 +110,11 @@ export const cliObservabilityLayerFromConfig = (
     Effect.gen(function* () {
       const tracesUrl = yield* optionalConfigString('GARAGE_OTLP_TRACES_URL')
       const logsUrl = yield* optionalConfigString('GARAGE_OTLP_LOGS_URL')
-      return cliObservabilityLayer({ ...options, tracesUrl, logsUrl })
+      return cliObservabilityLayer({
+        ...options,
+        tracesUrl: Option.getOrUndefined(tracesUrl),
+        logsUrl: Option.getOrUndefined(logsUrl),
+      })
     })
   )
 
@@ -118,19 +131,19 @@ export interface ErrorEnvelopeInput {
   readonly nextActions?: ReadonlyArray<NextAction>
 }
 
-export const FlagDescriptionSchema = Schema.Struct({
+export const FlagDescription = Schema.Struct({
   name: Schema.String,
   description: Schema.String,
   default: Schema.optional(Schema.Unknown),
 })
-export type FlagDescription = typeof FlagDescriptionSchema.Type
+export type FlagDescription = typeof FlagDescription.Type
 
-export const CommandDescriptionSchema = Schema.Struct({
+export const CommandDescription = Schema.Struct({
   command: Schema.String,
   description: Schema.String,
-  flags: Schema.optional(Schema.Array(FlagDescriptionSchema)),
+  flags: FlagDescription.pipe(Schema.Array, Schema.optional),
 })
-export type CommandDescription = typeof CommandDescriptionSchema.Type
+export type CommandDescription = typeof CommandDescription.Type
 
 export interface ParsedFlags {
   readonly positionals: ReadonlyArray<string>
@@ -155,6 +168,7 @@ export interface CommandInvocation<CliResult, Error extends CliEnvelopeError, Co
   readonly recover: (
     program: Effect.Effect<CliEnvelope<CliResult>, Error, Context>
   ) => Effect.Effect<CliEnvelope<CliResult>, never, Context>
+  // oxlint-disable-next-line effect/prefer-option-over-null -- public helper called by out-of-scope app CLIs with raw `args[i]` positionals typed `string | undefined`
   readonly parsePositiveInteger: (value: string | undefined, label: string) => Effect.Effect<number, Error>
   readonly parseFlags: (tokens: ReadonlyArray<string>, options?: ParseFlagsOptions) => Effect.Effect<ParsedFlags, Error>
   readonly limitFromArgs: (
@@ -202,13 +216,12 @@ export const errorEnvelope = (input: ErrorEnvelopeInput): ErrorEnvelope => ({
   next_actions: input.nextActions ?? [],
 })
 
-export const renderEnvelope = (envelope: CliEnvelope<unknown>): string => {
-  const rendered = JSON.stringify(envelope)
-  return rendered ?? 'null'
-}
+const encodeEnvelopeJson = Schema.encodeSync(Schema.UnknownFromJsonString)
+
+export const renderEnvelope = (envelope: CliEnvelope<unknown>): string => encodeEnvelopeJson(envelope)
 
 export const commandString = (rootCommand: string, args: ReadonlyArray<string>): string =>
-  args.length === 0 ? rootCommand : `${rootCommand} ${args.join(' ')}`
+  Arr.isReadonlyArrayEmpty(args) ? rootCommand : `${rootCommand} ${args.join(' ')}`
 
 const commandDescription = <CliResult, Error extends CliEnvelopeError, Context>(
   definition: CommandDefinition<CliResult, Error, Context>
@@ -266,6 +279,7 @@ export const createCliRunner = <CliResult, Error extends CliEnvelopeError, Conte
       program: Effect.Effect<CliEnvelope<CliResult>, Error, Context>
     ): Effect.Effect<CliEnvelope<CliResult>, never, Context> =>
       program.pipe(Effect.match({ onFailure: (error) => errorToEnvelope(error), onSuccess: (envelope) => envelope }))
+    // oxlint-disable-next-line effect/prefer-option-over-null -- implements the public `CommandInvocation` signature called with raw `string | undefined` positionals
     const parsePositiveInteger = (value: string | undefined, label: string): Effect.Effect<number, Error> => {
       if (value === undefined) {
         return Effect.fail(options.usageError(`${label} is required`))
@@ -281,12 +295,15 @@ export const createCliRunner = <CliResult, Error extends CliEnvelopeError, Conte
       parseOptions: ParseFlagsOptions = {}
     ): Effect.Effect<ParsedFlags, Error> => {
       const positionals: Array<string> = []
+      // oxlint-disable-next-line effect/avoid-native-object-helpers -- `ParsedFlags.values` is a public `ReadonlyMap` consumed by out-of-scope app CLIs via `.get`
       const values = new Map<string, string>()
+      // oxlint-disable-next-line effect/avoid-native-object-helpers -- `ParsedFlags.booleans` is a public `ReadonlySet` consumed by out-of-scope app CLIs via `.has`
       const booleans = new Set<string>()
       const valueFlags = parseOptions.valueFlags ?? []
       const booleanFlags = parseOptions.booleanFlags ?? []
       let index = 0
 
+      // oxlint-disable-next-line effect/imperative-loops -- variable-stride token scanner (value flags consume two tokens) with early validation failure; not expressible as Arr.map/reduce
       while (index < tokens.length) {
         const token = tokens[index]
         if (token === undefined) {

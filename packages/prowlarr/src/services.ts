@@ -1,4 +1,8 @@
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { ProwlarrError } from './errors.js'
@@ -48,20 +52,20 @@ const readRequiredString = (name: string): Effect.Effect<string, ProwlarrError> 
 const readRequiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
 
+const readConfig = Effect.fn('ProwlarrConfig.get')(
+  function* () {
+    const url = yield* readRequiredString('PROWLARR_URL')
+    const apiKey = yield* readRequiredSecret('PROWLARR_API_KEY')
+
+    return { url, apiKey }
+  },
+  Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrConfig', method: 'get' })
+)
+
 export const ProwlarrConfigLive = Layer.effect(
   ProwlarrConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('PROWLARR_URL')
-        const apiKey = yield* readRequiredSecret('PROWLARR_API_KEY')
-
-        return { url, apiKey }
-      }).pipe(
-        Effect.withSpan('ProwlarrConfig.get'),
-        Effect.annotateLogs({ package: '@garage/prowlarr', service: 'ProwlarrConfig', method: 'get' })
-      )
-    )
+    const cachedGet = yield* Effect.cached(readConfig())
     return ProwlarrConfig.of({ get: () => cachedGet })
   })
 )
