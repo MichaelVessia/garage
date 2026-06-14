@@ -1,0 +1,9 @@
+id: no-typed-boundary-assignment
+snapshots:
+  ? |
+    const payload: ApiResponse = await response.json();
+  : labels:
+    - source: 'const payload: ApiResponse = await response.json();'
+      style: primary
+      start: 0
+      end: 51

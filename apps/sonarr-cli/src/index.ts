@@ -39,7 +39,8 @@ import type {
   SonarrError,
   SystemStatus,
 } from '@garage/sonarr'
-import { Effect, Option } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import {
   addCommandTemplate,
@@ -168,6 +169,7 @@ const root = (
 
 const searchCommand = ({ args, usageError, wrap }: SonarrInvocation) => {
   const query = args.join(' ').trim()
+  // oxlint-disable-next-line effect/no-length-comparison -- query is a string; checking for empty search input, not an array
   return query.length === 0
     ? wrap(Effect.fail(usageError('search query is required')))
     : wrap(search(query, { limit: defaultLimit }), searchNextActions)

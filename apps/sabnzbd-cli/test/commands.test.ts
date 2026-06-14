@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import { SabnzbdApi, SabnzbdConfig, envMissing } from '@garage/sabnzbd'
 import type { DeleteOptions, LimitOptions } from '@garage/sabnzbd'
-import { Effect, Layer, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import { executeSabnzbd } from '../src/index.js'
 

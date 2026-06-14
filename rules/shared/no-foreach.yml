@@ -20,8 +20,11 @@ rule:
       - pattern: Record.forEach($$$ARGS)
 
 files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
   - "packages/**/*.ts"
   - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
 
 ignores:
   - "**/*.test.ts"

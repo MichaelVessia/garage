@@ -1,0 +1,11 @@
+id: tagged-error-location
+snapshots:
+  ? |
+    class SyncError extends Data.TaggedError("SyncError")<{
+      readonly reason: string;
+    }> {}
+  : labels:
+    - source: Data.TaggedError("SyncError")
+      style: primary
+      start: 24
+      end: 53

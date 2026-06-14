@@ -1,16 +1,17 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
 
 import {
-  CollectionRecordSchema as DomainCollectionRecordSchema,
-  HistoryRecordSchema as DomainHistoryRecordSchema,
-  ListResultSchema as DomainListResultSchema,
-  MovieLookupResultSchema as DomainMovieLookupResultSchema,
-  MovieRecordSchema as DomainMovieRecordSchema,
-  MovieReleaseRecordSchema as DomainMovieReleaseRecordSchema,
-  QualityProfileSchema as DomainQualityProfileSchema,
-  QueueRecordSchema as DomainQueueRecordSchema,
-  RootFolderSchema as DomainRootFolderSchema,
-  SystemStatusSchema as DomainSystemStatusSchema,
+  CollectionRecord as DomainCollectionRecord,
+  HistoryRecord as DomainHistoryRecord,
+  ListResult as DomainListResult,
+  MovieLookupResult as DomainMovieLookupResult,
+  MovieRecord as DomainMovieRecord,
+  MovieReleaseRecord as DomainMovieReleaseRecord,
+  QualityProfile as DomainQualityProfile,
+  QueueRecord as DomainQueueRecord,
+  RootFolder as DomainRootFolder,
+  SystemStatus as DomainSystemStatus,
 } from './model.js'
 import type {
   CollectionRecord,
@@ -26,14 +27,15 @@ import type {
   SystemStatus,
 } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
-const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
-const NullableStringArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.String)))
+const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
+const NullableNumber = Schema.NullOr(Schema.Number).pipe(Schema.optional)
+const NullableBoolean = Schema.NullOr(Schema.Boolean).pipe(Schema.optional)
+const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObject.Type
 
-const StatusApiSchema = Schema.Struct({
+const StatusApi = Schema.Struct({
   appName: NullableString,
   version: Schema.String,
   instanceName: NullableString,
@@ -47,15 +49,15 @@ const StatusApiSchema = Schema.Struct({
   isDocker: NullableBoolean,
 })
 
-const RootFolderApiSchema = Schema.Struct({
+const RootFolderApi = Schema.Struct({
   id: Schema.Number,
   path: Schema.String,
   freeSpace: NullableNumber,
   accessible: NullableBoolean,
-  unmappedFolders: Schema.optional(Schema.Array(Schema.Unknown)),
+  unmappedFolders: Schema.Array(Schema.Unknown).pipe(Schema.optional),
 })
 
-const QualityProfileApiSchema = Schema.Struct({
+const QualityProfileApi = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   upgradeAllowed: NullableBoolean,
@@ -64,12 +66,12 @@ const QualityProfileApiSchema = Schema.Struct({
   cutoffFormatScore: NullableNumber,
 })
 
-const CollectionSummarySchema = Schema.Struct({
+const CollectionSummary = Schema.Struct({
   tmdbId: Schema.Number,
   title: Schema.String,
 })
 
-const MovieLookupApiSchema = Schema.Struct({
+const MovieLookupApi = Schema.Struct({
   title: Schema.String,
   year: NullableNumber,
   tmdbId: Schema.Number,
@@ -85,10 +87,10 @@ const MovieLookupApiSchema = Schema.Struct({
   physicalRelease: NullableString,
   digitalRelease: NullableString,
   remotePoster: NullableString,
-  collection: Schema.optional(Schema.NullOr(CollectionSummarySchema)),
+  collection: Schema.NullOr(CollectionSummary).pipe(Schema.optional),
 })
 
-const MovieRecordApiSchema = Schema.Struct({
+const MovieRecordApi = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
   year: NullableNumber,
@@ -111,30 +113,30 @@ const MovieRecordApiSchema = Schema.Struct({
   genres: NullableStringArray,
 })
 
-const MovieSummarySchema = Schema.Struct({
+const MovieSummary = Schema.Struct({
   title: NullableString,
   year: NullableNumber,
 })
 
-const QualitySummarySchema = Schema.Struct({
+const QualitySummary = Schema.Struct({
   quality: Schema.optional(Schema.Struct({ name: Schema.String })),
 })
 
-const QueueStatusMessageSchema = Schema.Struct({
+const QueueStatusMessage = Schema.Struct({
   title: NullableString,
   messages: Schema.Array(Schema.String),
 })
 
-const QueueRecordApiSchema = Schema.Struct({
+const QueueRecordApi = Schema.Struct({
   id: NullableNumber,
   title: Schema.String,
-  movie: Schema.optional(Schema.NullOr(MovieSummarySchema)),
+  movie: Schema.NullOr(MovieSummary).pipe(Schema.optional),
   status: Schema.String,
   trackedDownloadStatus: NullableString,
   trackedDownloadState: NullableString,
-  statusMessages: Schema.optional(Schema.Array(QueueStatusMessageSchema)),
+  statusMessages: Schema.Array(QueueStatusMessage).pipe(Schema.optional),
   errorMessage: NullableString,
-  quality: Schema.optional(Schema.NullOr(QualitySummarySchema)),
+  quality: Schema.NullOr(QualitySummary).pipe(Schema.optional),
   size: NullableNumber,
   sizeleft: NullableNumber,
   timeleft: NullableString,
@@ -145,7 +147,7 @@ const QueueRecordApiSchema = Schema.Struct({
   outputPath: NullableString,
 })
 
-const MovieReleaseApiSchema = Schema.Struct({
+const MovieReleaseApi = Schema.Struct({
   id: NullableNumber,
   title: Schema.String,
   year: NullableNumber,
@@ -159,27 +161,25 @@ const MovieReleaseApiSchema = Schema.Struct({
   isAvailable: NullableBoolean,
 })
 
-const HistoryRecordApiSchema = Schema.Struct({
+const HistoryRecordApi = Schema.Struct({
   id: NullableNumber,
   date: NullableString,
   eventType: Schema.String,
   sourceTitle: NullableString,
-  movie: Schema.optional(Schema.NullOr(MovieSummarySchema)),
-  quality: Schema.optional(Schema.NullOr(QualitySummarySchema)),
+  movie: Schema.NullOr(MovieSummary).pipe(Schema.optional),
+  quality: Schema.NullOr(QualitySummary).pipe(Schema.optional),
   downloadId: NullableString,
-  data: Schema.optional(
-    Schema.NullOr(
-      Schema.Struct({
-        downloadClient: NullableString,
-        downloadClientName: NullableString,
-        releaseGroup: NullableString,
-        size: NullableString,
-      })
-    )
-  ),
+  data: Schema.NullOr(
+    Schema.Struct({
+      downloadClient: NullableString,
+      downloadClientName: NullableString,
+      releaseGroup: NullableString,
+      size: NullableString,
+    })
+  ).pipe(Schema.optional),
 })
 
-const CollectionRecordApiSchema = Schema.Struct({
+const CollectionRecordApi = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
   tmdbId: Schema.Number,
@@ -189,8 +189,10 @@ const CollectionRecordApiSchema = Schema.Struct({
 
 const tmdbUrl = (tmdbId: number): string => `https://themoviedb.org/movie/${tmdbId}`
 
+// oxlint-disable-next-line effect/prefer-option-over-null -- bridges nullable wire values to the domain's optional-property shape (Schema.optional), not Option
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
+// oxlint-disable-next-line effect/prefer-option-over-null -- parses an optional wire string into the domain's optional-property number shape
 const parseOptionalNumber = (value: string | null | undefined): number | undefined => {
   if (value === null || value === undefined) {
     return undefined
@@ -201,7 +203,9 @@ const parseOptionalNumber = (value: string | null | undefined): number | undefin
 }
 
 const collectionSummaryFromApi = (
-  collection: typeof CollectionSummarySchema.Type | null | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- wire value is nullable JSON decoded by Schema.NullOr; converts to the domain optional-property shape
+  collection: typeof CollectionSummary.Type | null | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- domain summary uses optional-property shape (Schema.optional), not Option
 ): MovieCollectionSummary | undefined =>
   collection === null || collection === undefined
     ? undefined
@@ -211,15 +215,18 @@ const collectionSummaryFromApi = (
       }
 
 const collectionSummaryToApi = (
+  // oxlint-disable-next-line effect/prefer-option-over-null -- domain summary uses optional-property shape (Schema.optional), not Option
   collection: MovieCollectionSummary | undefined
-): typeof CollectionSummarySchema.Type | undefined =>
+  // oxlint-disable-next-line effect/prefer-option-over-null -- encodes back to the nullable wire shape consumed by Schema.NullOr
+): typeof CollectionSummary.Type | undefined =>
   collection === undefined ? undefined : { tmdbId: collection.tmdbId, title: collection.title }
 
 const statusMessages = (
-  messages: ReadonlyArray<typeof QueueStatusMessageSchema.Type> | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- wire array is optional per Schema.optional; flattened into a concrete string array
+  messages: ReadonlyArray<typeof QueueStatusMessage.Type> | undefined
 ): ReadonlyArray<string> => messages?.flatMap((message) => message.messages) ?? []
 
-const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus => ({
+const systemStatusFromApi = (status: typeof StatusApi.Type): SystemStatus => ({
   appName: fromNullable(status.appName),
   version: status.version,
   instanceName: fromNullable(status.instanceName),
@@ -233,7 +240,7 @@ const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus 
   isDocker: fromNullable(status.isDocker),
 })
 
-const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type => ({
+const systemStatusToApi = (status: SystemStatus): typeof StatusApi.Type => ({
   appName: status.appName,
   version: status.version,
   instanceName: status.instanceName,
@@ -247,14 +254,14 @@ const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type =>
   isDocker: status.isDocker,
 })
 
-export const StatusSchema = StatusApiSchema.pipe(
-  Schema.decodeTo(DomainSystemStatusSchema, {
+export const StatusSchema = StatusApi.pipe(
+  Schema.decodeTo(DomainSystemStatus, {
     decode: SchemaGetter.transform(systemStatusFromApi),
     encode: SchemaGetter.transform(systemStatusToApi),
   })
 )
 
-const lookupResultFromApi = (movie: typeof MovieLookupApiSchema.Type): MovieLookupResult => ({
+const lookupResultFromApi = (movie: typeof MovieLookupApi.Type): MovieLookupResult => ({
   title: movie.title,
   year: fromNullable(movie.year),
   tmdbId: movie.tmdbId,
@@ -274,7 +281,7 @@ const lookupResultFromApi = (movie: typeof MovieLookupApiSchema.Type): MovieLook
   collection: collectionSummaryFromApi(movie.collection),
 })
 
-const lookupResultToApi = (movie: MovieLookupResult): typeof MovieLookupApiSchema.Type => ({
+const lookupResultToApi = (movie: MovieLookupResult): typeof MovieLookupApi.Type => ({
   title: movie.title,
   year: movie.year,
   tmdbId: movie.tmdbId,
@@ -293,14 +300,14 @@ const lookupResultToApi = (movie: MovieLookupResult): typeof MovieLookupApiSchem
   collection: collectionSummaryToApi(movie.collection),
 })
 
-export const MovieLookupSchema = MovieLookupApiSchema.pipe(
-  Schema.decodeTo(DomainMovieLookupResultSchema, {
+export const MovieLookupSchema = MovieLookupApi.pipe(
+  Schema.decodeTo(DomainMovieLookupResult, {
     decode: SchemaGetter.transform(lookupResultFromApi),
     encode: SchemaGetter.transform(lookupResultToApi),
   })
 )
 
-const movieRecordFromApi = (movie: typeof MovieRecordApiSchema.Type): MovieRecord => ({
+const movieRecordFromApi = (movie: typeof MovieRecordApi.Type): MovieRecord => ({
   id: movie.id,
   title: movie.title,
   year: fromNullable(movie.year),
@@ -323,7 +330,7 @@ const movieRecordFromApi = (movie: typeof MovieRecordApiSchema.Type): MovieRecor
   genres: fromNullable(movie.genres),
 })
 
-const movieRecordToApi = (movie: MovieRecord): typeof MovieRecordApiSchema.Type => ({
+const movieRecordToApi = (movie: MovieRecord): typeof MovieRecordApi.Type => ({
   id: movie.id,
   title: movie.title,
   year: movie.year,
@@ -346,14 +353,14 @@ const movieRecordToApi = (movie: MovieRecord): typeof MovieRecordApiSchema.Type 
   genres: movie.genres,
 })
 
-export const MovieRecordSchema = MovieRecordApiSchema.pipe(
-  Schema.decodeTo(DomainMovieRecordSchema, {
+export const MovieRecordSchema = MovieRecordApi.pipe(
+  Schema.decodeTo(DomainMovieRecord, {
     decode: SchemaGetter.transform(movieRecordFromApi),
     encode: SchemaGetter.transform(movieRecordToApi),
   })
 )
 
-const rootFolderFromApi = (folder: typeof RootFolderApiSchema.Type): RootFolder => ({
+const rootFolderFromApi = (folder: typeof RootFolderApi.Type): RootFolder => ({
   id: folder.id,
   path: folder.path,
   freeSpace: fromNullable(folder.freeSpace),
@@ -361,21 +368,21 @@ const rootFolderFromApi = (folder: typeof RootFolderApiSchema.Type): RootFolder 
   unmappedFolderCount: folder.unmappedFolders?.length ?? 0,
 })
 
-const rootFolderToApi = (folder: RootFolder): typeof RootFolderApiSchema.Type => ({
+const rootFolderToApi = (folder: RootFolder): typeof RootFolderApi.Type => ({
   id: folder.id,
   path: folder.path,
   freeSpace: folder.freeSpace,
   accessible: folder.accessible,
 })
 
-export const RootFolderSchema = RootFolderApiSchema.pipe(
-  Schema.decodeTo(DomainRootFolderSchema, {
+export const RootFolderSchema = RootFolderApi.pipe(
+  Schema.decodeTo(DomainRootFolder, {
     decode: SchemaGetter.transform(rootFolderFromApi),
     encode: SchemaGetter.transform(rootFolderToApi),
   })
 )
 
-const qualityProfileFromApi = (profile: typeof QualityProfileApiSchema.Type): QualityProfile => ({
+const qualityProfileFromApi = (profile: typeof QualityProfileApi.Type): QualityProfile => ({
   id: profile.id,
   name: profile.name,
   upgradeAllowed: fromNullable(profile.upgradeAllowed),
@@ -384,7 +391,7 @@ const qualityProfileFromApi = (profile: typeof QualityProfileApiSchema.Type): Qu
   cutoffFormatScore: fromNullable(profile.cutoffFormatScore),
 })
 
-const qualityProfileToApi = (profile: QualityProfile): typeof QualityProfileApiSchema.Type => ({
+const qualityProfileToApi = (profile: QualityProfile): typeof QualityProfileApi.Type => ({
   id: profile.id,
   name: profile.name,
   upgradeAllowed: profile.upgradeAllowed,
@@ -393,19 +400,19 @@ const qualityProfileToApi = (profile: QualityProfile): typeof QualityProfileApiS
   cutoffFormatScore: profile.cutoffFormatScore,
 })
 
-export const QualityProfileSchema = QualityProfileApiSchema.pipe(
-  Schema.decodeTo(DomainQualityProfileSchema, {
+export const QualityProfileSchema = QualityProfileApi.pipe(
+  Schema.decodeTo(DomainQualityProfile, {
     decode: SchemaGetter.transform(qualityProfileFromApi),
     encode: SchemaGetter.transform(qualityProfileToApi),
   })
 )
 
-const queueIdFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => {
+const queueIdFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
   const id = fromNullable(record.id)
   return id === undefined ? {} : { id }
 }
 
-const queueMovieFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => {
+const queueMovieFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
   const movieTitle = fromNullable(record.movie?.title)
   const year = fromNullable(record.movie?.year)
 
@@ -415,7 +422,7 @@ const queueMovieFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Part
   }
 }
 
-const queueStatusFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => {
+const queueStatusFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
   const trackedDownloadStatus = fromNullable(record.trackedDownloadStatus)
   const trackedDownloadState = fromNullable(record.trackedDownloadState)
   const errorMessage = fromNullable(record.errorMessage)
@@ -424,11 +431,12 @@ const queueStatusFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Par
     ...(trackedDownloadStatus === undefined ? {} : { trackedDownloadStatus }),
     ...(trackedDownloadState === undefined ? {} : { trackedDownloadState }),
     statusMessages: statusMessages(record.statusMessages),
+    // oxlint-disable-next-line effect/no-length-comparison -- `errorMessage` is a string; checking for an empty string, not an array
     ...(errorMessage === undefined || errorMessage.length === 0 ? {} : { errorMessage }),
   }
 }
 
-const queueTransferFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): Partial<QueueRecord> => {
+const queueTransferFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
   const size = fromNullable(record.size)
   const sizeleft = fromNullable(record.sizeleft)
   const timeleft = fromNullable(record.timeleft)
@@ -451,7 +459,7 @@ const queueTransferFieldsFromApi = (record: typeof QueueRecordApiSchema.Type): P
   }
 }
 
-const queueRecordFromApi = (record: typeof QueueRecordApiSchema.Type): QueueRecord => ({
+const queueRecordFromApi = (record: typeof QueueRecordApi.Type): QueueRecord => ({
   ...queueIdFieldsFromApi(record),
   title: record.title,
   ...queueMovieFieldsFromApi(record),
@@ -460,7 +468,7 @@ const queueRecordFromApi = (record: typeof QueueRecordApiSchema.Type): QueueReco
   ...queueTransferFieldsFromApi(record),
 })
 
-const queueRecordToApi = (record: QueueRecord): typeof QueueRecordApiSchema.Type => ({
+const queueRecordToApi = (record: QueueRecord): typeof QueueRecordApi.Type => ({
   id: record.id,
   title: record.title,
   movie:
@@ -483,14 +491,14 @@ const queueRecordToApi = (record: QueueRecord): typeof QueueRecordApiSchema.Type
   outputPath: record.outputPath,
 })
 
-const QueueRecordSchema = QueueRecordApiSchema.pipe(
-  Schema.decodeTo(DomainQueueRecordSchema, {
+const QueueRecordSchema = QueueRecordApi.pipe(
+  Schema.decodeTo(DomainQueueRecord, {
     decode: SchemaGetter.transform(queueRecordFromApi),
     encode: SchemaGetter.transform(queueRecordToApi),
   })
 )
 
-const movieReleaseRecordFromApi = (movie: typeof MovieReleaseApiSchema.Type): MovieReleaseRecord => ({
+const movieReleaseRecordFromApi = (movie: typeof MovieReleaseApi.Type): MovieReleaseRecord => ({
   ...(fromNullable(movie.id) === undefined ? {} : { id: fromNullable(movie.id) }),
   title: movie.title,
   ...(fromNullable(movie.year) === undefined ? {} : { year: fromNullable(movie.year) }),
@@ -506,7 +514,7 @@ const movieReleaseRecordFromApi = (movie: typeof MovieReleaseApiSchema.Type): Mo
   ...(fromNullable(movie.isAvailable) === undefined ? {} : { isAvailable: fromNullable(movie.isAvailable) }),
 })
 
-const movieReleaseRecordToApi = (movie: MovieReleaseRecord): typeof MovieReleaseApiSchema.Type => ({
+const movieReleaseRecordToApi = (movie: MovieReleaseRecord): typeof MovieReleaseApi.Type => ({
   id: movie.id,
   title: movie.title,
   year: movie.year,
@@ -520,14 +528,14 @@ const movieReleaseRecordToApi = (movie: MovieReleaseRecord): typeof MovieRelease
   isAvailable: movie.isAvailable,
 })
 
-export const MovieReleaseSchema = MovieReleaseApiSchema.pipe(
-  Schema.decodeTo(DomainMovieReleaseRecordSchema, {
+export const MovieReleaseSchema = MovieReleaseApi.pipe(
+  Schema.decodeTo(DomainMovieReleaseRecord, {
     decode: SchemaGetter.transform(movieReleaseRecordFromApi),
     encode: SchemaGetter.transform(movieReleaseRecordToApi),
   })
 )
 
-const historyDataFieldsFromApi = (record: typeof HistoryRecordApiSchema.Type): Partial<HistoryRecord> => {
+const historyDataFieldsFromApi = (record: typeof HistoryRecordApi.Type): Partial<HistoryRecord> => {
   const size = parseOptionalNumber(record.data?.size)
 
   return {
@@ -543,7 +551,7 @@ const historyDataFieldsFromApi = (record: typeof HistoryRecordApiSchema.Type): P
   }
 }
 
-const historyRecordFromApi = (record: typeof HistoryRecordApiSchema.Type): HistoryRecord => ({
+const historyRecordFromApi = (record: typeof HistoryRecordApi.Type): HistoryRecord => ({
   ...(fromNullable(record.id) === undefined ? {} : { id: fromNullable(record.id) }),
   ...(fromNullable(record.date) === undefined ? {} : { date: fromNullable(record.date) }),
   eventType: record.eventType,
@@ -554,7 +562,7 @@ const historyRecordFromApi = (record: typeof HistoryRecordApiSchema.Type): Histo
   ...historyDataFieldsFromApi(record),
 })
 
-const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApiSchema.Type => ({
+const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApi.Type => ({
   id: record.id,
   date: record.date,
   eventType: record.eventType,
@@ -568,14 +576,14 @@ const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApiSchem
   data: { downloadClient: record.downloadClient, releaseGroup: record.releaseGroup, size: record.size?.toString() },
 })
 
-const HistoryRecordSchema = HistoryRecordApiSchema.pipe(
-  Schema.decodeTo(DomainHistoryRecordSchema, {
+const HistoryRecordSchema = HistoryRecordApi.pipe(
+  Schema.decodeTo(DomainHistoryRecord, {
     decode: SchemaGetter.transform(historyRecordFromApi),
     encode: SchemaGetter.transform(historyRecordToApi),
   })
 )
 
-const collectionRecordFromApi = (collection: typeof CollectionRecordApiSchema.Type): CollectionRecord => ({
+const collectionRecordFromApi = (collection: typeof CollectionRecordApi.Type): CollectionRecord => ({
   id: collection.id,
   title: collection.title,
   tmdbId: collection.tmdbId,
@@ -583,7 +591,7 @@ const collectionRecordFromApi = (collection: typeof CollectionRecordApiSchema.Ty
   searchOnAdd: fromNullable(collection.searchOnAdd),
 })
 
-const collectionRecordToApi = (collection: CollectionRecord): typeof CollectionRecordApiSchema.Type => ({
+const collectionRecordToApi = (collection: CollectionRecord): typeof CollectionRecordApi.Type => ({
   id: collection.id,
   title: collection.title,
   tmdbId: collection.tmdbId,
@@ -591,77 +599,77 @@ const collectionRecordToApi = (collection: CollectionRecord): typeof CollectionR
   searchOnAdd: collection.searchOnAdd,
 })
 
-export const CollectionRecordSchema = CollectionRecordApiSchema.pipe(
-  Schema.decodeTo(DomainCollectionRecordSchema, {
+export const CollectionRecordSchema = CollectionRecordApi.pipe(
+  Schema.decodeTo(DomainCollectionRecord, {
     decode: SchemaGetter.transform(collectionRecordFromApi),
     encode: SchemaGetter.transform(collectionRecordToApi),
   })
 )
 
-const QueueResponseApiSchema = Schema.Struct({
+const QueueResponseApi = Schema.Struct({
   totalRecords: NullableNumber,
   records: Schema.Array(QueueRecordSchema),
 })
 
-const MissingResponseApiSchema = Schema.Struct({
+const MissingResponseApi = Schema.Struct({
   totalRecords: NullableNumber,
   records: Schema.Array(MovieReleaseSchema),
 })
 
-const HistoryResponseApiSchema = Schema.Struct({
+const HistoryResponseApi = Schema.Struct({
   totalRecords: NullableNumber,
   records: Schema.Array(HistoryRecordSchema),
 })
 
-const queueResponseFromApi = (response: typeof QueueResponseApiSchema.Type): ListResult<QueueRecord> => ({
+const queueResponseFromApi = (response: typeof QueueResponseApi.Type): ListResult<QueueRecord> => ({
   count: response.records.length,
   totalRecords: fromNullable(response.totalRecords) ?? response.records.length,
   records: response.records,
 })
 
-const queueResponseToApi = (result: ListResult<QueueRecord>): typeof QueueResponseApiSchema.Type => ({
+const queueResponseToApi = (result: ListResult<QueueRecord>): typeof QueueResponseApi.Type => ({
   totalRecords: result.totalRecords,
   records: result.records,
 })
 
-export const QueueResponseSchema = QueueResponseApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(DomainQueueRecordSchema), {
+export const QueueResponseSchema = QueueResponseApi.pipe(
+  Schema.decodeTo(DomainListResult(DomainQueueRecord), {
     decode: SchemaGetter.transform(queueResponseFromApi),
     encode: SchemaGetter.transform(queueResponseToApi),
   })
 )
 
-const missingResponseFromApi = (response: typeof MissingResponseApiSchema.Type): ListResult<MovieReleaseRecord> => ({
+const missingResponseFromApi = (response: typeof MissingResponseApi.Type): ListResult<MovieReleaseRecord> => ({
   count: response.records.length,
   totalRecords: fromNullable(response.totalRecords) ?? response.records.length,
   records: response.records,
 })
 
-const missingResponseToApi = (result: ListResult<MovieReleaseRecord>): typeof MissingResponseApiSchema.Type => ({
+const missingResponseToApi = (result: ListResult<MovieReleaseRecord>): typeof MissingResponseApi.Type => ({
   totalRecords: result.totalRecords,
   records: result.records,
 })
 
-export const MissingResponseSchema = MissingResponseApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(DomainMovieReleaseRecordSchema), {
+export const MissingResponseSchema = MissingResponseApi.pipe(
+  Schema.decodeTo(DomainListResult(DomainMovieReleaseRecord), {
     decode: SchemaGetter.transform(missingResponseFromApi),
     encode: SchemaGetter.transform(missingResponseToApi),
   })
 )
 
-const historyResponseFromApi = (response: typeof HistoryResponseApiSchema.Type): ListResult<HistoryRecord> => ({
+const historyResponseFromApi = (response: typeof HistoryResponseApi.Type): ListResult<HistoryRecord> => ({
   count: response.records.length,
   totalRecords: fromNullable(response.totalRecords) ?? response.records.length,
   records: response.records,
 })
 
-const historyResponseToApi = (result: ListResult<HistoryRecord>): typeof HistoryResponseApiSchema.Type => ({
+const historyResponseToApi = (result: ListResult<HistoryRecord>): typeof HistoryResponseApi.Type => ({
   totalRecords: result.totalRecords,
   records: result.records,
 })
 
-export const HistoryResponseSchema = HistoryResponseApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(DomainHistoryRecordSchema), {
+export const HistoryResponseSchema = HistoryResponseApi.pipe(
+  Schema.decodeTo(DomainListResult(DomainHistoryRecord), {
     decode: SchemaGetter.transform(historyResponseFromApi),
     encode: SchemaGetter.transform(historyResponseToApi),
   })

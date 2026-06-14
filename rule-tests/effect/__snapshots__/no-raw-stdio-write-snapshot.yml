@@ -1,0 +1,16 @@
+id: no-raw-stdio-write
+snapshots:
+  ? |
+    process.stderr.write(formatFailures(failed));
+  : labels:
+    - source: process.stderr.write(formatFailures(failed))
+      style: primary
+      start: 0
+      end: 44
+  ? |
+    process.stdout.write(`done: ${count} items\n`);
+  : labels:
+    - source: 'process.stdout.write(`done: ${count} items\n`)'
+      style: primary
+      start: 0
+      end: 46

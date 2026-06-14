@@ -1,0 +1,25 @@
+{
+  "formatter": "language_server",
+  "format_on_save": "off",
+  "file_scan_exclusions": ["**/dist", "**/node_modules", "repos/**"],
+  "languages": {
+    "TypeScript": {
+      "language_servers": ["typescript-language-server", "!eslint"],
+      "formatter": {
+        "external": {
+          "command": "bunx",
+          "arguments": ["oxfmt", "--config", "oxfmt.config.mjs", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    },
+    "TSX": {
+      "language_servers": ["typescript-language-server", "!eslint"],
+      "formatter": {
+        "external": {
+          "command": "bunx",
+          "arguments": ["oxfmt", "--config", "oxfmt.config.mjs", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    }
+  }
+}

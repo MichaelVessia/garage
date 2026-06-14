@@ -41,7 +41,8 @@ import type {
   TagRecord,
   UsersResult,
 } from '@garage/immich'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Str from 'effect/String'
 
 import { envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
@@ -109,7 +110,7 @@ const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageE
     Effect.gen(function* () {
       const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
-      if (query.length === 0) {
+      if (Str.isEmpty(query)) {
         return yield* wrap(Effect.fail(usageError('query is required')))
       }
       const value = parsed.values.get(limitFlag)

@@ -1,4 +1,8 @@
-import { Effect, Layer, Redacted, Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -8,7 +12,7 @@ import {
   JobsSchema,
   PeopleResponseSchema,
   PersonSchema,
-  PingSchema,
+  Ping,
   SearchResponseSchema,
   StatisticsSchema,
   StorageSchema,
@@ -37,7 +41,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string => {
   const query = queryString(params)
-  return query.length === 0
+  return Str.isEmpty(query)
     ? `${normalizeBaseUrl(config.url)}/api${path}`
     : `${normalizeBaseUrl(config.url)}/api${path}?${query}`
 }
@@ -110,7 +114,7 @@ const metadataSearch = Effect.fn('immich.metadataSearch')(function* (
   )
 })
 
-const systemStatus = (versionParts: VersionParts, ping: typeof PingSchema.Type): SystemStatus => ({
+const systemStatus = (versionParts: VersionParts, ping: typeof Ping.Type): SystemStatus => ({
   version: `${versionParts.major}.${versionParts.minor}.${versionParts.patch}`,
   versionParts,
   ping: ping.res === null ? undefined : ping.res,
@@ -129,10 +133,13 @@ export const ImmichApiLive = Layer.effect(
       status: Effect.fn('ImmichApi.status')(
         function* () {
           return yield* withConfig((config) =>
-            Effect.all({
-              version: getJson(client, config, '/server/version', VersionSchema),
-              ping: getJson(client, config, '/server/ping', PingSchema),
-            }).pipe(Effect.map(({ version, ping }) => systemStatus(version, ping)))
+            Effect.all(
+              {
+                version: getJson(client, config, '/server/version', VersionSchema),
+                ping: getJson(client, config, '/server/ping', Ping),
+              },
+              { concurrency: 'unbounded' }
+            ).pipe(Effect.map(({ version, ping }) => systemStatus(version, ping)))
           )
         },
         Effect.annotateLogs({ package: '@garage/immich', service: 'ImmichApi', method: 'status' })

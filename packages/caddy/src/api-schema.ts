@@ -1,49 +1,47 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as P from 'effect/Predicate'
+import * as R from 'effect/Record'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
 
 import {
-  ListResultSchema as DomainListResultSchema,
-  PkiCaSchema as DomainPkiCaSchema,
-  RouteSummarySchema as DomainRouteSummarySchema,
-  UpstreamRecordSchema as DomainUpstreamRecordSchema,
+  ListResult as DomainListResult,
+  PkiCa as DomainPkiCa,
+  RouteSummary as DomainRouteSummary,
+  UpstreamRecord as DomainUpstreamRecord,
 } from './model.js'
 import type { JsonObject, ListResult, PkiCa, RouteRecord, RouteSummary, UpstreamRecord } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
-const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
-const NullableStringArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.String)))
+const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
+const NullableNumber = Schema.Number.pipe(Schema.NullOr, Schema.optional)
+const NullableBoolean = Schema.Boolean.pipe(Schema.NullOr, Schema.optional)
+const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObjectApi = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObjectApi = typeof JsonObjectApi.Type
 
-const ServerSchema = Schema.Struct({
+const Server = Schema.Struct({
   listen: NullableStringArray,
-  routes: Schema.optional(Schema.NullOr(Schema.Array(JsonObjectSchema))),
+  routes: Schema.Array(JsonObjectApi).pipe(Schema.NullOr, Schema.optional),
 })
 
-const RoutesConfigApiSchema = Schema.Struct({
-  apps: Schema.optional(
-    Schema.NullOr(
-      Schema.Struct({
-        http: Schema.optional(
-          Schema.NullOr(
-            Schema.Struct({
-              servers: Schema.optional(Schema.NullOr(Schema.Record(Schema.String, ServerSchema))),
-            })
-          )
-        ),
-      })
-    )
-  ),
+const RoutesConfigApi = Schema.Struct({
+  apps: Schema.Struct({
+    http: Schema.Struct({
+      servers: Schema.Record(Schema.String, Server).pipe(Schema.NullOr, Schema.optional),
+    }).pipe(Schema.NullOr, Schema.optional),
+  }).pipe(Schema.NullOr, Schema.optional),
 })
+type RoutesConfigApi = typeof RoutesConfigApi.Type
 
-const UpstreamApiSchema = Schema.Struct({
+const UpstreamApi = Schema.Struct({
   address: NullableString,
   num_requests: NullableNumber,
   fails: NullableNumber,
   healthy: NullableBoolean,
 })
+type UpstreamApi = typeof UpstreamApi.Type
 
-const PkiCaApiSchema = Schema.Struct({
+const PkiCaApi = Schema.Struct({
   id: NullableString,
   name: NullableString,
   root_common_name: NullableString,
@@ -51,11 +49,10 @@ const PkiCaApiSchema = Schema.Struct({
   root_certificate: NullableString,
   intermediate_certificate: NullableString,
 })
-
-const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
+type PkiCaApi = typeof PkiCaApi.Type
 
 const isJsonObject = (value: unknown): value is JsonObject =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+  P.isObject(value) && value !== null && !Array.isArray(value)
 
 const collectUpstreams = (value: unknown): ReadonlyArray<string> => {
   if (Array.isArray(value)) {
@@ -69,11 +66,11 @@ const collectUpstreams = (value: unknown): ReadonlyArray<string> => {
   const direct =
     value.handler === 'reverse_proxy' && Array.isArray(value.upstreams)
       ? value.upstreams.flatMap((upstream) =>
-          isJsonObject(upstream) && typeof upstream.dial === 'string' ? [upstream.dial] : []
+          isJsonObject(upstream) && P.isString(upstream.dial) ? [upstream.dial] : []
         )
       : []
 
-  return [...direct, ...Object.values(value).flatMap(collectUpstreams)]
+  return [...direct, ...R.values(value).flatMap(collectUpstreams)]
 }
 
 const routeRecordFromApi = (route: JsonObject): RouteRecord => ({
@@ -86,64 +83,64 @@ const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> 
   records,
 })
 
-const routeSummariesFromApi = (config: typeof RoutesConfigApiSchema.Type): ListResult<RouteSummary> => {
+const routeSummariesFromApi = (config: RoutesConfigApi): ListResult<RouteSummary> => {
   const servers = config.apps?.http?.servers ?? {}
-  const records = Object.entries(servers).map(([server, value]) => ({
+  const records = R.toEntries(servers).map(([server, value]) => ({
     server,
-    listen: fromNullable(value.listen),
+    listen: value.listen ?? undefined,
     routes: (value.routes ?? []).map(routeRecordFromApi),
   }))
   return listResult(records)
 }
 
-const routeSummariesToApi = (result: ListResult<RouteSummary>): typeof RoutesConfigApiSchema.Type => ({
+const routeSummariesToApi = (result: ListResult<RouteSummary>): RoutesConfigApi => ({
   apps: {
     http: {
-      servers: Object.fromEntries(
+      servers: R.fromEntries(
         result.records.map((record) => [record.server, { listen: record.listen, routes: record.routes }])
       ),
     },
   },
 })
 
-export const RoutesConfigSchema = RoutesConfigApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(DomainRouteSummarySchema), {
+export const RoutesConfig = RoutesConfigApi.pipe(
+  Schema.decodeTo(DomainListResult(DomainRouteSummary), {
     decode: SchemaGetter.transform(routeSummariesFromApi),
     encode: SchemaGetter.transform(routeSummariesToApi),
   })
 )
 
-const upstreamRecordFromApi = (upstream: typeof UpstreamApiSchema.Type): UpstreamRecord => ({
-  address: fromNullable(upstream.address),
-  numRequests: fromNullable(upstream.num_requests),
-  fails: fromNullable(upstream.fails),
-  healthy: fromNullable(upstream.healthy),
+const upstreamRecordFromApi = (upstream: UpstreamApi): UpstreamRecord => ({
+  address: upstream.address ?? undefined,
+  numRequests: upstream.num_requests ?? undefined,
+  fails: upstream.fails ?? undefined,
+  healthy: upstream.healthy ?? undefined,
 })
 
-const upstreamRecordToApi = (upstream: UpstreamRecord): typeof UpstreamApiSchema.Type => ({
+const upstreamRecordToApi = (upstream: UpstreamRecord): UpstreamApi => ({
   address: upstream.address,
   num_requests: upstream.numRequests,
   fails: upstream.fails,
   healthy: upstream.healthy,
 })
 
-export const UpstreamSchema = UpstreamApiSchema.pipe(
-  Schema.decodeTo(DomainUpstreamRecordSchema, {
+export const Upstream = UpstreamApi.pipe(
+  Schema.decodeTo(DomainUpstreamRecord, {
     decode: SchemaGetter.transform(upstreamRecordFromApi),
     encode: SchemaGetter.transform(upstreamRecordToApi),
   })
 )
 
-const pkiCaFromApi = (ca: typeof PkiCaApiSchema.Type): PkiCa => ({
-  id: fromNullable(ca.id),
-  name: fromNullable(ca.name),
-  rootCommonName: fromNullable(ca.root_common_name),
-  intermediateCommonName: fromNullable(ca.intermediate_common_name),
-  rootCertificate: fromNullable(ca.root_certificate),
-  intermediateCertificate: fromNullable(ca.intermediate_certificate),
+const pkiCaFromApi = (ca: PkiCaApi): PkiCa => ({
+  id: ca.id ?? undefined,
+  name: ca.name ?? undefined,
+  rootCommonName: ca.root_common_name ?? undefined,
+  intermediateCommonName: ca.intermediate_common_name ?? undefined,
+  rootCertificate: ca.root_certificate ?? undefined,
+  intermediateCertificate: ca.intermediate_certificate ?? undefined,
 })
 
-const pkiCaToApi = (ca: PkiCa): typeof PkiCaApiSchema.Type => ({
+const pkiCaToApi = (ca: PkiCa): PkiCaApi => ({
   id: ca.id,
   name: ca.name,
   root_common_name: ca.rootCommonName,
@@ -152,8 +149,8 @@ const pkiCaToApi = (ca: PkiCa): typeof PkiCaApiSchema.Type => ({
   intermediate_certificate: ca.intermediateCertificate,
 })
 
-export const PkiCaSchema = PkiCaApiSchema.pipe(
-  Schema.decodeTo(DomainPkiCaSchema, {
+export const PkiCaWire = PkiCaApi.pipe(
+  Schema.decodeTo(DomainPkiCa, {
     decode: SchemaGetter.transform(pkiCaFromApi),
     encode: SchemaGetter.transform(pkiCaToApi),
   })

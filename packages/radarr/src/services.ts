@@ -1,5 +1,9 @@
-import type { Option } from 'effect'
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import type * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 
 import { decodeError, envMissing } from './errors.js'
 import type { RadarrError } from './errors.js'
@@ -57,24 +61,24 @@ const readRequiredString = (name: string): Effect.Effect<string, RadarrError> =>
 const readRequiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
 
+const loadConfig = Effect.fn('RadarrConfig.get')(
+  function* () {
+    const url = yield* readRequiredString('RADARR_URL')
+    const apiKey = yield* readRequiredSecret('RADARR_API_KEY')
+    const defaultQualityProfileId = yield* Config.int('RADARR_DEFAULT_QUALITY_PROFILE').pipe(
+      Config.withDefault(1),
+      Effect.mapError((error) => decodeError(error.message, error))
+    )
+
+    return { url, apiKey, defaultQualityProfileId }
+  },
+  Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrConfig', method: 'get' })
+)
+
 export const RadarrConfigLive = Layer.effect(
   RadarrConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('RADARR_URL')
-        const apiKey = yield* readRequiredSecret('RADARR_API_KEY')
-        const defaultQualityProfileId = yield* Config.int('RADARR_DEFAULT_QUALITY_PROFILE').pipe(
-          Config.withDefault(1),
-          Effect.mapError((error) => decodeError(error.message, error))
-        )
-
-        return { url, apiKey, defaultQualityProfileId }
-      }).pipe(
-        Effect.withSpan('RadarrConfig.get'),
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrConfig', method: 'get' })
-      )
-    )
+    const cachedGet = yield* Effect.cached(loadConfig())
     return RadarrConfig.of({ get: () => cachedGet })
   })
 )

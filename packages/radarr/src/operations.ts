@@ -1,4 +1,6 @@
-import { Effect, Option } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { notFound } from './errors.js'
 import type { RadarrError } from './errors.js'
@@ -234,7 +236,7 @@ export const addCollection: (
       Effect.withSpan('radarr.lookupCollectionMovies')
     )
 
-    if (movies.length === 0) {
+    if (Arr.isReadonlyArrayEmpty(movies)) {
       return yield* notFound(`No movies found in collection ${collectionTmdbId}`)
     }
 
@@ -264,14 +266,17 @@ export const addCollection: (
         onSome: () => Effect.succeed(skippedCollectionMovie(movie)),
       })
     })
-    const records = yield* Effect.forEach((movie: MovieLookupResult) =>
-      addCollectionMovie(movie).pipe(
-        Effect.match({
-          onFailure: (error) => failedCollectionMovie(movie, error.message),
-          onSuccess: (result) => result,
-        })
-      )
-    )(movies)
+    const records = yield* Effect.forEach(
+      movies,
+      (movie: MovieLookupResult) =>
+        addCollectionMovie(movie).pipe(
+          Effect.match({
+            onFailure: (error) => failedCollectionMovie(movie, error.message),
+            onSuccess: (result) => result,
+          })
+        ),
+      { concurrency: 1 }
+    )
 
     yield* api.setCollectionMonitoring(collection.id)
 

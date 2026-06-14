@@ -1,0 +1,9 @@
+id: no-dynamic-import
+snapshots:
+  ? |
+    const mod = await import("./mod");
+  : labels:
+    - source: import("./mod")
+      style: primary
+      start: 18
+      end: 33

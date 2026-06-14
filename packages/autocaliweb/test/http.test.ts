@@ -1,5 +1,10 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Option, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { AutocaliwebApiLive, AutocaliwebConfig, bookInfo, books, catalog, search, status } from '../src/index.js'
@@ -103,7 +108,7 @@ const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse
           let body = ''
           if (contentType === 'application/json') {
             body = JSON.stringify(responseBody)
-          } else if (typeof responseBody === 'string') {
+          } else if (P.isString(responseBody)) {
             body = responseBody
           }
           return HttpClientResponse.fromWeb(

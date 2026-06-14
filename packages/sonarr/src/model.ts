@@ -1,18 +1,18 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
-const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
+const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const SonarrConfigValueSchema = Schema.Struct({
+export const SonarrConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
   defaultQualityProfileId: Schema.Number,
 })
-export type SonarrConfigValue = typeof SonarrConfigValueSchema.Type
+export type SonarrConfigValue = typeof SonarrConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   appName: Schema.String,
   version: Schema.String,
   instanceName: OptionalString,
@@ -27,18 +27,18 @@ export const SystemStatusSchema = Schema.Struct({
   isDocker: OptionalBoolean,
   branch: OptionalString,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const RootFolderSchema = Schema.Struct({
+export const RootFolder = Schema.Struct({
   id: Schema.Number,
   path: Schema.String,
   freeSpace: OptionalNumber,
   accessible: OptionalBoolean,
   unmappedFolderCount: OptionalNumber,
 })
-export type RootFolder = typeof RootFolderSchema.Type
+export type RootFolder = typeof RootFolder.Type
 
-export const QualityProfileSchema = Schema.Struct({
+export const QualityProfile = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   isDefault: OptionalBoolean,
@@ -47,9 +47,9 @@ export const QualityProfileSchema = Schema.Struct({
   minFormatScore: OptionalNumber,
   cutoffFormatScore: OptionalNumber,
 })
-export type QualityProfile = typeof QualityProfileSchema.Type
+export type QualityProfile = typeof QualityProfile.Type
 
-export const SeriesLookupResultSchema = Schema.Struct({
+export const SeriesLookupResult = Schema.Struct({
   title: Schema.String,
   year: OptionalNumber,
   tvdbId: Schema.Number,
@@ -65,9 +65,9 @@ export const SeriesLookupResultSchema = Schema.Struct({
   remotePoster: OptionalString,
   overview: OptionalString,
 })
-export type SeriesLookupResult = typeof SeriesLookupResultSchema.Type
+export type SeriesLookupResult = typeof SeriesLookupResult.Type
 
-export const SeriesStatisticsSchema = Schema.Struct({
+export const SeriesStatistics = Schema.Struct({
   seasonCount: OptionalNumber,
   episodeFileCount: OptionalNumber,
   episodeCount: OptionalNumber,
@@ -75,9 +75,9 @@ export const SeriesStatisticsSchema = Schema.Struct({
   sizeOnDisk: OptionalNumber,
   percentOfEpisodes: OptionalNumber,
 })
-export type SeriesStatistics = typeof SeriesStatisticsSchema.Type
+export type SeriesStatistics = typeof SeriesStatistics.Type
 
-export const SeriesRecordSchema = Schema.Struct({
+export const SeriesRecord = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
   tvdbId: Schema.Number,
@@ -90,11 +90,11 @@ export const SeriesRecordSchema = Schema.Struct({
   network: OptionalString,
   seasonFolder: OptionalBoolean,
   seriesType: OptionalString,
-  statistics: Schema.optional(SeriesStatisticsSchema),
+  statistics: Schema.optional(SeriesStatistics),
 })
-export type SeriesRecord = typeof SeriesRecordSchema.Type
+export type SeriesRecord = typeof SeriesRecord.Type
 
-export const QueueRecordSchema = Schema.Struct({
+export const QueueRecord = Schema.Struct({
   id: OptionalNumber,
   title: Schema.String,
   seriesTitle: Schema.String,
@@ -117,9 +117,9 @@ export const QueueRecordSchema = Schema.Struct({
   indexer: OptionalString,
   outputPath: OptionalString,
 })
-export type QueueRecord = typeof QueueRecordSchema.Type
+export type QueueRecord = typeof QueueRecord.Type
 
-export const EpisodeRecordSchema = Schema.Struct({
+export const EpisodeRecord = Schema.Struct({
   id: OptionalNumber,
   title: Schema.String,
   seriesTitle: Schema.String,
@@ -133,9 +133,9 @@ export const EpisodeRecordSchema = Schema.Struct({
   lastSearchTime: OptionalString,
   overview: OptionalString,
 })
-export type EpisodeRecord = typeof EpisodeRecordSchema.Type
+export type EpisodeRecord = typeof EpisodeRecord.Type
 
-export const HistoryRecordSchema = Schema.Struct({
+export const HistoryRecord = Schema.Struct({
   id: OptionalNumber,
   date: OptionalString,
   eventType: Schema.String,
@@ -151,65 +151,65 @@ export const HistoryRecordSchema = Schema.Struct({
   size: OptionalNumber,
   downloadId: OptionalString,
 })
-export type HistoryRecord = typeof HistoryRecordSchema.Type
+export type HistoryRecord = typeof HistoryRecord.Type
 
-export const ConfigSummarySchema = Schema.Struct({
-  rootFolders: Schema.Array(RootFolderSchema),
-  qualityProfiles: Schema.Array(QualityProfileSchema),
+export const ConfigSummary = Schema.Struct({
+  rootFolders: Schema.Array(RootFolder),
+  qualityProfiles: Schema.Array(QualityProfile),
 })
-export type ConfigSummary = typeof ConfigSummarySchema.Type
+export type ConfigSummary = typeof ConfigSummary.Type
 
-export const SearchResultSchema = Schema.Struct({
+export const SearchResult = Schema.Struct({
   query: Schema.String,
   count: Schema.Number,
-  results: Schema.Array(SeriesLookupResultSchema),
+  results: Schema.Array(SeriesLookupResult),
 })
-export type SearchResult = typeof SearchResultSchema.Type
+export type SearchResult = typeof SearchResult.Type
 
-export const ExistsResultSchema = Schema.Struct({
+export const ExistsResult = Schema.Struct({
   tvdbId: Schema.Number,
   exists: Schema.Boolean,
-  series: Schema.optional(SeriesRecordSchema),
+  series: Schema.optional(SeriesRecord),
 })
-export type ExistsResult = typeof ExistsResultSchema.Type
+export type ExistsResult = typeof ExistsResult.Type
 
-export const AddSeriesOptionsSchema = Schema.Struct({
+export const AddSeriesOptions = Schema.Struct({
   qualityProfileId: OptionalNumber,
   searchForMissingEpisodes: Schema.Boolean,
 })
-export type AddSeriesOptions = typeof AddSeriesOptionsSchema.Type
+export type AddSeriesOptions = typeof AddSeriesOptions.Type
 
-export const AddSeriesApiOptionsSchema = Schema.Struct({
+export const AddSeriesApiOptions = Schema.Struct({
   qualityProfileId: Schema.Number,
   rootFolderPath: Schema.String,
   searchForMissingEpisodes: Schema.Boolean,
 })
-export type AddSeriesApiOptions = typeof AddSeriesApiOptionsSchema.Type
+export type AddSeriesApiOptions = typeof AddSeriesApiOptions.Type
 
-export const AddSeriesResultSchema = Schema.Struct({
+export const AddSeriesResult = Schema.Struct({
   added: Schema.Boolean,
-  series: SeriesRecordSchema,
+  series: SeriesRecord,
   qualityProfileId: Schema.Number,
   rootFolderPath: Schema.String,
   searchForMissingEpisodes: Schema.Boolean,
 })
-export type AddSeriesResult = typeof AddSeriesResultSchema.Type
+export type AddSeriesResult = typeof AddSeriesResult.Type
 
-export const RemoveSeriesOptionsSchema = Schema.Struct({ deleteFiles: Schema.Boolean })
-export type RemoveSeriesOptions = typeof RemoveSeriesOptionsSchema.Type
+export const RemoveSeriesOptions = Schema.Struct({ deleteFiles: Schema.Boolean })
+export type RemoveSeriesOptions = typeof RemoveSeriesOptions.Type
 
-export const RemoveSeriesResultSchema = Schema.Struct({
+export const RemoveSeriesResult = Schema.Struct({
   removed: Schema.Boolean,
   tvdbId: Schema.Number,
   deleteFiles: Schema.Boolean,
 })
-export type RemoveSeriesResult = typeof RemoveSeriesResultSchema.Type
+export type RemoveSeriesResult = typeof RemoveSeriesResult.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const CalendarOptionsSchema = Schema.Struct({ days: Schema.Number })
-export type CalendarOptions = typeof CalendarOptionsSchema.Type
+export const CalendarOptions = Schema.Struct({ days: Schema.Number })
+export type CalendarOptions = typeof CalendarOptions.Type
 
 export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
@@ -219,9 +219,9 @@ export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   })
 export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export const CalendarResultSchema = Schema.Struct({
+export const CalendarResult = Schema.Struct({
   days: Schema.Number,
   count: Schema.Number,
-  records: Schema.Array(EpisodeRecordSchema),
+  records: Schema.Array(EpisodeRecord),
 })
-export type CalendarResult = typeof CalendarResultSchema.Type
+export type CalendarResult = typeof CalendarResult.Type

@@ -3,9 +3,14 @@ import * as BunPath from '@effect/platform-bun/BunPath'
 import { assert, it } from '@effect/vitest'
 import { TubearchivistApi, TubearchivistConfig, TubearchivistSessionCache, envMissing } from '@garage/tubearchivist'
 import type { LimitOptions, SearchOptions, SubscriptionOptions, TubearchivistError } from '@garage/tubearchivist'
-import { ConfigProvider, Effect, Layer, Redacted, Ref } from 'effect'
+import * as ConfigProvider from 'effect/ConfigProvider'
+import * as Effect from 'effect/Effect'
 import { FileSystem } from 'effect/FileSystem'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import { Path } from 'effect/Path'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import { executeTubearchivist } from '../src/index.js'
 import { TubearchivistSessionCacheFileLive } from '../src/session-cache.js'
@@ -226,7 +231,7 @@ it.effect('file session cache reads cache location from ConfigProvider env', () 
 
     yield* cache.write(key, session)
 
-    assert.deepStrictEqual(yield* cache.read(key), session)
+    assert.deepStrictEqual(yield* cache.read(key), Option.some(session))
     assert.strictEqual(yield* fs.readFileString(expectedFile, 'utf-8'), '{"sessionId":"sid","csrfToken":"csrf"}')
     yield* fs.remove(sessionCacheRoot, { force: true, recursive: true })
   }).pipe(Effect.provide(Layer.mergeAll(SessionCacheTestLayer, BunFileSystem.layer, BunPath.layer)))

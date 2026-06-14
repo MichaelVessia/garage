@@ -1,5 +1,8 @@
 import { assert, it } from '@effect/vitest'
-import { FileSystem, Layer, Ref, Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
+import * as Layer from 'effect/Layer'
+import * as Ref from 'effect/Ref'
 
 import { CaddyConfigFile, CaddyConfigFileLive } from '../src/config-file.js'
 

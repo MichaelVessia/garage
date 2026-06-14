@@ -13,18 +13,18 @@ export {
 export type { AutocaliwebErrorCode } from './errors.js'
 export { AutocaliwebApiLive } from './http.js'
 export {
-  AutocaliwebConfigValueSchema,
-  BookInfoOptionsSchema,
-  BookInfoRecordSchema,
-  BookRecordSchema,
-  CatalogEntrySchema,
-  DownloadLinkSchema,
-  LimitOptionsSchema,
-  ListResultSchema,
-  SearchOptionsSchema,
-  SearchResultSchema,
-  StatsResultSchema,
-  StatusResultSchema,
+  AutocaliwebConfigValue,
+  BookInfoOptions,
+  BookInfoRecord,
+  BookRecord,
+  CatalogEntry,
+  DownloadLink,
+  LimitOptions,
+  ListResult,
+  SearchOptions,
+  SearchResult,
+  StatsResult,
+  StatusResult,
 } from './model.js'
 export {
   bookInfo,
@@ -39,17 +39,3 @@ export {
   version,
 } from './operations.js'
 export { AutocaliwebApi, AutocaliwebConfig, AutocaliwebConfigLive } from './services.js'
-export type {
-  AutocaliwebConfigValue,
-  BookInfoOptions,
-  BookInfoRecord,
-  BookRecord,
-  CatalogEntry,
-  DownloadLink,
-  LimitOptions,
-  ListResult,
-  SearchOptions,
-  SearchResult,
-  StatsResult,
-  StatusResult,
-} from './model.js'

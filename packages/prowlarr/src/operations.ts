@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import type { ProwlarrError } from './errors.js'
 import type {

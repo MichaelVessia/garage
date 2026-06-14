@@ -30,7 +30,7 @@ import type {
   ErrorEnvelope,
   SuccessEnvelope,
 } from '@garage/cli-protocol'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import { envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
@@ -76,7 +76,11 @@ const root = (
             name: 'autocaliweb',
             description: 'Agent-first Autocaliweb CLI',
             commands: commandTree,
-            health: { configured: true, title: result.title, books: result.stats.books },
+            health: {
+              configured: true,
+              ...(result.title === undefined ? {} : { title: result.title }),
+              books: result.stats.books,
+            },
           },
         }),
     })
@@ -92,6 +96,7 @@ const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageE
     Effect.gen(function* () {
       const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
+      // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
       if (query.length === 0) {
         return yield* wrap(Effect.fail(usageError('query is required')))
       }

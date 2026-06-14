@@ -15,24 +15,6 @@ export {
 export type { TubearchivistErrorCode } from './errors.js'
 export { TubearchivistApiLive } from './http.js'
 export {
-  ChannelRecordSchema,
-  DownloadRecordSchema,
-  IdOptionsSchema,
-  JsonObjectSchema,
-  LimitOptionsSchema,
-  ListResultSchema,
-  PlaylistRecordSchema,
-  SearchOptionsSchema,
-  SearchResultSchema,
-  SessionCookiesSchema,
-  StatusResultSchema,
-  SubscriptionOptionsSchema,
-  SubscriptionResultSchema,
-  TaskRecordSchema,
-  TubearchivistConfigValueSchema,
-  VideoRecordSchema,
-} from './model.js'
-export type {
   ChannelRecord,
   DownloadRecord,
   IdOptions,

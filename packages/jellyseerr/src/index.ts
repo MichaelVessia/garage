@@ -15,28 +15,11 @@ export {
 export type { JellyseerrErrorCode } from './errors.js'
 export { JellyseerrApiLive } from './http.js'
 export {
-  DeleteRequestResultSchema,
-  IssueRecordSchema,
-  JellyseerrConfigValueSchema,
-  LimitOptionsSchema,
-  ListResultSchema,
-  MediaSummarySchema,
-  RequestCountsSchema,
-  RequestFilterSchema,
-  RequestListOptionsSchema,
-  RequestRecordSchema,
-  SearchOptionsSchema,
-  SearchRecordSchema,
-  StatusValueSchema,
-  SystemStatusSchema,
-  UserRecordSchema,
-} from './model.js'
-export type {
   DeleteRequestResult,
   IssueRecord,
   JellyseerrConfigValue,
   LimitOptions,
-  ListResult,
+  ListResultSchema,
   MediaSummary,
   RequestCounts,
   RequestFilter,
@@ -48,6 +31,7 @@ export type {
   SystemStatus,
   UserRecord,
 } from './model.js'
+export type { ListResult } from './model.js'
 export {
   approve,
   decline,

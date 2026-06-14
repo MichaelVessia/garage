@@ -1,4 +1,6 @@
-import { Schema } from 'effect'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 export class TailscaleCliMissingError extends Schema.TaggedErrorClass<TailscaleCliMissingError>()(
   'TailscaleCliMissingError',
@@ -62,7 +64,7 @@ export const commandFailed = (
 ): TailscaleCommandFailedError =>
   new TailscaleCommandFailedError({
     code: 'TAILSCALE_COMMAND_FAILED',
-    message: output.length === 0 ? `${command} exited with ${exitCode}` : output,
+    message: Str.isEmpty(output) ? `${command} exited with ${exitCode}` : output,
     fix: 'Run tailscale status locally to inspect daemon state and permissions.',
     exitCode,
     ...(cause === undefined ? {} : { cause }),
@@ -76,9 +78,9 @@ export const decodeError = (message: string, cause?: unknown): TailscaleDecodeEr
     ...(cause === undefined ? {} : { cause }),
   })
 
-export const notRunning = (backendState: string | undefined): TailscaleNotRunningError =>
+export const notRunning = (backendState: Option.Option<string>): TailscaleNotRunningError =>
   new TailscaleNotRunningError({
     code: 'TAILSCALE_NOT_RUNNING',
-    message: `tailscaled is not running and logged in (BackendState=${backendState ?? 'unknown'})`,
+    message: `tailscaled is not running and logged in (BackendState=${Option.getOrElse(backendState, () => 'unknown')})`,
     fix: 'Start Tailscale and log in with tailscale up from an interactive shell.',
   })

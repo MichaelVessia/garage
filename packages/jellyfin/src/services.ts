@@ -1,4 +1,8 @@
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { JellyfinError } from './errors.js'
@@ -43,19 +47,19 @@ const readRequiredString = (name: string): Effect.Effect<string, JellyfinError> 
 const readRequiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
 
+const loadConfig = Effect.fn('JellyfinConfig.get')(
+  function* () {
+    const url = yield* readRequiredString('JELLYFIN_URL')
+    const apiKey = yield* readRequiredSecret('JELLYFIN_API_KEY')
+    return { url, apiKey }
+  },
+  Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinConfig', method: 'get' })
+)
+
 export const JellyfinConfigLive = Layer.effect(
   JellyfinConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('JELLYFIN_URL')
-        const apiKey = yield* readRequiredSecret('JELLYFIN_API_KEY')
-        return { url, apiKey }
-      }).pipe(
-        Effect.withSpan('JellyfinConfig.get'),
-        Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinConfig', method: 'get' })
-      )
-    )
+    const cachedGet = yield* Effect.cached(loadConfig())
     return JellyfinConfig.of({ get: () => cachedGet })
   })
 )

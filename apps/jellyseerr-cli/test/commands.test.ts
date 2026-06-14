@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import { JellyseerrApi, JellyseerrConfig, envMissing } from '@garage/jellyseerr'
 import type { RequestListOptions, SearchOptions } from '@garage/jellyseerr'
-import { Effect, Layer, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import type { RootResult } from '../src/command-tree.js'
 import { executeJellyseerr } from '../src/index.js'

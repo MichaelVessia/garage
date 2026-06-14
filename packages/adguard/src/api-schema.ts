@@ -1,17 +1,20 @@
-import { Schema, SchemaGetter } from 'effect'
+import * as R from 'effect/Record'
+import * as Schema from 'effect/Schema'
+import * as SchemaGetter from 'effect/SchemaGetter'
+import * as Str from 'effect/String'
 
 import {
-  ActiveClientSchema as DomainActiveClientSchema,
-  ClientsResultSchema as DomainClientsResultSchema,
-  DhcpStatusSchema as DomainDhcpStatusSchema,
-  FiltersResultSchema as DomainFiltersResultSchema,
-  ListResultSchema as DomainListResultSchema,
-  ProtectionStateSchema as DomainProtectionStateSchema,
-  QueryLogEntrySchema as DomainQueryLogEntrySchema,
-  StatsInfoSchema as DomainStatsInfoSchema,
-  StatsSchema as DomainStatsSchema,
-  SystemStatusSchema as DomainSystemStatusSchema,
-  VersionResultSchema as DomainVersionResultSchema,
+  ActiveClient as DomainActiveClient,
+  ClientsResult as DomainClientsResult,
+  DhcpStatus as DomainDhcpStatus,
+  FiltersResult as DomainFiltersResult,
+  ListResult as DomainListResult,
+  ProtectionState as DomainProtectionState,
+  QueryLogEntry as DomainQueryLogEntry,
+  Stats as DomainStats,
+  StatsInfo as DomainStatsInfo,
+  SystemStatus as DomainSystemStatus,
+  VersionResult as DomainVersionResult,
 } from './model.js'
 import type {
   ActiveClient,
@@ -32,14 +35,15 @@ import type {
   VersionResult,
 } from './model.js'
 
-const NullableString = Schema.optional(Schema.NullOr(Schema.String))
-const NullableNumber = Schema.optional(Schema.NullOr(Schema.Number))
-const NullableBoolean = Schema.optional(Schema.NullOr(Schema.Boolean))
-const NullableStringArray = Schema.optional(Schema.NullOr(Schema.Array(Schema.String)))
+const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
+const NullableNumber = Schema.Number.pipe(Schema.NullOr, Schema.optional)
+const NullableBoolean = Schema.Boolean.pipe(Schema.NullOr, Schema.optional)
+const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 const StringOrNumber = Schema.Union([Schema.String, Schema.Number])
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObjectApi = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObjectApi = typeof JsonObjectApi.Type
 
-const StatusApiSchema = Schema.Struct({
+const StatusApi = Schema.Struct({
   version: NullableString,
   running: NullableBoolean,
   protection_enabled: NullableBoolean,
@@ -49,9 +53,9 @@ const StatusApiSchema = Schema.Struct({
   protection_disabled_duration: NullableNumber,
 })
 
-const TopListItemSchema = Schema.Record(Schema.String, Schema.Number)
+const TopListItem = Schema.Record(Schema.String, Schema.Number)
 
-const StatsApiSchema = Schema.Struct({
+const StatsApi = Schema.Struct({
   num_dns_queries: NullableNumber,
   num_blocked_filtering: NullableNumber,
   num_replaced_safebrowsing: NullableNumber,
@@ -59,35 +63,35 @@ const StatsApiSchema = Schema.Struct({
   num_replaced_safesearch: NullableNumber,
   avg_processing_time: NullableNumber,
   time_units: NullableString,
-  top_queried_domains: Schema.optional(Schema.NullOr(Schema.Array(TopListItemSchema))),
-  top_blocked_domains: Schema.optional(Schema.NullOr(Schema.Array(TopListItemSchema))),
-  top_clients: Schema.optional(Schema.NullOr(Schema.Array(TopListItemSchema))),
+  top_queried_domains: Schema.Array(TopListItem).pipe(Schema.NullOr, Schema.optional),
+  top_blocked_domains: Schema.Array(TopListItem).pipe(Schema.NullOr, Schema.optional),
+  top_clients: Schema.Array(TopListItem).pipe(Schema.NullOr, Schema.optional),
 })
 
-const StatsInfoApiSchema = Schema.Struct({ interval: NullableNumber })
+const StatsInfoApi = Schema.Struct({ interval: NullableNumber })
 
-const QuestionSchema = Schema.Struct({
+const Question = Schema.Struct({
   name: NullableString,
   type: NullableString,
 })
 
-const AnswerSchema = Schema.Struct({
-  value: Schema.optional(Schema.NullOr(StringOrNumber)),
+const Answer = Schema.Struct({
+  value: StringOrNumber.pipe(Schema.NullOr, Schema.optional),
 })
 
-const QueryLogEntryApiSchema = Schema.Struct({
+const QueryLogEntryApi = Schema.Struct({
   time: NullableString,
   client: NullableString,
-  question: Schema.optional(Schema.NullOr(QuestionSchema)),
+  question: Question.pipe(Schema.NullOr, Schema.optional),
   status: NullableString,
   reason: NullableString,
-  elapsedMs: Schema.optional(Schema.NullOr(StringOrNumber)),
-  answer: Schema.optional(Schema.NullOr(Schema.Array(AnswerSchema))),
+  elapsedMs: StringOrNumber.pipe(Schema.NullOr, Schema.optional),
+  answer: Schema.Array(Answer).pipe(Schema.NullOr, Schema.optional),
 })
 
-const QueryLogResponseApiSchema = Schema.Struct({ data: Schema.Array(QueryLogEntryApiSchema) })
+const QueryLogResponseApi = Schema.Struct({ data: Schema.Array(QueryLogEntryApi) })
 
-const PersistentClientApiSchema = Schema.Struct({
+const PersistentClientApi = Schema.Struct({
   name: NullableString,
   ids: NullableStringArray,
   tags: NullableStringArray,
@@ -97,20 +101,20 @@ const PersistentClientApiSchema = Schema.Struct({
   blocked_services: NullableStringArray,
 })
 
-const AutoClientApiSchema = Schema.Struct({
+const AutoClientApi = Schema.Struct({
   name: NullableString,
   ip: NullableString,
   source: NullableString,
 })
 
-const ClientsApiSchema = Schema.Struct({
-  clients: Schema.optional(Schema.NullOr(Schema.Array(PersistentClientApiSchema))),
-  auto_clients: Schema.optional(Schema.NullOr(Schema.Array(AutoClientApiSchema))),
+const ClientsApi = Schema.Struct({
+  clients: Schema.Array(PersistentClientApi).pipe(Schema.NullOr, Schema.optional),
+  auto_clients: Schema.Array(AutoClientApi).pipe(Schema.NullOr, Schema.optional),
 })
 
-const ActiveClientsApiSchema = Schema.Array(Schema.Record(Schema.String, AutoClientApiSchema))
+const ActiveClientsApi = Schema.Array(Schema.Record(Schema.String, AutoClientApi))
 
-const FilterApiSchema = Schema.Struct({
+const FilterApi = Schema.Struct({
   id: NullableNumber,
   name: NullableString,
   enabled: NullableBoolean,
@@ -119,26 +123,27 @@ const FilterApiSchema = Schema.Struct({
   url: NullableString,
 })
 
-const FilteringStatusApiSchema = Schema.Struct({
+const FilteringStatusApi = Schema.Struct({
   enabled: NullableBoolean,
   interval: NullableNumber,
-  user_rules: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
-  filters: Schema.optional(Schema.NullOr(Schema.Array(FilterApiSchema))),
-  whitelist_filters: Schema.optional(Schema.NullOr(Schema.Array(FilterApiSchema))),
+  user_rules: Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional),
+  filters: Schema.Array(FilterApi).pipe(Schema.NullOr, Schema.optional),
+  whitelist_filters: Schema.Array(FilterApi).pipe(Schema.NullOr, Schema.optional),
 })
 
-const DhcpStatusApiSchema = Schema.Struct({
+const DhcpStatusApi = Schema.Struct({
   enabled: NullableBoolean,
   interface_name: NullableString,
-  v4: Schema.optional(Schema.NullOr(JsonObjectSchema)),
-  v6: Schema.optional(Schema.NullOr(JsonObjectSchema)),
-  leases: Schema.optional(Schema.NullOr(Schema.Array(JsonObjectSchema))),
-  static_leases: Schema.optional(Schema.NullOr(Schema.Array(JsonObjectSchema))),
+  v4: JsonObjectApi.pipe(Schema.NullOr, Schema.optional),
+  v6: JsonObjectApi.pipe(Schema.NullOr, Schema.optional),
+  leases: Schema.Array(JsonObjectApi).pipe(Schema.NullOr, Schema.optional),
+  static_leases: Schema.Array(JsonObjectApi).pipe(Schema.NullOr, Schema.optional),
 })
 
+// oxlint-disable-next-line effect/prefer-option-over-null -- wire boundary: AdGuard fields decode as A | null | undefined (Schema.optional(NullOr)); the domain model models absence as A | undefined, not Option
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
-const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus => ({
+const systemStatusFromApi = (status: typeof StatusApi.Type): SystemStatus => ({
   version: fromNullable(status.version),
   running: fromNullable(status.running),
   protectionEnabled: fromNullable(status.protection_enabled),
@@ -148,7 +153,7 @@ const systemStatusFromApi = (status: typeof StatusApiSchema.Type): SystemStatus 
   protectionDisabledDuration: fromNullable(status.protection_disabled_duration),
 })
 
-const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type => ({
+const systemStatusToApi = (status: SystemStatus): typeof StatusApi.Type => ({
   version: status.version,
   running: status.running,
   protection_enabled: status.protectionEnabled,
@@ -158,52 +163,53 @@ const systemStatusToApi = (status: SystemStatus): typeof StatusApiSchema.Type =>
   protection_disabled_duration: status.protectionDisabledDuration,
 })
 
-export const StatusSchema = StatusApiSchema.pipe(
-  Schema.decodeTo(DomainSystemStatusSchema, {
+export const StatusSchema = StatusApi.pipe(
+  Schema.decodeTo(DomainSystemStatus, {
     decode: SchemaGetter.transform(systemStatusFromApi),
     encode: SchemaGetter.transform(systemStatusToApi),
   })
 )
 
-const versionFromApi = (status: typeof StatusApiSchema.Type): VersionResult => ({
+const versionFromApi = (status: typeof StatusApi.Type): VersionResult => ({
   version: fromNullable(status.version),
 })
 
-const versionToApi = (version: VersionResult): typeof StatusApiSchema.Type => ({ version: version.version })
+const versionToApi = (version: VersionResult): typeof StatusApi.Type => ({ version: version.version })
 
-export const VersionStatusSchema = StatusApiSchema.pipe(
-  Schema.decodeTo(DomainVersionResultSchema, {
+export const VersionStatusSchema = StatusApi.pipe(
+  Schema.decodeTo(DomainVersionResult, {
     decode: SchemaGetter.transform(versionFromApi),
     encode: SchemaGetter.transform(versionToApi),
   })
 )
 
-const protectionStateFromApi = (status: typeof StatusApiSchema.Type): ProtectionState => ({
+const protectionStateFromApi = (status: typeof StatusApi.Type): ProtectionState => ({
   protectionEnabled: fromNullable(status.protection_enabled),
   protectionDisabledDuration: fromNullable(status.protection_disabled_duration),
 })
 
-const protectionStateToApi = (state: ProtectionState): typeof StatusApiSchema.Type => ({
+const protectionStateToApi = (state: ProtectionState): typeof StatusApi.Type => ({
   protection_enabled: state.protectionEnabled,
   protection_disabled_duration: state.protectionDisabledDuration,
 })
 
-export const ProtectionStateStatusSchema = StatusApiSchema.pipe(
-  Schema.decodeTo(DomainProtectionStateSchema, {
+export const ProtectionStateStatusSchema = StatusApi.pipe(
+  Schema.decodeTo(DomainProtectionState, {
     decode: SchemaGetter.transform(protectionStateFromApi),
     encode: SchemaGetter.transform(protectionStateToApi),
   })
 )
 
 const topRecordsFromApi = (
-  records: ReadonlyArray<typeof TopListItemSchema.Type> | null | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- wire boundary: AdGuard returns this array field as value | null | undefined
+  records: ReadonlyArray<typeof TopListItem.Type> | null | undefined
 ): ReadonlyArray<TopRecord> =>
-  (records ?? []).flatMap((record) => Object.entries(record).map(([name, count]) => ({ name, count }))).slice(0, 10)
+  (records ?? []).flatMap((record) => R.toEntries(record).map(([name, count]) => ({ name, count }))).slice(0, 10)
 
-const topRecordsToApi = (records: ReadonlyArray<TopRecord>): ReadonlyArray<typeof TopListItemSchema.Type> =>
+const topRecordsToApi = (records: ReadonlyArray<TopRecord>): ReadonlyArray<typeof TopListItem.Type> =>
   records.map((record) => ({ [record.name]: record.count }))
 
-const statsFromApi = (stats: typeof StatsApiSchema.Type): Stats => ({
+const statsFromApi = (stats: typeof StatsApi.Type): Stats => ({
   numDnsQueries: fromNullable(stats.num_dns_queries),
   numBlockedFiltering: fromNullable(stats.num_blocked_filtering),
   numReplacedSafebrowsing: fromNullable(stats.num_replaced_safebrowsing),
@@ -216,7 +222,7 @@ const statsFromApi = (stats: typeof StatsApiSchema.Type): Stats => ({
   topClients: topRecordsFromApi(stats.top_clients),
 })
 
-const statsToApi = (stats: Stats): typeof StatsApiSchema.Type => ({
+const statsToApi = (stats: Stats): typeof StatsApi.Type => ({
   num_dns_queries: stats.numDnsQueries,
   num_blocked_filtering: stats.numBlockedFiltering,
   num_replaced_safebrowsing: stats.numReplacedSafebrowsing,
@@ -229,27 +235,27 @@ const statsToApi = (stats: Stats): typeof StatsApiSchema.Type => ({
   top_clients: topRecordsToApi(stats.topClients),
 })
 
-export const StatsSchema = StatsApiSchema.pipe(
-  Schema.decodeTo(DomainStatsSchema, {
+export const StatsSchema = StatsApi.pipe(
+  Schema.decodeTo(DomainStats, {
     decode: SchemaGetter.transform(statsFromApi),
     encode: SchemaGetter.transform(statsToApi),
   })
 )
 
-const statsInfoFromApi = (statsInfo: typeof StatsInfoApiSchema.Type): StatsInfo => ({
+const statsInfoFromApi = (statsInfo: typeof StatsInfoApi.Type): StatsInfo => ({
   interval: fromNullable(statsInfo.interval),
 })
 
-const statsInfoToApi = (statsInfo: StatsInfo): typeof StatsInfoApiSchema.Type => ({ interval: statsInfo.interval })
+const statsInfoToApi = (statsInfo: StatsInfo): typeof StatsInfoApi.Type => ({ interval: statsInfo.interval })
 
-export const StatsInfoSchema = StatsInfoApiSchema.pipe(
-  Schema.decodeTo(DomainStatsInfoSchema, {
+export const StatsInfoSchema = StatsInfoApi.pipe(
+  Schema.decodeTo(DomainStatsInfo, {
     decode: SchemaGetter.transform(statsInfoFromApi),
     encode: SchemaGetter.transform(statsInfoToApi),
   })
 )
 
-const queryLogEntryFromApi = (entry: typeof QueryLogEntryApiSchema.Type): QueryLogEntry => ({
+const queryLogEntryFromApi = (entry: typeof QueryLogEntryApi.Type): QueryLogEntry => ({
   time: fromNullable(entry.time),
   client: fromNullable(entry.client),
   question: fromNullable(entry.question?.name),
@@ -262,33 +268,33 @@ const queryLogEntryFromApi = (entry: typeof QueryLogEntryApiSchema.Type): QueryL
     .join(', '),
 })
 
-const queryLogEntryToApi = (entry: QueryLogEntry): typeof QueryLogEntryApiSchema.Type => ({
+const queryLogEntryToApi = (entry: QueryLogEntry): typeof QueryLogEntryApi.Type => ({
   time: entry.time,
   client: entry.client,
   question: { name: entry.question, type: entry.type },
   status: entry.status,
   reason: entry.reason,
   elapsedMs: entry.elapsedMs,
-  answer: entry.answer.length === 0 ? [] : [{ value: entry.answer }],
+  answer: Str.isEmpty(entry.answer) ? [] : [{ value: entry.answer }],
 })
 
-const queryLogResponseFromApi = (response: typeof QueryLogResponseApiSchema.Type): ListResult<QueryLogEntry> => ({
+const queryLogResponseFromApi = (response: typeof QueryLogResponseApi.Type): ListResult<QueryLogEntry> => ({
   count: response.data.length,
   records: response.data.map(queryLogEntryFromApi),
 })
 
-const queryLogResponseToApi = (result: ListResult<QueryLogEntry>): typeof QueryLogResponseApiSchema.Type => ({
+const queryLogResponseToApi = (result: ListResult<QueryLogEntry>): typeof QueryLogResponseApi.Type => ({
   data: result.records.map(queryLogEntryToApi),
 })
 
-export const QueryLogResponseSchema = QueryLogResponseApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(DomainQueryLogEntrySchema), {
+export const QueryLogResponseSchema = QueryLogResponseApi.pipe(
+  Schema.decodeTo(DomainListResult(DomainQueryLogEntry), {
     decode: SchemaGetter.transform(queryLogResponseFromApi),
     encode: SchemaGetter.transform(queryLogResponseToApi),
   })
 )
 
-const persistentClientFromApi = (client: typeof PersistentClientApiSchema.Type): PersistentClient => ({
+const persistentClientFromApi = (client: typeof PersistentClientApi.Type): PersistentClient => ({
   name: fromNullable(client.name),
   ids: fromNullable(client.ids),
   tags: fromNullable(client.tags),
@@ -298,7 +304,7 @@ const persistentClientFromApi = (client: typeof PersistentClientApiSchema.Type):
   blockedServices: fromNullable(client.blocked_services),
 })
 
-const persistentClientToApi = (client: PersistentClient): typeof PersistentClientApiSchema.Type => ({
+const persistentClientToApi = (client: PersistentClient): typeof PersistentClientApi.Type => ({
   name: client.name,
   ids: client.ids,
   tags: client.tags,
@@ -308,19 +314,19 @@ const persistentClientToApi = (client: PersistentClient): typeof PersistentClien
   blocked_services: client.blockedServices,
 })
 
-const autoClientFromApi = (client: typeof AutoClientApiSchema.Type): AutoClient => ({
+const autoClientFromApi = (client: typeof AutoClientApi.Type): AutoClient => ({
   name: fromNullable(client.name),
   ip: fromNullable(client.ip),
   source: fromNullable(client.source),
 })
 
-const autoClientToApi = (client: AutoClient): typeof AutoClientApiSchema.Type => ({
+const autoClientToApi = (client: AutoClient): typeof AutoClientApi.Type => ({
   name: client.name,
   ip: client.ip,
   source: client.source,
 })
 
-const clientsResultFromApi = (clients: typeof ClientsApiSchema.Type): ClientsResult => {
+const clientsResultFromApi = (clients: typeof ClientsApi.Type): ClientsResult => {
   const autoClients = clients.auto_clients ?? []
   return {
     configured: (clients.clients ?? []).map(persistentClientFromApi),
@@ -329,21 +335,21 @@ const clientsResultFromApi = (clients: typeof ClientsApiSchema.Type): ClientsRes
   }
 }
 
-const clientsResultToApi = (clients: ClientsResult): typeof ClientsApiSchema.Type => ({
+const clientsResultToApi = (clients: ClientsResult): typeof ClientsApi.Type => ({
   clients: clients.configured.map(persistentClientToApi),
   auto_clients: clients.autoSample.map(autoClientToApi),
 })
 
-export const ClientsSchema = ClientsApiSchema.pipe(
-  Schema.decodeTo(DomainClientsResultSchema, {
+export const ClientsSchema = ClientsApi.pipe(
+  Schema.decodeTo(DomainClientsResult, {
     decode: SchemaGetter.transform(clientsResultFromApi),
     encode: SchemaGetter.transform(clientsResultToApi),
   })
 )
 
-const activeClientsFromApi = (clients: typeof ActiveClientsApiSchema.Type): ReadonlyArray<ActiveClient> =>
+const activeClientsFromApi = (clients: typeof ActiveClientsApi.Type): ReadonlyArray<ActiveClient> =>
   clients.flatMap((entry) =>
-    Object.entries(entry).map(([ip, client]) => {
+    R.toEntries(entry).map(([ip, client]) => {
       const clientIp = fromNullable(client.ip)
       return {
         ip,
@@ -356,17 +362,17 @@ const activeClientsFromApi = (clients: typeof ActiveClientsApiSchema.Type): Read
     })
   )
 
-const activeClientsToApi = (clients: ReadonlyArray<ActiveClient>): typeof ActiveClientsApiSchema.Type =>
+const activeClientsToApi = (clients: ReadonlyArray<ActiveClient>): typeof ActiveClientsApi.Type =>
   clients.map((client) => ({ [client.ip]: { name: client.name, ip: client.ids?.[0], source: client.source } }))
 
-export const ActiveClientsSchema = ActiveClientsApiSchema.pipe(
-  Schema.decodeTo(Schema.Array(DomainActiveClientSchema), {
+export const ActiveClientsSchema = ActiveClientsApi.pipe(
+  Schema.decodeTo(Schema.Array(DomainActiveClient), {
     decode: SchemaGetter.transform(activeClientsFromApi),
     encode: SchemaGetter.transform(activeClientsToApi),
   })
 )
 
-const filterRecordFromApi = (filter: typeof FilterApiSchema.Type): FilterRecord => ({
+const filterRecordFromApi = (filter: typeof FilterApi.Type): FilterRecord => ({
   id: fromNullable(filter.id),
   name: fromNullable(filter.name),
   enabled: fromNullable(filter.enabled),
@@ -375,7 +381,7 @@ const filterRecordFromApi = (filter: typeof FilterApiSchema.Type): FilterRecord 
   url: fromNullable(filter.url),
 })
 
-const filterRecordToApi = (filter: FilterRecord): typeof FilterApiSchema.Type => ({
+const filterRecordToApi = (filter: FilterRecord): typeof FilterApi.Type => ({
   id: filter.id,
   name: filter.name,
   enabled: filter.enabled,
@@ -384,7 +390,7 @@ const filterRecordToApi = (filter: FilterRecord): typeof FilterApiSchema.Type =>
   url: filter.url,
 })
 
-const filtersResultFromApi = (status: typeof FilteringStatusApiSchema.Type): FiltersResult => ({
+const filtersResultFromApi = (status: typeof FilteringStatusApi.Type): FiltersResult => ({
   enabled: fromNullable(status.enabled),
   intervalHours: fromNullable(status.interval),
   userRulesCount: (status.user_rules ?? []).length,
@@ -392,44 +398,46 @@ const filtersResultFromApi = (status: typeof FilteringStatusApiSchema.Type): Fil
   allowlists: (status.whitelist_filters ?? []).map(filterRecordFromApi),
 })
 
-const filtersResultToApi = (status: FiltersResult): typeof FilteringStatusApiSchema.Type => ({
+const filtersResultToApi = (status: FiltersResult): typeof FilteringStatusApi.Type => ({
   enabled: status.enabled,
   interval: status.intervalHours,
   filters: status.blocklists.map(filterRecordToApi),
   whitelist_filters: status.allowlists.map(filterRecordToApi),
 })
 
-export const FilteringStatusSchema = FilteringStatusApiSchema.pipe(
-  Schema.decodeTo(DomainFiltersResultSchema, {
+export const FilteringStatusSchema = FilteringStatusApi.pipe(
+  Schema.decodeTo(DomainFiltersResult, {
     decode: SchemaGetter.transform(filtersResultFromApi),
     encode: SchemaGetter.transform(filtersResultToApi),
   })
 )
 
-const filteringRulesFromApi = (status: typeof FilteringStatusApiSchema.Type): ListResult<string> => {
+const filteringRulesFromApi = (status: typeof FilteringStatusApi.Type): ListResult<string> => {
   const records = status.user_rules ?? []
   return { count: records.length, records }
 }
 
-const filteringRulesToApi = (result: ListResult<string>): typeof FilteringStatusApiSchema.Type => ({
+const filteringRulesToApi = (result: ListResult<string>): typeof FilteringStatusApi.Type => ({
   user_rules: result.records,
 })
 
-export const FilteringRulesSchema = FilteringStatusApiSchema.pipe(
-  Schema.decodeTo(DomainListResultSchema(Schema.String), {
+export const FilteringRulesSchema = FilteringStatusApi.pipe(
+  Schema.decodeTo(DomainListResult(Schema.String), {
     decode: SchemaGetter.transform(filteringRulesFromApi),
     encode: SchemaGetter.transform(filteringRulesToApi),
   })
 )
 
-const jsonObject = (value: typeof JsonObjectSchema.Type | null | undefined): JsonObject | undefined =>
+// oxlint-disable-next-line effect/prefer-option-over-null -- wire boundary: AdGuard DHCP object decodes as value | null | undefined; the domain model models absence as JsonObject | undefined, not Option
+const jsonObject = (value: typeof JsonObjectApi.Type | null | undefined): JsonObject | undefined =>
   value === null ? undefined : value
 
 const jsonObjects = (
-  value: ReadonlyArray<typeof JsonObjectSchema.Type> | null | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- wire boundary: AdGuard DHCP lease arrays decode as value | null | undefined
+  value: ReadonlyArray<typeof JsonObjectApi.Type> | null | undefined
 ): ReadonlyArray<JsonObject> => value ?? []
 
-const dhcpStatusFromApi = (status: typeof DhcpStatusApiSchema.Type): DhcpStatus => {
+const dhcpStatusFromApi = (status: typeof DhcpStatusApi.Type): DhcpStatus => {
   const leases = jsonObjects(status.leases)
   const staticLeases = jsonObjects(status.static_leases)
   return {
@@ -444,7 +452,7 @@ const dhcpStatusFromApi = (status: typeof DhcpStatusApiSchema.Type): DhcpStatus 
   }
 }
 
-const dhcpStatusToApi = (status: DhcpStatus): typeof DhcpStatusApiSchema.Type => ({
+const dhcpStatusToApi = (status: DhcpStatus): typeof DhcpStatusApi.Type => ({
   enabled: status.enabled,
   interface_name: status.interfaceName,
   v4: status.v4,
@@ -453,8 +461,8 @@ const dhcpStatusToApi = (status: DhcpStatus): typeof DhcpStatusApiSchema.Type =>
   static_leases: status.staticLeases,
 })
 
-export const DhcpStatusSchema = DhcpStatusApiSchema.pipe(
-  Schema.decodeTo(DomainDhcpStatusSchema, {
+export const DhcpStatusSchema = DhcpStatusApi.pipe(
+  Schema.decodeTo(DomainDhcpStatus, {
     decode: SchemaGetter.transform(dhcpStatusFromApi),
     encode: SchemaGetter.transform(dhcpStatusToApi),
   })

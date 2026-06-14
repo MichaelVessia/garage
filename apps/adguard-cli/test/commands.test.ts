@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import { AdguardApi, AdguardConfig, envMissing } from '@garage/adguard'
 import type { ClientLookupOptions, LimitOptions, ProtectionToggleOptions, SearchOptions } from '@garage/adguard'
-import { Effect, Layer, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import { executeAdguard } from '../src/index.js'
 

@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import type { AutocaliwebError } from './errors.js'
 import type {
@@ -106,6 +106,7 @@ export const bookInfo = Effect.fn('autocaliweb.bookInfo')(
   function* (
     options: BookInfoOptions
   ): Effect.fn.Return<BookInfoRecord, AutocaliwebError, AutocaliwebApi | AutocaliwebConfig> {
+    // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
     yield* Effect.annotateCurrentSpan({ 'autocaliweb.book_uuid_present': options.uuid.length > 0 })
     const api = yield* AutocaliwebApi
     return yield* api.bookInfo(options)

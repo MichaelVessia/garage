@@ -1,7 +1,9 @@
 import { BunHttpClient, BunRuntime } from '@effect/platform-bun'
 import { AutocaliwebApiLive, AutocaliwebConfigLive } from '@garage/autocaliweb'
 import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
-import { Console, Effect, Layer } from 'effect'
+import * as Console from 'effect/Console'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { executeAutocaliweb } from './index.js'

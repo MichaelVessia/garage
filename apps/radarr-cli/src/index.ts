@@ -45,7 +45,9 @@ import type {
   SearchResult,
   SystemStatus,
 } from '@garage/radarr'
-import { Effect, Option } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import * as Str from 'effect/String'
 
 import {
   addCollectionCommandTemplate,
@@ -201,7 +203,7 @@ const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageE
       const limitValue = parsed.values.get(limitFlag)
       const limit = limitValue === undefined ? defaultLimit : yield* parsePositiveInteger(limitValue, limitFlag)
 
-      if (query.length === 0) {
+      if (Str.isEmpty(query)) {
         return yield* wrap(Effect.fail(usageError('search query is required')))
       }
 

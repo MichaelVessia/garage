@@ -18,7 +18,7 @@ import type {
   ErrorEnvelope,
   SuccessEnvelope,
 } from '@garage/cli-protocol'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import { confirmReloadFlag, envNextAction, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'

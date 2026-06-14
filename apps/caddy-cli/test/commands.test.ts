@@ -1,7 +1,9 @@
 import { assert, it } from '@effect/vitest'
 import { CaddyApi, CaddyConfig, envMissing } from '@garage/caddy'
 import type { JsonObject } from '@garage/caddy'
-import { Effect, Layer, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Ref from 'effect/Ref'
 
 import { CaddyConfigFile } from '../src/config-file.js'
 import { executeCaddy } from '../src/index.js'

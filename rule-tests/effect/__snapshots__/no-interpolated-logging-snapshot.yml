@@ -1,0 +1,20 @@
+id: no-interpolated-logging
+snapshots:
+  ? |
+    Effect.logError("request " + url + " failed");
+  : labels:
+    - source: Effect.logError("request " + url + " failed")
+      style: primary
+      start: 0
+      end: 45
+  ? |
+    Effect.logInfo(`config ${host} updated`);
+  : labels:
+    - source: Effect.logInfo(`config ${host} updated`)
+      style: primary
+      start: 0
+      end: 40
+    - source: ${host}
+      style: secondary
+      start: 23
+      end: 30

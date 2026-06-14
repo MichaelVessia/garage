@@ -1,0 +1,34 @@
+id: no-null-return-in-gen
+snapshots:
+  ? |
+    Effect.gen(function* () {
+      if (missing) {
+        return null;
+      }
+      return yield* load();
+    });
+  : labels:
+    - source: return null;
+      style: primary
+      start: 47
+      end: 59
+    - source: |-
+        Effect.gen(function* () {
+          if (missing) {
+            return null;
+          }
+          return yield* load();
+        })
+      style: secondary
+      start: 0
+      end: 90
+    - source: |-
+        function* () {
+          if (missing) {
+            return null;
+          }
+          return yield* load();
+        }
+      style: secondary
+      start: 11
+      end: 89

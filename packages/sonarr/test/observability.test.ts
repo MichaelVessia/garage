@@ -1,5 +1,10 @@
 import { assert, it } from '@effect/vitest'
-import { Effect, Layer, Logger, Option, Redacted, References } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Logger from 'effect/Logger'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
+import * as References from 'effect/References'
 
 import { notFound, SonarrApi, SonarrConfig, status } from '../src/index.js'
 

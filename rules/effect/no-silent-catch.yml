@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-silent-catch
+language: tsx
+severity: error
+message: "Silent error swallowing - observe the error (Effect.tapError + Effect.logDebug at minimum) before recovering or discarding it"
+
+utils:
+  effect-log-call:
+    any:
+      - pattern: Effect.log($$$LOGARGS)
+      - pattern: Effect.logWarning($$$LOGARGS)
+      - pattern: Effect.logError($$$LOGARGS)
+      - pattern: Effect.logDebug($$$LOGARGS)
+      - pattern: Effect.logInfo($$$LOGARGS)
+  effect-error-observer:
+    any:
+      - matches: effect-log-call
+      - pattern: Effect.tapError($$$TAPARGS)
+      - pattern: Effect.tapCause($$$TAPARGS)
+  inside-pipe-with-observer:
+    inside:
+      stopBy: end
+      pattern: $PIPED.pipe($$$PIPEARGS)
+      has:
+        matches: effect-error-observer
+        stopBy: end
+  returns-succeed:
+    has:
+      any:
+        - pattern: Effect.succeed($$$VAL)
+        - pattern: Effect.succeed<$TYPE>($$$VAL)
+      stopBy: end
+  has-log-inside:
+    has:
+      matches: effect-log-call
+      stopBy: end
+
+rule:
+  any:
+    - all:
+        - pattern: Effect.catchAll($FN)
+        - matches: returns-succeed
+        - not:
+            matches: has-log-inside
+        - not:
+            matches: inside-pipe-with-observer
+    - all:
+        - pattern: Effect.catchTag($TAG, $FN)
+        - matches: returns-succeed
+        - not:
+            matches: has-log-inside
+        - not:
+            matches: inside-pipe-with-observer
+    - all:
+        - any:
+            - pattern: Effect.orElseSucceed($FN)
+            - pattern: Effect.orElseSucceed<$TYPE>($FN)
+        - not:
+            matches: inside-pipe-with-observer
+    - all:
+        - pattern: Effect.ignore
+        - not:
+            matches: inside-pipe-with-observer
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+note: |
+  Silently swallowing errors hides failures and makes debugging impossible.
+  Covered shapes: Effect.catchAll / Effect.catchTag recovering with
+  Effect.succeed, Effect.orElseSucceed, and Effect.ignore. Always observe the
+  error (Effect.tapError + Effect.logDebug at minimum) before recovering or
+  discarding it - either inside the handler or earlier in the same pipe chain.
+
+  ```typescript
+  // Bad - error silently disappears
+  Effect.catchAll(() => Effect.succeed([]))
+  Effect.catchTag("RequestError", () => Effect.succeed(null))
+  openConnection(host).pipe(Effect.ignore)
+
+  // Good - log inside the handler
+  Effect.catchTag("RequestError", (err) =>
+    Effect.logDebug("request failed", { error: err }).pipe(
+      Effect.as(Option.none()),
+    ),
+  )
+
+  // Good - tapError earlier in the same pipe
+  openConnection(host).pipe(
+    Effect.tapError((err) => Effect.logDebug("connect failed", { error: err })),
+    Effect.ignore,
+  )
+  ```
+
+  Suppress with: // ast-grep-ignore: no-silent-catch
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"

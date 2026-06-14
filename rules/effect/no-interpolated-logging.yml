@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-interpolated-logging
+language: tsx
+severity: error
+message: "Use static log messages with structured fields (no template interpolation in logger calls)"
+
+rule:
+  any:
+    - all:
+        - pattern: Effect.log($A)
+        - has: { kind: template_substitution, stopBy: end }
+    - pattern: Effect.log($LEFT + $RIGHT)
+    - pattern: Effect.log($MSG, $$$REST)
+    - all:
+        - pattern: Effect.logInfo($A)
+        - has: { kind: template_substitution, stopBy: end }
+    - pattern: Effect.logInfo($LEFT + $RIGHT)
+    - pattern: Effect.logInfo($MSG, $$$REST)
+    - all:
+        - pattern: Effect.logWarning($A)
+        - has: { kind: template_substitution, stopBy: end }
+    - pattern: Effect.logWarning($LEFT + $RIGHT)
+    - pattern: Effect.logWarning($MSG, $$$REST)
+    - all:
+        - pattern: Effect.logError($A)
+        - has: { kind: template_substitution, stopBy: end }
+    - pattern: Effect.logError($LEFT + $RIGHT)
+    - pattern: Effect.logError($MSG, $$$REST)
+    - all:
+        - pattern: Effect.logDebug($A)
+        - has: { kind: template_substitution, stopBy: end }
+    - pattern: Effect.logDebug($LEFT + $RIGHT)
+    - pattern: Effect.logDebug($MSG, $$$REST)
+
+# Two-arg branches only fire when the MESSAGE argument is interpolated.
+# Interpolation inside the structured-fields object is fine.
+constraints:
+  MSG:
+    any:
+      - has: { kind: template_substitution, stopBy: end }
+      - pattern: $LEFT + $RIGHT
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+note: |
+  A static message with structured fields stays greppable and machine-parseable
+  across log lines; interpolating values into the message defeats both.
+
+  Prefer:
+  - Effect.logInfo("config updated", { host, status })
+  - Effect.logError("request failed", { url, error })
+
+  Avoid:
+  - Effect.logInfo(`config ${host} updated`)
+  - Effect.logError("request " + url + " failed")
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"

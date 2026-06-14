@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import { AutocaliwebApi, AutocaliwebConfig, envMissing } from '@garage/autocaliweb'
 import type { LimitOptions, SearchOptions } from '@garage/autocaliweb'
-import { Effect, Layer, Redacted, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Ref from 'effect/Ref'
 
 import { executeAutocaliweb } from '../src/index.js'
 

@@ -1,0 +1,9 @@
+id: no-dynamic-import
+
+valid:
+  - |
+    import { something } from "./mod";
+
+invalid:
+  - |
+    const mod = await import("./mod");

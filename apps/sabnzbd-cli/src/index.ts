@@ -31,7 +31,7 @@ import type {
   SystemStatus,
   VersionResult,
 } from '@garage/sabnzbd'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import {
   confirmDeleteFilesFlag,
@@ -98,7 +98,11 @@ const root = (
             name: 'sabnzbd',
             description: 'Agent-first SABnzbd CLI',
             commands: commandTree,
-            health: { configured: true, version: result.version, paused: result.paused },
+            health: {
+              configured: true,
+              ...(result.version === undefined ? {} : { version: result.version }),
+              ...(result.paused === undefined ? {} : { paused: result.paused }),
+            },
           },
         }),
     })

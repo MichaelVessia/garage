@@ -1,17 +1,17 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
-const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
+const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const JellyfinConfigValueSchema = Schema.Struct({
+export const JellyfinConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
 })
-export type JellyfinConfigValue = typeof JellyfinConfigValueSchema.Type
+export type JellyfinConfigValue = typeof JellyfinConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   serverName: OptionalString,
   version: OptionalString,
   id: OptionalString,
@@ -19,26 +19,26 @@ export const SystemStatusSchema = Schema.Struct({
   productName: OptionalString,
   localAddress: OptionalString,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const UserRecordSchema = Schema.Struct({
+export const UserRecord = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   lastActivityDate: OptionalString,
   isAdministrator: OptionalBoolean,
   isDisabled: OptionalBoolean,
 })
-export type UserRecord = typeof UserRecordSchema.Type
+export type UserRecord = typeof UserRecord.Type
 
-export const LibraryRecordSchema = Schema.Struct({
+export const LibraryRecord = Schema.Struct({
   name: OptionalString,
   collectionType: OptionalString,
   itemId: OptionalString,
   locations: OptionalStringArray,
 })
-export type LibraryRecord = typeof LibraryRecordSchema.Type
+export type LibraryRecord = typeof LibraryRecord.Type
 
-export const SessionRecordSchema = Schema.Struct({
+export const SessionRecord = Schema.Struct({
   sessionId: OptionalString,
   user: OptionalString,
   client: OptionalString,
@@ -48,9 +48,9 @@ export const SessionRecordSchema = Schema.Struct({
   nowPlaying: OptionalString,
   playMethod: OptionalString,
 })
-export type SessionRecord = typeof SessionRecordSchema.Type
+export type SessionRecord = typeof SessionRecord.Type
 
-export const NowPlayingRecordSchema = Schema.Struct({
+export const NowPlayingRecord = Schema.Struct({
   user: OptionalString,
   device: OptionalString,
   client: OptionalString,
@@ -64,9 +64,9 @@ export const NowPlayingRecordSchema = Schema.Struct({
   isPaused: OptionalBoolean,
   playMethod: OptionalString,
 })
-export type NowPlayingRecord = typeof NowPlayingRecordSchema.Type
+export type NowPlayingRecord = typeof NowPlayingRecord.Type
 
-export const ItemRecordSchema = Schema.Struct({
+export const ItemRecord = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   type: OptionalString,
@@ -76,12 +76,12 @@ export const ItemRecordSchema = Schema.Struct({
   dateCreated: OptionalString,
   productionYear: OptionalNumber,
 })
-export type ItemRecord = typeof ItemRecordSchema.Type
+export type ItemRecord = typeof ItemRecord.Type
 
-export const LibraryStatsSchema = Schema.Record(Schema.String, Schema.Number)
-export type LibraryStats = typeof LibraryStatsSchema.Type
+export const LibraryStats = Schema.Record(Schema.String, Schema.Number)
+export type LibraryStats = typeof LibraryStats.Type
 
-export const ScheduledTaskRecordSchema = Schema.Struct({
+export const ScheduledTaskRecord = Schema.Struct({
   id: Schema.String,
   name: OptionalString,
   state: OptionalString,
@@ -89,23 +89,23 @@ export const ScheduledTaskRecordSchema = Schema.Struct({
   lastEndTime: OptionalString,
   category: OptionalString,
 })
-export type ScheduledTaskRecord = typeof ScheduledTaskRecordSchema.Type
+export type ScheduledTaskRecord = typeof ScheduledTaskRecord.Type
 
-export const RunTaskResultSchema = Schema.Struct({
+export const RunTaskResult = Schema.Struct({
   started: Schema.Boolean,
   taskId: Schema.String,
   httpStatus: Schema.Number,
 })
-export type RunTaskResult = typeof RunTaskResultSchema.Type
+export type RunTaskResult = typeof RunTaskResult.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const SearchOptionsSchema = Schema.Struct({
+export const SearchOptions = Schema.Struct({
   limit: Schema.Number,
   query: Schema.String,
 })
-export type SearchOptions = typeof SearchOptionsSchema.Type
+export type SearchOptions = typeof SearchOptions.Type
 
 export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({

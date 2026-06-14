@@ -1,6 +1,10 @@
-import { Effect, Layer, Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
-import { ExitNodeListSchema, JsonObjectSchema, StatusResultSchema } from './api-schema.js'
+import { ExitNodeList, JsonObject as JsonObjectApi, StatusResult as StatusResultApi } from './api-schema.js'
 import { commandFailed, decodeError, notRunning } from './errors.js'
 import type { TailscaleError } from './errors.js'
 import type { JsonObject, ListResult, PeerRecord, ProcessResult, StatusResult } from './model.js'
@@ -12,7 +16,7 @@ const commandName = (args: ReadonlyArray<string>): string => `tailscale ${args.j
 const commandOutput = (result: ProcessResult): string => {
   const stderr = result.stderr.trim()
   const stdout = result.stdout.trim()
-  return stderr.length === 0 ? stdout : stderr
+  return Str.isEmpty(stderr) ? stdout : stderr
 }
 
 const expectSuccess = (args: ReadonlyArray<string>, result: ProcessResult): Effect.Effect<string, TailscaleError> =>
@@ -36,14 +40,16 @@ const statusText = Effect.fn('tailscale.statusText')(function* (
 })
 
 const requireRunning = (status: StatusResult): Effect.Effect<void, TailscaleError> =>
-  status.backendState === 'Running' ? Effect.void : Effect.fail(notRunning(status.backendState))
+  status.backendState === 'Running'
+    ? Effect.void
+    : Effect.fail(Option.fromNullishOr(status.backendState).pipe(notRunning))
 
 const statusResult = Effect.fn('tailscale.statusResult')(function* (
   process: TailscaleProcessService,
   limit: number
 ): Effect.fn.Return<StatusResult, TailscaleError> {
   yield* Effect.annotateCurrentSpan({ 'tailscale.limit': limit })
-  return yield* statusText(process).pipe(Effect.flatMap((json) => decodeJson(json, StatusResultSchema(limit))))
+  return yield* statusText(process).pipe(Effect.flatMap((json) => decodeJson(json, StatusResultApi(limit))))
 })
 
 const exitNodeList = Effect.fn('tailscale.exitNodeList')(function* (
@@ -53,7 +59,7 @@ const exitNodeList = Effect.fn('tailscale.exitNodeList')(function* (
   yield* Effect.annotateCurrentSpan({ 'tailscale.limit': limit })
   return yield* statusText(process).pipe(
     Effect.flatMap((json) =>
-      Effect.all([decodeJson(json, StatusResultSchema(1)), decodeJson(json, ExitNodeListSchema(limit))], {
+      Effect.all([decodeJson(json, StatusResultApi(1)), decodeJson(json, ExitNodeList(limit))], {
         concurrency: 1,
       })
     )
@@ -68,15 +74,17 @@ const runText = Effect.fn('tailscale.runText')(function* (
   return yield* process.run(args).pipe(Effect.flatMap((result) => expectSuccess(args, result)))
 })
 
-const lines = (output: string): ReadonlyArray<string> => output.split(/\r?\n/u).filter((line) => line.length > 0)
+const lines = (output: string): ReadonlyArray<string> => output.split(/\r?\n/u).filter(Str.isNonEmpty)
 
-const firstLine = (output: string): string | undefined =>
-  lines(output)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
+const firstLine = (output: string): Option.Option<string> =>
+  Option.fromNullishOr(
+    lines(output)
+      .map((line) => line.trim())
+      .find(Str.isNonEmpty)
+  )
 
 const decodeJsonObject = (input: string): Effect.Effect<JsonObject, TailscaleError> =>
-  Schema.decodeUnknownEffect(Schema.fromJsonString(JsonObjectSchema))(input).pipe(
+  Schema.decodeUnknownEffect(Schema.fromJsonString(JsonObjectApi))(input).pipe(
     Effect.mapError((issue) => decodeError(issue.message, issue))
   )
 
@@ -135,8 +143,8 @@ export const TailscaleApiLive = Layer.effect(
             { concurrency: 1 }
           )
           return {
-            ipv4: result.v4.exitCode === 0 ? firstLine(result.v4.stdout) : undefined,
-            ipv6: result.v6.exitCode === 0 ? firstLine(result.v6.stdout) : undefined,
+            ipv4: result.v4.exitCode === 0 ? Option.getOrUndefined(firstLine(result.v4.stdout)) : undefined,
+            ipv6: result.v6.exitCode === 0 ? Option.getOrUndefined(firstLine(result.v6.stdout)) : undefined,
           }
         },
         Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'ip' })

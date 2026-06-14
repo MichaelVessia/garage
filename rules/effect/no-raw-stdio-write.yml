@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-raw-stdio-write
+language: tsx
+severity: error
+message: "Raw process.stdout/stderr.write bypasses Effect - use yield* Console.log / Console.error from 'effect/Console'"
+
+rule:
+  any:
+    - pattern: process.stdout.write($$$ARGS)
+    - pattern: process.stderr.write($$$ARGS)
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+note: |
+  Writing directly to process.stdout/stderr escapes the Effect runtime: the
+  output cannot be redirected, captured, or silenced through layers, and the
+  write is an untracked side effect inside otherwise pure Effect programs.
+  These CLIs emit a structured JSON envelope on stdout, so disciplined writes
+  matter. Use the Console service instead.
+
+  ```typescript
+  // Bad - raw stream write inside an Effect program
+  process.stdout.write(`done: ${count} items\n`)
+  process.stderr.write(`${formatFailures(failed)}\n`)
+
+  // Good - Console service (import * as Console from 'effect/Console')
+  yield* Console.log(`done: ${count} items`)
+  yield* Console.error(formatFailures(failed))
+  ```
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"

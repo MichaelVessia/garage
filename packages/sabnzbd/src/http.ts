@@ -1,5 +1,7 @@
-import { Effect, Layer, Redacted } from 'effect'
-import type { Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import type * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {

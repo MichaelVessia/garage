@@ -1,16 +1,16 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export const ProwlarrConfigValueSchema = Schema.Struct({
+export const ProwlarrConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
 })
-export type ProwlarrConfigValue = typeof ProwlarrConfigValueSchema.Type
+export type ProwlarrConfigValue = typeof ProwlarrConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   appName: OptionalString,
   version: Schema.String,
   instanceName: OptionalString,
@@ -22,17 +22,17 @@ export const SystemStatusSchema = Schema.Struct({
   isLinux: OptionalBoolean,
   isProduction: OptionalBoolean,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const HealthRecordSchema = Schema.Struct({
+export const HealthRecord = Schema.Struct({
   source: OptionalString,
   type: OptionalString,
   message: Schema.String,
   wikiUrl: OptionalString,
 })
-export type HealthRecord = typeof HealthRecordSchema.Type
+export type HealthRecord = typeof HealthRecord.Type
 
-export const IndexerRecordSchema = Schema.Struct({
+export const IndexerRecord = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   protocol: OptionalString,
@@ -43,9 +43,9 @@ export const IndexerRecordSchema = Schema.Struct({
   implementation: OptionalString,
   implementationName: OptionalString,
 })
-export type IndexerRecord = typeof IndexerRecordSchema.Type
+export type IndexerRecord = typeof IndexerRecord.Type
 
-export const IndexerStatsRecordSchema = Schema.Struct({
+export const IndexerStatsRecord = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   queries: OptionalNumber,
@@ -54,35 +54,35 @@ export const IndexerStatsRecordSchema = Schema.Struct({
   failedGrabs: OptionalNumber,
   avgResponseTimeMs: OptionalNumber,
 })
-export type IndexerStatsRecord = typeof IndexerStatsRecordSchema.Type
+export type IndexerStatsRecord = typeof IndexerStatsRecord.Type
 
-export const SearchProtocolSchema = Schema.Literals(['torrent', 'usenet'])
-export type SearchProtocol = typeof SearchProtocolSchema.Type
+export const SearchProtocol = Schema.Literals(['torrent', 'usenet'])
+export type SearchProtocol = typeof SearchProtocol.Type
 
-export const SearchOptionsSchema = Schema.Struct({
+export const SearchOptions = Schema.Struct({
   limit: Schema.Number,
-  protocol: Schema.optional(SearchProtocolSchema),
+  protocol: Schema.optional(SearchProtocol),
   category: OptionalNumber,
   type: OptionalString,
 })
-export type SearchOptions = typeof SearchOptionsSchema.Type
+export type SearchOptions = typeof SearchOptions.Type
 
-export const TvSearchOptionsSchema = Schema.Struct({
+export const TvSearchOptions = Schema.Struct({
   tvdbId: Schema.Number,
   season: OptionalNumber,
   episode: OptionalNumber,
   limit: Schema.Number,
 })
-export type TvSearchOptions = typeof TvSearchOptionsSchema.Type
+export type TvSearchOptions = typeof TvSearchOptions.Type
 
-export const MovieSearchOptionsSchema = Schema.Struct({
+export const MovieSearchOptions = Schema.Struct({
   imdbId: OptionalString,
   tmdbId: OptionalNumber,
   limit: Schema.Number,
 })
-export type MovieSearchOptions = typeof MovieSearchOptionsSchema.Type
+export type MovieSearchOptions = typeof MovieSearchOptions.Type
 
-export const ReleaseRecordSchema = Schema.Struct({
+export const ReleaseRecord = Schema.Struct({
   guid: OptionalString,
   indexerId: OptionalNumber,
   indexer: OptionalString,
@@ -97,20 +97,20 @@ export const ReleaseRecordSchema = Schema.Struct({
   publishDate: OptionalString,
   downloadUrl: OptionalString,
   infoUrl: OptionalString,
-  categories: Schema.optional(Schema.Array(Schema.Union([Schema.String, Schema.Number]))),
+  categories: Schema.Array(Schema.Union([Schema.String, Schema.Number])).pipe(Schema.optional),
 })
-export type ReleaseRecord = typeof ReleaseRecordSchema.Type
+export type ReleaseRecord = typeof ReleaseRecord.Type
 
-export const ApplicationRecordSchema = Schema.Struct({
+export const ApplicationRecord = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   implementation: OptionalString,
   syncLevel: OptionalString,
-  tags: Schema.optional(Schema.Array(Schema.Number)),
+  tags: Schema.Array(Schema.Number).pipe(Schema.optional),
 })
-export type ApplicationRecord = typeof ApplicationRecordSchema.Type
+export type ApplicationRecord = typeof ApplicationRecord.Type
 
-export const CommandResultSchema = Schema.Struct({
+export const CommandResult = Schema.Struct({
   id: OptionalNumber,
   name: Schema.String,
   status: OptionalString,
@@ -118,16 +118,16 @@ export const CommandResultSchema = Schema.Struct({
   started: OptionalString,
   ended: OptionalString,
 })
-export type CommandResult = typeof CommandResultSchema.Type
+export type CommandResult = typeof CommandResult.Type
 
-export const IndexerTestResultSchema = Schema.Struct({
+export const IndexerTestResult = Schema.Struct({
   indexerId: Schema.Number,
   passed: Schema.Boolean,
   httpStatus: Schema.Number,
 })
-export type IndexerTestResult = typeof IndexerTestResultSchema.Type
+export type IndexerTestResult = typeof IndexerTestResult.Type
 
-export const HistoryRecordSchema = Schema.Struct({
+export const HistoryRecord = Schema.Struct({
   id: OptionalNumber,
   date: OptionalString,
   eventType: Schema.String,
@@ -138,10 +138,10 @@ export const HistoryRecordSchema = Schema.Struct({
   results: OptionalNumber,
   elapsedTime: Schema.optional(Schema.Union([Schema.Number, Schema.String])),
 })
-export type HistoryRecord = typeof HistoryRecordSchema.Type
+export type HistoryRecord = typeof HistoryRecord.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
 export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
@@ -151,11 +151,11 @@ export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   })
 export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export const SearchResultSchema = Schema.Struct({
+export const SearchResult = Schema.Struct({
   query: Schema.String,
   type: Schema.String,
   count: Schema.Number,
   totalRecords: Schema.Number,
-  records: Schema.Array(ReleaseRecordSchema),
+  records: Schema.Array(ReleaseRecord),
 })
-export type SearchResult = typeof SearchResultSchema.Type
+export type SearchResult = typeof SearchResult.Type
