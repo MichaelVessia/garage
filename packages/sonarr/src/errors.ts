@@ -15,7 +15,7 @@ export class SonarrUnreachableError extends Schema.TaggedErrorClass<SonarrUnreac
     code: Schema.Literal('SONARR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -29,7 +29,7 @@ export class SonarrDecodeError extends Schema.TaggedErrorClass<SonarrDecodeError
   code: Schema.Literal('SONARR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class SonarrNotFoundError extends Schema.TaggedErrorClass<SonarrNotFoundError>()('SonarrNotFoundError', {

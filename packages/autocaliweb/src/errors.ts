@@ -18,7 +18,7 @@ export class AutocaliwebUnreachableError extends Schema.TaggedErrorClass<Autocal
     code: Schema.Literal('AUTOCALIWEB_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -34,7 +34,7 @@ export class AutocaliwebDecodeError extends Schema.TaggedErrorClass<AutocaliwebD
     code: Schema.Literal('AUTOCALIWEB_DECODE_ERROR'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 

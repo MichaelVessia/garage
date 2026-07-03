@@ -1,0 +1,64 @@
+import { Schema } from 'effect'
+import { Rpc, RpcGroup } from 'effect/unstable/rpc'
+
+import { AuthRpcMiddleware } from '../auth-middleware.js'
+import {
+  InjectionLogDatabaseError,
+  InjectionLogNotFoundError,
+  InjectionLog,
+  InjectionLogBulkAssignSchedule,
+  InjectionLogCreate,
+  InjectionLogDelete,
+  InjectionLogListParams,
+  InjectionLogUpdate,
+  ScheduleAssignmentTargetNotFoundError,
+} from './domain.js'
+
+// ============================================
+// Injection Log RPCs
+// ============================================
+
+export const InjectionRpcs = RpcGroup.make(
+  Rpc.make('InjectionLogList', {
+    payload: InjectionLogListParams,
+    success: Schema.Array(InjectionLog),
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogGet', {
+    payload: Schema.Struct({ id: Schema.String }),
+    success: Schema.NullOr(InjectionLog),
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogCreate', {
+    payload: InjectionLogCreate,
+    success: InjectionLog,
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogUpdate', {
+    payload: InjectionLogUpdate,
+    success: InjectionLog,
+    error: Schema.Union([InjectionLogNotFoundError, InjectionLogDatabaseError]),
+  }),
+  Rpc.make('InjectionLogDelete', {
+    payload: InjectionLogDelete,
+    success: Schema.Boolean,
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogGetDrugs', {
+    success: Schema.Array(Schema.String),
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogGetSites', {
+    success: Schema.Array(Schema.String),
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogGetLastSite', {
+    success: Schema.NullOr(Schema.String),
+    error: InjectionLogDatabaseError,
+  }),
+  Rpc.make('InjectionLogBulkAssignSchedule', {
+    payload: InjectionLogBulkAssignSchedule,
+    success: Schema.Number,
+    error: Schema.Union([InjectionLogDatabaseError, ScheduleAssignmentTargetNotFoundError]),
+  })
+).middleware(AuthRpcMiddleware)

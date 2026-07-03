@@ -12,7 +12,7 @@ export class CaddyUnreachableError extends Schema.TaggedErrorClass<CaddyUnreacha
   code: Schema.Literal('CADDY_UNREACHABLE'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class CaddyHttpError extends Schema.TaggedErrorClass<CaddyHttpError>()('CaddyHttpError', {
@@ -25,7 +25,7 @@ export class CaddyDecodeError extends Schema.TaggedErrorClass<CaddyDecodeError>(
   code: Schema.Literal('CADDY_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class CaddyConfirmationRequiredError extends Schema.TaggedErrorClass<CaddyConfirmationRequiredError>()(

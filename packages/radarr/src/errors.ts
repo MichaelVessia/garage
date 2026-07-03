@@ -15,7 +15,7 @@ export class RadarrUnreachableError extends Schema.TaggedErrorClass<RadarrUnreac
     code: Schema.Literal('RADARR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -29,7 +29,7 @@ export class RadarrDecodeError extends Schema.TaggedErrorClass<RadarrDecodeError
   code: Schema.Literal('RADARR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class RadarrNotFoundError extends Schema.TaggedErrorClass<RadarrNotFoundError>()('RadarrNotFoundError', {

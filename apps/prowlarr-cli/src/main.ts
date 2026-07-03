@@ -1,7 +1,7 @@
-import { BunHttpClient, BunRuntime } from '@effect/platform-bun'
+import { BunHttpClient, BunRuntime, BunStdio } from '@effect/platform-bun'
 import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
 import { ProwlarrApiLive, ProwlarrConfigLive } from '@garage/prowlarr'
-import { Console, Effect, Layer } from 'effect'
+import { Console, Effect, Layer, Stdio } from 'effect'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { executeProwlarr } from './index.js'
@@ -17,10 +17,12 @@ const Live = ProwlarrApiLive.pipe(
   Layer.provide(BunHttpClient.layer),
   Layer.provideMerge(ObservabilityLive)
 )
+const MainLive = Layer.mergeAll(Live, BunStdio.layer)
 
 const program = Effect.gen(function* () {
-  const context = yield* Layer.build(Live)
-  const envelope = yield* executeProwlarr(Bun.argv.slice(2)).pipe(Effect.provideContext(context))
+  const context = yield* Layer.build(MainLive)
+  const args = yield* Stdio.Stdio.use((stdio) => stdio.args).pipe(Effect.provideContext(context))
+  const envelope = yield* executeProwlarr(args).pipe(Effect.provideContext(context))
   yield* Console.log(renderEnvelope(envelope))
 }).pipe(Effect.scoped)
 

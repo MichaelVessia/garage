@@ -18,7 +18,7 @@ export class JellyfinUnreachableError extends Schema.TaggedErrorClass<JellyfinUn
     code: Schema.Literal('JELLYFIN_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -32,7 +32,7 @@ export class JellyfinDecodeError extends Schema.TaggedErrorClass<JellyfinDecodeE
   code: Schema.Literal('JELLYFIN_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class JellyfinNotFoundError extends Schema.TaggedErrorClass<JellyfinNotFoundError>()('JellyfinNotFoundError', {

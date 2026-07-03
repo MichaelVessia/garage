@@ -34,6 +34,7 @@ Bare Effect v4 monorepo scaffolded with Bun, Nix, TypeScript strictness, oxlint/
 - `apps/radarr-cli` contains the `radarr` agent-first CLI entrypoint.
 - `apps/sabnzbd-cli` contains the `sabnzbd` agent-first CLI entrypoint.
 - `apps/sonarr-cli` contains the `sonarr` agent-first CLI entrypoint.
+- `apps/subq` contains the subq health-tracking web app (Effect RPC worker + foldkit SPA) deployed to Cloudflare Workers via Alchemy.
 - `apps/tailscale-cli` contains the `tailscale` agent-first CLI entrypoint.
 - `apps/tubearchivist-cli` contains the `tubearchivist` agent-first CLI entrypoint.
 - `packages/cli-protocol` contains shared JSON envelope and command metadata types.

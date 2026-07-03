@@ -1,0 +1,136 @@
+import { Effect, Schema } from 'effect'
+
+import { Limit, Notes, Offset } from '../common/domain.js'
+
+// ============================================
+// Weight Conversion Utilities
+// ============================================
+
+/** Conversion factor: 1 kg = 2.20462 lbs */
+export const LBS_PER_KG = 2.204_62
+
+/**
+ * Convert pounds to kilograms.
+ * All weights are stored internally as lbs - this is for display only.
+ */
+export const lbsToKg = (lbs: number): number => lbs / LBS_PER_KG
+
+/**
+ * Convert kilograms to pounds.
+ * Use this when user inputs weight in kg before storing.
+ */
+export const kgToLbs = (kg: number): number => kg * LBS_PER_KG
+
+// ============================================
+// Weight Domain Entity ID
+// ============================================
+
+/** UUID identifier for weight log entries */
+export const WeightLogId = Schema.String.pipe(Schema.brand('WeightLogId'))
+export type WeightLogId = typeof WeightLogId.Type
+
+// ============================================
+// Weight Domain Primitives
+// ============================================
+
+/** Weight measurement value (positive number) */
+export const Weight = Schema.Number.check(Schema.isGreaterThan(0)).pipe(Schema.brand('Weight'))
+export type Weight = typeof Weight.Type
+
+/** Percentage value */
+export const Percentage = Schema.Number.pipe(Schema.brand('Percentage'))
+export type Percentage = typeof Percentage.Type
+
+/** Weekly average change value */
+export const WeeklyChange = Schema.Number.pipe(Schema.brand('WeeklyChange'))
+export type WeeklyChange = typeof WeeklyChange.Type
+
+/** Rate of change in lbs per week */
+export const WeightRateOfChange = Schema.Number.pipe(Schema.brand('WeightRateOfChange'))
+export type WeightRateOfChange = typeof WeightRateOfChange.Type
+
+// ============================================
+// Weight Domain Errors
+// ============================================
+
+export class WeightLogNotFoundError extends Schema.TaggedClass<WeightLogNotFoundError>()('WeightLogNotFoundError', {
+  id: Schema.String,
+}) {}
+
+export class WeightLogDatabaseError extends Schema.TaggedClass<WeightLogDatabaseError>()('WeightLogDatabaseError', {
+  operation: Schema.Literals(['insert', 'update', 'delete', 'query'] as const),
+  cause: Schema.Defect(),
+}) {}
+
+// ============================================
+// Union Types for Convenience
+// ============================================
+
+export const WeightLogError = Schema.Union([WeightLogNotFoundError, WeightLogDatabaseError])
+export type WeightLogError = typeof WeightLogError.Type
+
+// ============================================
+// Core Domain Type
+// ============================================
+
+/**
+ * A weight log entry represents a single weight measurement.
+ * All weights are stored in lbs internally.
+ */
+export class WeightLog extends Schema.Class<WeightLog>('WeightLog')({
+  id: WeightLogId,
+  datetime: Schema.DateTimeUtc,
+  weight: Weight,
+  notes: Schema.NullOr(Notes),
+  createdAt: Schema.DateTimeUtc,
+  updatedAt: Schema.DateTimeUtc,
+}) {}
+
+// ============================================
+// Input Types (for create/update operations)
+// ============================================
+
+/**
+ * Payload for creating a new weight log entry.
+ * Weight should be in lbs (convert from user's preferred unit before calling).
+ * id, createdAt, updatedAt are generated server-side.
+ */
+export class WeightLogCreate extends Schema.Class<WeightLogCreate>('WeightLogCreate')({
+  datetime: Schema.DateTimeUtc,
+  weight: Weight,
+  notes: Schema.OptionFromOptional(Notes),
+}) {}
+
+/**
+ * Payload for updating an existing weight log entry.
+ * Weight should be in lbs (convert from user's preferred unit before calling).
+ * All fields optional - only provided fields are updated.
+ */
+export class WeightLogUpdate extends Schema.Class<WeightLogUpdate>('WeightLogUpdate')({
+  id: WeightLogId,
+  datetime: Schema.optional(Schema.DateTimeUtc),
+  weight: Schema.optional(Weight),
+  notes: Schema.OptionFromOptionalNullOr(Notes),
+}) {}
+
+/**
+ * Payload for deleting a weight log entry.
+ */
+export class WeightLogDelete extends Schema.Class<WeightLogDelete>('WeightLogDelete')({
+  id: WeightLogId,
+}) {}
+
+// ============================================
+// Query Types
+// ============================================
+
+/**
+ * Parameters for listing weight logs.
+ * Supports pagination and date filtering.
+ */
+export class WeightLogListParams extends Schema.Class<WeightLogListParams>('WeightLogListParams')({
+  limit: Limit.pipe(Schema.withDecodingDefaultType(Effect.succeed(Limit.make(50)))),
+  offset: Offset.pipe(Schema.withDecodingDefaultType(Effect.succeed(Offset.make(0)))),
+  startDate: Schema.optional(Schema.DateTimeUtc),
+  endDate: Schema.optional(Schema.DateTimeUtc),
+}) {}

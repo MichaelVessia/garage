@@ -18,7 +18,7 @@ export class SabnzbdUnreachableError extends Schema.TaggedErrorClass<SabnzbdUnre
     code: Schema.Literal('SABNZBD_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -32,7 +32,7 @@ export class SabnzbdDecodeError extends Schema.TaggedErrorClass<SabnzbdDecodeErr
   code: Schema.Literal('SABNZBD_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class SabnzbdDeleteConfirmationRequiredError extends Schema.TaggedErrorClass<SabnzbdDeleteConfirmationRequiredError>()(

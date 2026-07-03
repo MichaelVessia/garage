@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1764137702591,
+      "tag": "0000_hot_the_watchers",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1764198768944,
+      "tag": "0001_hot_trish_tilby",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1764300000000,
+      "tag": "0002_injection_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1764400000000,
+      "tag": "0003_schedule_id_on_injection_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1764500000000,
+      "tag": "0004_indefinite_phase_duration",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1764600000000,
+      "tag": "0005_better_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1764700000000,
+      "tag": "0006_user_goals",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1764800000000,
+      "tag": "0007_remove_milestones",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1764900000000,
+      "tag": "0008_user_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1765000000000,
+      "tag": "0009_weight_lbs_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1765100000000,
+      "tag": "0010_reminders_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1779657784922,
+      "tag": "0011_remove_inventory",
+      "breakpoints": true
+    }
+  ]
+}

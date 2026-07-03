@@ -18,7 +18,7 @@ export class TubearchivistUnreachableError extends Schema.TaggedErrorClass<Tubea
     code: Schema.Literal('TUBEARCHIVIST_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -38,7 +38,7 @@ export class TubearchivistDecodeError extends Schema.TaggedErrorClass<Tubearchiv
     code: Schema.Literal('TUBEARCHIVIST_DECODE_ERROR'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 

@@ -1,0 +1,45 @@
+{
+  "name": "@garage/subq",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "imports": {
+    "#shared": "./src/shared/index.ts"
+  },
+  "scripts": {
+    "build": "vite build web",
+    "dev": "alchemy dev",
+    "dev:web": "vite web",
+    "deploy": "bun run build && alchemy deploy",
+    "db:generate": "drizzle-kit generate",
+    "typecheck": "tsgo --noEmit && tsgo --noEmit --project web/tsconfig.json",
+    "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/ web/src/",
+    "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/ web/src/",
+    "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ web/src/ web/test/ package.json tsconfig.json web/vite.config.ts vitest.config.ts",
+    "format:fix": "oxfmt --config ../../oxfmt.config.mjs src/ test/ web/src/ web/test/ package.json tsconfig.json web/vite.config.ts vitest.config.ts",
+    "test": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20260511.1",
+    "@effect/platform-browser": "4.0.0-beta.93",
+    "@effect/sql-d1": "4.0.0-beta.93",
+    "better-auth": "^1.6.23",
+    "drizzle-orm": "^0.44.7",
+    "effect": "^4.0.0-beta.93",
+    "foldkit": "^0.122.1"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "4.0.0-beta.93",
+    "@effect/sql-sqlite-bun": "4.0.0-beta.93",
+    "@tailwindcss/vite": "^4.1.17",
+    "@types/d3": "^7.4.3",
+    "alchemy": "2.0.0-beta.59",
+    "clsx": "^2.1.1",
+    "d3": "^7.9.0",
+    "drizzle-kit": "^0.31.7",
+    "happy-dom": "^20.10.6",
+    "tailwindcss": "^4.1.17",
+    "vite": "^6.0.0"
+  }
+}

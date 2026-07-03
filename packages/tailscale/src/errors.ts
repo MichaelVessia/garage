@@ -6,7 +6,7 @@ export class TailscaleCliMissingError extends Schema.TaggedErrorClass<TailscaleC
     code: Schema.Literal('TAILSCALE_CLI_MISSING'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -17,7 +17,7 @@ export class TailscaleCommandFailedError extends Schema.TaggedErrorClass<Tailsca
     message: Schema.String,
     fix: Schema.String,
     exitCode: Schema.Number,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -25,7 +25,7 @@ export class TailscaleDecodeError extends Schema.TaggedErrorClass<TailscaleDecod
   code: Schema.Literal('TAILSCALE_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class TailscaleNotRunningError extends Schema.TaggedErrorClass<TailscaleNotRunningError>()(

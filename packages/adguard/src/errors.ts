@@ -18,7 +18,7 @@ export class AdguardUnreachableError extends Schema.TaggedErrorClass<AdguardUnre
     code: Schema.Literal('ADGUARD_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -32,7 +32,7 @@ export class AdguardDecodeError extends Schema.TaggedErrorClass<AdguardDecodeErr
   code: Schema.Literal('ADGUARD_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class AdguardConfirmationRequiredError extends Schema.TaggedErrorClass<AdguardConfirmationRequiredError>()(

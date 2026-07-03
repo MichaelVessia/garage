@@ -18,7 +18,7 @@ export class JellyseerrUnreachableError extends Schema.TaggedErrorClass<Jellysee
     code: Schema.Literal('JELLYSEERR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -32,7 +32,7 @@ export class JellyseerrDecodeError extends Schema.TaggedErrorClass<JellyseerrDec
   code: Schema.Literal('JELLYSEERR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class JellyseerrConfirmationRequiredError extends Schema.TaggedErrorClass<JellyseerrConfirmationRequiredError>()(

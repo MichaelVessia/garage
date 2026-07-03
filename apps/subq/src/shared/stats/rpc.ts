@@ -1,0 +1,49 @@
+import { Schema } from 'effect'
+import { Rpc, RpcGroup } from 'effect/unstable/rpc'
+
+import { AuthRpcMiddleware } from '../auth-middleware.js'
+import {
+  DosageHistoryStats,
+  DrugBreakdownStats,
+  InjectionDayOfWeekStats,
+  InjectionFrequencyStats,
+  InjectionSiteStats,
+  StatsParams,
+  WeightStats,
+  WeightTrendStats,
+} from './domain.js'
+
+// ============================================
+// Stats RPCs
+// ============================================
+
+export const StatsRpcs = RpcGroup.make(
+  Rpc.make('GetWeightStats', {
+    payload: StatsParams,
+    success: Schema.NullOr(WeightStats),
+  }),
+  Rpc.make('GetWeightTrend', {
+    payload: StatsParams,
+    success: WeightTrendStats,
+  }),
+  Rpc.make('GetInjectionSiteStats', {
+    payload: StatsParams,
+    success: InjectionSiteStats,
+  }),
+  Rpc.make('GetDosageHistory', {
+    payload: StatsParams,
+    success: DosageHistoryStats,
+  }),
+  Rpc.make('GetInjectionFrequency', {
+    payload: StatsParams,
+    success: Schema.NullOr(InjectionFrequencyStats),
+  }),
+  Rpc.make('GetDrugBreakdown', {
+    payload: StatsParams,
+    success: DrugBreakdownStats,
+  }),
+  Rpc.make('GetInjectionByDayOfWeek', {
+    payload: StatsParams,
+    success: InjectionDayOfWeekStats,
+  })
+).middleware(AuthRpcMiddleware)

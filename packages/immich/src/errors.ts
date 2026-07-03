@@ -15,7 +15,7 @@ export class ImmichUnreachableError extends Schema.TaggedErrorClass<ImmichUnreac
     code: Schema.Literal('IMMICH_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -30,7 +30,7 @@ export class ImmichDecodeError extends Schema.TaggedErrorClass<ImmichDecodeError
   code: Schema.Literal('IMMICH_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export const ImmichError = Schema.Union([

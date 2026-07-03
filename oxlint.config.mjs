@@ -42,6 +42,10 @@ export default defineConfig({
     'default-param-last': 'error',
     '@typescript-eslint/no-inferrable-types': 'error',
     'sort-keys': 'off',
+    // Conflicts with the Effect language-service `asyncFunction` rule:
+    // Effect.tryPromise/Effect.promise thunks must return a Promise without
+    // being declared async.
+    '@typescript-eslint/promise-function-async': 'off',
     'func-names': 'off',
     '@typescript-eslint/array-type': 'off',
     'no-negated-condition': 'off',

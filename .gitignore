@@ -16,3 +16,9 @@ docs/plans/
 .ralph/
 tmp/
 .lefthook-local.yml
+
+# Alchemy local state + app secrets
+.alchemy/
+**/.alchemy/
+.env
+**/.env

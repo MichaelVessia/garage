@@ -18,7 +18,7 @@ export class ProwlarrUnreachableError extends Schema.TaggedErrorClass<ProwlarrUn
     code: Schema.Literal('PROWLARR_UNREACHABLE'),
     message: Schema.String,
     fix: Schema.String,
-    cause: Schema.optional(Schema.Defect),
+    cause: Schema.optional(Schema.Defect()),
   }
 ) {}
 
@@ -32,7 +32,7 @@ export class ProwlarrDecodeError extends Schema.TaggedErrorClass<ProwlarrDecodeE
   code: Schema.Literal('PROWLARR_DECODE_ERROR'),
   message: Schema.String,
   fix: Schema.String,
-  cause: Schema.optional(Schema.Defect),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 export class ProwlarrSyncConfirmationRequiredError extends Schema.TaggedErrorClass<ProwlarrSyncConfirmationRequiredError>()(
