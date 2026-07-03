@@ -4,5 +4,5 @@
     "noEmit": true,
     "rootDir": "."
   },
-  "include": ["src", "test", "alchemy.run.ts", "drizzle.config.ts"]
+  "include": ["src", "test", "scripts", "alchemy.run.ts", "drizzle.config.ts"]
 }

@@ -12,6 +12,7 @@ export {
   DosageValue,
 } from './common/index.js'
 export {
+  DEMO_USER,
   AuthErrorResponse,
   AuthSuccessResponse,
   SESSION_EXPIRES_IN_SECONDS,

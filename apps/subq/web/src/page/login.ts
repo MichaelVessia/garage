@@ -5,10 +5,10 @@ import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
+import { DEMO_USER } from '#shared'
+
 import { FailedSignIn, FailedSignUp, SignIn, SignUp, SucceededSignIn, SucceededSignUp } from '../auth.js'
 import { button, input } from '../ui.js'
-
-const DEMO_USER = { email: 'consistent@example.com', label: 'Demo Account', password: 'testpassword123' }
 
 // ============================================
 // Model
@@ -133,7 +133,7 @@ export const viewLogin = (model: LoginModel) => {
                   h.Disabled(model.loading),
                   h.OnClick(ClickedDemoLogin()),
                 ],
-                [DEMO_USER.label]
+                ['Demo Account']
               ),
             ]
           )
