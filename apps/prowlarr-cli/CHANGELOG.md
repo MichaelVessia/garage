@@ -1,5 +1,11 @@
 # @garage/prowlarr-cli
 
+## 0.0.8
+
+### Patch Changes
+
+- Automatic CLI release for changed app or package code.
+
 ## 0.0.7
 
 ### Patch Changes
