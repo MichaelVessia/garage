@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest'
+import * as Option from 'effect/Option'
 
 import { calculateWeightTrajectory, projectWeightTrajectoryDate } from '#shared'
 
@@ -8,11 +9,15 @@ const weightPoint = (date: string, weight: number) => ({ date: testDate(date), w
 
 describe('Weight Trajectory', () => {
   it('returns neutral results without enough points', () => {
-    expect(calculateWeightTrajectory([])).toEqual({ regression: null, rateOfChange: 0, trendLine: null })
-    expect(calculateWeightTrajectory([weightPoint('2024-01-01T00:00:00Z', 200)])).toEqual({
-      regression: null,
+    expect(calculateWeightTrajectory([])).toEqual({
+      regression: Option.none(),
       rateOfChange: 0,
-      trendLine: null,
+      trendLine: Option.none(),
+    })
+    expect(calculateWeightTrajectory([weightPoint('2024-01-01T00:00:00Z', 200)])).toEqual({
+      regression: Option.none(),
+      rateOfChange: 0,
+      trendLine: Option.none(),
     })
   })
 
@@ -22,9 +27,9 @@ describe('Weight Trajectory', () => {
       weightPoint('2024-01-01T00:00:00Z', 195),
     ])
 
-    expect(trajectory.regression).toBeNull()
+    expect(Option.isNone(trajectory.regression)).toBe(true)
     expect(trajectory.rateOfChange).toBe(0)
-    expect(trajectory.trendLine).toBeNull()
+    expect(Option.isNone(trajectory.trendLine)).toBe(true)
   })
 
   it('computes a known weekly weight rate and trend line', () => {
@@ -35,11 +40,7 @@ describe('Weight Trajectory', () => {
     ])
 
     expect(trajectory.rateOfChange).toBeCloseTo(-5)
-    const { trendLine } = trajectory
-    expect(trendLine).not.toBeNull()
-    if (trendLine === null) {
-      return
-    }
+    const trendLine = Option.getOrThrow(trajectory.trendLine)
 
     expect(trendLine.startDate.toISOString()).toBe('2024-01-01T00:00:00.000Z')
     expect(trendLine.startWeight).toBeCloseTo(200)
@@ -63,11 +64,7 @@ describe('Weight Trajectory', () => {
       weightPoint('2024-01-01T00:00:00Z', 200),
       weightPoint('2024-01-08T00:00:00Z', 195),
     ])
-    const { trendLine } = trajectory
-    expect(trendLine).not.toBeNull()
-    if (trendLine === null) {
-      return
-    }
+    const trendLine = Option.getOrThrow(trajectory.trendLine)
 
     expect(trendLine.startDate.toISOString()).toBe('2024-01-01T00:00:00.000Z')
     expect(trendLine.endDate.toISOString()).toBe('2024-01-15T00:00:00.000Z')
@@ -81,21 +78,23 @@ describe('Weight Trajectory', () => {
       now: testDate('2024-01-15T00:00:00Z'),
     })
 
-    expect(projectedDate?.toISOString()).toBe('2024-01-29T00:00:00.000Z')
+    expect(Option.getOrThrow(projectedDate).toISOString()).toBe('2024-01-29T00:00:00.000Z')
   })
 
   it('projects now when the target weight is already reached', () => {
     const now = testDate('2024-01-15T00:00:00Z')
 
-    expect(
-      projectWeightTrajectoryDate({ currentWeight: 179, targetWeight: 180, rateOfChange: -5, now })?.toISOString()
-    ).toBe('2024-01-15T00:00:00.000Z')
+    const projectedDate = projectWeightTrajectoryDate({ currentWeight: 179, targetWeight: 180, rateOfChange: -5, now })
+
+    expect(Option.getOrThrow(projectedDate).toISOString()).toBe('2024-01-15T00:00:00.000Z')
   })
 
   it('does not project when not losing or beyond the max projection window', () => {
     const now = testDate('2024-01-15T00:00:00Z')
 
-    expect(projectWeightTrajectoryDate({ currentWeight: 190, targetWeight: 180, rateOfChange: 0, now })).toBeNull()
+    expect(projectWeightTrajectoryDate({ currentWeight: 190, targetWeight: 180, rateOfChange: 0, now })).toEqual(
+      Option.none()
+    )
     expect(
       projectWeightTrajectoryDate({
         currentWeight: 190,
@@ -104,6 +103,6 @@ describe('Weight Trajectory', () => {
         now,
         maxProjectionDays: 30,
       })
-    ).toBeNull()
+    ).toEqual(Option.none())
   })
 })

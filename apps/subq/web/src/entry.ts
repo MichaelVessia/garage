@@ -1,14 +1,15 @@
-import { Layer } from 'effect'
+import * as Layer from 'effect/Layer'
 import { Runtime } from 'foldkit'
 
 import { ApiLive, FetchWithCredentials } from './api.js'
+import { MissingRoot } from './errors.js'
 import { ChangedUrl, ClickedLink, Model, init, update, view } from './main.js'
 
 import './index.css'
 
 const container = document.querySelector<HTMLElement>('#root')
 if (container === null) {
-  throw new Error('missing #root')
+  throw new MissingRoot()
 }
 
 const application = Runtime.makeApplication({

@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { AuthContext, StatsRpcs } from '#shared'
 import type { StatsParams } from '#shared'
@@ -21,9 +22,9 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
       )
       const result = yield* service.getWeightStats(params, user.id)
       yield* Effect.logDebug('GetWeightStats completed').pipe(
-        Effect.annotateLogs({ rpc: 'GetWeightStats', hasData: result !== null })
+        Effect.annotateLogs({ rpc: 'GetWeightStats', hasData: Option.isSome(result) })
       )
-      return result
+      return Option.getOrNull(result)
     })
 
     const GetWeightTrend = Effect.fn('rpc.stats.getWeightTrend')(function* (params: StatsParams) {
@@ -69,9 +70,9 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
       )
       const result = yield* service.getInjectionFrequency(params, user.id)
       yield* Effect.logDebug('GetInjectionFrequency completed').pipe(
-        Effect.annotateLogs({ rpc: 'GetInjectionFrequency', hasData: result !== null })
+        Effect.annotateLogs({ rpc: 'GetInjectionFrequency', hasData: Option.isSome(result) })
       )
-      return result
+      return Option.getOrNull(result)
     })
 
     const GetDrugBreakdown = Effect.fn('rpc.stats.getDrugBreakdown')(function* (params: StatsParams) {

@@ -1,5 +1,7 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect, Option } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { GoalId, Notes, Weight } from '#shared'
 
@@ -25,10 +27,10 @@ describe('GoalRepo', () => {
             'user-123'
           )
 
-          expect(created.goalWeight).toBe(150)
-          expect(created.startingWeight).toBe(180)
-          expect(created.isActive).toBe(true)
-          expect(created.notes).toBe('Initial goal')
+          assert.strictEqual(created.goalWeight, 150)
+          assert.strictEqual(created.startingWeight, 180)
+          assert.strictEqual(created.isActive, true)
+          assert.strictEqual(created.notes, 'Initial goal')
         })
       )
     })
@@ -59,7 +61,7 @@ describe('GoalRepo', () => {
             'user-123'
           )
 
-          expect(updated.notes).toBe("User's notes with 'apostrophes' and \"quotes\"")
+          assert.strictEqual(updated.notes, "User's notes with 'apostrophes' and \"quotes\"")
         })
       )
     })
@@ -87,8 +89,8 @@ describe('GoalRepo', () => {
             'user-123'
           )
 
-          expect(updated.goalWeight).toBe(145)
-          expect(updated.startingWeight).toBe(180)
+          assert.strictEqual(updated.goalWeight, 145)
+          assert.strictEqual(updated.startingWeight, 180)
         })
       )
     })
@@ -118,8 +120,8 @@ describe('GoalRepo', () => {
             'user-123'
           )
 
-          expect(updated.notes).toBeNull()
-          expect(updated.targetDate).toBeNull()
+          assert.isNull(updated.notes)
+          assert.isNull(updated.targetDate)
         })
       )
     })
@@ -154,7 +156,7 @@ describe('GoalRepo', () => {
           )
 
           // Verify second is active
-          expect(second.isActive).toBe(true)
+          assert.strictEqual(second.isActive, true)
 
           // Deactivate second
           yield* repo.update(
@@ -174,12 +176,12 @@ describe('GoalRepo', () => {
             'user-123'
           )
 
-          expect(reactivated.isActive).toBe(true)
+          assert.strictEqual(reactivated.isActive, true)
 
           // First should still be inactive
           const first = yield* repo.list('user-123')
           const firstGoal = first.find((g) => g.id !== second.id)
-          expect(firstGoal?.isActive).toBe(false)
+          assert.strictEqual(firstGoal?.isActive, false)
         })
       )
     })

@@ -1,18 +1,18 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
-const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
+const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const RadarrConfigValueSchema = Schema.Struct({
+export const RadarrConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
   defaultQualityProfileId: Schema.Number,
 })
-export type RadarrConfigValue = typeof RadarrConfigValueSchema.Type
+export type RadarrConfigValue = typeof RadarrConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   appName: OptionalString,
   version: Schema.String,
   instanceName: OptionalString,
@@ -25,18 +25,18 @@ export const SystemStatusSchema = Schema.Struct({
   isLinux: OptionalBoolean,
   isDocker: OptionalBoolean,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const RootFolderSchema = Schema.Struct({
+export const RootFolder = Schema.Struct({
   id: Schema.Number,
   path: Schema.String,
   freeSpace: OptionalNumber,
   accessible: OptionalBoolean,
   unmappedFolderCount: OptionalNumber,
 })
-export type RootFolder = typeof RootFolderSchema.Type
+export type RootFolder = typeof RootFolder.Type
 
-export const QualityProfileSchema = Schema.Struct({
+export const QualityProfile = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
   isDefault: OptionalBoolean,
@@ -45,15 +45,15 @@ export const QualityProfileSchema = Schema.Struct({
   minFormatScore: OptionalNumber,
   cutoffFormatScore: OptionalNumber,
 })
-export type QualityProfile = typeof QualityProfileSchema.Type
+export type QualityProfile = typeof QualityProfile.Type
 
-export const MovieCollectionSummarySchema = Schema.Struct({
+export const MovieCollectionSummary = Schema.Struct({
   tmdbId: Schema.Number,
   title: Schema.String,
 })
-export type MovieCollectionSummary = typeof MovieCollectionSummarySchema.Type
+export type MovieCollectionSummary = typeof MovieCollectionSummary.Type
 
-export const MovieLookupResultSchema = Schema.Struct({
+export const MovieLookupResult = Schema.Struct({
   title: Schema.String,
   year: OptionalNumber,
   tmdbId: Schema.Number,
@@ -70,11 +70,11 @@ export const MovieLookupResultSchema = Schema.Struct({
   physicalRelease: OptionalString,
   digitalRelease: OptionalString,
   remotePoster: OptionalString,
-  collection: Schema.optional(MovieCollectionSummarySchema),
+  collection: Schema.optional(MovieCollectionSummary),
 })
-export type MovieLookupResult = typeof MovieLookupResultSchema.Type
+export type MovieLookupResult = typeof MovieLookupResult.Type
 
-export const MovieRecordSchema = Schema.Struct({
+export const MovieRecord = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
   year: OptionalNumber,
@@ -97,9 +97,9 @@ export const MovieRecordSchema = Schema.Struct({
   certification: OptionalString,
   genres: OptionalStringArray,
 })
-export type MovieRecord = typeof MovieRecordSchema.Type
+export type MovieRecord = typeof MovieRecord.Type
 
-export const MovieReleaseRecordSchema = Schema.Struct({
+export const MovieReleaseRecord = Schema.Struct({
   id: OptionalNumber,
   title: Schema.String,
   year: OptionalNumber,
@@ -112,9 +112,9 @@ export const MovieReleaseRecordSchema = Schema.Struct({
   status: OptionalString,
   isAvailable: OptionalBoolean,
 })
-export type MovieReleaseRecord = typeof MovieReleaseRecordSchema.Type
+export type MovieReleaseRecord = typeof MovieReleaseRecord.Type
 
-export const QueueRecordSchema = Schema.Struct({
+export const QueueRecord = Schema.Struct({
   id: OptionalNumber,
   title: Schema.String,
   movieTitle: OptionalString,
@@ -134,9 +134,9 @@ export const QueueRecordSchema = Schema.Struct({
   indexer: OptionalString,
   outputPath: OptionalString,
 })
-export type QueueRecord = typeof QueueRecordSchema.Type
+export type QueueRecord = typeof QueueRecord.Type
 
-export const HistoryRecordSchema = Schema.Struct({
+export const HistoryRecord = Schema.Struct({
   id: OptionalNumber,
   date: OptionalString,
   eventType: Schema.String,
@@ -149,79 +149,79 @@ export const HistoryRecordSchema = Schema.Struct({
   size: OptionalNumber,
   downloadId: OptionalString,
 })
-export type HistoryRecord = typeof HistoryRecordSchema.Type
+export type HistoryRecord = typeof HistoryRecord.Type
 
-export const CollectionRecordSchema = Schema.Struct({
+export const CollectionRecord = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
   tmdbId: Schema.Number,
   monitored: OptionalBoolean,
   searchOnAdd: OptionalBoolean,
 })
-export type CollectionRecord = typeof CollectionRecordSchema.Type
+export type CollectionRecord = typeof CollectionRecord.Type
 
-export const ConfigSummarySchema = Schema.Struct({
-  rootFolders: Schema.Array(RootFolderSchema),
-  qualityProfiles: Schema.Array(QualityProfileSchema),
+export const ConfigSummary = Schema.Struct({
+  rootFolders: Schema.Array(RootFolder),
+  qualityProfiles: Schema.Array(QualityProfile),
 })
-export type ConfigSummary = typeof ConfigSummarySchema.Type
+export type ConfigSummary = typeof ConfigSummary.Type
 
-export const SearchResultSchema = Schema.Struct({
+export const SearchResult = Schema.Struct({
   query: Schema.String,
   count: Schema.Number,
-  results: Schema.Array(MovieLookupResultSchema),
+  results: Schema.Array(MovieLookupResult),
 })
-export type SearchResult = typeof SearchResultSchema.Type
+export type SearchResult = typeof SearchResult.Type
 
-export const ExistsResultSchema = Schema.Struct({
+export const ExistsResult = Schema.Struct({
   tmdbId: Schema.Number,
   exists: Schema.Boolean,
-  movie: Schema.optional(MovieRecordSchema),
+  movie: Schema.optional(MovieRecord),
 })
-export type ExistsResult = typeof ExistsResultSchema.Type
+export type ExistsResult = typeof ExistsResult.Type
 
-export const AddMovieOptionsSchema = Schema.Struct({
+export const AddMovieOptions = Schema.Struct({
   qualityProfileId: OptionalNumber,
   searchForMovie: Schema.Boolean,
 })
-export type AddMovieOptions = typeof AddMovieOptionsSchema.Type
+export type AddMovieOptions = typeof AddMovieOptions.Type
 
-export const AddMovieApiOptionsSchema = Schema.Struct({
+export const AddMovieApiOptions = Schema.Struct({
   qualityProfileId: Schema.Number,
   rootFolderPath: Schema.String,
   searchForMovie: Schema.Boolean,
 })
-export type AddMovieApiOptions = typeof AddMovieApiOptionsSchema.Type
+export type AddMovieApiOptions = typeof AddMovieApiOptions.Type
 
-export const AddMovieResultSchema = Schema.Struct({
+export const AddMovieResult = Schema.Struct({
   added: Schema.Boolean,
-  movie: MovieRecordSchema,
+  movie: MovieRecord,
   qualityProfileId: Schema.Number,
   rootFolderPath: Schema.String,
   searchForMovie: Schema.Boolean,
 })
-export type AddMovieResult = typeof AddMovieResultSchema.Type
+export type AddMovieResult = typeof AddMovieResult.Type
 
-export const AddCollectionOptionsSchema = Schema.Struct({
+export const AddCollectionOptions = Schema.Struct({
   searchForMovies: Schema.Boolean,
   resultLimit: Schema.Number,
 })
-export type AddCollectionOptions = typeof AddCollectionOptionsSchema.Type
+export type AddCollectionOptions = typeof AddCollectionOptions.Type
 
-export const AddCollectionMovieActionSchema = Schema.Literals(['added', 'skipped', 'failed'])
-export type AddCollectionMovieAction = typeof AddCollectionMovieActionSchema.Type
+export const AddCollectionMovieAction = Schema.Literals(['added', 'skipped', 'failed'])
+export type AddCollectionMovieAction = typeof AddCollectionMovieAction.Type
 
-export const AddCollectionMovieResultSchema = Schema.Struct({
-  action: AddCollectionMovieActionSchema,
+export const AddCollectionMovieResult = Schema.Struct({
+  action: AddCollectionMovieAction,
   tmdbId: Schema.Number,
   title: Schema.String,
   year: OptionalNumber,
   movieId: OptionalNumber,
   reason: OptionalString,
 })
-export type AddCollectionMovieResult = typeof AddCollectionMovieResultSchema.Type
+export type AddCollectionMovieResult = typeof AddCollectionMovieResult.Type
 
-export const AddCollectionResultSchema = Schema.Struct({
+export const AddCollectionResult = Schema.Struct({
   collectionTmdbId: Schema.Number,
   title: Schema.String,
   totalMovies: Schema.Number,
@@ -231,41 +231,41 @@ export const AddCollectionResultSchema = Schema.Struct({
   searchForMovies: Schema.Boolean,
   monitored: Schema.Boolean,
   searchOnAdd: Schema.Boolean,
-  records: Schema.Array(AddCollectionMovieResultSchema),
+  records: Schema.Array(AddCollectionMovieResult),
   recordsTruncated: Schema.Boolean,
 })
-export type AddCollectionResult = typeof AddCollectionResultSchema.Type
+export type AddCollectionResult = typeof AddCollectionResult.Type
 
-export const CollectionInfoResultSchema = Schema.Struct({ collection: CollectionRecordSchema })
-export type CollectionInfoResult = typeof CollectionInfoResultSchema.Type
+export const CollectionInfoResult = Schema.Struct({ collection: CollectionRecord })
+export type CollectionInfoResult = typeof CollectionInfoResult.Type
 
-export const RemoveMovieOptionsSchema = Schema.Struct({ deleteFiles: Schema.Boolean })
-export type RemoveMovieOptions = typeof RemoveMovieOptionsSchema.Type
+export const RemoveMovieOptions = Schema.Struct({ deleteFiles: Schema.Boolean })
+export type RemoveMovieOptions = typeof RemoveMovieOptions.Type
 
-export const RemoveMovieResultSchema = Schema.Struct({
+export const RemoveMovieResult = Schema.Struct({
   removed: Schema.Boolean,
   tmdbId: Schema.Number,
   deleteFiles: Schema.Boolean,
 })
-export type RemoveMovieResult = typeof RemoveMovieResultSchema.Type
+export type RemoveMovieResult = typeof RemoveMovieResult.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const CalendarOptionsSchema = Schema.Struct({ days: Schema.Number })
-export type CalendarOptions = typeof CalendarOptionsSchema.Type
+export const CalendarOptions = Schema.Struct({ days: Schema.Number })
+export type CalendarOptions = typeof CalendarOptions.Type
 
-export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+export const ListResult = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
     count: Schema.Number,
     totalRecords: Schema.Number,
     records: Schema.Array(record),
   })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
 
-export const CalendarResultSchema = Schema.Struct({
+export const CalendarResult = Schema.Struct({
   days: Schema.Number,
   count: Schema.Number,
-  records: Schema.Array(MovieReleaseRecordSchema),
+  records: Schema.Array(MovieReleaseRecord),
 })
-export type CalendarResult = typeof CalendarResultSchema.Type
+export type CalendarResult = typeof CalendarResult.Type

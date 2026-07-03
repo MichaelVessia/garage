@@ -1,4 +1,8 @@
-import { DateTime, Effect, Match, Schema } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import type { HttpClient } from 'effect/unstable/http'
 import { Command } from 'foldkit'
 import * as File from 'foldkit/file'
@@ -134,9 +138,10 @@ const UpdateWeightUnit = Command.define(
     yield* api.UserSettingsUpdate(new UserSettingsUpdate({ weightUnit: unit }))
     return SucceededUpdateSettingsPreference()
   }).pipe(
-    Effect.catchCause(() =>
-      Effect.succeed(FailedUpdateSettingsPreference({ message: 'Failed to update display preferences' }))
-    )
+    Effect.matchCause({
+      onFailure: () => FailedUpdateSettingsPreference({ message: 'Failed to update display preferences' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -151,9 +156,10 @@ const UpdateReminders = Command.define(
     yield* api.UserSettingsUpdate(new UserSettingsUpdate({ remindersEnabled: enabled }))
     return SucceededUpdateSettingsPreference()
   }).pipe(
-    Effect.catchCause(() =>
-      Effect.succeed(FailedUpdateSettingsPreference({ message: 'Failed to update notification preferences' }))
-    )
+    Effect.matchCause({
+      onFailure: () => FailedUpdateSettingsPreference({ message: 'Failed to update notification preferences' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -181,7 +187,10 @@ const ExportData = Command.define(
     })
     return SucceededExportData()
   }).pipe(
-    Effect.catchCause(() => Effect.succeed(FailedExportData({ message: 'Failed to export data. Please try again.' })))
+    Effect.matchCause({
+      onFailure: () => FailedExportData({ message: 'Failed to export data. Please try again.' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -191,10 +200,16 @@ const SelectImportFile = Command.define(
   CancelledSelectImportFile
 )(
   File.select(['.json', 'application/json']).pipe(
-    Effect.map((selected) =>
-      selected._tag === 'Some' ? SelectedImportFile({ file: selected.value }) : CancelledSelectImportFile()
+    Effect.map(
+      Option.match({
+        onNone: () => CancelledSelectImportFile(),
+        onSome: (file) => SelectedImportFile({ file }),
+      })
     ),
-    Effect.catchCause(() => Effect.succeed(CancelledSelectImportFile()))
+    Effect.matchCause({
+      onFailure: () => CancelledSelectImportFile(),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -204,16 +219,13 @@ const ReadImportFile = Command.define(
   PreparedImportData,
   FailedImportData
 )(({ file }) =>
-  Effect.promise(() => file.text()).pipe(
+  Effect.tryPromise(() => file.text()).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(DataExportJson)),
     Effect.map((data) => PreparedImportData({ data })),
-    Effect.catchCause(() =>
-      Effect.succeed(
-        FailedImportData({
-          message: 'Invalid export file. Please select a valid SubQ export file.',
-        })
-      )
-    )
+    Effect.matchCause({
+      onFailure: () => FailedImportData({ message: 'Invalid export file. Please select a valid SubQ export file.' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -228,7 +240,10 @@ const ImportData = Command.define(
     const result = yield* api.UserDataImport(data)
     return SucceededImportData({ result })
   }).pipe(
-    Effect.catchCause(() => Effect.succeed(FailedImportData({ message: 'Failed to import data. Please try again.' })))
+    Effect.matchCause({
+      onFailure: () => FailedImportData({ message: 'Failed to import data. Please try again.' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 

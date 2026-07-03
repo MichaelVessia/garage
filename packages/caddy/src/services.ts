@@ -1,4 +1,7 @@
-import { Config, Context, Effect, Layer } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 
 import { envMissing } from './errors.js'
 import type { CaddyError } from './errors.js'
@@ -35,10 +38,8 @@ export const CaddyConfigLive = Layer.effect(
   CaddyConfig,
   Effect.gen(function* () {
     const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('CADDY_URL')
-        return { url }
-      }).pipe(
+      readRequiredString('CADDY_URL').pipe(
+        Effect.map((url) => ({ url })),
         Effect.withSpan('CaddyConfig.get'),
         Effect.annotateLogs({ package: '@garage/caddy', service: 'CaddyConfig', method: 'get' })
       )

@@ -1,39 +1,39 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
-const OptionalStringArray = Schema.optional(Schema.Array(Schema.String))
+const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const JsonObjectSchema = Schema.Record(Schema.String, Schema.Unknown)
-export type JsonObject = typeof JsonObjectSchema.Type
+export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export type JsonObject = typeof JsonObject.Type
 
-export const ProcessResultSchema = Schema.Struct({
+export const ProcessResult = Schema.Struct({
   exitCode: Schema.Number,
   stdout: Schema.String,
   stderr: Schema.String,
 })
-export type ProcessResult = typeof ProcessResultSchema.Type
+export type ProcessResult = typeof ProcessResult.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const WhoisOptionsSchema = Schema.Struct({ target: Schema.String })
-export type WhoisOptions = typeof WhoisOptionsSchema.Type
+export const WhoisOptions = Schema.Struct({ target: Schema.String })
+export type WhoisOptions = typeof WhoisOptions.Type
 
-export const PingOptionsSchema = Schema.Struct({ target: Schema.String })
-export type PingOptions = typeof PingOptionsSchema.Type
+export const PingOptions = Schema.Struct({ target: Schema.String })
+export type PingOptions = typeof PingOptions.Type
 
-export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
+export const ListResult = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
     count: Schema.Number,
     total: OptionalNumber,
     records: Schema.Array(record),
     moreAvailable: OptionalBoolean,
   })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
 
-export const PeerRecordSchema = Schema.Struct({
+export const PeerRecord = Schema.Struct({
   id: OptionalString,
   hostName: OptionalString,
   dnsName: OptionalString,
@@ -48,45 +48,45 @@ export const PeerRecordSchema = Schema.Struct({
   allowedIps: OptionalStringArray,
   tags: OptionalStringArray,
 })
-export type PeerRecord = typeof PeerRecordSchema.Type
+export type PeerRecord = typeof PeerRecord.Type
 
-export const StatusResultSchema = Schema.Struct({
+export const StatusResult = Schema.Struct({
   backendState: OptionalString,
   version: OptionalString,
   tailnetName: OptionalString,
   magicDnsSuffix: OptionalString,
   magicDnsEnabled: OptionalBoolean,
-  self: Schema.optional(PeerRecordSchema),
+  self: Schema.optional(PeerRecord),
   peerCount: Schema.Number,
   onlinePeerCount: Schema.Number,
   exitNodeCount: Schema.Number,
-  currentExitNode: Schema.optional(PeerRecordSchema),
+  currentExitNode: Schema.optional(PeerRecord),
   health: Schema.Array(Schema.String),
-  peers: ListResultSchema(PeerRecordSchema),
+  peers: ListResult(PeerRecord),
 })
-export type StatusResult = typeof StatusResultSchema.Type
+export type StatusResult = typeof StatusResult.Type
 
-export const CurrentExitNodeResultSchema = Schema.Struct({
+export const CurrentExitNodeResult = Schema.Struct({
   usingExitNode: Schema.Boolean,
-  peer: Schema.optional(PeerRecordSchema),
+  peer: Schema.optional(PeerRecord),
 })
-export type CurrentExitNodeResult = typeof CurrentExitNodeResultSchema.Type
+export type CurrentExitNodeResult = typeof CurrentExitNodeResult.Type
 
-export const DnsResultSchema = Schema.Struct({
+export const DnsResult = Schema.Struct({
   output: Schema.String,
   lines: Schema.Array(Schema.String),
 })
-export type DnsResult = typeof DnsResultSchema.Type
+export type DnsResult = typeof DnsResult.Type
 
-export const IpResultSchema = Schema.Struct({
+export const IpResult = Schema.Struct({
   ipv4: OptionalString,
   ipv6: OptionalString,
 })
-export type IpResult = typeof IpResultSchema.Type
+export type IpResult = typeof IpResult.Type
 
-export const PingResultSchema = Schema.Struct({
+export const PingResult = Schema.Struct({
   target: Schema.String,
   output: Schema.String,
   lines: Schema.Array(Schema.String),
 })
-export type PingResult = typeof PingResultSchema.Type
+export type PingResult = typeof PingResult.Type

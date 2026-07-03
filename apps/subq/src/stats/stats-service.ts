@@ -1,4 +1,10 @@
-import { Context, DateTime, Effect, Layer, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import {
@@ -85,14 +91,14 @@ const decodeDatetimeRows = Schema.decodeUnknownEffect(Schema.Array(DatetimeRow))
 export class StatsService extends Context.Service<
   StatsService,
   {
-    readonly getWeightStats: (params: StatsParams, userId: string) => Effect.Effect<WeightStats | null>
+    readonly getWeightStats: (params: StatsParams, userId: string) => Effect.Effect<Option.Option<WeightStats>>
     readonly getWeightTrend: (params: StatsParams, userId: string) => Effect.Effect<WeightTrendStats>
     readonly getInjectionSiteStats: (params: StatsParams, userId: string) => Effect.Effect<InjectionSiteStats>
     readonly getDosageHistory: (params: StatsParams, userId: string) => Effect.Effect<DosageHistoryStats>
     readonly getInjectionFrequency: (
       params: StatsParams,
       userId: string
-    ) => Effect.Effect<InjectionFrequencyStats | null>
+    ) => Effect.Effect<Option.Option<InjectionFrequencyStats>>
     readonly getDrugBreakdown: (params: StatsParams, userId: string) => Effect.Effect<DrugBreakdownStats>
     readonly getInjectionByDayOfWeek: (params: StatsParams, userId: string) => Effect.Effect<InjectionDayOfWeekStats>
   }
@@ -107,11 +113,13 @@ export const StatsServiceLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const listInjectionDatetimes = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        const startDateStr = params.startDate?.toISOString()
-        const endDateStr = params.endDate?.toISOString()
-        const rows = yield* sql`
+    const listInjectionDatetimes = Effect.fn('StatsService.listInjectionDatetimes')(function* (
+      params: StatsParams,
+      userId: string
+    ) {
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
+      const rows = yield* sql`
           SELECT datetime
           FROM injection_logs
           WHERE user_id = ${userId}
@@ -119,18 +127,17 @@ export const StatsServiceLive = Layer.effect(
           ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
           ORDER BY datetime ASC
         `
-        const decoded = yield* decodeDatetimeRows(rows)
-        return decoded.map((row) => row.datetime)
-      })
+      const decoded = yield* decodeDatetimeRows(rows)
+      return Arr.map(decoded, (row) => row.datetime)
+    })
 
-    const getWeightStats = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const startDateStr = params.startDate?.toISOString()
-        const endDateStr = params.endDate?.toISOString()
+    const getWeightStats = Effect.fn('StatsService.getWeightStats')(function* (params: StatsParams, userId: string) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
 
-        // Combined query: get summary stats and all points in a single D1 roundtrip
-        const rows = yield* sql`
+      // Combined query: get summary stats and all points in a single D1 roundtrip
+      const rows = yield* sql`
           SELECT
             MIN(weight) as min_weight,
             MAX(weight) as max_weight,
@@ -152,40 +159,41 @@ export const StatsServiceLive = Layer.effect(
           ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
           ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
         `
-        if (rows.length === 0) {
-          return null
-        }
+      if (Arr.isReadonlyArrayEmpty(rows)) {
+        return Option.none()
+      }
 
-        const decoded = yield* decodeWeightStatsRow(rows[0])
-        if (decoded.min_weight === null || decoded.max_weight === null || decoded.avg_weight === null) {
-          return null
-        }
+      const decoded = yield* decodeWeightStatsRow(rows[0])
+      if (decoded.min_weight === null || decoded.max_weight === null || decoded.avg_weight === null) {
+        return Option.none()
+      }
 
-        // Parse points from JSON
-        const pointsRaw = yield* decodeWeightPointsJson(decoded.points_json)
-        const points: { date: Date; weight: number }[] = pointsRaw.map((p) => ({
-          date: DateTime.toDate(DateTime.makeUnsafe(p.datetime)),
-          weight: p.weight,
-        }))
+      // Parse points from JSON
+      const pointsRaw = yield* decodeWeightPointsJson(decoded.points_json)
+      const points: { date: Date; weight: number }[] = Arr.map(pointsRaw, (p) => ({
+        date: DateTime.toDate(DateTime.makeUnsafe(p.datetime)),
+        weight: p.weight,
+      }))
 
-        const trajectory = calculateWeightTrajectory(points)
-        yield* Effect.annotateCurrentSpan('entryCount', decoded.entry_count)
+      const trajectory = calculateWeightTrajectory(points)
+      yield* Effect.annotateCurrentSpan('entryCount', decoded.entry_count)
 
-        return new WeightStats({
+      return Option.some(
+        new WeightStats({
           minWeight: Weight.make(decoded.min_weight),
           maxWeight: Weight.make(decoded.max_weight),
           avgWeight: Weight.make(decoded.avg_weight),
           rateOfChange: WeightRateOfChange.make(trajectory.rateOfChange),
           entryCount: Count.make(decoded.entry_count),
         })
-      }).pipe(Effect.withSpan('StatsService.getWeightStats'), Effect.orDie)
+      )
+    }, Effect.orDie)
 
-    const getWeightTrend = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const startDateStr = params.startDate?.toISOString()
-        const endDateStr = params.endDate?.toISOString()
-        const rows = yield* sql`
+    const getWeightTrend = Effect.fn('StatsService.getWeightTrend')(function* (params: StatsParams, userId: string) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
+      const rows = yield* sql`
           SELECT datetime, weight
           FROM weight_logs
           WHERE user_id = ${userId}
@@ -193,37 +201,43 @@ export const StatsServiceLive = Layer.effect(
           ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
           ORDER BY datetime ASC
         `
-        const points: WeightTrendPoint[] = []
-        for (const row of rows) {
-          const decoded = yield* decodeWeightTrendRow(row)
-          points.push(new WeightTrendPoint({ date: decoded.datetime, weight: Weight.make(decoded.weight) }))
-        }
+      const points = yield* Effect.forEach(
+        rows,
+        (row) =>
+          Effect.map(
+            decodeWeightTrendRow(row),
+            (decoded) => new WeightTrendPoint({ date: decoded.datetime, weight: Weight.make(decoded.weight) })
+          ),
+        { concurrency: 1 }
+      )
 
-        const trajectory = calculateWeightTrajectory(points)
-        const trendLineData = trajectory.trendLine
-        const trendLine =
-          trendLineData === null
-            ? null
-            : new TrendLine({
-                slope: trendLineData.slope,
-                intercept: trendLineData.intercept,
-                startDate: trendLineData.startDate,
-                startWeight: Weight.make(trendLineData.startWeight),
-                endDate: trendLineData.endDate,
-                endWeight: Weight.make(trendLineData.endWeight),
-              })
-        yield* Effect.annotateCurrentSpan('pointCount', points.length)
+      const trajectory = calculateWeightTrajectory(points)
+      const trendLine = Option.match(trajectory.trendLine, {
+        onNone: () => null,
+        onSome: (trendLineData) =>
+          new TrendLine({
+            slope: trendLineData.slope,
+            intercept: trendLineData.intercept,
+            startDate: trendLineData.startDate,
+            startWeight: Weight.make(trendLineData.startWeight),
+            endDate: trendLineData.endDate,
+            endWeight: Weight.make(trendLineData.endWeight),
+          }),
+      })
+      yield* Effect.annotateCurrentSpan('pointCount', points.length)
 
-        return new WeightTrendStats({ points, trendLine })
-      }).pipe(Effect.withSpan('StatsService.getWeightTrend'), Effect.orDie)
+      return new WeightTrendStats({ points, trendLine })
+    }, Effect.orDie)
 
-    const getInjectionSiteStats = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const startDateStr = params.startDate?.toISOString()
-        const endDateStr = params.endDate?.toISOString()
-        const rows = yield* sql`
-          SELECT 
+    const getInjectionSiteStats = Effect.fn('StatsService.getInjectionSiteStats')(function* (
+      params: StatsParams,
+      userId: string
+    ) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
+      const rows = yield* sql`
+          SELECT
             COALESCE(injection_site, 'Unknown') as injection_site,
             COUNT(*) as count
           FROM injection_logs
@@ -233,29 +247,28 @@ export const StatsServiceLive = Layer.effect(
           GROUP BY injection_site
           ORDER BY count DESC
         `
-        const sites: InjectionSiteCount[] = []
-        let total = 0
-        for (const row of rows) {
-          const decoded = yield* decodeInjectionSiteRow(row)
-          const countNum = decoded.count
-          sites.push(
-            new InjectionSiteCount({
-              site: InjectionSite.make(decoded.injection_site ?? 'Unknown'),
-              count: Count.make(countNum),
-            })
-          )
-          total += countNum
-        }
-        yield* Effect.annotateCurrentSpan('totalInjections', total)
-        return new InjectionSiteStats({ sites, totalInjections: Count.make(total) })
-      }).pipe(Effect.withSpan('StatsService.getInjectionSiteStats'), Effect.orDie)
+      const decodedRows = yield* Effect.forEach(rows, (row) => decodeInjectionSiteRow(row), { concurrency: 1 })
+      const sites = Arr.map(
+        decodedRows,
+        (decoded) =>
+          new InjectionSiteCount({
+            site: InjectionSite.make(decoded.injection_site ?? 'Unknown'),
+            count: Count.make(decoded.count),
+          })
+      )
+      const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
+      yield* Effect.annotateCurrentSpan('totalInjections', total)
+      return new InjectionSiteStats({ sites, totalInjections: Count.make(total) })
+    }, Effect.orDie)
 
-    const getDosageHistory = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const startDateStr = params.startDate?.toISOString()
-        const endDateStr = params.endDate?.toISOString()
-        const rows = yield* sql`
+    const getDosageHistory = Effect.fn('StatsService.getDosageHistory')(function* (
+      params: StatsParams,
+      userId: string
+    ) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
+      const rows = yield* sql`
           SELECT datetime, drug, dosage
           FROM injection_logs
           WHERE user_id = ${userId}
@@ -263,33 +276,45 @@ export const StatsServiceLive = Layer.effect(
           ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
           ORDER BY datetime ASC
         `
-        const inputs: { date: Date; drug: string; dosage: string }[] = []
-        for (const row of rows) {
-          const decoded = yield* decodeDosageHistoryRow(row)
-          inputs.push({ date: decoded.datetime, drug: decoded.drug, dosage: decoded.dosage })
-        }
-        yield* Effect.annotateCurrentSpan('pointCount', inputs.length)
-        return buildDosageHistoryStats(inputs)
-      }).pipe(Effect.withSpan('StatsService.getDosageHistory'), Effect.orDie)
+      const inputs = yield* Effect.forEach(
+        rows,
+        (row) =>
+          Effect.map(decodeDosageHistoryRow(row), (decoded) => ({
+            date: decoded.datetime,
+            drug: decoded.drug,
+            dosage: decoded.dosage,
+          })),
+        { concurrency: 1 }
+      )
+      yield* Effect.annotateCurrentSpan('pointCount', inputs.length)
+      return buildDosageHistoryStats(inputs)
+    }, Effect.orDie)
 
-    const getInjectionFrequency = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const timezone = params.timezone ?? 'UTC'
-        const datetimes = yield* listInjectionDatetimes(params, userId)
-        const result = buildObservedInjectionFrequency(datetimes, timezone)
+    const getInjectionFrequency = Effect.fn('StatsService.getInjectionFrequency')(function* (
+      params: StatsParams,
+      userId: string
+    ) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const timezone = params.timezone ?? 'UTC'
+      const datetimes = yield* listInjectionDatetimes(params, userId)
+      const result = buildObservedInjectionFrequency(datetimes, timezone)
 
-        yield* Effect.annotateCurrentSpan('totalInjections', result?.totalInjections ?? 0)
-        yield* Effect.annotateCurrentSpan('timezone', timezone)
-        return result
-      }).pipe(Effect.withSpan('StatsService.getInjectionFrequency'), Effect.orDie)
+      yield* Effect.annotateCurrentSpan(
+        'totalInjections',
+        Option.match(result, { onNone: () => 0, onSome: ({ totalInjections }) => totalInjections })
+      )
+      yield* Effect.annotateCurrentSpan('timezone', timezone)
+      return result
+    }, Effect.orDie)
 
-    const getDrugBreakdown = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const startDateStr = params.startDate?.toISOString()
-        const endDateStr = params.endDate?.toISOString()
-        const rows = yield* sql`
+    const getDrugBreakdown = Effect.fn('StatsService.getDrugBreakdown')(function* (
+      params: StatsParams,
+      userId: string
+    ) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
+      const rows = yield* sql`
           SELECT drug, COUNT(*) as count
           FROM injection_logs
           WHERE user_id = ${userId}
@@ -298,29 +323,29 @@ export const StatsServiceLive = Layer.effect(
           GROUP BY drug
           ORDER BY count DESC
         `
-        const drugs: DrugCount[] = []
-        let total = 0
-        for (const row of rows) {
-          const decoded = yield* decodeDrugCountRow(row)
-          const countNum = decoded.count
-          drugs.push(new DrugCount({ drug: DrugName.make(decoded.drug), count: Count.make(countNum) }))
-          total += countNum
-        }
-        yield* Effect.annotateCurrentSpan('totalInjections', total)
-        return new DrugBreakdownStats({ drugs, totalInjections: Count.make(total) })
-      }).pipe(Effect.withSpan('StatsService.getDrugBreakdown'), Effect.orDie)
+      const decodedRows = yield* Effect.forEach(rows, (row) => decodeDrugCountRow(row), { concurrency: 1 })
+      const drugs = Arr.map(
+        decodedRows,
+        (decoded) => new DrugCount({ drug: DrugName.make(decoded.drug), count: Count.make(decoded.count) })
+      )
+      const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
+      yield* Effect.annotateCurrentSpan('totalInjections', total)
+      return new DrugBreakdownStats({ drugs, totalInjections: Count.make(total) })
+    }, Effect.orDie)
 
-    const getInjectionByDayOfWeek = (params: StatsParams, userId: string) =>
-      Effect.gen(function* () {
-        yield* Effect.annotateCurrentSpan('userId', userId)
-        const timezone = params.timezone ?? 'UTC'
-        const datetimes = yield* listInjectionDatetimes(params, userId)
-        const result = buildInjectionDayOfWeekStats(datetimes, timezone)
+    const getInjectionByDayOfWeek = Effect.fn('StatsService.getInjectionByDayOfWeek')(function* (
+      params: StatsParams,
+      userId: string
+    ) {
+      yield* Effect.annotateCurrentSpan('userId', userId)
+      const timezone = params.timezone ?? 'UTC'
+      const datetimes = yield* listInjectionDatetimes(params, userId)
+      const result = buildInjectionDayOfWeekStats(datetimes, timezone)
 
-        yield* Effect.annotateCurrentSpan('totalInjections', result.totalInjections)
-        yield* Effect.annotateCurrentSpan('timezone', timezone)
-        return result
-      }).pipe(Effect.withSpan('StatsService.getInjectionByDayOfWeek'), Effect.orDie)
+      yield* Effect.annotateCurrentSpan('totalInjections', result.totalInjections)
+      yield* Effect.annotateCurrentSpan('timezone', timezone)
+      return result
+    }, Effect.orDie)
 
     return {
       getWeightStats,

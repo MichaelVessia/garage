@@ -1,10 +1,11 @@
-import { Effect, Random } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Random from 'effect/Random'
 
 const randomByte = Random.nextIntBetween(0, 255)
 
 const hexByte = (byte: number): string => byte.toString(16).padStart(2, '0')
 
-export const randomUuid = Effect.gen(function* () {
+export const randomUuid = Effect.fn('randomUuid')(function* () {
   const byte0 = yield* randomByte
   const byte1 = yield* randomByte
   const byte2 = yield* randomByte

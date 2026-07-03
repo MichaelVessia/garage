@@ -1,6 +1,10 @@
 import { D1Client } from '@effect/sql-d1'
 import * as Cloudflare from 'alchemy/Cloudflare'
-import { Config, Effect, Layer, Option, Redacted } from 'effect'
+import * as Config from 'effect/Config'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
 import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 
@@ -9,6 +13,7 @@ import { AppRpcs } from '#shared'
 import { BetterAuthApiError } from './auth/better-auth-error.js'
 import { AuthRpcMiddlewareLive, AuthService, makeAuth } from './auth/index.js'
 import { DataExportRpcHandlersLive, DataExportServiceLive } from './data-export/index.js'
+import { UnexpectedRequestSource } from './errors.js'
 import { GoalRepoLive, GoalRpcHandlersLive, GoalServiceLive } from './goals/index.js'
 import { InjectionLogRepoLive, InjectionRpcHandlersLive, ScheduleAssignmentLive } from './injection/index.js'
 import { ScheduleCadenceServiceLive, ScheduleRepoLive, ScheduleRpcHandlersLive } from './schedule/index.js'
@@ -104,11 +109,11 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
       Effect.provide([AppLive, RpcSerialization.layerJson])
     )
 
-    const handleAuthRequest = Effect.gen(function* () {
+    const handleAuthRequest = Effect.fn('handleAuthRequest')(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const { source } = request
       if (!(source instanceof Request)) {
-        return yield* Effect.die(new Error('expected a web Request source'))
+        return yield* Effect.die(new UnexpectedRequestSource({ message: 'expected a web Request source' }))
       }
       const instance = yield* auth
       const response = yield* Effect.tryPromise({
@@ -127,7 +132,7 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
           return HttpServerResponse.text('ok')
         }
         if (url.pathname.startsWith('/api/auth/')) {
-          return yield* handleAuthRequest
+          return yield* handleAuthRequest()
         }
         if (url.pathname === '/rpc' || url.pathname === '/rpc/') {
           return yield* rpcApp

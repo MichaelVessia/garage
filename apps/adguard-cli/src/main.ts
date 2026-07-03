@@ -1,7 +1,10 @@
 import { BunHttpClient, BunRuntime, BunStdio } from '@effect/platform-bun'
 import { AdguardApiLive, AdguardConfigLive } from '@garage/adguard'
 import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
-import { Console, Effect, Layer, Stdio } from 'effect'
+import * as Console from 'effect/Console'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Stdio from 'effect/Stdio'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { executeAdguard } from './index.js'

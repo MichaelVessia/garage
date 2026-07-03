@@ -11,7 +11,8 @@ result
 docs/superpowers/
 docs/plans/
 .scratch/
-.claude/
+.claude/*
+!.claude/settings.json
 .codex/
 .ralph/
 tmp/

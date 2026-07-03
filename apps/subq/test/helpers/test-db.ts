@@ -4,7 +4,9 @@
  */
 
 import { SqliteClient } from '@effect/sql-sqlite-bun'
-import { DateTime, Effect, Layer } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { SqlClient } from 'effect/unstable/sql'
 
 // ============================================

@@ -1,8 +1,17 @@
 import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as BunServices from '@effect/platform-bun/BunServices'
-import { Console, Effect, FileSystem, Path, Stream } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Console from 'effect/Console'
+import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
+import * as Option from 'effect/Option'
+import * as Path from 'effect/Path'
 import type * as PlatformError from 'effect/PlatformError'
+import * as Stream from 'effect/Stream'
+import * as Str from 'effect/String'
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
+
+import { CliVersioningError } from './errors'
 
 const garagePackagePrefix = '@garage/'
 const cliSuffix = '-cli'
@@ -16,30 +25,19 @@ interface CommandResult {
 const cliPackageName = (cliName: string): string => `${garagePackagePrefix}${cliName}${cliSuffix}`
 
 export const affectedCliPackages = (changedFiles: readonly string[], cliNames: readonly string[]): string[] => {
-  const affected = new Set<string>()
+  const normalizedFiles = Arr.map(changedFiles, (changedFile) => changedFile.replaceAll('\\', '/'))
+  const protocolChanged = Arr.some(normalizedFiles, (file) => file.startsWith('packages/cli-protocol/'))
 
-  for (const changedFile of changedFiles) {
-    const normalizedFile = changedFile.replaceAll('\\', '/')
+  const affectedCliNames = Arr.filter(cliNames, (cliName) => {
+    const matchesCli = Arr.some(
+      normalizedFiles,
+      (file) => file.startsWith(`apps/${cliName}${cliSuffix}/`) || file.startsWith(`packages/${cliName}/`)
+    )
 
-    if (normalizedFile.startsWith('packages/cli-protocol/')) {
-      for (const cliName of cliNames) {
-        affected.add(cliPackageName(cliName))
-      }
-      continue
-    }
+    return protocolChanged || matchesCli
+  })
 
-    for (const cliName of cliNames) {
-      if (normalizedFile.startsWith(`apps/${cliName}${cliSuffix}/`)) {
-        affected.add(cliPackageName(cliName))
-      }
-
-      if (normalizedFile.startsWith(`packages/${cliName}/`)) {
-        affected.add(cliPackageName(cliName))
-      }
-    }
-  }
-
-  return cliNames.map(cliPackageName).filter((packageName) => affected.has(packageName))
+  return Arr.map(affectedCliNames, cliPackageName)
 }
 
 export const changesetMarkdown = (packageNames: readonly string[]): string => {
@@ -48,8 +46,8 @@ export const changesetMarkdown = (packageNames: readonly string[]): string => {
   return ['---', ...packageLines, '---', '', 'Automatic CLI release for changed app or package code.', ''].join('\n')
 }
 
-const platformError = (operation: string, cause: PlatformError.PlatformError): Error =>
-  new Error(`${operation}: ${cause.message}`)
+const platformError = (operation: string, cause: PlatformError.PlatformError): CliVersioningError =>
+  new CliVersioningError({ message: `${operation}: ${cause.message}` })
 
 const streamText = (
   stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>
@@ -60,10 +58,10 @@ const commandText = (command: string, args: readonly string[]): string => `${com
 const commandOutput = (result: CommandResult): string => {
   const stderr = result.stderr.trim()
   const stdout = result.stdout.trim()
-  return stderr.length === 0 ? stdout : stderr
+  return Str.isNonEmpty(stderr) ? stderr : stdout
 }
 
-const runCommand = Effect.fn('runCommand')(function* (command: string, args: readonly string[]) {
+const runCommand = Effect.fn('cli-versioning.runCommand')(function* (command: string, args: readonly string[]) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
   return yield* Effect.scoped(
     Effect.gen(function* () {
@@ -86,47 +84,51 @@ const runCommand = Effect.fn('runCommand')(function* (command: string, args: rea
   )
 })
 
-const discoverCliNames = Effect.fn('discoverCliNames')(function* () {
+const discoverCliNames = Effect.fn('cli-versioning.discoverCliNames')(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const directoryNames = yield* fs
     .readDirectory('apps')
     .pipe(Effect.mapError((cause) => platformError('Could not read apps directory', cause)))
-  const cliNames: string[] = []
 
-  for (const directoryName of directoryNames) {
-    if (!directoryName.endsWith(cliSuffix)) {
-      continue
-    }
+  const cliCandidates = Arr.filter(directoryNames, (directoryName) => directoryName.endsWith(cliSuffix))
+  const cliNameOptions = yield* Effect.forEach(
+    cliCandidates,
+    (directoryName) =>
+      Effect.gen(function* () {
+        const packageJsonPath = path.join('apps', directoryName, 'package.json')
+        const hasPackageJson = yield* fs
+          .exists(packageJsonPath)
+          .pipe(Effect.mapError((cause) => platformError(`Could not inspect ${packageJsonPath}`, cause)))
 
-    const packageJsonPath = path.join('apps', directoryName, 'package.json')
-    const hasPackageJson = yield* fs
-      .exists(packageJsonPath)
-      .pipe(Effect.mapError((cause) => platformError(`Could not inspect ${packageJsonPath}`, cause)))
+        return hasPackageJson ? Option.some(directoryName.slice(0, -cliSuffix.length)) : Option.none<string>()
+      }),
+    { concurrency: 'unbounded' }
+  )
 
-    if (hasPackageJson) {
-      cliNames.push(directoryName.slice(0, -cliSuffix.length))
-    }
-  }
-
-  return cliNames.toSorted()
+  return Arr.getSomes(cliNameOptions).toSorted()
 })
 
-const changedFilesBetween = Effect.fn('changedFilesBetween')(function* (baseRef: string, headRef: string) {
+const changedFilesBetween = Effect.fn('cli-versioning.changedFilesBetween')(function* (
+  baseRef: string,
+  headRef: string
+) {
   const result = yield* runCommand('git', ['diff', '--name-only', `${baseRef}...${headRef}`])
 
   if (result.exitCode !== 0) {
-    return yield* Effect.fail(new Error(`git diff failed: ${commandOutput(result)}`))
+    return yield* Effect.fail(new CliVersioningError({ message: `git diff failed: ${commandOutput(result)}` }))
   }
 
   return result.stdout
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+    .filter((line) => Str.isNonEmpty(line))
 })
 
-const writeAutomaticChangeset = Effect.fn('writeAutomaticChangeset')(function* (packageNames: readonly string[]) {
-  if (packageNames.length === 0) {
+const writeAutomaticChangeset = Effect.fn('cli-versioning.writeAutomaticChangeset')(function* (
+  packageNames: readonly string[]
+) {
+  if (Arr.isReadonlyArrayEmpty(packageNames)) {
     return
   }
 
@@ -140,7 +142,7 @@ const writeAutomaticChangeset = Effect.fn('writeAutomaticChangeset')(function* (
     .pipe(Effect.mapError((cause) => platformError('Could not write automatic CLI changeset', cause)))
 })
 
-const writePackageOutput = Effect.fn('writePackageOutput')(function* (
+const writePackageOutput = Effect.fn('cli-versioning.writePackageOutput')(function* (
   packageOutputPath: string,
   packageNames: readonly string[]
 ) {
@@ -155,11 +157,11 @@ const writePackageOutput = Effect.fn('writePackageOutput')(function* (
   }
 
   yield* fs
-    .writeFileString(packageOutputPath, packageNames.length === 0 ? '' : `${packageNames.join('\n')}\n`)
+    .writeFileString(packageOutputPath, Arr.isReadonlyArrayEmpty(packageNames) ? '' : `${packageNames.join('\n')}\n`)
     .pipe(Effect.mapError((cause) => platformError(`Could not write ${packageOutputPath}`, cause)))
 })
 
-const readPackageOutput = Effect.fn('readPackageOutput')(function* (packageOutputPath: string) {
+const readPackageOutput = Effect.fn('cli-versioning.readPackageOutput')(function* (packageOutputPath: string) {
   const fs = yield* FileSystem.FileSystem
   const content = yield* fs
     .readFileString(packageOutputPath)
@@ -168,18 +170,18 @@ const readPackageOutput = Effect.fn('readPackageOutput')(function* (packageOutpu
   return content
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+    .filter((line) => Str.isNonEmpty(line))
 })
 
-const cliDirectoryNameFromPackage = (packageName: string): Effect.Effect<string, Error> => {
+const cliDirectoryNameFromPackage = (packageName: string): Effect.Effect<string, CliVersioningError> => {
   if (!packageName.startsWith(garagePackagePrefix) || !packageName.endsWith(cliSuffix)) {
-    return Effect.fail(new Error(`Unsupported CLI package name: ${packageName}`))
+    return Effect.fail(new CliVersioningError({ message: `Unsupported CLI package name: ${packageName}` }))
   }
 
   return Effect.succeed(packageName.slice(garagePackagePrefix.length))
 }
 
-const packageVersion = Effect.fn('packageVersion')(function* (packageName: string) {
+const packageVersion = Effect.fn('cli-versioning.packageVersion')(function* (packageName: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const directoryName = yield* cliDirectoryNameFromPackage(packageName)
@@ -188,49 +190,55 @@ const packageVersion = Effect.fn('packageVersion')(function* (packageName: strin
     .readFileString(packageJsonPath)
     .pipe(Effect.mapError((cause) => platformError(`Could not read ${packageJsonPath}`, cause)))
   const match = /"version"\s*:\s*"([^"]+)"/u.exec(packageJson)
-  const version = match?.[1]
+  const version = Option.fromUndefinedOr(match?.[1])
 
-  if (version === undefined) {
-    return yield* Effect.fail(new Error(`Could not find version for ${packageName}`))
-  }
-
-  return version
+  return yield* Option.match(version, {
+    onNone: () => Effect.fail(new CliVersioningError({ message: `Could not find version for ${packageName}` })),
+    onSome: (value) => Effect.succeed(value),
+  })
 })
 
-const gitTagExists = Effect.fn('gitTagExists')(function* (tagName: string) {
+const gitTagExists = Effect.fn('cli-versioning.gitTagExists')(function* (tagName: string) {
   const result = yield* runCommand('git', ['rev-parse', '--quiet', '--verify', `refs/tags/${tagName}`])
 
   return result.exitCode === 0
 })
 
-const createGitTag = Effect.fn('createGitTag')(function* (tagName: string) {
+const createGitTag = Effect.fn('cli-versioning.createGitTag')(function* (tagName: string) {
   const result = yield* runCommand('git', ['tag', tagName])
 
   if (result.exitCode !== 0) {
-    yield* Effect.fail(new Error(`git tag failed for ${tagName}: ${commandOutput(result)}`))
+    yield* Effect.fail(new CliVersioningError({ message: `git tag failed for ${tagName}: ${commandOutput(result)}` }))
   }
 })
 
-const tagReleasedPackages = Effect.fn('tagReleasedPackages')(function* (packageNames: readonly string[]) {
-  for (const packageName of packageNames) {
-    const directoryName = yield* cliDirectoryNameFromPackage(packageName)
-    const version = yield* packageVersion(packageName)
-    const tagName = `${directoryName}-v${version}`
+const tagReleasedPackages = Effect.fn('cli-versioning.tagReleasedPackages')(function* (
+  packageNames: readonly string[]
+) {
+  yield* Effect.forEach(
+    packageNames,
+    (packageName) =>
+      Effect.gen(function* () {
+        const directoryName = yield* cliDirectoryNameFromPackage(packageName)
+        const version = yield* packageVersion(packageName)
+        const tagName = `${directoryName}-v${version}`
 
-    if (!(yield* gitTagExists(tagName))) {
-      yield* createGitTag(tagName)
-    }
-  }
+        if (!(yield* gitTagExists(tagName))) {
+          yield* createGitTag(tagName)
+        }
+      }),
+    { concurrency: 1 }
+  )
 })
 
-const valueAfter = (args: readonly string[], flag: string): string | undefined => {
+const valueAfter = (args: readonly string[], flag: string): Option.Option<string> => {
   const flagIndex = args.indexOf(flag)
 
   if (flagIndex === -1) {
-    return undefined
+    return Option.none()
   }
 
-  return args[flagIndex + 1]
+  return Option.fromUndefinedOr(args[flagIndex + 1])
 }
 
 const usage = `Usage:
@@ -238,34 +246,36 @@ const usage = `Usage:
   bun scripts/cli-versioning.ts tag --package-output <path>
 `
 
-const writeCommand = Effect.fn('writeCommand')(function* (args: readonly string[]) {
-  const baseRef = valueAfter(args, '--base')
-  const headRef = valueAfter(args, '--head')
-  const packageOutputPath = valueAfter(args, '--package-output')
+const writeCommand = Effect.fn('cli-versioning.writeCommand')(function* (args: readonly string[]) {
+  const options = Option.all({
+    baseRef: valueAfter(args, '--base'),
+    headRef: valueAfter(args, '--head'),
+    packageOutputPath: valueAfter(args, '--package-output'),
+  })
 
-  if (baseRef === undefined || headRef === undefined || packageOutputPath === undefined) {
-    yield* Effect.fail(new Error(usage))
-  } else {
-    const changedFiles = yield* changedFilesBetween(baseRef, headRef)
-    const cliNames = yield* discoverCliNames()
-    const packageNames = affectedCliPackages(changedFiles, cliNames)
-    yield* writeAutomaticChangeset(packageNames)
-    yield* writePackageOutput(packageOutputPath, packageNames)
-  }
+  const { baseRef, headRef, packageOutputPath } = yield* Option.match(options, {
+    onNone: () => Effect.fail(new CliVersioningError({ message: usage })),
+    onSome: (values) => Effect.succeed(values),
+  })
+
+  const changedFiles = yield* changedFilesBetween(baseRef, headRef)
+  const cliNames = yield* discoverCliNames()
+  const packageNames = affectedCliPackages(changedFiles, cliNames)
+  yield* writeAutomaticChangeset(packageNames)
+  yield* writePackageOutput(packageOutputPath, packageNames)
 })
 
-const tagCommand = Effect.fn('tagCommand')(function* (args: readonly string[]) {
-  const packageOutputPath = valueAfter(args, '--package-output')
+const tagCommand = Effect.fn('cli-versioning.tagCommand')(function* (args: readonly string[]) {
+  const packageOutputPath = yield* Option.match(valueAfter(args, '--package-output'), {
+    onNone: () => Effect.fail(new CliVersioningError({ message: usage })),
+    onSome: (value) => Effect.succeed(value),
+  })
 
-  if (packageOutputPath === undefined) {
-    yield* Effect.fail(new Error(usage))
-  } else {
-    const packageNames = yield* readPackageOutput(packageOutputPath)
-    yield* tagReleasedPackages(packageNames)
-  }
+  const packageNames = yield* readPackageOutput(packageOutputPath)
+  yield* tagReleasedPackages(packageNames)
 })
 
-export const runCliVersioning = Effect.fn('runCliVersioning')(function* (args: readonly string[]) {
+export const runCliVersioning = Effect.fn('cli-versioning.runCliVersioning')(function* (args: readonly string[]) {
   const [command] = args
 
   if (command === 'write') {
@@ -278,10 +288,12 @@ export const runCliVersioning = Effect.fn('runCliVersioning')(function* (args: r
     return
   }
 
-  yield* Effect.fail(new Error(usage))
+  yield* Effect.fail(new CliVersioningError({ message: usage }))
 })
 
-const reportCliVersioningFailure = Effect.fn('runCliVersioning.onFailure')(function* (failure: Error) {
+const reportCliVersioningFailure = Effect.fn('cli-versioning.runCliVersioning.onFailure')(function* (
+  failure: CliVersioningError
+) {
   yield* Console.error(failure.message)
   return yield* Effect.fail(failure)
 })

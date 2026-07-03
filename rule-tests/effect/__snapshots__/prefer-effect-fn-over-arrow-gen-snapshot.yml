@@ -1,0 +1,16 @@
+id: prefer-effect-fn-over-arrow-gen
+snapshots:
+  ? |
+    const upsert = (client, record) =>
+      Effect.gen(function* () {
+        yield* client.put(record);
+      });
+  : labels:
+    - source: |-
+        const upsert = (client, record) =>
+          Effect.gen(function* () {
+            yield* client.put(record);
+          });
+      style: primary
+      start: 0
+      end: 99

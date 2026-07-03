@@ -1,4 +1,5 @@
-import { Context, Schema } from 'effect'
+import * as Context from 'effect/Context'
+import * as Schema from 'effect/Schema'
 import * as RpcMiddleware from 'effect/unstable/rpc/RpcMiddleware'
 
 // Minimal user/session types (matches better-auth structure)

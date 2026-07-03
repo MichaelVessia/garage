@@ -2,8 +2,11 @@ import type { CommandDescription, NextAction } from '@garage/cli-protocol'
 
 export interface RootHealth {
   readonly configured: boolean
+  // oxlint-disable-next-line effect/prefer-option-over-null -- agent-facing JSON envelope: absent fields are omitted from output, not serialized as Option
   readonly reachable?: boolean | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- agent-facing JSON envelope: absent fields are omitted from output, not serialized as Option
   readonly routeServers?: number | undefined
+  // oxlint-disable-next-line effect/prefer-option-over-null -- agent-facing JSON envelope: absent fields are omitted from output, not serialized as Option
   readonly errorCode?: string | undefined
 }
 

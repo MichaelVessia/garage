@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-effect-fn-rewrap
+language: tsx
+severity: error
+message: "Don't wrap Effect.gen inside Effect.fn — hoist .pipe operators into Effect.fn's trailing args"
+
+rule:
+  all:
+    - pattern: "Effect.fn($NAME)(function* ($$$ARGS) { $$$BODY })"
+    - has:
+        pattern: "return yield* Effect.gen(function* () { $$$INNER }).pipe($$$OPS)"
+        stopBy: end
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+ignores:
+  - "**/node_modules/**"
+  - "**/repos/**"
+
+note: |
+  When the body of an `Effect.fn` is `return yield* Effect.gen(...).pipe(...)`,
+  the inner generator and pipe operators should be hoisted into `Effect.fn`'s
+  trailing args slot. (See repos/effect-smol/LLMS.md.)
+
+  ```ts
+  // Avoid
+  const fn = Effect.fn('name')(function* (args) {
+    return yield* Effect.gen(function* () { /* body */ }).pipe(
+      Effect.scoped,
+      Effect.catchTag('RequestError', recover),
+    )
+  })
+
+  // Prefer
+  const fn = Effect.fn('name')(
+    function* (args) { /* body */ },
+    Effect.scoped,
+    Effect.catchTag('RequestError', recover),
+  )
+  ```
+
+  Suppress with: // ast-grep-ignore: no-effect-fn-rewrap

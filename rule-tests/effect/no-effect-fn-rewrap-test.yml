@@ -1,0 +1,15 @@
+id: no-effect-fn-rewrap
+
+valid:
+  - |
+    const fn = Effect.fn("name")(function* (args) {
+      yield* doWork(args);
+    });
+
+invalid:
+  - |
+    const fn = Effect.fn("name")(function* (args) {
+      return yield* Effect.gen(function* () {
+        yield* doWork(args);
+      }).pipe(Effect.scoped);
+    });

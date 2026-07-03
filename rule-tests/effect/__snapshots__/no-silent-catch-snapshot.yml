@@ -1,0 +1,31 @@
+id: no-silent-catch
+snapshots:
+  ? |
+    program.pipe(Effect.catchAll(() => Effect.succeed([])));
+  : labels:
+    - source: Effect.catchAll(() => Effect.succeed([]))
+      style: primary
+      start: 13
+      end: 54
+    - source: Effect.succeed([])
+      style: secondary
+      start: 35
+      end: 53
+  ? |
+    program.pipe(Effect.catchTag("RequestError", () => Effect.succeed(null)));
+  : labels:
+    - source: Effect.catchTag("RequestError", () => Effect.succeed(null))
+      style: primary
+      start: 13
+      end: 72
+    - source: Effect.succeed(null)
+      style: secondary
+      start: 51
+      end: 71
+  ? |
+    program.pipe(Effect.orElseSucceed(() => ""));
+  : labels:
+    - source: Effect.orElseSucceed(() => "")
+      style: primary
+      start: 13
+      end: 43

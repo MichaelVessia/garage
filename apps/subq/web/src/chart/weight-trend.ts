@@ -1,5 +1,9 @@
 import * as d3 from 'd3'
-import { Match, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as HashSet from 'effect/HashSet'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
@@ -22,7 +26,7 @@ import { epochToDate } from '../lib/datetime.js'
 export interface WeightPoint {
   readonly date: Date
   readonly weight: number
-  readonly notes: string | null
+  readonly notes: Option.Option<string>
 }
 
 export interface InjectionPoint {
@@ -35,7 +39,7 @@ export interface SchedulePeriod {
   readonly scheduleName: string
   readonly drug: string
   readonly startDate: Date
-  readonly endDate: Date | null
+  readonly endDate: Option.Option<Date>
 }
 
 // ============================================
@@ -60,10 +64,11 @@ export const getDosageColor = (keyOrDosage: string): string => {
   if (mapped !== undefined) {
     return mapped
   }
-  let hash = 0
-  for (const char of keyOrDosage) {
-    hash += char.codePointAt(0) ?? 0
-  }
+  const hash = Arr.reduce(
+    Array.from(keyOrDosage, (char) => char.codePointAt(0) ?? 0),
+    0,
+    (sum, code) => sum + code
+  )
   return FALLBACK_COLORS[hash % FALLBACK_COLORS.length] ?? '#0891b2'
 }
 
@@ -129,40 +134,43 @@ export type ChartMessage = typeof ChartMessage.Type
 export const updateChart = (
   state: ChartState,
   message: ChartMessage
-): readonly [ChartState, { readonly startMs: number; readonly endMs: number } | null] =>
+): readonly [ChartState, Option.Option<{ readonly startMs: number; readonly endMs: number }>] =>
   Match.value(message).pipe(
-    Match.withReturnType<readonly [ChartState, { readonly startMs: number; readonly endMs: number } | null]>(),
+    Match.withReturnType<readonly [ChartState, Option.Option<{ readonly startMs: number; readonly endMs: number }>]>(),
     Match.tagsExhaustive({
-      CancelledChartZoom: () => [evo(state, { zoomDrag: () => null }), null],
-      ClearedChartFilter: () => [evo(state, { filter: () => null }), null],
-      ClearedChartTooltip: () => [evo(state, { tooltip: () => null }), null],
+      CancelledChartZoom: () => [evo(state, { zoomDrag: () => null }), Option.none()],
+      ClearedChartFilter: () => [evo(state, { filter: () => null }), Option.none()],
+      ClearedChartTooltip: () => [evo(state, { tooltip: () => null }), Option.none()],
       ClickedChartPill: ({ dosage, drug }) => [
         evo(state, {
           filter: (filter) =>
             filter !== null && filter.drug === drug && filter.dosage === dosage ? null : { dosage, drug },
           tooltip: () => null,
         }),
-        null,
+        Option.none(),
       ],
       EndedChartZoom: () => {
         if (state.zoomDrag === null) {
-          return [state, null]
+          return [state, Option.none()]
         }
         const { hoverMs, startMs } = state.zoomDrag
         const next = evo(state, { zoomDrag: () => null })
         if (Math.abs(hoverMs - startMs) < 1000 * 60 * 60 * 24) {
-          return [next, null]
+          return [next, Option.none()]
         }
-        return [next, { endMs: Math.max(startMs, hoverMs), startMs: Math.min(startMs, hoverMs) }]
+        return [next, Option.some({ endMs: Math.max(startMs, hoverMs), startMs: Math.min(startMs, hoverMs) })]
       },
-      HoveredChartTooltip: ({ lines, title, x, y }) => [evo(state, { tooltip: () => ({ lines, title, x, y }) }), null],
+      HoveredChartTooltip: ({ lines, title, x, y }) => [
+        evo(state, { tooltip: () => ({ lines, title, x, y }) }),
+        Option.none(),
+      ],
       HoveredChartZoom: ({ ms }) => [
         evo(state, {
           zoomDrag: (drag) => (drag === null ? null : evo(drag, { hoverMs: () => ms })),
         }),
-        null,
+        Option.none(),
       ],
-      StartedChartZoom: ({ ms }) => [evo(state, { zoomDrag: () => ({ hoverMs: ms, startMs: ms }) }), null],
+      StartedChartZoom: ({ ms }) => [evo(state, { zoomDrag: () => ({ hoverMs: ms, startMs: ms }) }), Option.none()],
     })
   )
 
@@ -177,15 +185,15 @@ const CHART_HEIGHT = 320
 
 interface WeightPointColored extends WeightPoint {
   readonly color: string
-  readonly drug: string | null
-  readonly dosage: string | null
+  readonly drug: Option.Option<string>
+  readonly dosage: Option.Option<string>
 }
 
 interface Segment {
   readonly points: ReadonlyArray<WeightPointColored>
   readonly color: string
-  readonly drug: string | null
-  readonly dosage: string | null
+  readonly drug: Option.Option<string>
+  readonly dosage: Option.Option<string>
 }
 
 interface Pill {
@@ -201,90 +209,111 @@ interface Pill {
 const bySortedDate = <T extends { readonly date: Date }>(items: ReadonlyArray<T>): Array<T> =>
   [...items].toSorted((a, b) => a.date.getTime() - b.date.getTime())
 
+interface SegmentBuild {
+  readonly segments: ReadonlyArray<Segment>
+  readonly current: ReadonlyArray<WeightPointColored>
+  readonly color: string
+  readonly drug: Option.Option<string>
+  readonly dosage: Option.Option<string>
+}
+
+const flushSegment = (build: SegmentBuild): ReadonlyArray<Segment> =>
+  Arr.isReadonlyArrayNonEmpty(build.current)
+    ? [...build.segments, { color: build.color, dosage: build.dosage, drug: build.drug, points: build.current }]
+    : build.segments
+
 const computeSegments = (
   weightData: ReadonlyArray<WeightPoint>,
   injectionData: ReadonlyArray<InjectionPoint>
-): Array<Segment> => {
+): ReadonlyArray<Segment> => {
   const sortedWeight = bySortedDate(weightData)
   const sortedInjections = bySortedDate(injectionData)
-  const colored: Array<WeightPointColored> = sortedWeight.map((point) => {
-    const recent = sortedInjections.findLast((inj) => inj.date.getTime() <= point.date.getTime())
+  const colored: ReadonlyArray<WeightPointColored> = sortedWeight.map((point) => {
+    const recent = Option.fromNullishOr(sortedInjections.findLast((inj) => inj.date.getTime() <= point.date.getTime()))
     return {
       ...point,
-      color: recent === undefined ? '#94a3b8' : getDosageColor(`${recent.drug}::${recent.dosage}`),
-      dosage: recent?.dosage ?? null,
-      drug: recent?.drug ?? null,
+      color: Option.match(recent, {
+        onNone: () => '#94a3b8',
+        onSome: (inj) => getDosageColor(`${inj.drug}::${inj.dosage}`),
+      }),
+      dosage: Option.map(recent, (inj) => inj.dosage),
+      drug: Option.map(recent, (inj) => inj.drug),
     }
   })
-  const segments: Array<Segment> = []
-  let current: Array<WeightPointColored> = []
-  let color = ''
-  let drug: string | null = null
-  let dosage: string | null = null
-  for (const point of colored) {
-    if (point.color !== color) {
-      if (current.length > 0) {
-        segments.push({ color, dosage, drug, points: current })
-        const last = current.at(-1)
-        current = last === undefined ? [] : [last]
-      }
-      ;({ color, dosage, drug } = point)
+  const initial: SegmentBuild = { color: '', current: [], dosage: Option.none(), drug: Option.none(), segments: [] }
+  const built = Arr.reduce(colored, initial, (build, point) => {
+    if (point.color === build.color) {
+      return { ...build, current: [...build.current, point] }
     }
-    current.push(point)
-  }
-  if (current.length > 0) {
-    segments.push({ color, dosage, drug, points: current })
-  }
-  return segments
+    const seed = Arr.isReadonlyArrayNonEmpty(build.current) ? [Arr.lastNonEmpty(build.current), point] : [point]
+    return { color: point.color, current: seed, dosage: point.dosage, drug: point.drug, segments: flushSegment(build) }
+  })
+  return flushSegment(built)
 }
+
+const firstFreeRow = (occupied: HashSet.HashSet<number>, row: number): number =>
+  HashSet.has(occupied, row) ? firstFreeRow(occupied, row + 1) : row
 
 const computePills = (
   sortedWeight: ReadonlyArray<WeightPoint>,
   allInjections: ReadonlyArray<InjectionPoint>,
-  zoom: { readonly start: Date; readonly end: Date } | null,
+  zoom: Option.Option<{ readonly start: Date; readonly end: Date }>,
   xScale: d3.ScaleTime<number, number>
-): { readonly pills: Array<Pill>; readonly maxRow: number } => {
+): { readonly pills: ReadonlyArray<Pill>; readonly maxRow: number } => {
   const sortedInjections = bySortedDate(allInjections)
-  const visible =
-    zoom === null ? sortedInjections : sortedInjections.filter((inj) => inj.date >= zoom.start && inj.date <= zoom.end)
-  const closestWeight = (date: Date): WeightPoint | undefined => {
-    let [closest] = sortedWeight
-    for (const point of sortedWeight) {
-      if (
-        closest === undefined ||
-        Math.abs(point.date.getTime() - date.getTime()) < Math.abs(closest.date.getTime() - date.getTime())
-      ) {
-        closest = point
-      }
-    }
-    return closest
-  }
-  const pills: Array<Pill> = []
-  if (zoom !== null) {
-    const prior = sortedInjections.findLast((inj) => inj.date < zoom.start)
-    const [first] = sortedWeight
-    if (prior !== undefined && first !== undefined) {
-      pills.push({
-        color: getDosageColor(prior.dosage),
-        date: zoom.start,
-        dosage: prior.dosage,
-        drug: prior.drug,
-        row: 0,
-        weight: first.weight,
-        x: xScale(zoom.start),
+  const visible = Option.match(zoom, {
+    onNone: () => sortedInjections,
+    onSome: (range) => sortedInjections.filter((inj) => inj.date >= range.start && inj.date <= range.end),
+  })
+  const closestWeight = (date: Date): Option.Option<WeightPoint> =>
+    Arr.reduce(sortedWeight, Option.none<WeightPoint>(), (closest, point) =>
+      Option.match(closest, {
+        onNone: () => Option.some(point),
+        onSome: (current) =>
+          Math.abs(point.date.getTime() - date.getTime()) < Math.abs(current.date.getTime() - date.getTime())
+            ? Option.some(point)
+            : closest,
       })
-    }
-  }
-  let prevDosage = pills[0]?.dosage ?? ''
+    )
+  const priorPills: ReadonlyArray<Pill> = Option.match(zoom, {
+    onNone: () => [],
+    onSome: (range) =>
+      Option.all([
+        Option.fromNullishOr(sortedInjections.findLast((inj) => inj.date < range.start)),
+        Arr.head(sortedWeight),
+      ]).pipe(
+        Option.match({
+          onNone: () => [],
+          onSome: ([prior, first]) => [
+            {
+              color: getDosageColor(prior.dosage),
+              date: range.start,
+              dosage: prior.dosage,
+              drug: prior.drug,
+              row: 0,
+              weight: first.weight,
+              x: xScale(range.start),
+            },
+          ],
+        })
+      ),
+  })
+  const initialDosage = Arr.head(priorPills).pipe(
+    Option.map((pill) => pill.dosage),
+    Option.getOrElse(() => '')
+  )
   const [domainStart, domainEnd] = xScale.domain()
-  for (const inj of visible) {
-    if (domainStart !== undefined && domainEnd !== undefined && (inj.date < domainStart || inj.date > domainEnd)) {
-      continue
+  const built = Arr.reduce(visible, { pills: priorPills, prevDosage: initialDosage }, (acc, inj) => {
+    const outOfDomain =
+      domainStart !== undefined && domainEnd !== undefined && (inj.date < domainStart || inj.date > domainEnd)
+    if (outOfDomain || inj.dosage === acc.prevDosage) {
+      return acc
     }
-    if (inj.dosage !== prevDosage) {
-      const near = closestWeight(inj.date)
-      if (near !== undefined) {
-        pills.push({
+    const pills = Option.match(closestWeight(inj.date), {
+      onNone: () => acc.pills,
+      onSome: (near) => [
+        ...acc.pills,
+        {
           color: getDosageColor(inj.dosage),
           date: inj.date,
           dosage: inj.dosage,
@@ -292,25 +321,20 @@ const computePills = (
           row: 0,
           weight: near.weight,
           x: xScale(inj.date),
-        })
-      }
-      prevDosage = inj.dosage
-    }
-  }
-  let maxRow = 0
-  const placed: Array<Pill> = []
-  for (const pill of pills) {
-    const occupied = new Set(
-      placed.filter((prev) => Math.abs(pill.x - prev.x) < PILL.WIDTH + PILL.MIN_GAP_X).map((prev) => prev.row)
+        },
+      ],
+    })
+    return { pills, prevDosage: inj.dosage }
+  })
+  const placementInitial: { readonly maxRow: number; readonly placed: ReadonlyArray<Pill> } = { maxRow: 0, placed: [] }
+  const placement = Arr.reduce(built.pills, placementInitial, (acc, pill) => {
+    const occupied = HashSet.fromIterable(
+      acc.placed.filter((prev) => Math.abs(pill.x - prev.x) < PILL.WIDTH + PILL.MIN_GAP_X).map((prev) => prev.row)
     )
-    let row = 0
-    while (occupied.has(row)) {
-      row += 1
-    }
-    placed.push({ ...pill, row })
-    maxRow = Math.max(maxRow, row)
-  }
-  return { maxRow, pills: placed }
+    const row = firstFreeRow(occupied, 0)
+    return { maxRow: Math.max(acc.maxRow, row), placed: [...acc.placed, { ...pill, row }] }
+  })
+  return { maxRow: placement.maxRow, pills: placement.placed }
 }
 
 // ============================================
@@ -322,8 +346,8 @@ export interface WeightTrendProps {
   readonly weightData: ReadonlyArray<WeightPoint>
   readonly injectionData: ReadonlyArray<InjectionPoint>
   readonly schedulePeriods: ReadonlyArray<SchedulePeriod>
-  readonly trendLine: TrendLine | null
-  readonly zoomRange: { readonly start: Date; readonly end: Date } | null
+  readonly trendLine: Option.Option<TrendLine>
+  readonly zoomRange: Option.Option<{ readonly start: Date; readonly end: Date }>
   readonly displayWeight: (lbs: number) => number
   readonly unitLabel: string
 }
@@ -336,11 +360,11 @@ const formatTick = d3.timeFormat('%b %d')
 export const viewWeightTrend = (props: WeightTrendProps) => {
   const { displayWeight, injectionData, schedulePeriods, state, trendLine, unitLabel, weightData, zoomRange } = props
   const allSorted = bySortedDate(weightData)
-  const sorted =
-    zoomRange === null
-      ? allSorted
-      : allSorted.filter((point) => point.date >= zoomRange.start && point.date <= zoomRange.end)
-  if (sorted.length === 0) {
+  const sorted = Option.match(zoomRange, {
+    onNone: () => allSorted,
+    onSome: (range) => allSorted.filter((point) => point.date >= range.start && point.date <= range.end),
+  })
+  if (Arr.isReadonlyArrayEmpty(sorted)) {
     return h.div([h.Class('text-muted-foreground h-[320px] flex items-center justify-center')], ['No weight data'])
   }
 
@@ -373,8 +397,9 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
     .curve(d3.curveMonotoneX)
 
   const { filter } = state
-  const isSelected = (drug: string | null, dosage: string | null): boolean =>
-    filter === null || (drug === filter.drug && dosage === filter.dosage)
+  const isSelected = (drug: Option.Option<string>, dosage: Option.Option<string>): boolean =>
+    filter === null ||
+    (Option.exists(drug, (value) => value === filter.drug) && Option.exists(dosage, (value) => value === filter.dosage))
 
   const attr = h.Attribute
 
@@ -447,7 +472,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
   const domainStartMs = minDate.getTime()
   const domainEndMs = maxDate.getTime()
   const bands = schedulePeriods.flatMap((schedule) => {
-    const endMs = schedule.endDate?.getTime() ?? domainEndMs
+    const endMs = Option.match(schedule.endDate, { onNone: () => domainEndMs, onSome: (date) => date.getTime() })
     const startMs = schedule.startDate.getTime()
     if (endMs < domainStartMs || startMs > domainEndMs) {
       return []
@@ -469,7 +494,10 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
           h.OnMouseEnter(
             HoveredChartTooltip({
               lines: [
-                `${formatDate(schedule.startDate)} — ${schedule.endDate === null ? 'ongoing' : formatDate(schedule.endDate)}`,
+                `${formatDate(schedule.startDate)} — ${Option.match(schedule.endDate, {
+                  onNone: () => 'ongoing',
+                  onSome: (date) => formatDate(date),
+                })}`,
               ],
               title: `${schedule.scheduleName} (${schedule.drug})`,
               x: margin.left + (x1 + x2) / 2,
@@ -555,57 +583,59 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
   })
 
   // Trend line
-  const trendElements: Array<ReturnType<typeof h.line>> = []
-  if (trendLine !== null) {
-    const y1 = yScale(trendLine.slope * domainStartMs + trendLine.intercept)
-    const y2 = yScale(trendLine.slope * domainEndMs + trendLine.intercept)
-    const lbsPerWeek = trendLine.slope * 7 * 24 * 60 * 60 * 1000
-    const ratePerWeek = displayWeight(Math.abs(lbsPerWeek))
-    const rateText =
-      Math.abs(lbsPerWeek) <= 0.01
-        ? 'Maintaining weight'
-        : `${lbsPerWeek > 0 ? '+' : '-'}${ratePerWeek.toFixed(2)} ${unitLabel}/week`
-    trendElements.push(
-      h.line(
-        [
-          attr('x1', '0'),
-          attr('y1', String(y1)),
-          attr('x2', String(width)),
-          attr('y2', String(y2)),
-          h.Stroke('transparent'),
-          h.StrokeWidth('12'),
-          h.Cursor('pointer'),
-          h.OnMouseEnter(
-            HoveredChartTooltip({
-              lines: [
-                rateText,
-                `${displayWeight(trendLine.startWeight).toFixed(1)} → ${displayWeight(trendLine.endWeight).toFixed(1)} ${unitLabel}`,
-              ],
-              title: 'Trend Line',
-              x: margin.left + width / 2,
-              y: margin.top + (y1 + y2) / 2,
-            })
-          ),
-          h.OnMouseLeave(ClearedChartTooltip()),
-        ],
-        []
-      ),
-      h.line(
-        [
-          attr('x1', '0'),
-          attr('y1', String(y1)),
-          attr('x2', String(width)),
-          attr('y2', String(y2)),
-          h.Stroke('var(--foreground)'),
-          h.StrokeWidth('2'),
-          h.StrokeDasharray('8,4'),
-          h.Opacity(filter === null ? '0.7' : '0.4'),
-          h.PointerEvents('none'),
-        ],
-        []
-      )
-    )
-  }
+  const trendElements = Option.match(trendLine, {
+    onNone: (): ReadonlyArray<ReturnType<typeof h.line>> => [],
+    onSome: (trend) => {
+      const y1 = yScale(trend.slope * domainStartMs + trend.intercept)
+      const y2 = yScale(trend.slope * domainEndMs + trend.intercept)
+      const lbsPerWeek = trend.slope * 7 * 24 * 60 * 60 * 1000
+      const ratePerWeek = displayWeight(Math.abs(lbsPerWeek))
+      const rateText =
+        Math.abs(lbsPerWeek) <= 0.01
+          ? 'Maintaining weight'
+          : `${lbsPerWeek > 0 ? '+' : '-'}${ratePerWeek.toFixed(2)} ${unitLabel}/week`
+      return [
+        h.line(
+          [
+            attr('x1', '0'),
+            attr('y1', String(y1)),
+            attr('x2', String(width)),
+            attr('y2', String(y2)),
+            h.Stroke('transparent'),
+            h.StrokeWidth('12'),
+            h.Cursor('pointer'),
+            h.OnMouseEnter(
+              HoveredChartTooltip({
+                lines: [
+                  rateText,
+                  `${displayWeight(trend.startWeight).toFixed(1)} → ${displayWeight(trend.endWeight).toFixed(1)} ${unitLabel}`,
+                ],
+                title: 'Trend Line',
+                x: margin.left + width / 2,
+                y: margin.top + (y1 + y2) / 2,
+              })
+            ),
+            h.OnMouseLeave(ClearedChartTooltip()),
+          ],
+          []
+        ),
+        h.line(
+          [
+            attr('x1', '0'),
+            attr('y1', String(y1)),
+            attr('x2', String(width)),
+            attr('y2', String(y2)),
+            h.Stroke('var(--foreground)'),
+            h.StrokeWidth('2'),
+            h.StrokeDasharray('8,4'),
+            h.Opacity(filter === null ? '0.7' : '0.4'),
+            h.PointerEvents('none'),
+          ],
+          []
+        ),
+      ]
+    },
+  })
 
   // Weight dots
   const dots = segments
@@ -614,7 +644,10 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
       const selected = isSelected(point.drug, point.dosage)
       const cx = xScale(point.date)
       const cy = yScale(point.weight)
-      const noteLines = point.notes === null || point.notes === '' ? [] : [point.notes]
+      const noteLines = point.notes.pipe(
+        Option.filter((note) => note !== ''),
+        Option.toArray
+      )
       return h.circle(
         [
           h.Cx(String(cx)),
@@ -762,7 +795,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
             ],
             [`Clear filter: ${filter.drug} ${filter.dosage}`]
           ),
-      zoomRange === null && filter === null
+      Option.isNone(zoomRange) && filter === null
         ? h.div([h.Class('absolute bottom-2 right-2 text-xs text-muted-foreground opacity-60')], ['Drag to zoom'])
         : h.empty,
     ]

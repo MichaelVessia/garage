@@ -1,10 +1,16 @@
-import { DateTime, Effect, Layer, Option, Redacted, Schema } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
   CollectionRecordSchema,
   HistoryResponseSchema,
-  JsonObjectSchema,
+  JsonObject,
   MissingResponseSchema,
   MovieLookupSchema,
   MovieRecordSchema,
@@ -18,9 +24,6 @@ import { decodeError, httpError, unreachable } from './errors.js'
 import type { RadarrError } from './errors.js'
 import type { MovieLookupResult, RadarrConfigValue } from './model.js'
 import { RadarrApi, RadarrConfig } from './services.js'
-
-const optionFromUndefined = <A>(value: A | undefined): Option.Option<A> =>
-  value === undefined ? Option.none() : Option.some(value)
 
 const normalizeBaseUrl = (baseUrl: string): string => {
   const trimmed = baseUrl.trim()
@@ -36,7 +39,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string => {
   const query = queryString(params)
-  return query.length === 0
+  return Str.isEmpty(query)
     ? `${normalizeBaseUrl(config.url)}${path}`
     : `${normalizeBaseUrl(config.url)}${path}?${query}`
 }
@@ -127,7 +130,7 @@ const lookupByTmdbId = Effect.fn('radarr.lookupByTmdbId')(function* (
   yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
   return yield* getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [
     ['term', `tmdb:${tmdbId}`],
-  ]).pipe(Effect.map((results) => optionFromUndefined(results[0])))
+  ]).pipe(Effect.map((results) => Option.fromUndefinedOr(results[0])))
 })
 
 const currentCalendarRange = Effect.fn('radarr.currentCalendarRange')(function* (
@@ -194,7 +197,7 @@ export const RadarrApiLive = Layer.effect(
           yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
           return yield* withConfig((config) =>
             getJson(client, config, '/api/v3/movie', Schema.Array(MovieRecordSchema), [['tmdbId', tmdbId]]).pipe(
-              Effect.map((records) => optionFromUndefined(records[0]))
+              Effect.map((records) => Option.fromUndefinedOr(records[0]))
             )
           )
         },
@@ -250,7 +253,7 @@ export const RadarrApiLive = Layer.effect(
           yield* Effect.annotateCurrentSpan({ 'radarr.collection_id': collectionId })
           return yield* withConfig(
             Effect.fn('RadarrApi.setCollectionMonitoring.configured')(function* (config) {
-              const collection = yield* getJson(client, config, `/api/v3/collection/${collectionId}`, JsonObjectSchema)
+              const collection = yield* getJson(client, config, `/api/v3/collection/${collectionId}`, JsonObject)
               yield* putJson(
                 client,
                 config,

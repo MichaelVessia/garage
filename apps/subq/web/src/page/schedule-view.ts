@@ -1,4 +1,9 @@
-import { Effect, Match, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { html } from 'foldkit/html'
@@ -25,8 +30,8 @@ const FREQUENCY_LABELS: ReadonlyArray<readonly [value: Frequency, label: string]
 // Model
 // ============================================
 
-export const ScheduleViewData = AsyncData.Schema(Schema.NullOr(ScheduleView), Schema.String).schema
-export type ScheduleViewData = AsyncData.AsyncData<ScheduleView | null, string>
+export const ScheduleViewData = AsyncData.Schema(Schema.OptionFromNullOr(ScheduleView), Schema.String).schema
+export type ScheduleViewData = AsyncData.AsyncData<Option.Option<ScheduleView>, string>
 
 export const ScheduleViewModel = Schema.Struct({
   scheduleId: Schema.NullOr(Schema.String),
@@ -65,7 +70,12 @@ const FetchScheduleView = Command.define(
     const api = yield* Api
     const view = yield* api.ScheduleGetView({ id: InjectionScheduleId.make(scheduleId) })
     return SucceededFetchScheduleView({ view })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedFetchScheduleView({ message: 'Failed to load schedule' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedFetchScheduleView({ message: 'Failed to load schedule' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 // ============================================
@@ -92,7 +102,10 @@ export const updateScheduleView = (model: ScheduleViewModel, message: ScheduleVi
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
       FailedFetchScheduleView: ({ message: error }) => [evo(model, { view: () => AsyncData.Failure({ error }) }), []],
-      SucceededFetchScheduleView: ({ view }) => [evo(model, { view: () => AsyncData.succeed(view) }), []],
+      SucceededFetchScheduleView: ({ view }) => [
+        evo(model, { view: () => AsyncData.succeed(Option.fromNullOr(view)) }),
+        [],
+      ],
     })
   )
 
@@ -237,7 +250,7 @@ const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean) =>
                   ),
             ]
           ),
-          phase.injections.length > 0
+          Arr.isReadonlyArrayNonEmpty(phase.injections)
             ? h.div(
                 [h.Class('border-t pt-3 mt-3')],
                 [
@@ -254,7 +267,7 @@ const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean) =>
                             [h.Class('flex items-center gap-2')],
                             [
                               h.span([h.Class('font-mono')], [injection.dosage]),
-                              injection.injectionSite !== null && injection.injectionSite.length > 0
+                              injection.injectionSite !== null && Str.isNonEmpty(injection.injectionSite)
                                 ? h.span([h.Class('text-muted-foreground text-xs')], [`@ ${injection.injectionSite}`])
                                 : h.empty,
                             ]
@@ -377,7 +390,7 @@ const viewContent = (view: ScheduleView) => {
                   ),
                 ]
               ),
-          view.notes !== null && view.notes.length > 0
+          view.notes !== null && Str.isNonEmpty(view.notes)
             ? h.p([h.Class('text-sm text-muted-foreground mt-4 italic border-t pt-4')], [view.notes])
             : h.empty,
         ]
@@ -400,15 +413,18 @@ export const viewScheduleView = (model: ScheduleViewModel) =>
     onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
     onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
     onRefreshing: (view) =>
-      view === null
-        ? h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.'])
-        : viewContent(view),
+      Option.match(view, {
+        onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
+        onSome: (found) => viewContent(found),
+      }),
     onStale: ({ data }) =>
-      data === null
-        ? h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.'])
-        : viewContent(data),
+      Option.match(data, {
+        onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
+        onSome: (found) => viewContent(found),
+      }),
     onSuccess: (view) =>
-      view === null
-        ? h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.'])
-        : viewContent(view),
+      Option.match(view, {
+        onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
+        onSome: (found) => viewContent(found),
+      }),
   })

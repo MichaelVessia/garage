@@ -1,5 +1,7 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect, Option } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { Dosage, DrugName, DrugSource, InjectionLogId, InjectionSite, Limit, Notes, Offset } from '#shared'
 
@@ -35,12 +37,12 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          expect(created.drug).toBe('Testosterone Cypionate')
-          expect(created.source).toBe('Empower Pharmacy')
-          expect(created.dosage).toBe('200mg')
-          expect(created.injectionSite).toBe('left ventrogluteal')
-          expect(created.notes).toBe('Weekly injection')
-          expect(created.id).toBeDefined()
+          assert.strictEqual(created.drug, 'Testosterone Cypionate')
+          assert.strictEqual(created.source, 'Empower Pharmacy')
+          assert.strictEqual(created.dosage, '200mg')
+          assert.strictEqual(created.injectionSite, 'left ventrogluteal')
+          assert.strictEqual(created.notes, 'Weekly injection')
+          assert.isDefined(created.id)
         })
       )
     })
@@ -62,10 +64,10 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          expect(created.drug).toBe('BPC-157')
-          expect(created.source).toBeNull()
-          expect(created.injectionSite).toBeNull()
-          expect(created.notes).toBeNull()
+          assert.strictEqual(created.drug, 'BPC-157')
+          assert.isNull(created.source)
+          assert.isNull(created.injectionSite)
+          assert.isNull(created.notes)
         })
       )
     })
@@ -90,10 +92,10 @@ describe('InjectionLogRepo', () => {
           )
 
           const found = yield* repo.findById(created.id, 'user-123')
-          expect(Option.isSome(found)).toBe(true)
+          assert.isTrue(Option.isSome(found))
           if (Option.isSome(found)) {
-            expect(found.value.id).toBe(created.id)
-            expect(found.value.drug).toBe('Testosterone')
+            assert.strictEqual(found.value.id, created.id)
+            assert.strictEqual(found.value.drug, 'Testosterone')
           }
         })
       )
@@ -104,7 +106,7 @@ describe('InjectionLogRepo', () => {
         Effect.gen(function* () {
           const repo = yield* InjectionLogRepo
           const found = yield* repo.findById('non-existent', 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.isTrue(Option.isNone(found))
         })
       )
     })
@@ -116,7 +118,7 @@ describe('InjectionLogRepo', () => {
 
           const repo = yield* InjectionLogRepo
           const found = yield* repo.findById('inj-1', 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.isTrue(Option.isNone(found))
         })
       )
     })
@@ -143,13 +145,13 @@ describe('InjectionLogRepo', () => {
           }
 
           const page1 = yield* repo.list({ limit: Limit.make(2), offset: Offset.make(0) }, 'user-123')
-          expect(page1.length).toBe(2)
+          assert.strictEqual(page1.length, 2)
           // Should be sorted by datetime DESC
-          expect(requireValue(page1[0]).dosage).toBe('140mg')
-          expect(requireValue(page1[1]).dosage).toBe('130mg')
+          assert.strictEqual(requireValue(page1[0]).dosage, '140mg')
+          assert.strictEqual(requireValue(page1[1]).dosage, '130mg')
 
           const page2 = yield* repo.list({ limit: Limit.make(2), offset: Offset.make(2) }, 'user-123')
-          expect(page2.length).toBe(2)
+          assert.strictEqual(page2.length, 2)
         })
       )
     })
@@ -192,8 +194,8 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          expect(filtered.length).toBe(1)
-          expect(requireValue(filtered[0]).drug).toBe('Testosterone')
+          assert.strictEqual(filtered.length, 1)
+          assert.strictEqual(requireValue(filtered[0]).drug, 'Testosterone')
         })
       )
     })
@@ -249,8 +251,8 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          expect(filtered.length).toBe(1)
-          expect(requireValue(filtered[0]).dosage).toBe('200mg')
+          assert.strictEqual(filtered.length, 1)
+          assert.strictEqual(requireValue(filtered[0]).dosage, '200mg')
         })
       )
     })
@@ -265,8 +267,8 @@ describe('InjectionLogRepo', () => {
           const repo = yield* InjectionLogRepo
           const logs = yield* repo.list({ limit: Limit.make(50), offset: Offset.make(0) }, 'user-123')
 
-          expect(logs.length).toBe(2)
-          expect(logs.every((l) => l.id === 'inj-1' || l.id === 'inj-3')).toBe(true)
+          assert.strictEqual(logs.length, 2)
+          assert.isTrue(logs.every((l) => l.id === 'inj-1' || l.id === 'inj-3'))
         })
       )
     })
@@ -302,9 +304,9 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          expect(updated.dosage).toBe('150mg')
-          expect(updated.injectionSite).toBe('right deltoid')
-          expect(updated.notes).toBe('Updated notes')
+          assert.strictEqual(updated.dosage, '150mg')
+          assert.strictEqual(updated.injectionSite, 'right deltoid')
+          assert.strictEqual(updated.notes, 'Updated notes')
         })
       )
     })
@@ -327,9 +329,9 @@ describe('InjectionLogRepo', () => {
             )
             .pipe(Effect.result)
 
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure._tag).toBe('InjectionLogNotFoundError')
+            assert.strictEqual(result.failure._tag, 'InjectionLogNotFoundError')
           }
         })
       )
@@ -355,9 +357,9 @@ describe('InjectionLogRepo', () => {
             )
             .pipe(Effect.result)
 
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure._tag).toBe('InjectionLogNotFoundError')
+            assert.strictEqual(result.failure._tag, 'InjectionLogNotFoundError')
           }
         })
       )
@@ -383,10 +385,10 @@ describe('InjectionLogRepo', () => {
           )
 
           const deleted = yield* repo.delete(created.id, 'user-123')
-          expect(deleted).toBe(true)
+          assert.isTrue(deleted)
 
           const found = yield* repo.findById(created.id, 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.isTrue(Option.isNone(found))
         })
       )
     })
@@ -396,7 +398,7 @@ describe('InjectionLogRepo', () => {
         Effect.gen(function* () {
           const repo = yield* InjectionLogRepo
           const deleted = yield* repo.delete('non-existent', 'user-123')
-          expect(deleted).toBe(false)
+          assert.isFalse(deleted)
         })
       )
     })
@@ -408,7 +410,7 @@ describe('InjectionLogRepo', () => {
 
           const repo = yield* InjectionLogRepo
           const deleted = yield* repo.delete('inj-1', 'user-123')
-          expect(deleted).toBe(false)
+          assert.isFalse(deleted)
         })
       )
     })
@@ -426,10 +428,10 @@ describe('InjectionLogRepo', () => {
           const repo = yield* InjectionLogRepo
           const drugs = yield* repo.getUniqueDrugs('user-123')
 
-          expect(drugs.length).toBe(2)
-          expect(drugs).toContain('BPC-157')
-          expect(drugs).toContain('Testosterone')
-          expect(drugs).not.toContain('Other Drug')
+          assert.strictEqual(drugs.length, 2)
+          assert.include(drugs, 'BPC-157')
+          assert.include(drugs, 'Testosterone')
+          assert.notInclude(drugs, 'Other Drug')
         })
       )
     })
@@ -455,10 +457,10 @@ describe('InjectionLogRepo', () => {
           const repo = yield* InjectionLogRepo
           const sites = yield* repo.getUniqueSites('user-123')
 
-          expect(sites.length).toBe(2)
-          expect(sites).toContain('left VG')
-          expect(sites).toContain('right VG')
-          expect(sites).not.toContain('other site')
+          assert.strictEqual(sites.length, 2)
+          assert.include(sites, 'left VG')
+          assert.include(sites, 'right VG')
+          assert.notInclude(sites, 'other site')
         })
       )
     })
@@ -478,7 +480,10 @@ describe('InjectionLogRepo', () => {
           const repo = yield* InjectionLogRepo
           const lastSite = yield* repo.getLastSite('user-123')
 
-          expect(lastSite).toBe('right VG')
+          assert.isTrue(Option.isSome(lastSite))
+          if (Option.isSome(lastSite)) {
+            assert.strictEqual(lastSite.value, 'right VG')
+          }
         })
       )
     })
@@ -489,7 +494,7 @@ describe('InjectionLogRepo', () => {
           const repo = yield* InjectionLogRepo
           const lastSite = yield* repo.getLastSite('user-123')
 
-          expect(lastSite).toBeNull()
+          assert.isTrue(Option.isNone(lastSite))
         })
       )
     })
@@ -511,8 +516,8 @@ describe('InjectionLogRepo', () => {
           const repo = yield* InjectionLogRepo
           const logs = yield* repo.listBySchedule('sched-1', 'user-123')
 
-          expect(logs.length).toBe(2)
-          expect(logs.every((l) => l.scheduleId === 'sched-1')).toBe(true)
+          assert.strictEqual(logs.length, 2)
+          assert.isTrue(logs.every((l) => l.scheduleId === 'sched-1'))
         })
       )
     })

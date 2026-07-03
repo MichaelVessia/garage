@@ -1,0 +1,11 @@
+id: no-interpolated-logging
+
+valid:
+  - |
+    Effect.logInfo("config updated", { host, status });
+
+invalid:
+  - |
+    Effect.logInfo(`config ${host} updated`);
+  - |
+    Effect.logError("request " + url + " failed");

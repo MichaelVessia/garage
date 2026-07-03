@@ -1,4 +1,9 @@
-import { Context, DateTime, Effect, Layer, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { InjectionLogDatabaseError, ScheduleAssignmentTargetNotFoundError } from '#shared'
@@ -22,8 +27,8 @@ export const ScheduleAssignmentLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const countRowsForUser = (ids: readonly string[], userId: string) =>
-      Effect.gen(function* () {
+    const countRowsForUser = Effect.fn('ScheduleAssignment.countRowsForUser')(
+      function* (ids: readonly string[], userId: string) {
         const rows = yield* sql`
           SELECT COUNT(*) as count FROM injection_logs
           WHERE id IN ${sql.in(ids)} AND user_id = ${userId}
@@ -31,47 +36,52 @@ export const ScheduleAssignmentLive = Layer.effect(
         const [rawRow] = rows
         const row = yield* decodeCountRow(rawRow)
         return row.count
-      }).pipe(Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const requireScheduleOwnedByUser = (scheduleId: string, userId: string) =>
-      Effect.gen(function* () {
-        const row = yield* Effect.gen(function* () {
-          const rows = yield* sql`
-            SELECT COUNT(*) as count FROM injection_schedules
-            WHERE id = ${scheduleId} AND user_id = ${userId}
-          `
-          const [rawRow] = rows
-          return yield* decodeCountRow(rawRow)
-        }).pipe(Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'query', cause })))
+    const requireScheduleOwnedByUser = Effect.fn('ScheduleAssignment.requireScheduleOwnedByUser')(function* (
+      scheduleId: string,
+      userId: string
+    ) {
+      const row = yield* sql`
+        SELECT COUNT(*) as count FROM injection_schedules
+        WHERE id = ${scheduleId} AND user_id = ${userId}
+      `.pipe(
+        Effect.flatMap((rows) => decodeCountRow(rows[0])),
+        Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'query', cause }))
+      )
 
-        if (row.count === 0) {
-          return yield* Effect.fail(ScheduleAssignmentTargetNotFoundError.make({ scheduleId }))
-        }
-        return yield* Effect.void
-      })
+      if (row.count === 0) {
+        return yield* Effect.fail(ScheduleAssignmentTargetNotFoundError.make({ scheduleId }))
+      }
+      return yield* Effect.void
+    })
 
-    const assign = (data: InjectionLogBulkAssignSchedule, userId: string) =>
-      Effect.gen(function* () {
-        if (data.ids.length === 0) {
-          return 0
-        }
+    const assign = Effect.fn('ScheduleAssignment.assign')(function* (
+      data: InjectionLogBulkAssignSchedule,
+      userId: string
+    ) {
+      if (Arr.isReadonlyArrayEmpty(data.ids)) {
+        return 0
+      }
 
-        if (data.scheduleId !== null) {
-          yield* requireScheduleOwnedByUser(data.scheduleId, userId)
-        }
+      if (data.scheduleId !== null) {
+        yield* requireScheduleOwnedByUser(data.scheduleId, userId)
+      }
 
-        const now = DateTime.formatIso(yield* DateTime.now)
-        const { scheduleId } = data
+      const now = DateTime.formatIso(yield* DateTime.now)
+      const { scheduleId } = data
 
-        yield* sql`
-          UPDATE injection_logs
-          SET schedule_id = ${scheduleId},
-              updated_at = ${now}
-          WHERE id IN ${sql.in(data.ids)} AND user_id = ${userId}
-        `.pipe(Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'update', cause })))
+      yield* sql`
+        UPDATE injection_logs
+        SET schedule_id = ${scheduleId},
+            updated_at = ${now}
+        WHERE id IN ${sql.in(data.ids)} AND user_id = ${userId}
+      `.pipe(Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'update', cause })))
 
-        return yield* countRowsForUser(data.ids, userId)
-      })
+      return yield* countRowsForUser(data.ids, userId)
+    })
 
     return { assign }
   })

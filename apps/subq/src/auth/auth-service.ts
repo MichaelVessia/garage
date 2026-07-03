@@ -4,7 +4,7 @@ import type { BetterAuthOptions } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { bearer } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/d1'
-import { Context } from 'effect'
+import * as Context from 'effect/Context'
 
 import { SESSION_COOKIE_CACHE_MAX_AGE_SECONDS, SESSION_EXPIRES_IN_SECONDS, SESSION_UPDATE_AGE_SECONDS } from '#shared'
 

@@ -3,11 +3,11 @@ import type { CommandDescription, NextAction } from '@garage/cli-protocol'
 export interface RootHealth {
   readonly configured: true
   readonly reachable: boolean
-  readonly backendState?: string | undefined
-  readonly peerCount?: number | undefined
-  readonly exitNodeCount?: number | undefined
-  readonly currentExitNode?: string | undefined
-  readonly errorCode?: string | undefined
+  readonly backendState?: string
+  readonly peerCount?: number
+  readonly exitNodeCount?: number
+  readonly currentExitNode?: string
+  readonly errorCode?: string
 }
 
 export interface RootResult {

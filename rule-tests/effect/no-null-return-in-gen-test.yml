@@ -1,0 +1,19 @@
+id: no-null-return-in-gen
+
+valid:
+  - |
+    Effect.gen(function* () {
+      if (missing) {
+        return Option.none();
+      }
+      return Option.some(yield* load());
+    });
+
+invalid:
+  - |
+    Effect.gen(function* () {
+      if (missing) {
+        return null;
+      }
+      return yield* load();
+    });

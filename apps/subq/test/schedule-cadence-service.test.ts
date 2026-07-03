@@ -1,5 +1,8 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect, Layer } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import { TestClock } from 'effect/testing'
 
 import { InjectionScheduleId } from '#shared'
@@ -46,11 +49,11 @@ describe('ScheduleCadenceService', () => {
       yield* insertInjectionLog('injection-1', testDate('2024-01-10T12:00:00Z'), 'Testosterone', '200mg', userId)
 
       const service = yield* ScheduleCadenceService
-      const dose = requireValue(yield* service.getNextScheduledDose(userId))
+      const dose = Option.getOrThrow(yield* service.getNextScheduledDose(userId))
 
-      expect(DateTime.formatIso(dose.suggestedDate)).toBe('2024-01-17T12:00:00.000Z')
-      expect(dose.daysUntilDue).toBe(2)
-      expect(dose.dosage).toBe('200mg')
+      assert.strictEqual(DateTime.formatIso(dose.suggestedDate), '2024-01-17T12:00:00.000Z')
+      assert.strictEqual(dose.daysUntilDue, 2)
+      assert.strictEqual(dose.dosage, '200mg')
     }).pipe(Effect.provide(TestLayer))
   )
 
@@ -88,11 +91,11 @@ describe('ScheduleCadenceService', () => {
       )
 
       const service = yield* ScheduleCadenceService
-      const view = requireValue(yield* service.getScheduleView(userId, scheduleId))
+      const view = Option.getOrThrow(yield* service.getScheduleView(userId, scheduleId))
       const firstPhase = requireValue(view.phases[0])
 
-      expect(view.totalCompletedInjections).toBe(1)
-      expect(firstPhase.completedInjections).toBe(1)
+      assert.strictEqual(view.totalCompletedInjections, 1)
+      assert.strictEqual(firstPhase.completedInjections, 1)
     }).pipe(Effect.provide(TestLayer))
   )
 
@@ -127,9 +130,9 @@ describe('ScheduleCadenceService', () => {
       const candidates = yield* service.getReminderCandidates(now)
       const candidate = requireValue(candidates[0])
 
-      expect(candidates).toHaveLength(1)
-      expect(candidate.email).toBe('eligible@example.com')
-      expect(candidate.nextScheduledDose.dosage).toBe('2.5mg')
+      assert.lengthOf(candidates, 1)
+      assert.strictEqual(candidate.email, 'eligible@example.com')
+      assert.strictEqual(candidate.nextScheduledDose.dosage, '2.5mg')
     }).pipe(Effect.provide(TestLayer))
   )
 })

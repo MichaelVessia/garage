@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
+import * as Option from 'effect/Option'
 import * as AsyncData from 'foldkit/asyncData'
 
 import {
@@ -15,7 +16,7 @@ import type { StatsModel } from '../src/page/stats.js'
 
 describe('stats page update', () => {
   it('syncStatsFetch fetches when the range key changes and dedupes otherwise', () => {
-    const range = { end: '2026-07-03', start: '2026-06-03' } as const
+    const range = { end: Option.some('2026-07-03'), start: Option.some('2026-06-03') }
     const [loading, commands] = syncStatsFetch(initialStatsModel, range)
     expect(AsyncData.isLoading(loading.data)).toBe(true)
     expect(loading.fetchedRange).toBe(rangeKey(range))
@@ -25,7 +26,7 @@ describe('stats page update', () => {
     expect(none).toHaveLength(0)
     expect(same).toBe(loading)
 
-    const [, refetch] = syncStatsFetch(loading, { end: null, start: null })
+    const [, refetch] = syncStatsFetch(loading, { end: Option.none(), start: Option.none() })
     expect(refetch).toHaveLength(1)
   })
 

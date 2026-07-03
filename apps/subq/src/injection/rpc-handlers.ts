@@ -1,4 +1,6 @@
-import { DateTime, Effect, Option } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { AuthContext, InjectionRpcs } from '#shared'
 import type {
@@ -114,10 +116,11 @@ export const InjectionRpcHandlersLive = InjectionRpcs.toLayer(
         Effect.annotateLogs({ rpc: 'InjectionLogGetLastSite', userId: user.id })
       )
       const result = yield* repo.getLastSite(user.id)
+      const site = Option.getOrNull(result)
       yield* Effect.logDebug('InjectionLogGetLastSite completed').pipe(
-        Effect.annotateLogs({ rpc: 'InjectionLogGetLastSite', site: result ?? 'none' })
+        Effect.annotateLogs({ rpc: 'InjectionLogGetLastSite', site: site ?? 'none' })
       )
-      return result
+      return site
     })
 
     const InjectionLogBulkAssignSchedule = Effect.fn('rpc.injection.bulkAssignSchedule')(function* (

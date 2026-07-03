@@ -1,6 +1,6 @@
 import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import SubqWorker from './src/worker.js'
 

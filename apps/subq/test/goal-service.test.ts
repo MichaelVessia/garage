@@ -1,5 +1,8 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect, Layer } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { GoalRepoLive } from '../src/goals/goal-repo.js'
@@ -49,22 +52,23 @@ describe('GoalService', () => {
 
       const service = yield* GoalService
       const earliestProjection = nowMillis + 14 * MS_PER_DAY - 1000
-      const progress = yield* service.getGoalProgress(userId)
+      const progressOpt = yield* service.getGoalProgress(userId)
       const latestProjection = nowMillis + 14 * MS_PER_DAY + 1000
 
-      expect(progress).not.toBeNull()
-      if (progress === null) {
+      assert.isTrue(Option.isSome(progressOpt))
+      if (Option.isNone(progressOpt)) {
         return
       }
+      const progress = progressOpt.value
 
-      expect(progress.avgLbsPerWeek).toBeCloseTo(5)
-      expect(progress.paceStatus).toBe('ahead')
-      expect(progress.projectedDate).not.toBeNull()
+      assert.closeTo(progress.avgLbsPerWeek, 5, 0.005)
+      assert.strictEqual(progress.paceStatus, 'ahead')
+      assert.isNotNull(progress.projectedDate)
       if (progress.projectedDate === null) {
         return
       }
-      expect(DateTime.toEpochMillis(progress.projectedDate)).toBeGreaterThanOrEqual(earliestProjection)
-      expect(DateTime.toEpochMillis(progress.projectedDate)).toBeLessThanOrEqual(latestProjection)
+      assert.isAtLeast(DateTime.toEpochMillis(progress.projectedDate), earliestProjection)
+      assert.isAtMost(DateTime.toEpochMillis(progress.projectedDate), latestProjection)
     }).pipe(Effect.provide(TestLayer))
   )
 
@@ -84,14 +88,15 @@ describe('GoalService', () => {
       yield* insertWeightLog('w-fresh-2', testDate('2024-01-08T00:00:00Z'), 190, userId)
 
       const service = yield* GoalService
-      const before = yield* service.getGoalProgress(userId)
+      const beforeOpt = yield* service.getGoalProgress(userId)
 
-      expect(before).not.toBeNull()
-      if (before === null) {
+      assert.isTrue(Option.isSome(beforeOpt))
+      if (Option.isNone(beforeOpt)) {
         return
       }
-      expect(before.lbsRemaining).toBe(10)
-      expect(before.percentComplete).toBe(50)
+      const before = beforeOpt.value
+      assert.strictEqual(before.lbsRemaining, 10)
+      assert.strictEqual(before.percentComplete, 50)
 
       const sql = yield* SqlClient.SqlClient
       yield* sql`
@@ -100,14 +105,15 @@ describe('GoalService', () => {
         WHERE id = 'goal-freshness' AND user_id = ${userId}
       `
 
-      const after = yield* service.getGoalProgress(userId)
+      const afterOpt = yield* service.getGoalProgress(userId)
 
-      expect(after).not.toBeNull()
-      if (after === null) {
+      assert.isTrue(Option.isSome(afterOpt))
+      if (Option.isNone(afterOpt)) {
         return
       }
-      expect(after.lbsRemaining).toBe(20)
-      expect(after.percentComplete).toBeCloseTo(33.333, 3)
+      const after = afterOpt.value
+      assert.strictEqual(after.lbsRemaining, 20)
+      assert.closeTo(after.percentComplete, 33.333, 0.0005)
     }).pipe(Effect.provide(TestLayer))
   )
 })

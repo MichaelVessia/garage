@@ -1,4 +1,6 @@
-import { Effect, Option, Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { m } from 'foldkit/message'
@@ -27,7 +29,12 @@ export const FetchSettings = Command.define(
     const api = yield* Api
     const settings = yield* api.UserSettingsGet()
     return SucceededFetchSettings({ settings })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedFetchSettings({ message: 'Failed to load settings' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedFetchSettings({ message: 'Failed to load settings' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 // ============================================

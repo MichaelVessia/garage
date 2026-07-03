@@ -2,10 +2,10 @@ import type { CommandDescription, NextAction } from '@garage/cli-protocol'
 
 export interface RootHealth {
   readonly configured: boolean
-  readonly title?: string | undefined
-  readonly books?: number | undefined
-  readonly reachable?: boolean | undefined
-  readonly errorCode?: string | undefined
+  readonly title?: string
+  readonly books?: number
+  readonly reachable?: boolean
+  readonly errorCode?: string
 }
 
 export interface RootResult {

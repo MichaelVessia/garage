@@ -1,4 +1,5 @@
-import { Match, Schema } from 'effect'
+import * as Match from 'effect/Match'
+import * as Schema from 'effect/Schema'
 import type { HttpClient } from 'effect/unstable/http'
 import type { Command } from 'foldkit'
 import { html } from 'foldkit/html'

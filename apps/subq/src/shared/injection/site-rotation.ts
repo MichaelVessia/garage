@@ -1,3 +1,5 @@
+import * as Option from 'effect/Option'
+
 /**
  * Standard injection site rotation order.
  * Used to suggest the next injection site based on the last one used.
@@ -17,11 +19,16 @@ const isValidSite = (site: string): site is InjectionSiteRotation =>
  * Get the next suggested injection site based on the last site used.
  * Rotates through sites in order to help distribute injection locations.
  */
-export const getNextSite = (lastSite: string | null): InjectionSiteRotation => {
+export const getNextSite = (lastSite: Option.Option<string>): InjectionSiteRotation => {
   const [defaultSite] = SITE_ROTATION
-  if (lastSite === null || lastSite.length === 0 || !isValidSite(lastSite)) {
-    return defaultSite
-  }
-  const currentIndex = SITE_ROTATION.indexOf(lastSite)
-  return SITE_ROTATION[(currentIndex + 1) % SITE_ROTATION.length] ?? defaultSite
+  return Option.match(lastSite, {
+    onNone: () => defaultSite,
+    onSome: (site) => {
+      if (!isValidSite(site)) {
+        return defaultSite
+      }
+      const currentIndex = SITE_ROTATION.indexOf(site)
+      return SITE_ROTATION[(currentIndex + 1) % SITE_ROTATION.length] ?? defaultSite
+    },
+  })
 }

@@ -1,4 +1,5 @@
-import { Effect, Option } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { AuthContext, ScheduleRpcs } from '#shared'
 import type { InjectionScheduleCreate, InjectionScheduleId, InjectionScheduleUpdate } from '#shared'
@@ -92,24 +93,24 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
         Effect.annotateLogs({ rpc: 'ScheduleGetNextDose', userId: user.id })
       )
 
-      const result = yield* scheduleCadence.getNextScheduledDose(user.id)
+      const doseOpt = yield* scheduleCadence.getNextScheduledDose(user.id)
 
-      if (result === null) {
-        yield* Effect.logDebug('ScheduleGetNextDose: no dose').pipe(Effect.annotateLogs({ rpc: 'ScheduleGetNextDose' }))
-        return null
-      }
+      yield* Option.match(doseOpt, {
+        onNone: () =>
+          Effect.logDebug('ScheduleGetNextDose: no dose').pipe(Effect.annotateLogs({ rpc: 'ScheduleGetNextDose' })),
+        onSome: (dose) =>
+          Effect.logDebug('ScheduleGetNextDose completed').pipe(
+            Effect.annotateLogs({
+              rpc: 'ScheduleGetNextDose',
+              scheduleId: dose.scheduleId,
+              phase: dose.currentPhase,
+              daysUntilDue: dose.daysUntilDue,
+              isOverdue: dose.isOverdue,
+            })
+          ),
+      })
 
-      yield* Effect.logDebug('ScheduleGetNextDose completed').pipe(
-        Effect.annotateLogs({
-          rpc: 'ScheduleGetNextDose',
-          scheduleId: result.scheduleId,
-          phase: result.currentPhase,
-          daysUntilDue: result.daysUntilDue,
-          isOverdue: result.isOverdue,
-        })
-      )
-
-      return result
+      return Option.getOrNull(doseOpt)
     })
 
     const ScheduleGetView = Effect.fn('rpc.schedule.getView')(function* ({ id }: { id: InjectionScheduleId }) {
@@ -118,22 +119,23 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
         Effect.annotateLogs({ rpc: 'ScheduleGetView', id, userId: user.id })
       )
 
-      const result = yield* scheduleCadence.getScheduleView(user.id, id)
-      if (result === null) {
-        yield* Effect.logDebug('ScheduleGetView: not found').pipe(Effect.annotateLogs({ rpc: 'ScheduleGetView', id }))
-        return null
-      }
+      const viewOpt = yield* scheduleCadence.getScheduleView(user.id, id)
 
-      yield* Effect.logDebug('ScheduleGetView completed').pipe(
-        Effect.annotateLogs({
-          rpc: 'ScheduleGetView',
-          id,
-          totalPhases: result.phases.length,
-          totalCompletedInjections: result.totalCompletedInjections,
-        })
-      )
+      yield* Option.match(viewOpt, {
+        onNone: () =>
+          Effect.logDebug('ScheduleGetView: not found').pipe(Effect.annotateLogs({ rpc: 'ScheduleGetView', id })),
+        onSome: (view) =>
+          Effect.logDebug('ScheduleGetView completed').pipe(
+            Effect.annotateLogs({
+              rpc: 'ScheduleGetView',
+              id,
+              totalPhases: view.phases.length,
+              totalCompletedInjections: view.totalCompletedInjections,
+            })
+          ),
+      })
 
-      return result
+      return Option.getOrNull(viewOpt)
     })
 
     return {

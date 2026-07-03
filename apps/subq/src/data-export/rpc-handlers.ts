@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import { AuthContext, DataExportRpcs } from '#shared'
 import type { DataExport as DataExportType } from '#shared'

@@ -1,0 +1,13 @@
+id: no-unsafe-typecast-at-boundary
+
+valid:
+  - |
+    const raw: unknown = JSON.parse(body);
+  - |
+    const payload = yield* Schema.decodeUnknown(ApiResponse)(await response.json());
+
+invalid:
+  - |
+    const data = JSON.parse(body) as MyType;
+  - |
+    const payload = (await response.json()) as ApiResponse;

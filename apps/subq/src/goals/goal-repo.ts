@@ -1,4 +1,11 @@
-import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { GoalDatabaseError, GoalId, GoalNotFoundError, Notes, UserGoal, Weight } from '#shared'
@@ -32,11 +39,12 @@ const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
     goalWeight: Weight.make(row.goal_weight),
     startingWeight: Weight.make(row.starting_weight),
     startingDate: DateTime.makeUnsafe(row.starting_date),
-    targetDate: row.target_date !== null && row.target_date.length > 0 ? DateTime.makeUnsafe(row.target_date) : null,
-    notes: row.notes !== null && row.notes.length > 0 ? Notes.make(row.notes) : null,
+    targetDate:
+      row.target_date !== null && Str.isNonEmpty(row.target_date) ? DateTime.makeUnsafe(row.target_date) : null,
+    notes: row.notes !== null && Str.isNonEmpty(row.notes) ? Notes.make(row.notes) : null,
     isActive: row.is_active === 1,
     completedAt:
-      row.completed_at !== null && row.completed_at.length > 0 ? DateTime.makeUnsafe(row.completed_at) : null,
+      row.completed_at !== null && Str.isNonEmpty(row.completed_at) ? DateTime.makeUnsafe(row.completed_at) : null,
     createdAt: DateTime.makeUnsafe(row.created_at),
     updatedAt: DateTime.makeUnsafe(row.updated_at),
   })
@@ -49,6 +57,23 @@ const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
 const extractDatePart = (isoString: string): string => {
   const parts = isoString.split('T')
   return parts[0] ?? isoString
+}
+
+/**
+ * Resolve the stored target_date column for an update. `null` clears it,
+ * `undefined` keeps the current value, and a provided date is serialized.
+ */
+const resolveUpdatedTargetDate = (
+  incoming: UserGoalUpdate['targetDate'],
+  current: (typeof GoalRow.Type)['target_date']
+) => {
+  if (incoming === null) {
+    return null
+  }
+  if (incoming === undefined) {
+    return current
+  }
+  return DateTime.formatIso(incoming)
 }
 
 // ============================================
@@ -83,8 +108,8 @@ export const GoalRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const list = (userId: string) =>
-      Effect.gen(function* () {
+    const list = Effect.fn('GoalRepo.list')(
+      function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
                  target_date, notes, is_active, completed_at, created_at, updated_at
@@ -92,111 +117,119 @@ export const GoalRepoLive = Layer.effect(
           WHERE user_id = ${userId}
           ORDER BY created_at DESC
         `
-        const decoded = yield* Effect.all(rows.map((r) => decodeGoalRow(r)))
+        const decoded = yield* Effect.all(
+          rows.map((r) => decodeGoalRow(r)),
+          { concurrency: 1 }
+        )
         return decoded.map(goalRowToDomain)
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const getActive = (userId: string) =>
-      Effect.gen(function* () {
+    const getActive = Effect.fn('GoalRepo.getActive')(
+      function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
                  target_date, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals
           WHERE user_id = ${userId} AND is_active = 1
         `
-        if (rows.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
         const decoded = yield* decodeGoalRow(rows[0])
         return Option.some(goalRowToDomain(decoded))
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const findById = (id: string, userId: string) =>
-      Effect.gen(function* () {
+    const findById = Effect.fn('GoalRepo.findById')(
+      function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
                  target_date, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals
           WHERE id = ${id} AND user_id = ${userId}
         `
-        if (rows.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
         const decoded = yield* decodeGoalRow(rows[0])
         return Option.some(goalRowToDomain(decoded))
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const create = (data: UserGoalCreate, startingWeight: number, userId: string) =>
-      Effect.gen(function* () {
-        const id = yield* randomUuid
-        const now = DateTime.formatIso(yield* DateTime.now)
-        const startingDate = Option.isSome(data.startingDate)
-          ? extractDatePart(DateTime.formatIso(data.startingDate.value))
-          : extractDatePart(now)
-        const targetDate = Option.isSome(data.targetDate) ? DateTime.formatIso(data.targetDate.value) : null
-        const notes = Option.isSome(data.notes) ? data.notes.value : null
+    const create = Effect.fn('GoalRepo.create')(function* (
+      data: UserGoalCreate,
+      startingWeight: number,
+      userId: string
+    ) {
+      const id = yield* randomUuid()
+      const now = DateTime.formatIso(yield* DateTime.now)
+      const startingDate = Option.isSome(data.startingDate)
+        ? data.startingDate.value.pipe(DateTime.formatIso, extractDatePart)
+        : extractDatePart(now)
+      const targetDate = Option.isSome(data.targetDate) ? DateTime.formatIso(data.targetDate.value) : null
+      const notes = Option.isSome(data.notes) ? data.notes.value : null
 
-        // Deactivate any existing active goals for this user
-        yield* sql`UPDATE user_goals SET is_active = 0, updated_at = ${now} WHERE user_id = ${userId} AND is_active = 1`.pipe(
-          Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause }))
-        )
+      // Deactivate any existing active goals for this user
+      yield* sql`UPDATE user_goals SET is_active = 0, updated_at = ${now} WHERE user_id = ${userId} AND is_active = 1`.pipe(
+        Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause }))
+      )
 
-        // Create the goal
-        yield* sql`
+      // Create the goal
+      yield* sql`
           INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, created_at, updated_at)
           VALUES (${id}, ${userId}, ${data.goalWeight}, ${startingWeight}, ${startingDate}, ${targetDate}, ${notes}, 1, ${now}, ${now})
         `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'insert', cause })))
 
-        // Fetch and return the created goal
-        const result = yield* findById(id, userId)
-        return yield* Option.match(result, {
-          onNone: () => Effect.fail(GoalNotFoundError.make({ id })),
-          onSome: (goal) => Effect.succeed(goal),
-        })
+      // Fetch and return the created goal
+      const result = yield* findById(id, userId)
+      return yield* Option.match(result, {
+        onNone: () => Effect.fail(GoalNotFoundError.make({ id })),
+        onSome: (goal) => Effect.succeed(goal),
       })
+    })
 
-    const update = (data: UserGoalUpdate, userId: string) =>
-      Effect.gen(function* () {
-        // First get current values - include user_id check to prevent IDOR
-        const current = yield* sql`
+    const update = Effect.fn('GoalRepo.update')(function* (data: UserGoalUpdate, userId: string) {
+      // First get current values - include user_id check to prevent IDOR
+      const current = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
                  target_date, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
 
-        if (current.length === 0) {
-          return yield* Effect.fail(GoalNotFoundError.make({ id: data.id }))
-        }
+      if (Arr.isReadonlyArrayEmpty(current)) {
+        return yield* Effect.fail(GoalNotFoundError.make({ id: data.id }))
+      }
 
-        const curr = yield* decodeGoalRow(current[0]).pipe(
-          Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
-        )
+      const curr = yield* decodeGoalRow(current[0]).pipe(
+        Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      )
 
-        const now = DateTime.formatIso(yield* DateTime.now)
+      const now = DateTime.formatIso(yield* DateTime.now)
 
-        // Compute new values (use provided or fall back to current)
-        const newGoalWeight = data.goalWeight ?? curr.goal_weight
-        const newStartingWeight = data.startingWeight ?? curr.starting_weight
-        const newStartingDate =
-          data.startingDate !== undefined ? extractDatePart(DateTime.formatIso(data.startingDate)) : curr.starting_date
-        let newTargetDate = curr.target_date
-        if (data.targetDate === null) {
-          newTargetDate = null
-        } else if (data.targetDate !== undefined) {
-          newTargetDate = DateTime.formatIso(data.targetDate)
-        }
-        const newNotes = data.notes !== undefined ? data.notes : curr.notes
-        const newIsActive = data.isActive ?? curr.is_active === 1
+      // Compute new values (use provided or fall back to current)
+      const newGoalWeight = data.goalWeight ?? curr.goal_weight
+      const newStartingWeight = data.startingWeight ?? curr.starting_weight
+      const newStartingDate =
+        data.startingDate !== undefined
+          ? data.startingDate.pipe(DateTime.formatIso, extractDatePart)
+          : curr.starting_date
+      const newTargetDate = resolveUpdatedTargetDate(data.targetDate, curr.target_date)
+      const newNotes = data.notes !== undefined ? data.notes : curr.notes
+      const newIsActive = data.isActive ?? curr.is_active === 1
 
-        // If activating this goal, deactivate others
-        if (newIsActive && curr.is_active !== 1) {
-          yield* sql`
+      // If activating this goal, deactivate others
+      if (newIsActive && curr.is_active !== 1) {
+        yield* sql`
             UPDATE user_goals SET is_active = 0, updated_at = ${now}
             WHERE user_id = ${userId} AND is_active = 1 AND id != ${data.id}
           `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause })))
-        }
+      }
 
-        yield* sql`
+      yield* sql`
           UPDATE user_goals
           SET goal_weight = ${newGoalWeight},
               starting_weight = ${newStartingWeight},
@@ -208,23 +241,25 @@ export const GoalRepoLive = Layer.effect(
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause })))
 
-        // Fetch updated
-        const result = yield* findById(data.id, userId)
-        return yield* Option.match(result, {
-          onNone: () => Effect.fail(GoalNotFoundError.make({ id: data.id })),
-          onSome: (goal) => Effect.succeed(goal),
-        })
+      // Fetch updated
+      const result = yield* findById(data.id, userId)
+      return yield* Option.match(result, {
+        onNone: () => Effect.fail(GoalNotFoundError.make({ id: data.id })),
+        onSome: (goal) => Effect.succeed(goal),
       })
+    })
 
-    const del = (id: string, userId: string) =>
-      Effect.gen(function* () {
+    const del = Effect.fn('GoalRepo.delete')(
+      function* (id: string, userId: string) {
         const existing = yield* sql`SELECT id FROM user_goals WHERE id = ${id} AND user_id = ${userId}`
-        if (existing.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(existing)) {
           return false
         }
         yield* sql`DELETE FROM user_goals WHERE id = ${id} AND user_id = ${userId}`
         return true
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'delete', cause })))
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'delete', cause }))
+    )
 
     return {
       list,

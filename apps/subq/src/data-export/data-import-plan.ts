@@ -1,4 +1,6 @@
-import { Effect } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
+import * as HashSet from 'effect/HashSet'
 
 import type { DataExport } from '#shared'
 import { DataImportError, DataImportResult } from '#shared'
@@ -10,34 +12,40 @@ export interface DataImportPlan {
 
 const invalidImport = (message: string) => Effect.fail(DataImportError.make({ message }))
 
-export const planDataImport = (snapshot: DataExport): Effect.Effect<DataImportPlan, DataImportError> =>
-  Effect.gen(function* () {
-    const scheduleIds = new Set(snapshot.data.schedules.map((schedule) => schedule.id))
+export const planDataImport = Effect.fn('DataImportPlan.planDataImport')(function* (snapshot: DataExport) {
+  const scheduleIds = HashSet.fromIterable(Arr.map(snapshot.data.schedules, (schedule) => schedule.id))
 
-    for (const schedule of snapshot.data.schedules) {
-      for (const phase of schedule.phases) {
-        if (phase.scheduleId !== schedule.id) {
-          return yield* invalidImport(
-            `Phase ${phase.id} references schedule ${phase.scheduleId}, expected ${schedule.id}`
-          )
-        }
-      }
-    }
+  yield* Effect.forEach(
+    snapshot.data.schedules,
+    (schedule) =>
+      Effect.forEach(
+        schedule.phases,
+        (phase) =>
+          phase.scheduleId !== schedule.id
+            ? invalidImport(`Phase ${phase.id} references schedule ${phase.scheduleId}, expected ${schedule.id}`)
+            : Effect.void,
+        { concurrency: 1 }
+      ),
+    { concurrency: 1 }
+  )
 
-    for (const log of snapshot.data.injectionLogs) {
-      if (log.scheduleId !== null && !scheduleIds.has(log.scheduleId)) {
-        return yield* invalidImport(`Injection log ${log.id} references missing schedule ${log.scheduleId}`)
-      }
-    }
+  yield* Effect.forEach(
+    snapshot.data.injectionLogs,
+    (log) =>
+      log.scheduleId !== null && !HashSet.has(scheduleIds, log.scheduleId)
+        ? invalidImport(`Injection log ${log.id} references missing schedule ${log.scheduleId}`)
+        : Effect.void,
+    { concurrency: 1 }
+  )
 
-    return {
-      snapshot,
-      result: new DataImportResult({
-        weightLogs: snapshot.data.weightLogs.length,
-        injectionLogs: snapshot.data.injectionLogs.length,
-        schedules: snapshot.data.schedules.length,
-        goals: snapshot.data.goals.length,
-        settingsUpdated: snapshot.data.settings !== null,
-      }),
-    }
-  })
+  return {
+    snapshot,
+    result: new DataImportResult({
+      weightLogs: snapshot.data.weightLogs.length,
+      injectionLogs: snapshot.data.injectionLogs.length,
+      schedules: snapshot.data.schedules.length,
+      goals: snapshot.data.goals.length,
+      settingsUpdated: snapshot.data.settings !== null,
+    }),
+  }
+})

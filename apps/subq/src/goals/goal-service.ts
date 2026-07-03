@@ -1,4 +1,10 @@
-import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import type { GoalProgress } from '#shared'
@@ -32,7 +38,7 @@ export class GoalService extends Context.Service<
       date: DateTime.Utc
     ) => Effect.Effect<Option.Option<number>, GoalDatabaseError>
     /** Calculate goal progress including projection */
-    readonly getGoalProgress: (userId: string) => Effect.Effect<GoalProgress | null, GoalDatabaseError>
+    readonly getGoalProgress: (userId: string) => Effect.Effect<Option.Option<GoalProgress>, GoalDatabaseError>
   }
 >()('@garage/subq/goals/goal-service/GoalService') {}
 
@@ -46,41 +52,50 @@ export const GoalServiceLive = Layer.effect(
     const sql = yield* SqlClient.SqlClient
     const goalRepo = yield* GoalRepo
 
-    const getCurrentWeight = (userId: string) =>
-      Effect.gen(function* () {
+    const getCurrentWeight = Effect.fn('GoalService.getCurrentWeight')(
+      function* (userId: string) {
         const rows = yield* sql`
           SELECT datetime, weight FROM weight_logs
           WHERE user_id = ${userId}
           ORDER BY datetime DESC
           LIMIT 1
         `
-        if (rows.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
         const decoded = yield* decodeWeightRow(rows[0])
         return Option.some(decoded.weight)
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+    )
 
     const getMostRecentWeight = getCurrentWeight
 
-    const getWeightHistory = (userId: string) =>
-      Effect.gen(function* () {
+    const getWeightHistory = Effect.fn('GoalService.getWeightHistory')(
+      function* (userId: string) {
         const rows = yield* sql`
           SELECT datetime, weight FROM weight_logs
           WHERE user_id = ${userId}
           ORDER BY datetime ASC
         `
 
-        const points: { date: Date; weight: number }[] = []
-        for (const row of rows) {
-          const decoded = yield* decodeWeightRow(row)
-          points.push({ date: DateTime.toDate(DateTime.makeUnsafe(decoded.datetime)), weight: decoded.weight })
-        }
-        return points
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+        return yield* Effect.forEach(
+          rows,
+          (row) =>
+            decodeWeightRow(row).pipe(
+              Effect.map((decoded) => ({
+                date: DateTime.toDate(DateTime.makeUnsafe(decoded.datetime)),
+                weight: decoded.weight,
+              }))
+            ),
+          { concurrency: 1 }
+        )
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const getWeightAtDate = (userId: string, date: DateTime.Utc) =>
-      Effect.gen(function* () {
+    const getWeightAtDate = Effect.fn('GoalService.getWeightAtDate')(
+      function* (userId: string, date: DateTime.Utc) {
         const dateStr = DateTime.formatIso(date).slice(0, 10)
         // Get weight entry closest to the target date (on or before preferred, else after)
         const rows = yield* sql`
@@ -89,36 +104,39 @@ export const GoalServiceLive = Layer.effect(
           ORDER BY ABS(julianday(date(datetime)) - julianday(${dateStr}))
           LIMIT 1
         `
-        if (rows.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
         const decoded = yield* decodeWeightRow(rows[0])
         return Option.some(decoded.weight)
-      }).pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const getGoalProgress = (userId: string) =>
-      Effect.gen(function* () {
-        const goalOpt = yield* goalRepo.getActive(userId)
-        if (Option.isNone(goalOpt)) {
-          return null
-        }
-        const goal = goalOpt.value
+    const getGoalProgress = Effect.fn('GoalService.getGoalProgress')(function* (userId: string) {
+      const goalOpt = yield* goalRepo.getActive(userId)
+      if (Option.isNone(goalOpt)) {
+        return Option.none()
+      }
+      const goal = goalOpt.value
 
-        const currentWeightOpt = yield* getCurrentWeight(userId)
-        if (Option.isNone(currentWeightOpt)) {
-          return null
-        }
-        const currentWeight = currentWeightOpt.value
+      const currentWeightOpt = yield* getCurrentWeight(userId)
+      if (Option.isNone(currentWeightOpt)) {
+        return Option.none()
+      }
+      const currentWeight = currentWeightOpt.value
 
-        const now = yield* DateTime.now
-        const weightHistory = yield* getWeightHistory(userId)
-        return buildGoalProgress({
+      const now = yield* DateTime.now
+      const weightHistory = yield* getWeightHistory(userId)
+      return Option.some(
+        buildGoalProgress({
           goal,
           currentWeight,
           weightHistory,
           now: DateTime.toDate(now),
         })
-      })
+      )
+    })
 
     return {
       getMostRecentWeight,

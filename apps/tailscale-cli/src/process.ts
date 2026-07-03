@@ -1,7 +1,10 @@
 import { cliMissing, commandFailed, TailscaleProcess } from '@garage/tailscale'
 import type { ProcessResult, TailscaleError } from '@garage/tailscale'
-import { Effect, Layer, Stream } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import type * as PlatformError from 'effect/PlatformError'
+import * as Stream from 'effect/Stream'
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 const commandText = (args: ReadonlyArray<string>): string => `tailscale ${args.join(' ')}`
@@ -14,7 +17,7 @@ const tailscaleCandidates: ReadonlyArray<string> = [
 
 const streamText = (
   stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>
-): Effect.Effect<string, PlatformError.PlatformError> => Stream.mkString(Stream.decodeText(stream))
+): Effect.Effect<string, PlatformError.PlatformError> => stream.pipe(Stream.decodeText, Stream.mkString)
 
 const isMissingCommand = (cause: PlatformError.PlatformError): boolean => cause.reason._tag === 'NotFound'
 
@@ -69,7 +72,7 @@ const runFirstAvailable = Effect.fn('tailscale.runFirstAvailable')(function* (
   return yield* runCandidateEffect(spawner, candidate, args).pipe(
     Effect.matchEffect({
       onFailure: (error) =>
-        error.code === 'TAILSCALE_CLI_MISSING' && rest.length > 0
+        error.code === 'TAILSCALE_CLI_MISSING' && Arr.isReadonlyArrayNonEmpty(rest)
           ? runFirstAvailable(spawner, args, rest)
           : Effect.fail(error),
       onSuccess: (result) => Effect.succeed(result),

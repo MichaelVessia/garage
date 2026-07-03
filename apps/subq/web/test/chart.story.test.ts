@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
+import * as Option from 'effect/Option'
 
 import {
   CancelledChartZoom,
@@ -51,7 +52,7 @@ describe('weight trend chart state', () => {
     const [hovered] = updateChart(dragging, HoveredChartZoom({ ms: start - 5 * DAY }))
     const [done, zoom] = updateChart(hovered, EndedChartZoom())
     expect(done.zoomDrag).toBeNull()
-    expect(zoom).toEqual({ endMs: start, startMs: start - 5 * DAY })
+    expect(zoom).toEqual(Option.some({ endMs: start, startMs: start - 5 * DAY }))
   })
 
   it('a sub-day drag is treated as a click and does not zoom', () => {
@@ -60,7 +61,7 @@ describe('weight trend chart state', () => {
     const [hovered] = updateChart(dragging, HoveredChartZoom({ ms: start + DAY / 2 }))
     const [done, zoom] = updateChart(hovered, EndedChartZoom())
     expect(done.zoomDrag).toBeNull()
-    expect(zoom).toBeNull()
+    expect(Option.isNone(zoom)).toBe(true)
   })
 
   it('hover without an active drag does not start one', () => {
@@ -75,6 +76,6 @@ describe('weight trend chart state', () => {
 
     const [after, zoom] = updateChart(cancelled, EndedChartZoom())
     expect(after.zoomDrag).toBeNull()
-    expect(zoom).toBeNull()
+    expect(Option.isNone(zoom)).toBe(true)
   })
 })

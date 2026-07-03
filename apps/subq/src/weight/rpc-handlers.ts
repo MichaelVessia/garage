@@ -1,4 +1,6 @@
-import { DateTime, Effect, Option } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { AuthContext, WeightRpcs } from '#shared'
 import type { WeightLogCreate, WeightLogUpdate, WeightLogListParams } from '#shared'

@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 import { Count, DayOfWeek, DaysBetween, Dosage, DosageValue, DrugName } from '../common/domain.js'
 import { InjectionSite, InjectionsPerWeek } from '../injection/domain.js'

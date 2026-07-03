@@ -1,5 +1,6 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
 
 import {
   DataExport,
@@ -29,12 +30,12 @@ describe('DataExportService', () => {
           const service = yield* DataExportService
           const result = yield* service.exportData('user-123')
 
-          expect(result.version).toBe('2.0.0')
-          expect(result.data.weightLogs).toHaveLength(0)
-          expect(result.data.injectionLogs).toHaveLength(0)
-          expect(result.data.schedules).toHaveLength(0)
-          expect(result.data.goals).toHaveLength(0)
-          expect(result.data.settings).toBeNull()
+          assert.strictEqual(result.version, '2.0.0')
+          assert.lengthOf(result.data.weightLogs, 0)
+          assert.lengthOf(result.data.injectionLogs, 0)
+          assert.lengthOf(result.data.schedules, 0)
+          assert.lengthOf(result.data.goals, 0)
+          assert.isNull(result.data.settings)
         })
       )
     })
@@ -51,10 +52,19 @@ describe('DataExportService', () => {
           const service = yield* DataExportService
           const result = yield* service.exportData('user-123')
 
-          expect(result.data.weightLogs).toHaveLength(2)
-          expect(result.data.weightLogs.map((w) => w.id)).toContain('wl-1')
-          expect(result.data.weightLogs.map((w) => w.id)).toContain('wl-2')
-          expect(result.data.weightLogs.map((w) => w.id)).not.toContain('wl-3')
+          assert.lengthOf(result.data.weightLogs, 2)
+          assert.include(
+            result.data.weightLogs.map((w): string => w.id),
+            'wl-1'
+          )
+          assert.include(
+            result.data.weightLogs.map((w): string => w.id),
+            'wl-2'
+          )
+          assert.notInclude(
+            result.data.weightLogs.map((w): string => w.id),
+            'wl-3'
+          )
         })
       )
     })
@@ -67,8 +77,8 @@ describe('DataExportService', () => {
           const service = yield* DataExportService
           const result = yield* service.exportData('user-123')
 
-          expect(result.data.settings).not.toBeNull()
-          expect(result.data.settings?.weightUnit).toBe('kg')
+          assert.isNotNull(result.data.settings)
+          assert.strictEqual(result.data.settings?.weightUnit, 'kg')
         })
       )
     })
@@ -108,19 +118,19 @@ describe('DataExportService', () => {
 
           const result = yield* service.importData('user-123', importData)
 
-          expect(result.weightLogs).toBe(1)
-          expect(result.settingsUpdated).toBe(true)
+          assert.strictEqual(result.weightLogs, 1)
+          assert.isTrue(result.settingsUpdated)
 
           // Verify old data is gone and new data is present
           const exported = yield* service.exportData('user-123')
-          expect(exported.data.weightLogs).toHaveLength(1)
+          assert.lengthOf(exported.data.weightLogs, 1)
           const [exportedWeightLog] = exported.data.weightLogs
-          expect(exportedWeightLog).toBeDefined()
+          assert.isDefined(exportedWeightLog)
           if (exportedWeightLog === undefined) {
             return
           }
-          expect(exportedWeightLog.id).toBe('imported-1')
-          expect(exported.data.settings?.weightUnit).toBe('kg')
+          assert.strictEqual(exportedWeightLog.id, 'imported-1')
+          assert.strictEqual(exported.data.settings?.weightUnit, 'kg')
         })
       )
     })
@@ -159,13 +169,13 @@ describe('DataExportService', () => {
 
           // Verify other user's data is preserved
           const otherUserExport = yield* service.exportData('user-456')
-          expect(otherUserExport.data.weightLogs).toHaveLength(1)
+          assert.lengthOf(otherUserExport.data.weightLogs, 1)
           const [otherUserWeightLog] = otherUserExport.data.weightLogs
-          expect(otherUserWeightLog).toBeDefined()
+          assert.isDefined(otherUserWeightLog)
           if (otherUserWeightLog === undefined) {
             return
           }
-          expect(otherUserWeightLog.id).toBe('other-user-1')
+          assert.strictEqual(otherUserWeightLog.id, 'other-user-1')
         })
       )
     })
@@ -212,11 +222,14 @@ describe('DataExportService', () => {
           })
 
           const result = yield* service.importData('user-123', importData).pipe(Effect.result)
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
 
           // Old data was replaced; the first row of the failed import remains.
           const exported = yield* service.exportData('user-123')
-          expect(exported.data.weightLogs.map((log) => log.id)).toEqual(['duplicate-log'])
+          assert.deepStrictEqual(
+            exported.data.weightLogs.map((log) => log.id),
+            ['duplicate-log']
+          )
 
           // Re-running with a corrected import fully recovers.
           const corrected = new DataExport({
@@ -241,7 +254,10 @@ describe('DataExportService', () => {
           })
           yield* service.importData('user-123', corrected)
           const recovered = yield* service.exportData('user-123')
-          expect(recovered.data.weightLogs.map((log) => log.id)).toEqual(['corrected-log'])
+          assert.deepStrictEqual(
+            recovered.data.weightLogs.map((log) => log.id),
+            ['corrected-log']
+          )
         })
       )
     })
@@ -279,13 +295,16 @@ describe('DataExportService', () => {
           })
 
           const result = yield* service.importData('user-123', importData).pipe(Effect.result)
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure.message).toContain('references missing schedule')
+            assert.include(result.failure.message, 'references missing schedule')
           }
 
           const exported = yield* service.exportData('user-123')
-          expect(exported.data.weightLogs.map((log) => log.id)).toEqual(['existing-1'])
+          assert.deepStrictEqual(
+            exported.data.weightLogs.map((log) => log.id),
+            ['existing-1']
+          )
         })
       )
     })

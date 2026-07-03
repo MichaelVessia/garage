@@ -1,5 +1,6 @@
-import { describe, expect, it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { StatsService, StatsServiceLive } from '../src/stats/stats-service.js'
 import { testDate } from './helpers/dates.js'
@@ -21,7 +22,7 @@ describe('StatsService', () => {
         Effect.gen(function* () {
           const stats = yield* StatsService
           const result = yield* stats.getWeightStats({}, 'user-123')
-          expect(result).toBeNull()
+          assert.deepStrictEqual(result, Option.none())
         })
       )
     })
@@ -36,12 +37,13 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getWeightStats({}, 'user-123')
 
-          expect(result).not.toBeNull()
-          expect(requireValue(result).minWeight).toBe(190)
-          expect(requireValue(result).maxWeight).toBe(200)
-          expect(requireValue(result).avgWeight).toBe(195)
-          expect(requireValue(result).rateOfChange).toBeCloseTo(-5)
-          expect(requireValue(result).entryCount).toBe(3)
+          assert.isTrue(Option.isSome(result))
+          const value = Option.getOrThrow(result)
+          assert.strictEqual(value.minWeight, 190)
+          assert.strictEqual(value.maxWeight, 200)
+          assert.strictEqual(value.avgWeight, 195)
+          assert.closeTo(value.rateOfChange, -5, 0.005)
+          assert.strictEqual(value.entryCount, 3)
         })
       )
     })
@@ -55,9 +57,10 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getWeightStats({}, 'user-123')
 
-          expect(result).not.toBeNull()
-          expect(requireValue(result).entryCount).toBe(1)
-          expect(requireValue(result).minWeight).toBe(200)
+          assert.isTrue(Option.isSome(result))
+          const value = Option.getOrThrow(result)
+          assert.strictEqual(value.entryCount, 1)
+          assert.strictEqual(value.minWeight, 200)
         })
       )
     })
@@ -74,12 +77,12 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getWeightTrend({}, 'user-123')
 
-          expect(result.points.length).toBe(3)
-          expect(requireValue(result.points[0]).weight).toBe(200)
-          expect(requireValue(result.points[1]).weight).toBe(195)
-          expect(requireValue(result.points[2]).weight).toBe(190)
-          expect(result.trendLine?.startWeight).toBeCloseTo(200)
-          expect(result.trendLine?.endWeight).toBeCloseTo(190)
+          assert.strictEqual(result.points.length, 3)
+          assert.strictEqual(requireValue(result.points[0]).weight, 200)
+          assert.strictEqual(requireValue(result.points[1]).weight, 195)
+          assert.strictEqual(requireValue(result.points[2]).weight, 190)
+          assert.closeTo(requireValue(result.trendLine).startWeight, 200, 0.005)
+          assert.closeTo(requireValue(result.trendLine).endWeight, 190, 0.005)
         })
       )
     })
@@ -103,10 +106,10 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getInjectionSiteStats({}, 'user-123')
 
-          expect(result.totalInjections).toBe(4)
-          expect(result.sites.length).toBe(3)
-          expect(requireValue(result.sites[0]).site).toBe('left VG')
-          expect(requireValue(result.sites[0]).count).toBe(2)
+          assert.strictEqual(result.totalInjections, 4)
+          assert.strictEqual(result.sites.length, 3)
+          assert.strictEqual(requireValue(result.sites[0]).site, 'left VG')
+          assert.strictEqual(requireValue(result.sites[0]).count, 2)
         })
       )
     })
@@ -123,10 +126,10 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getDosageHistory({}, 'user-123')
 
-          expect(result.points.length).toBe(3)
-          expect(requireValue(result.points[0]).dosageValue).toBe(200)
-          expect(requireValue(result.points[1]).dosageValue).toBe(250)
-          expect(requireValue(result.points[2]).dosageValue).toBe(0.5)
+          assert.strictEqual(result.points.length, 3)
+          assert.strictEqual(requireValue(result.points[0]).dosageValue, 200)
+          assert.strictEqual(requireValue(result.points[1]).dosageValue, 250)
+          assert.strictEqual(requireValue(result.points[2]).dosageValue, 0.5)
         })
       )
     })
@@ -138,7 +141,7 @@ describe('StatsService', () => {
         Effect.gen(function* () {
           const stats = yield* StatsService
           const result = yield* stats.getInjectionFrequency({}, 'user-123')
-          expect(result).toBeNull()
+          assert.deepStrictEqual(result, Option.none())
         })
       )
     })
@@ -155,9 +158,10 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getInjectionFrequency({}, 'user-123')
 
-          expect(result).not.toBeNull()
-          expect(requireValue(result).totalInjections).toBe(5)
-          expect(requireValue(result).avgDaysBetween).toBe(3.5)
+          assert.isTrue(Option.isSome(result))
+          const value = Option.getOrThrow(result)
+          assert.strictEqual(value.totalInjections, 5)
+          assert.strictEqual(value.avgDaysBetween, 3.5)
         })
       )
     })
@@ -175,12 +179,12 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getDrugBreakdown({}, 'user-123')
 
-          expect(result.totalInjections).toBe(4)
-          expect(result.drugs.length).toBe(2)
-          expect(requireValue(result.drugs[0]).drug).toBe('Testosterone')
-          expect(requireValue(result.drugs[0]).count).toBe(3)
-          expect(requireValue(result.drugs[1]).drug).toBe('BPC-157')
-          expect(requireValue(result.drugs[1]).count).toBe(1)
+          assert.strictEqual(result.totalInjections, 4)
+          assert.strictEqual(result.drugs.length, 2)
+          assert.strictEqual(requireValue(result.drugs[0]).drug, 'Testosterone')
+          assert.strictEqual(requireValue(result.drugs[0]).count, 3)
+          assert.strictEqual(requireValue(result.drugs[1]).drug, 'BPC-157')
+          assert.strictEqual(requireValue(result.drugs[1]).count, 1)
         })
       )
     })
@@ -198,11 +202,11 @@ describe('StatsService', () => {
           const stats = yield* StatsService
           const result = yield* stats.getInjectionByDayOfWeek({}, 'user-123')
 
-          expect(result.totalInjections).toBe(3)
+          assert.strictEqual(result.totalInjections, 3)
           const monday = result.days.find((d) => d.dayOfWeek === 1)
           const tuesday = result.days.find((d) => d.dayOfWeek === 2)
-          expect(monday?.count).toBe(2)
-          expect(tuesday?.count).toBe(1)
+          assert.strictEqual(requireValue(monday).count, 2)
+          assert.strictEqual(requireValue(tuesday).count, 1)
         })
       )
     })
@@ -220,12 +224,12 @@ describe('StatsService', () => {
           // Without timezone (defaults to UTC), these should be Thursday
           const utcResult = yield* stats.getInjectionByDayOfWeek({}, 'user-123')
           const utcThursday = utcResult.days.find((d) => d.dayOfWeek === 4)
-          expect(utcThursday?.count).toBe(2)
+          assert.strictEqual(requireValue(utcThursday).count, 2)
 
           // With America/New_York timezone, these should be Wednesday
           const nyResult = yield* stats.getInjectionByDayOfWeek({ timezone: 'America/New_York' }, 'user-123')
           const nyWednesday = nyResult.days.find((d) => d.dayOfWeek === 3)
-          expect(nyWednesday?.count).toBe(2)
+          assert.strictEqual(requireValue(nyWednesday).count, 2)
         })
       )
     })
@@ -244,11 +248,11 @@ describe('StatsService', () => {
 
           // Without timezone, most frequent is Thursday (4)
           const utcResult = yield* stats.getInjectionFrequency({}, 'user-123')
-          expect(utcResult?.mostFrequentDayOfWeek).toBe(4)
+          assert.strictEqual(Option.getOrThrow(utcResult).mostFrequentDayOfWeek, 4)
 
           // With America/New_York, most frequent is Wednesday (3)
           const nyResult = yield* stats.getInjectionFrequency({ timezone: 'America/New_York' }, 'user-123')
-          expect(nyResult?.mostFrequentDayOfWeek).toBe(3)
+          assert.strictEqual(Option.getOrThrow(nyResult).mostFrequentDayOfWeek, 3)
         })
       )
     })

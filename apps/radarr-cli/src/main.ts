@@ -1,7 +1,10 @@
 import { BunHttpClient, BunRuntime, BunStdio } from '@effect/platform-bun'
 import { cliObservabilityLayerFromConfig, renderEnvelope } from '@garage/cli-protocol'
 import { RadarrApiLive, RadarrConfigLive } from '@garage/radarr'
-import { Console, Effect, Layer, Stdio } from 'effect'
+import * as Console from 'effect/Console'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Stdio from 'effect/Stdio'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { executeRadarr } from './index.js'

@@ -37,7 +37,8 @@ import type {
   SystemStatus,
   UserRecord,
 } from '@garage/jellyseerr'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Str from 'effect/String'
 
 import {
   allFlag,
@@ -142,7 +143,7 @@ const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageE
     Effect.gen(function* () {
       const parsed = yield* parseFlags(args, { valueFlags: [limitFlag] })
       const query = parsed.positionals.join(' ').trim()
-      if (query.length === 0) {
+      if (Str.isEmpty(query)) {
         return yield* wrap(Effect.fail(usageError('search query is required')))
       }
       const limit = yield* limitFromParsed(parsed, parsePositiveInteger)

@@ -20,7 +20,7 @@ import type {
   TailscaleApi,
   TailscaleError,
 } from '@garage/tailscale'
-import { Effect } from 'effect'
+import * as Effect from 'effect/Effect'
 
 import { installNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
@@ -59,8 +59,9 @@ const root = (
           },
           nextActions: nextActionsFor(error),
         }),
-      onSuccess: (result) =>
-        successEnvelope({
+      onSuccess: (result) => {
+        const exitNodeName = result.currentExitNode?.hostName ?? result.currentExitNode?.dnsName
+        return successEnvelope({
           command,
           result: {
             name: 'tailscale',
@@ -69,13 +70,14 @@ const root = (
             health: {
               configured: true,
               reachable: result.backendState === 'Running',
-              backendState: result.backendState,
               peerCount: result.peerCount,
               exitNodeCount: result.exitNodeCount,
-              currentExitNode: result.currentExitNode?.hostName ?? result.currentExitNode?.dnsName,
+              ...(result.backendState === undefined ? {} : { backendState: result.backendState }),
+              ...(exitNodeName === undefined ? {} : { currentExitNode: exitNodeName }),
             },
           },
-        }),
+        })
+      },
     })
   )
 

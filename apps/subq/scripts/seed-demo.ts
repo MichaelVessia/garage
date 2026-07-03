@@ -8,78 +8,28 @@
  * Run from apps/subq (bun auto-loads .env for BETTER_AUTH_URL):
  *   bun run seed:demo
  */
-import { Config, Data, DateTime, Effect, Layer, Random, Schema } from 'effect'
+import { NodeRuntime } from '@effect/platform-node'
+import * as Arr from 'effect/Array'
+import * as Config from 'effect/Config'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as HashSet from 'effect/HashSet'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Random from 'effect/Random'
+import * as Ref from 'effect/Ref'
+import * as Schema from 'effect/Schema'
 import { Cookies, FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/unstable/http'
 import { RpcClient, RpcSerialization } from 'effect/unstable/rpc'
 
 import { AppRpcs, DataExport, DEMO_USER } from '#shared'
 
 import { randomUuid } from '../src/shared/common/random-uuid.js'
-
-class SeedError extends Data.TaggedError('SeedError')<{ message: string }> {}
+import { SeedError } from './errors.js'
 
 // ============================================
 // Demo data generation (encoded DataExport JSON)
 // ============================================
-
-interface PhaseJson {
-  id: string
-  scheduleId: string
-  order: number
-  durationDays: number | null
-  dosage: string
-  createdAt: DateTime.Utc
-  updatedAt: DateTime.Utc
-}
-
-interface ScheduleJson {
-  id: string
-  name: string
-  drug: string
-  source: string | null
-  frequency: string
-  startDate: DateTime.Utc
-  isActive: boolean
-  notes: string | null
-  phases: PhaseJson[]
-  createdAt: DateTime.Utc
-  updatedAt: DateTime.Utc
-}
-
-interface InjectionJson {
-  id: string
-  datetime: DateTime.Utc
-  drug: string
-  source: string | null
-  dosage: string
-  injectionSite: string
-  notes: string | null
-  scheduleId: string | null
-  createdAt: DateTime.Utc
-  updatedAt: DateTime.Utc
-}
-
-interface WeightJson {
-  id: string
-  datetime: DateTime.Utc
-  weight: number
-  notes: string | null
-  createdAt: DateTime.Utc
-  updatedAt: DateTime.Utc
-}
-
-interface GoalJson {
-  id: string
-  goalWeight: number
-  startingWeight: number
-  startingDate: DateTime.Utc
-  targetDate: DateTime.Utc | null
-  notes: string | null
-  isActive: boolean
-  completedAt: DateTime.Utc | null
-  createdAt: DateTime.Utc
-  updatedAt: DateTime.Utc
-}
 
 const SITES = ['left abdomen', 'right abdomen', 'left thigh', 'right thigh']
 const TITRATION_DOSES = ['2.5mg', '5mg', '7.5mg', '10mg', '15mg']
@@ -93,16 +43,16 @@ interface DrugDose {
 
 // Weekly drug/dose over the first 40 weeks: Semaglutide titration (1-20),
 // then Tirzepatide titration (21-40).
-const getDrugAndDose = (week: number): DrugDose | null => {
+const getDrugAndDose = (week: number): Option.Option<DrugDose> => {
   if (week <= 20) {
     const phase = Math.ceil(week / 4)
-    return { dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? '15mg', drug: 'Semaglutide' }
+    return Option.some({ dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? '15mg', drug: 'Semaglutide' })
   }
   if (week <= 40) {
     const phase = Math.ceil((week - 20) / 4)
-    return { dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? '15mg', drug: 'Tirzepatide' }
+    return Option.some({ dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? '15mg', drug: 'Tirzepatide' })
   }
-  return null
+  return Option.none()
 }
 
 // Weight-loss curve: 220 lbs -> 165 lbs over a year, fast at first
@@ -120,45 +70,46 @@ const addFluctuation = (weight: number, seed: number): number => {
 const makePhases = (
   scheduleId: string,
   now: DateTime.Utc,
-  specs: ReadonlyArray<{ order: number; durationDays: number | null; dosage: string }>
-): Effect.Effect<PhaseJson[]> =>
-  Effect.all(
-    specs.map((spec) =>
-      randomUuid.pipe(
+  specs: ReadonlyArray<{ order: number; durationDays: Option.Option<number>; dosage: string }>
+) =>
+  Effect.forEach(
+    specs,
+    (spec) =>
+      randomUuid().pipe(
         Effect.map((id) => ({
           createdAt: now,
           dosage: spec.dosage,
-          durationDays: spec.durationDays,
+          durationDays: Option.getOrNull(spec.durationDays),
           id,
           order: spec.order,
           scheduleId,
           updatedAt: now,
         }))
-      )
-    )
+      ),
+    { concurrency: 1 }
   )
 
 const titrationPhaseSpecs = TITRATION_DOSES.map((dosage, index) => ({
   dosage,
-  durationDays: 28,
+  durationDays: Option.some(28),
   order: index + 1,
 }))
 
-const titrationInjectionNotes = (week: number, drugDose: DrugDose): string | null => {
+const titrationInjectionNotes = (week: number, drugDose: DrugDose): Option.Option<string> => {
   if (week === 1) {
-    return 'First injection - starting journey'
+    return Option.some('First injection - starting journey')
   }
   if (week === 21) {
-    return 'Switching to Tirzepatide'
+    return Option.some('Switching to Tirzepatide')
   }
   const previous = getDrugAndDose(week - 1)
-  if (previous !== null && drugDose.dose !== previous.dose && drugDose.drug === previous.drug) {
-    return `Dose increase to ${drugDose.dose}`
+  if (Option.isSome(previous) && drugDose.dose !== previous.value.dose && drugDose.drug === previous.value.drug) {
+    return Option.some(`Dose increase to ${drugDose.dose}`)
   }
   if (week === 40) {
-    return 'Completing Tirzepatide, trying Retatrutide next'
+    return Option.some('Completing Tirzepatide, trying Retatrutide next')
   }
-  return null
+  return Option.none()
 }
 
 // Weekly injections for the two titrations (weeks 1-40)
@@ -168,34 +119,47 @@ const makeTitrationInjections = (
   semaScheduleId: string,
   tirzScheduleId: string
 ) =>
-  Effect.gen(function* () {
-    const logs: InjectionJson[] = []
-    for (let week = 1; week <= 40; week += 1) {
-      const drugDose = getDrugAndDose(week)
-      if (drugDose === null) {
-        continue
-      }
+  Effect.forEach(
+    Arr.range(1, 40),
+    (week) =>
+      Effect.gen(function* () {
+        const drugDoseOpt = getDrugAndDose(week)
+        if (Option.isNone(drugDoseOpt)) {
+          return Option.none()
+        }
+        const drugDose = drugDoseOpt.value
 
-      const minute = yield* Random.nextIntBetween(0, 30)
-      const datetime = DateTime.add(startDate, { days: (week - 1) * 7 }).pipe(
-        DateTime.setParts({ hour: 18, millisecond: 0, minute, second: 0 })
-      )
+        const minute = yield* Random.nextIntBetween(0, 30)
+        const id = yield* randomUuid()
+        const datetime = DateTime.add(startDate, { days: (week - 1) * 7 }).pipe(
+          DateTime.setParts({ hour: 18, millisecond: 0, minute, second: 0 })
+        )
 
-      logs.push({
-        createdAt: now,
-        datetime,
-        dosage: drugDose.dose,
-        drug: drugDose.drug,
-        id: yield* randomUuid,
-        injectionSite: siteForWeek(week),
-        notes: titrationInjectionNotes(week, drugDose),
-        scheduleId: drugDose.drug === 'Semaglutide' ? semaScheduleId : tirzScheduleId,
-        source: 'Pharmacy',
-        updatedAt: now,
-      })
-    }
-    return logs
-  })
+        return Option.some({
+          createdAt: now,
+          datetime,
+          dosage: drugDose.dose,
+          drug: drugDose.drug,
+          id,
+          injectionSite: siteForWeek(week),
+          notes: Option.getOrNull(titrationInjectionNotes(week, drugDose)),
+          scheduleId: drugDose.drug === 'Semaglutide' ? semaScheduleId : tirzScheduleId,
+          source: 'Pharmacy',
+          updatedAt: now,
+        })
+      }),
+    { concurrency: 1 }
+  ).pipe(Effect.map(Arr.getSomes))
+
+const retatInjectionNotes = (week: number, doseGroup: { dose: string; weeks: number[] }): Option.Option<string> => {
+  if (week === 1) {
+    return Option.some('Starting Retatrutide - switching from Tirzepatide')
+  }
+  if (doseGroup.weeks[0] === week) {
+    return Option.some(`Increased to ${doseGroup.dose}`)
+  }
+  return Option.none()
+}
 
 // Retatrutide injections from week 41 up to today
 const makeRetatInjections = (
@@ -203,50 +167,45 @@ const makeRetatInjections = (
   nowDt: DateTime.Utc,
   now: DateTime.Utc,
   retatScheduleId: string
-) =>
-  Effect.gen(function* () {
-    const doseGroups = [
-      { dose: '1mg', weeks: [1, 2] },
-      { dose: '2mg', weeks: [3, 4] },
-      { dose: '4mg', weeks: [5, 6] },
-      { dose: '8mg', weeks: [7, 8] },
-      { dose: '12mg', weeks: [9, 10, 11, 12] },
-    ]
+) => {
+  const doseGroups = [
+    { dose: '1mg', weeks: [1, 2] },
+    { dose: '2mg', weeks: [3, 4] },
+    { dose: '4mg', weeks: [5, 6] },
+    { dose: '8mg', weeks: [7, 8] },
+    { dose: '12mg', weeks: [9, 10, 11, 12] },
+  ]
 
-    const logs: InjectionJson[] = []
-    for (const doseGroup of doseGroups) {
-      for (const week of doseGroup.weeks) {
+  return Effect.forEach(
+    Arr.flatMap(doseGroups, (doseGroup) => doseGroup.weeks.map((week) => ({ doseGroup, week }))),
+    ({ doseGroup, week }) =>
+      Effect.gen(function* () {
         const minute = yield* Random.nextIntBetween(0, 30)
         const datetime = DateTime.add(retatStartDate, { days: (week - 1) * 7 }).pipe(
           DateTime.setParts({ hour: 9, millisecond: 0, minute, second: 0 })
         )
         if (DateTime.isGreaterThan(datetime, nowDt)) {
-          continue
+          return Option.none()
         }
 
-        let notes: string | null = null
-        if (week === 1) {
-          notes = 'Starting Retatrutide - switching from Tirzepatide'
-        } else if (doseGroup.weeks[0] === week) {
-          notes = `Increased to ${doseGroup.dose}`
-        }
+        const id = yield* randomUuid()
 
-        logs.push({
+        return Option.some({
           createdAt: now,
           datetime,
           dosage: doseGroup.dose,
           drug: 'Retatrutide (Compounded)',
-          id: yield* randomUuid,
+          id,
           injectionSite: siteForWeek(week),
-          notes,
+          notes: Option.getOrNull(retatInjectionNotes(week, doseGroup)),
           scheduleId: retatScheduleId,
           source: 'Compounding Pharmacy',
           updatedAt: now,
         })
-      }
-    }
-    return logs
-  })
+      }),
+    { concurrency: 1 }
+  ).pipe(Effect.map(Arr.getSomes))
+}
 
 // Alternating tracking habits over the year
 const WEIGH_IN_PATTERNS: Array<{ startDay: number; endDay: number; pattern: 'daily' | 'sparse' | 'moderate' }> = [
@@ -275,65 +234,78 @@ const MILESTONE_NOTES: Record<number, string> = {
   365: '1 YEAR! What a journey',
 }
 
-const weightNotes = (day: number, weight: number, crossed: Set<number>): string | null => {
+const weightNotes = Effect.fn('seed.weightNotes')(function* (
+  day: number,
+  weight: number,
+  crossed: Ref.Ref<HashSet.HashSet<number>>
+) {
   const milestone = MILESTONE_NOTES[day]
   if (milestone !== undefined) {
-    return milestone
+    return Option.some(milestone)
   }
-  if (weight < 200 && !crossed.has(200)) {
-    crossed.add(200)
-    return 'Under 200 for the first time!'
+  const seen = yield* Ref.get(crossed)
+  if (weight < 200 && !HashSet.has(seen, 200)) {
+    yield* Ref.update(crossed, HashSet.add(200))
+    return Option.some('Under 200 for the first time!')
   }
-  if (weight < 180 && !crossed.has(180)) {
-    crossed.add(180)
-    return 'Under 180!'
+  if (weight < 180 && !HashSet.has(seen, 180)) {
+    yield* Ref.update(crossed, HashSet.add(180))
+    return Option.some('Under 180!')
   }
-  if (weight < 170 && !crossed.has(170)) {
-    crossed.add(170)
-    return 'Under 170 - almost at goal'
+  if (weight < 170 && !HashSet.has(seen, 170)) {
+    yield* Ref.update(crossed, HashSet.add(170))
+    return Option.some('Under 170 - almost at goal')
   }
-  return null
-}
+  return Option.none()
+})
 
-const makeWeightLogs = (startDate: DateTime.Utc, now: DateTime.Utc) =>
-  Effect.gen(function* () {
-    const logs: WeightJson[] = []
-    const crossed = new Set<number>()
-    for (let day = 0; day <= 365; day += 1) {
-      const pattern = getWeighInPattern(day)
-      let shouldWeigh: boolean
-      if (pattern === 'daily') {
-        shouldWeigh = true
-      } else if (pattern === 'moderate') {
-        shouldWeigh = day % 2 === 0 || day % 3 === 0
-      } else {
-        shouldWeigh = day % 7 === 0 || (day % 7 === 3 && (yield* Random.next) > 0.5)
-      }
-      if (!shouldWeigh) {
-        continue
-      }
+const makeWeightLogs = Effect.fn('seed.makeWeightLogs')(function* (startDate: DateTime.Utc, now: DateTime.Utc) {
+  const crossed = yield* Ref.make(HashSet.empty<number>())
+  return yield* Effect.forEach(
+    Arr.range(0, 365),
+    (day) =>
+      Effect.gen(function* () {
+        const pattern = getWeighInPattern(day)
+        let shouldWeigh: boolean
+        if (pattern === 'daily') {
+          shouldWeigh = true
+        } else if (pattern === 'moderate') {
+          shouldWeigh = day % 2 === 0 || day % 3 === 0
+        } else if (day % 7 === 0) {
+          shouldWeigh = true
+        } else if (day % 7 === 3) {
+          shouldWeigh = (yield* Random.next) > 0.5
+        } else {
+          shouldWeigh = false
+        }
+        if (!shouldWeigh) {
+          return Option.none()
+        }
 
-      const hour = yield* Random.nextIntBetween(7, 9)
-      const minute = yield* Random.nextIntBetween(0, 45)
-      const datetime = DateTime.add(startDate, { days: day }).pipe(
-        DateTime.setParts({ hour, millisecond: 0, minute, second: 0 })
-      )
+        const hour = yield* Random.nextIntBetween(7, 9)
+        const minute = yield* Random.nextIntBetween(0, 45)
+        const datetime = DateTime.add(startDate, { days: day }).pipe(
+          DateTime.setParts({ hour, millisecond: 0, minute, second: 0 })
+        )
 
-      const weight = Math.round(addFluctuation(getExpectedWeight(day), day) * 10) / 10
+        const weight = Math.round(addFluctuation(getExpectedWeight(day), day) * 10) / 10
+        const notes = yield* weightNotes(day, weight, crossed)
+        const id = yield* randomUuid()
 
-      logs.push({
-        createdAt: now,
-        datetime,
-        id: yield* randomUuid,
-        notes: weightNotes(day, weight, crossed),
-        updatedAt: now,
-        weight,
-      })
-    }
-    return logs
-  })
+        return Option.some({
+          createdAt: now,
+          datetime,
+          id,
+          notes: Option.getOrNull(notes),
+          updatedAt: now,
+          weight,
+        })
+      }),
+    { concurrency: 1 }
+  ).pipe(Effect.map(Arr.getSomes))
+})
 
-const generateDemoData = Effect.gen(function* () {
+const generateDemoData = Effect.fn('generateDemoData')(function* () {
   const nowDt = yield* DateTime.now
   const now = nowDt
   const startDate = DateTime.subtract(nowDt, { days: 365 }).pipe(
@@ -343,11 +315,11 @@ const generateDemoData = Effect.gen(function* () {
   const retatStartDate = DateTime.add(startDate, { days: 40 * 7 })
 
   // Three schedules: two completed titrations and an active maintenance one
-  const semaScheduleId = yield* randomUuid
-  const tirzScheduleId = yield* randomUuid
-  const retatScheduleId = yield* randomUuid
+  const semaScheduleId = yield* randomUuid()
+  const tirzScheduleId = yield* randomUuid()
+  const retatScheduleId = yield* randomUuid()
 
-  const schedules: ScheduleJson[] = [
+  const schedules = [
     {
       createdAt: now,
       drug: 'Semaglutide',
@@ -383,11 +355,11 @@ const generateDemoData = Effect.gen(function* () {
       name: 'Retatrutide Maintenance',
       notes: 'Active maintenance schedule with indefinite final phase',
       phases: yield* makePhases(retatScheduleId, now, [
-        { dosage: '1mg', durationDays: 14, order: 1 },
-        { dosage: '2mg', durationDays: 14, order: 2 },
-        { dosage: '4mg', durationDays: 14, order: 3 },
-        { dosage: '8mg', durationDays: 14, order: 4 },
-        { dosage: '12mg', durationDays: null, order: 5 },
+        { dosage: '1mg', durationDays: Option.some(14), order: 1 },
+        { dosage: '2mg', durationDays: Option.some(14), order: 2 },
+        { dosage: '4mg', durationDays: Option.some(14), order: 3 },
+        { dosage: '8mg', durationDays: Option.some(14), order: 4 },
+        { dosage: '12mg', durationDays: Option.none<number>(), order: 5 },
       ]),
       source: 'Compounding Pharmacy',
       startDate: retatStartDate,
@@ -406,12 +378,12 @@ const generateDemoData = Effect.gen(function* () {
   const goalStartDate = DateTime.add(startDate, { days: 60 })
   const goalTargetDate = DateTime.add(goalStartDate, { months: 18 })
 
-  const goals: GoalJson[] = [
+  const goals = [
     {
       completedAt: null,
       createdAt: goalStartDate,
       goalWeight: 125,
-      id: yield* randomUuid,
+      id: yield* randomUuid(),
       isActive: true,
       notes: 'Long-term goal - doctor says 125 is ideal for my height',
       startingDate: goalStartDate,
@@ -438,35 +410,35 @@ const generateDemoData = Effect.gen(function* () {
 // Auth: create (or reuse) the demo user, return the session cookie
 // ============================================
 
-const postJson = (url: string, body: unknown) =>
-  Effect.gen(function* () {
-    const client = yield* HttpClient.HttpClient
-    const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
-    return yield* client.execute(request)
-  })
+const postJson = Effect.fn('seed.postJson')(function* (url: string, body: unknown) {
+  const client = yield* HttpClient.HttpClient
+  const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
+  return yield* client.execute(request)
+})
 
-const authenticate = (baseUrl: string) =>
-  Effect.gen(function* () {
-    const { email, name, password } = DEMO_USER
+const authenticate = Effect.fn('seed.authenticate')(function* (baseUrl: string) {
+  const { email, name, password } = DEMO_USER
 
-    let response = yield* postJson(`${baseUrl}/api/auth/sign-up/email`, { email, name, password })
-    if (response.status < 400) {
-      yield* Effect.log(`Created demo user ${email}`)
-    } else {
-      yield* Effect.log(`Sign-up returned ${response.status}, signing in as existing ${email}`)
-      response = yield* postJson(`${baseUrl}/api/auth/sign-in/email`, { email, password })
-    }
-    if (response.status >= 400) {
-      const body = yield* response.text
-      return yield* new SeedError({ message: `Authentication failed (${response.status}): ${body}` })
-    }
+  let response = yield* postJson(`${baseUrl}/api/auth/sign-up/email`, { email, name, password })
+  if (response.status < 400) {
+    yield* Effect.log('Created demo user').pipe(Effect.annotateLogs({ email }))
+  } else {
+    yield* Effect.log('Sign-up returned non-success, signing in as existing user').pipe(
+      Effect.annotateLogs({ status: response.status, email })
+    )
+    response = yield* postJson(`${baseUrl}/api/auth/sign-in/email`, { email, password })
+  }
+  if (response.status >= 400) {
+    const body = yield* response.text
+    return yield* new SeedError({ message: `Authentication failed (${response.status}): ${body}` })
+  }
 
-    const cookieHeader = Cookies.toCookieHeader(response.cookies)
-    if (cookieHeader === '') {
-      return yield* new SeedError({ message: 'Authentication succeeded but returned no session cookie' })
-    }
-    return cookieHeader
-  })
+  const cookieHeader = Cookies.toCookieHeader(response.cookies)
+  if (cookieHeader === '') {
+    return yield* new SeedError({ message: 'Authentication succeeded but returned no session cookie' })
+  }
+  return cookieHeader
+})
 
 // ============================================
 // Main
@@ -476,7 +448,7 @@ const authenticate = (baseUrl: string) =>
 const ProtocolLive = Layer.unwrap(
   Effect.gen(function* () {
     const baseUrl = yield* Config.string('BETTER_AUTH_URL')
-    yield* Effect.log(`Seeding demo data on ${baseUrl}`)
+    yield* Effect.log('Seeding demo data').pipe(Effect.annotateLogs({ baseUrl }))
     const cookie = yield* authenticate(baseUrl)
     return RpcClient.layerProtocolHttp({
       transformClient: HttpClient.mapRequest(HttpClientRequest.setHeader('cookie', cookie)),
@@ -485,15 +457,20 @@ const ProtocolLive = Layer.unwrap(
   })
 ).pipe(Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]))
 
-const main = Effect.gen(function* () {
-  const payload = yield* Schema.decodeUnknownEffect(DataExport)(yield* generateDemoData)
+const main = Effect.fn('main')(function* () {
+  const payload = yield* Schema.decodeUnknownEffect(DataExport)(yield* generateDemoData())
   const client = yield* RpcClient.make(AppRpcs)
   const result = yield* client.UserDataImport(payload)
-  yield* Effect.log(
-    `Import complete: ${result.weightLogs} weight logs, ${result.injectionLogs} injection logs, ` +
-      `${result.schedules} schedules, ${result.goals} goals, settings ${result.settingsUpdated ? 'updated' : 'unchanged'}`
+  yield* Effect.log('Import complete').pipe(
+    Effect.annotateLogs({
+      weightLogs: result.weightLogs,
+      injectionLogs: result.injectionLogs,
+      schedules: result.schedules,
+      goals: result.goals,
+      settingsUpdated: result.settingsUpdated,
+    })
   )
 })
 
 // @effect-diagnostics-next-line strictEffectProvide:off
-await main.pipe(Effect.provide(ProtocolLive), Effect.scoped, Effect.runPromise)
+NodeRuntime.runMain(main().pipe(Effect.provide(ProtocolLive), Effect.scoped))

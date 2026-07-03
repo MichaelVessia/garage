@@ -1,5 +1,6 @@
-import { Context, Layer } from 'effect'
-import type { Effect } from 'effect'
+import * as Context from 'effect/Context'
+import type * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { FetchHttpClient } from 'effect/unstable/http'
 import { RpcClient, RpcSerialization } from 'effect/unstable/rpc'
 

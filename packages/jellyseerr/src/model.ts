@@ -1,45 +1,45 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
 const OptionalStatusValue = Schema.optional(Schema.Union([Schema.Number, Schema.String]))
 
-export const JellyseerrConfigValueSchema = Schema.Struct({
+export const JellyseerrConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
 })
-export type JellyseerrConfigValue = typeof JellyseerrConfigValueSchema.Type
+export type JellyseerrConfigValue = typeof JellyseerrConfigValue.Type
 
-export const SystemStatusSchema = Schema.Struct({
+export const SystemStatus = Schema.Struct({
   version: OptionalString,
   commitTag: OptionalString,
   updateAvailable: OptionalBoolean,
   commitsBehind: OptionalNumber,
   restartRequired: OptionalBoolean,
 })
-export type SystemStatus = typeof SystemStatusSchema.Type
+export type SystemStatus = typeof SystemStatus.Type
 
-export const RequestFilterSchema = Schema.Literals(['pending', 'all'])
-export type RequestFilter = typeof RequestFilterSchema.Type
+export const RequestFilter = Schema.Literals(['pending', 'all'])
+export type RequestFilter = typeof RequestFilter.Type
 
-export const StatusValueSchema = Schema.Union([Schema.Number, Schema.String])
-export type StatusValue = typeof StatusValueSchema.Type
+export const StatusValue = Schema.Union([Schema.Number, Schema.String])
+export type StatusValue = typeof StatusValue.Type
 
-export const LimitOptionsSchema = Schema.Struct({ limit: Schema.Number })
-export type LimitOptions = typeof LimitOptionsSchema.Type
+export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+export type LimitOptions = typeof LimitOptions.Type
 
-export const RequestListOptionsSchema = Schema.Struct({
+export const RequestListOptions = Schema.Struct({
   limit: Schema.Number,
-  filter: RequestFilterSchema,
+  filter: RequestFilter,
 })
-export type RequestListOptions = typeof RequestListOptionsSchema.Type
+export type RequestListOptions = typeof RequestListOptions.Type
 
-export const SearchOptionsSchema = Schema.Struct({
+export const SearchOptions = Schema.Struct({
   limit: Schema.Number,
   query: Schema.String,
 })
-export type SearchOptions = typeof SearchOptionsSchema.Type
+export type SearchOptions = typeof SearchOptions.Type
 
 export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
@@ -49,7 +49,7 @@ export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
   })
 export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
 
-export const MediaSummarySchema = Schema.Struct({
+export const MediaSummary = Schema.Struct({
   id: Schema.Number,
   tmdbId: OptionalNumber,
   mediaType: OptionalString,
@@ -57,23 +57,23 @@ export const MediaSummarySchema = Schema.Struct({
   title: OptionalString,
   mediaAdded: OptionalString,
 })
-export type MediaSummary = typeof MediaSummarySchema.Type
+export type MediaSummary = typeof MediaSummary.Type
 
-export const RequestRecordSchema = Schema.Struct({
+export const RequestRecord = Schema.Struct({
   id: Schema.Number,
   status: OptionalStatusValue,
   type: OptionalString,
   createdAt: OptionalString,
   updatedAt: OptionalString,
   requestedBy: OptionalString,
-  media: MediaSummarySchema,
+  media: MediaSummary,
 })
-export type RequestRecord = typeof RequestRecordSchema.Type
+export type RequestRecord = typeof RequestRecord.Type
 
-export const RequestCountsSchema = Schema.Record(Schema.String, Schema.Number)
-export type RequestCounts = typeof RequestCountsSchema.Type
+export const RequestCounts = Schema.Record(Schema.String, Schema.Number)
+export type RequestCounts = typeof RequestCounts.Type
 
-export const SearchRecordSchema = Schema.Struct({
+export const SearchRecord = Schema.Struct({
   id: Schema.Number,
   mediaType: OptionalString,
   title: OptionalString,
@@ -81,9 +81,9 @@ export const SearchRecordSchema = Schema.Struct({
   firstAirDate: OptionalString,
   overview: OptionalString,
 })
-export type SearchRecord = typeof SearchRecordSchema.Type
+export type SearchRecord = typeof SearchRecord.Type
 
-export const UserRecordSchema = Schema.Struct({
+export const UserRecord = Schema.Struct({
   id: Schema.Number,
   email: OptionalString,
   displayName: OptionalString,
@@ -91,21 +91,21 @@ export const UserRecordSchema = Schema.Struct({
   userType: OptionalNumber,
   permissions: OptionalNumber,
 })
-export type UserRecord = typeof UserRecordSchema.Type
+export type UserRecord = typeof UserRecord.Type
 
-export const IssueRecordSchema = Schema.Struct({
+export const IssueRecord = Schema.Struct({
   id: Schema.Number,
   issueType: OptionalString,
   status: OptionalStatusValue,
   createdAt: OptionalString,
   createdBy: OptionalString,
-  media: MediaSummarySchema,
+  media: MediaSummary,
 })
-export type IssueRecord = typeof IssueRecordSchema.Type
+export type IssueRecord = typeof IssueRecord.Type
 
-export const DeleteRequestResultSchema = Schema.Struct({
+export const DeleteRequestResult = Schema.Struct({
   deleted: Schema.Boolean,
   requestId: Schema.Number,
   httpStatus: Schema.Number,
 })
-export type DeleteRequestResult = typeof DeleteRequestResultSchema.Type
+export type DeleteRequestResult = typeof DeleteRequestResult.Type

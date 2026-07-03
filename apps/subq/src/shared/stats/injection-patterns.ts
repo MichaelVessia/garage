@@ -1,3 +1,7 @@
+import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
+import * as Order from 'effect/Order'
+
 import { Count, DayOfWeek, DaysBetween } from '../common/domain.js'
 import { InjectionsPerWeek } from '../injection/domain.js'
 import { DayOfWeekCount, InjectionDayOfWeekStats, InjectionFrequencyStats } from './domain.js'
@@ -11,52 +15,34 @@ export const getDayOfWeekInTimezone = (date: Date, timezone: string): number => 
     weekday: 'short',
     timeZone: timezone,
   }).format(date)
-  let day = -1
-  for (const [index, dayName] of DAY_NAMES.entries()) {
-    if (dayName === weekday) {
-      day = index
-      break
-    }
-  }
-  return day === -1 ? 0 : day
+  const dayIndex = Arr.findFirstIndex(DAY_NAMES, (dayName) => dayName === weekday)
+  return Option.getOrElse(dayIndex, () => 0)
 }
 
-const countDaysOfWeek = (dates: readonly Date[], timezone: string): Map<number, number> => {
-  const dayCounts = new Map<number, number>()
-
-  for (const date of dates) {
-    const dayOfWeek = getDayOfWeekInTimezone(date, timezone)
-    dayCounts.set(dayOfWeek, (dayCounts.get(dayOfWeek) ?? 0) + 1)
-  }
-
-  return dayCounts
+/** Count of injections for each day of the week, indexed 0 (Sunday) through 6 (Saturday). */
+const countDaysOfWeek = (dates: readonly Date[], timezone: string): ReadonlyArray<number> => {
+  const daysOfWeek = Arr.map(dates, (date) => getDayOfWeekInTimezone(date, timezone))
+  return Arr.map(Arr.range(0, DAY_NAMES.length - 1), (day) => Arr.filter(daysOfWeek, (d) => d === day).length)
 }
 
-const mostFrequentDayOfWeek = (dayCounts: ReadonlyMap<number, number>): number | null => {
-  let bestDay: number | null = null
-  let bestCount = 0
+interface MostFrequentDay {
+  readonly day: Option.Option<number>
+  readonly count: number
+}
 
-  for (let day = 0; day < DAY_NAMES.length; day += 1) {
-    const count = dayCounts.get(day) ?? 0
-    if (count > bestCount) {
-      bestDay = day
-      bestCount = count
-    }
-  }
-
-  return bestDay
+const mostFrequentDayOfWeek = (dayCounts: ReadonlyArray<number>): Option.Option<number> => {
+  const initial: MostFrequentDay = { day: Option.none(), count: 0 }
+  const best = Arr.reduce(dayCounts, initial, (candidate, count, day) =>
+    count > candidate.count ? { day: Option.some(day), count } : candidate
+  )
+  return best.day
 }
 
 export const buildInjectionDayOfWeekStats = (dates: readonly Date[], timezone = 'UTC'): InjectionDayOfWeekStats => {
   const dayCounts = countDaysOfWeek(dates, timezone)
-  const days: DayOfWeekCount[] = []
-
-  for (let day = 0; day < DAY_NAMES.length; day += 1) {
-    const count = dayCounts.get(day) ?? 0
-    if (count > 0) {
-      days.push(new DayOfWeekCount({ dayOfWeek: DayOfWeek.make(day), count: Count.make(count) }))
-    }
-  }
+  const days = dayCounts.flatMap((count, day) =>
+    count > 0 ? [new DayOfWeekCount({ dayOfWeek: DayOfWeek.make(day), count: Count.make(count) })] : []
+  )
 
   return new InjectionDayOfWeekStats({ days, totalInjections: Count.make(dates.length) })
 }
@@ -64,37 +50,38 @@ export const buildInjectionDayOfWeekStats = (dates: readonly Date[], timezone = 
 export const buildObservedInjectionFrequency = (
   dates: readonly Date[],
   timezone = 'UTC'
-): InjectionFrequencyStats | null => {
-  if (dates.length === 0) {
-    return null
+): Option.Option<InjectionFrequencyStats> => {
+  if (!Arr.isReadonlyArrayNonEmpty(dates)) {
+    return Option.none()
   }
 
-  const orderedDates = [...dates].toSorted((a, b) => a.getTime() - b.getTime())
-  const [firstDate] = orderedDates
-  const lastDate = orderedDates.at(-1)
-  if (firstDate === undefined || lastDate === undefined) {
-    return null
-  }
+  const orderedDates = Arr.sortWith(dates, (date) => date.getTime(), Order.Number)
+  const firstDate = Arr.headNonEmpty(orderedDates)
+  const lastDate = Arr.lastNonEmpty(orderedDates)
 
-  let previousDate: Date | null = null
-  let totalGapDays = 0
-  let gapCount = 0
-  for (const date of orderedDates) {
-    if (previousDate !== null) {
-      totalGapDays += (date.getTime() - previousDate.getTime()) / MS_PER_DAY
-      gapCount += 1
-    }
-    previousDate = date
-  }
+  const laterDates = Arr.drop(orderedDates, 1)
+  const gapDays = Arr.zipWith(
+    orderedDates,
+    laterDates,
+    (previous, next) => (next.getTime() - previous.getTime()) / MS_PER_DAY
+  )
+  const totalGapDays = Arr.reduce(gapDays, 0, (sum, gap) => sum + gap)
+  const gapCount = gapDays.length
 
   const periodWeeks = (lastDate.getTime() - firstDate.getTime()) / MS_PER_WEEK
   const injectionsPerWeek = periodWeeks > 0 ? orderedDates.length / periodWeeks : orderedDates.length
-  const mostFrequentDay = mostFrequentDayOfWeek(countDaysOfWeek(orderedDates, timezone))
+  const dayCounts = countDaysOfWeek(orderedDates, timezone)
+  const mostFrequentDay = mostFrequentDayOfWeek(dayCounts)
 
-  return new InjectionFrequencyStats({
-    totalInjections: Count.make(orderedDates.length),
-    avgDaysBetween: DaysBetween.make(gapCount > 0 ? totalGapDays / gapCount : 0),
-    mostFrequentDayOfWeek: mostFrequentDay === null ? null : DayOfWeek.make(mostFrequentDay),
-    injectionsPerWeek: InjectionsPerWeek.make(injectionsPerWeek),
-  })
+  return Option.some(
+    new InjectionFrequencyStats({
+      totalInjections: Count.make(orderedDates.length),
+      avgDaysBetween: DaysBetween.make(gapCount > 0 ? totalGapDays / gapCount : 0),
+      mostFrequentDayOfWeek: mostFrequentDay.pipe(
+        Option.map((day) => DayOfWeek.make(day)),
+        Option.getOrNull
+      ),
+      injectionsPerWeek: InjectionsPerWeek.make(injectionsPerWeek),
+    })
+  )
 }

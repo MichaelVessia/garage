@@ -1,6 +1,9 @@
 import { assert, it } from '@effect/vitest'
 import { SonarrApi, SonarrConfig, envMissing } from '@garage/sonarr'
-import { Effect, Layer, Option, Redacted } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
 
 import { executeSonarr } from '../src/index.js'
 

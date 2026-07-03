@@ -1,4 +1,5 @@
-import { Effect, Option } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { AuthContext, GoalRpcs, NoWeightDataError, UserGoalUpdate, Weight } from '#shared'
 import type { GoalId, UserGoalCreate } from '#shared'
@@ -18,7 +19,11 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
       )
       const result = yield* goalRepo.getActive(user.id).pipe(Effect.map(Option.getOrNull))
       yield* Effect.logDebug('GoalGetActive completed').pipe(
-        Effect.annotateLogs({ rpc: 'GoalGetActive', found: result !== null, goalId: result?.id ?? 'none' })
+        Effect.annotateLogs({
+          rpc: 'GoalGetActive',
+          found: result !== null,
+          goalId: result?.id ?? 'none',
+        })
       )
       return result
     })
@@ -71,7 +76,11 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
 
       const result = yield* goalRepo.create(data, startingWeight, user.id)
       yield* Effect.logInfo('GoalCreate completed').pipe(
-        Effect.annotateLogs({ rpc: 'GoalCreate', id: result.id, goalWeight: result.goalWeight })
+        Effect.annotateLogs({
+          rpc: 'GoalCreate',
+          id: result.id,
+          goalWeight: result.goalWeight,
+        })
       )
       return result
     })
@@ -79,7 +88,11 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
     const GoalUpdate = Effect.fn('rpc.goal.update')(function* (data: UserGoalUpdate) {
       const { user } = yield* Effect.service(AuthContext)
       yield* Effect.logInfo('GoalUpdate called').pipe(
-        Effect.annotateLogs({ rpc: 'GoalUpdate', id: data.id, isActive: data.isActive })
+        Effect.annotateLogs({
+          rpc: 'GoalUpdate',
+          id: data.id,
+          isActive: data.isActive,
+        })
       )
 
       // If startingDate changed and no explicit startingWeight, lookup weight at new date
@@ -119,7 +132,7 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
       yield* Effect.logDebug('GoalGetProgress called').pipe(
         Effect.annotateLogs({ rpc: 'GoalGetProgress', userId: user.id })
       )
-      const result = yield* goalService.getGoalProgress(user.id)
+      const result = yield* goalService.getGoalProgress(user.id).pipe(Effect.map(Option.getOrNull))
       yield* Effect.logDebug('GoalGetProgress completed').pipe(
         Effect.annotateLogs({
           rpc: 'GoalGetProgress',

@@ -1,5 +1,7 @@
 import { assert, it } from '@effect/vitest'
-import { ConfigProvider, Effect, Layer } from 'effect'
+import * as ConfigProvider from 'effect/ConfigProvider'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import {

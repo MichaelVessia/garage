@@ -1,5 +1,7 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect, Option } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import { Limit, Notes, Offset, Weight, WeightLogId } from '#shared'
 
@@ -31,9 +33,9 @@ describe('WeightLogRepo', () => {
             'user-123'
           )
 
-          expect(created.weight).toBe(185.5)
-          expect(created.notes).toBe('Morning weigh-in')
-          expect(created.id).toBeDefined()
+          assert.strictEqual(created.weight, 185.5)
+          assert.strictEqual(created.notes, 'Morning weigh-in')
+          assert.isDefined(created.id)
         })
       )
     })
@@ -51,8 +53,8 @@ describe('WeightLogRepo', () => {
             'user-123'
           )
 
-          expect(created.weight).toBe(180)
-          expect(created.notes).toBeNull()
+          assert.strictEqual(created.weight, 180)
+          assert.isNull(created.notes)
         })
       )
     })
@@ -73,10 +75,10 @@ describe('WeightLogRepo', () => {
           )
 
           const found = yield* repo.findById(created.id, 'user-123')
-          expect(Option.isSome(found)).toBe(true)
+          assert.isTrue(Option.isSome(found))
           if (Option.isSome(found)) {
-            expect(found.value.id).toBe(created.id)
-            expect(found.value.weight).toBe(180)
+            assert.strictEqual(found.value.id, created.id)
+            assert.strictEqual(found.value.weight, 180)
           }
         })
       )
@@ -87,7 +89,7 @@ describe('WeightLogRepo', () => {
         Effect.gen(function* () {
           const repo = yield* WeightLogRepo
           const found = yield* repo.findById('non-existent', 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.isTrue(Option.isNone(found))
         })
       )
     })
@@ -99,7 +101,7 @@ describe('WeightLogRepo', () => {
 
           const repo = yield* WeightLogRepo
           const found = yield* repo.findById('wl-1', 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.isTrue(Option.isNone(found))
         })
       )
     })
@@ -122,13 +124,13 @@ describe('WeightLogRepo', () => {
           }
 
           const page1 = yield* repo.list({ limit: Limit.make(2), offset: Offset.make(0) }, 'user-123')
-          expect(page1.length).toBe(2)
+          assert.strictEqual(page1.length, 2)
           // Should be sorted by datetime DESC, so newest first
-          expect(requireValue(page1[0]).weight).toBe(184)
-          expect(requireValue(page1[1]).weight).toBe(183)
+          assert.strictEqual(requireValue(page1[0]).weight, 184)
+          assert.strictEqual(requireValue(page1[1]).weight, 183)
 
           const page2 = yield* repo.list({ limit: Limit.make(2), offset: Offset.make(2) }, 'user-123')
-          expect(page2.length).toBe(2)
+          assert.strictEqual(page2.length, 2)
         })
       )
     })
@@ -172,8 +174,8 @@ describe('WeightLogRepo', () => {
             'user-123'
           )
 
-          expect(filtered.length).toBe(1)
-          expect(requireValue(filtered[0]).weight).toBe(181)
+          assert.strictEqual(filtered.length, 1)
+          assert.strictEqual(requireValue(filtered[0]).weight, 181)
         })
       )
     })
@@ -188,8 +190,8 @@ describe('WeightLogRepo', () => {
           const repo = yield* WeightLogRepo
           const logs = yield* repo.list({ limit: Limit.make(50), offset: Offset.make(0) }, 'user-123')
 
-          expect(logs.length).toBe(2)
-          expect(logs.every((l) => l.id === 'wl-1' || l.id === 'wl-3')).toBe(true)
+          assert.strictEqual(logs.length, 2)
+          assert.isTrue(logs.every((l) => l.id === 'wl-1' || l.id === 'wl-3'))
         })
       )
     })
@@ -218,8 +220,8 @@ describe('WeightLogRepo', () => {
             'user-123'
           )
 
-          expect(updated.weight).toBe(184)
-          expect(updated.notes).toBe('After workout')
+          assert.strictEqual(updated.weight, 184)
+          assert.strictEqual(updated.notes, 'After workout')
         })
       )
     })
@@ -239,9 +241,9 @@ describe('WeightLogRepo', () => {
             )
             .pipe(Effect.result)
 
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure._tag).toBe('WeightLogNotFoundError')
+            assert.strictEqual(result.failure._tag, 'WeightLogNotFoundError')
           }
         })
       )
@@ -264,9 +266,9 @@ describe('WeightLogRepo', () => {
             )
             .pipe(Effect.result)
 
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure._tag).toBe('WeightLogNotFoundError')
+            assert.strictEqual(result.failure._tag, 'WeightLogNotFoundError')
           }
         })
       )
@@ -288,10 +290,10 @@ describe('WeightLogRepo', () => {
           )
 
           const deleted = yield* repo.delete(created.id, 'user-123')
-          expect(deleted).toBe(true)
+          assert.isTrue(deleted)
 
           const found = yield* repo.findById(created.id, 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.isTrue(Option.isNone(found))
         })
       )
     })
@@ -301,7 +303,7 @@ describe('WeightLogRepo', () => {
         Effect.gen(function* () {
           const repo = yield* WeightLogRepo
           const deleted = yield* repo.delete('non-existent', 'user-123')
-          expect(deleted).toBe(false)
+          assert.isFalse(deleted)
         })
       )
     })
@@ -313,7 +315,7 @@ describe('WeightLogRepo', () => {
 
           const repo = yield* WeightLogRepo
           const deleted = yield* repo.delete('wl-1', 'user-123')
-          expect(deleted).toBe(false)
+          assert.isFalse(deleted)
         })
       )
     })

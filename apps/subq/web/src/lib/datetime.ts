@@ -1,4 +1,4 @@
-import { DateTime } from 'effect'
+import * as DateTime from 'effect/DateTime'
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
@@ -14,19 +14,19 @@ export const toLocalDateString = (date: Date): string =>
 // parses offset-less strings in the user's local timezone.
 export const fromLocalDatetimeString = (value: string): DateTime.Utc => {
   // @effect-diagnostics-next-line globalDate:off
-  const local = new Date(value)
+  const local = new Date(value) // oxlint-disable-line effect/use-clock-service
   return DateTime.makeUnsafe(local)
 }
 
 export const fromLocalDateString = (value: string): DateTime.Utc => {
   // @effect-diagnostics-next-line globalDate:off
-  const local = new Date(`${value}T00:00`)
+  const local = new Date(`${value}T00:00`) // oxlint-disable-line effect/use-clock-service
   return DateTime.makeUnsafe(local)
 }
 
-export const utcToLocalDatetimeString = (dt: DateTime.Utc): string => toLocalDatetimeString(DateTime.toDate(dt))
+export const utcToLocalDatetimeString = (dt: DateTime.Utc): string => dt.pipe(DateTime.toDate, toLocalDatetimeString)
 
-export const utcToLocalDateString = (dt: DateTime.Utc): string => toLocalDateString(DateTime.toDate(dt))
+export const utcToLocalDateString = (dt: DateTime.Utc): string => dt.pipe(DateTime.toDate, toLocalDateString)
 
 export const epochToDate = (ms: number): Date => DateTime.toDate(DateTime.makeUnsafe(ms))
 

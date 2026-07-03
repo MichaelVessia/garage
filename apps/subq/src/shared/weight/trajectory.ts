@@ -1,4 +1,7 @@
-import { DateTime } from 'effect'
+import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
+import * as Option from 'effect/Option'
+import * as Order from 'effect/Order'
 
 export interface WeightTrajectoryPoint {
   readonly date: Date
@@ -20,9 +23,9 @@ export interface WeightTrajectoryTrendLine extends WeightTrajectoryRegression {
 }
 
 export interface WeightTrajectory {
-  readonly regression: WeightTrajectoryRegression | null
+  readonly regression: Option.Option<WeightTrajectoryRegression>
   readonly rateOfChange: number
-  readonly trendLine: WeightTrajectoryTrendLine | null
+  readonly trendLine: Option.Option<WeightTrajectoryTrendLine>
 }
 
 export interface WeightTrajectoryProjectionParams {
@@ -36,37 +39,40 @@ export interface WeightTrajectoryProjectionParams {
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 export const WEIGHT_TRAJECTORY_MS_PER_WEEK = 7 * MS_PER_DAY
 
+interface RegressionSums {
+  readonly sumX: number
+  readonly sumY: number
+  readonly sumXY: number
+  readonly sumX2: number
+}
+
 const neutralWeightTrajectory = (): WeightTrajectory => ({
-  regression: null,
+  regression: Option.none(),
   rateOfChange: 0,
-  trendLine: null,
+  trendLine: Option.none(),
 })
 
 export const calculateWeightTrajectory = (points: readonly WeightTrajectoryPoint[]): WeightTrajectory => {
-  if (points.length < 2) {
+  if (points.length < 2 || !Arr.isReadonlyArrayNonEmpty(points)) {
     return neutralWeightTrajectory()
   }
 
-  const orderedPoints = [...points].toSorted((a, b) => a.date.getTime() - b.date.getTime())
-  const [firstPoint] = orderedPoints
-  const lastPoint = orderedPoints.at(-1)
-  if (firstPoint === undefined || lastPoint === undefined) {
-    return neutralWeightTrajectory()
-  }
+  const orderedPoints = Arr.sortWith(points, (point) => point.date.getTime(), Order.Number)
+  const firstPoint = Arr.headNonEmpty(orderedPoints)
+  const lastPoint = Arr.lastNonEmpty(orderedPoints)
 
   const epochOffset = firstPoint.date.getTime()
   const pointCount = orderedPoints.length
-  let sumX = 0
-  let sumY = 0
-  let sumXY = 0
-  let sumX2 = 0
-  for (const point of orderedPoints) {
+  const initialSums: RegressionSums = { sumX: 0, sumY: 0, sumXY: 0, sumX2: 0 }
+  const { sumX, sumY, sumXY, sumX2 } = Arr.reduce(orderedPoints, initialSums, (sums, point) => {
     const x = point.date.getTime() - epochOffset
-    sumX += x
-    sumY += point.weight
-    sumXY += x * point.weight
-    sumX2 += x * x
-  }
+    return {
+      sumX: sums.sumX + x,
+      sumY: sums.sumY + point.weight,
+      sumXY: sums.sumXY + x * point.weight,
+      sumX2: sums.sumX2 + x * x,
+    }
+  })
 
   const denominator = pointCount * sumX2 - sumX * sumX
   if (denominator === 0) {
@@ -81,15 +87,15 @@ export const calculateWeightTrajectory = (points: readonly WeightTrajectoryPoint
   const endWeight = slope * lastPoint.date.getTime() + intercept
 
   return {
-    regression,
+    regression: Option.some(regression),
     rateOfChange: slope * WEIGHT_TRAJECTORY_MS_PER_WEEK,
-    trendLine: {
+    trendLine: Option.some({
       ...regression,
       startDate: firstPoint.date,
       startWeight,
       endDate: lastPoint.date,
       endWeight,
-    },
+    }),
   }
 }
 
@@ -99,20 +105,21 @@ export const projectWeightTrajectoryDate = ({
   rateOfChange,
   now,
   maxProjectionDays,
-}: WeightTrajectoryProjectionParams): Date | null => {
+}: WeightTrajectoryProjectionParams): Option.Option<Date> => {
   if (currentWeight <= targetWeight) {
-    return now
+    return Option.some(now)
   }
   if (rateOfChange >= 0) {
-    return null
+    return Option.none()
   }
 
   const weeksToTarget = (currentWeight - targetWeight) / Math.abs(rateOfChange)
   const projectedMillis = now.getTime() + weeksToTarget * WEIGHT_TRAJECTORY_MS_PER_WEEK
 
   if (maxProjectionDays !== undefined && projectedMillis > now.getTime() + maxProjectionDays * MS_PER_DAY) {
-    return null
+    return Option.none()
   }
 
-  return DateTime.toDate(DateTime.makeUnsafe(projectedMillis))
+  const projected = DateTime.makeUnsafe(projectedMillis)
+  return projected.pipe(DateTime.toDate, Option.some)
 }

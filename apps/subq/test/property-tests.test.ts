@@ -2,8 +2,10 @@
  * Property-based tests for branded type validation.
  * Tests that branded types properly enforce their constraints.
  */
-import { describe, expect, it } from '@effect/vitest'
-import { Effect, Exit, Schema } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
+import * as Schema from 'effect/Schema'
 import { FastCheck as FC } from 'effect/testing'
 
 import {
@@ -47,14 +49,14 @@ describe('Branded Type Property Tests', () => {
     it.effect('rejects zero', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Weight)(0)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative numbers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Weight)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -73,21 +75,21 @@ describe('Branded Type Property Tests', () => {
     it.effect('rejects zero', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Limit)(0)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Limit)(-5)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects non-integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Limit)(1.5)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -106,21 +108,21 @@ describe('Branded Type Property Tests', () => {
     it.effect('accepts zero', () =>
       Effect.sync(() => {
         const result = Offset.make(0)
-        expect(result).toBe(0)
+        assert.strictEqual(result, 0)
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Offset)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects non-integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Offset)(0.5)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -139,14 +141,14 @@ describe('Branded Type Property Tests', () => {
     it.effect('accepts zero', () =>
       Effect.sync(() => {
         const result = Count.make(0)
-        expect(result).toBe(0)
+        assert.strictEqual(result, 0)
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(Count)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -165,21 +167,21 @@ describe('Branded Type Property Tests', () => {
     it.effect('accepts zero', () =>
       Effect.sync(() => {
         const result = DaysBetween.make(0)
-        expect(result).toBe(0)
+        assert.strictEqual(result, 0)
       })
     )
 
     it.effect('accepts fractional days', () =>
       Effect.sync(() => {
         const result = DaysBetween.make(1.5)
-        expect(result).toBe(1.5)
+        assert.strictEqual(result, 1.5)
       })
     )
 
     it.effect('rejects negative numbers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(DaysBetween)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -198,14 +200,14 @@ describe('Branded Type Property Tests', () => {
     it.effect('rejects 7', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(DayOfWeek)(7)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(DayOfWeek)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -224,14 +226,14 @@ describe('Branded Type Property Tests', () => {
     it.effect('rejects zero', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(PhaseOrder)(0)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(PhaseOrder)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -250,14 +252,14 @@ describe('Branded Type Property Tests', () => {
     it.effect('rejects zero', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(PhaseDurationDays)(0)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(PhaseDurationDays)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -276,21 +278,21 @@ describe('Branded Type Property Tests', () => {
     it.effect('accepts zero', () =>
       Effect.sync(() => {
         const result = InjectionsPerWeek.make(0)
-        expect(result).toBe(0)
+        assert.strictEqual(result, 0)
       })
     )
 
     it.effect('accepts fractional values', () =>
       Effect.sync(() => {
         const result = InjectionsPerWeek.make(0.5)
-        expect(result).toBe(0.5)
+        assert.strictEqual(result, 0.5)
       })
     )
 
     it.effect('rejects negative numbers', () =>
       Effect.sync(() => {
         const result = Schema.decodeUnknownExit(InjectionsPerWeek)(-1)
-        expect(Exit.isFailure(result)).toBe(true)
+        assert.isTrue(Exit.isFailure(result))
       })
     )
   })
@@ -323,31 +325,31 @@ describe('frequencyToDays Property Tests', () => {
 
   it.effect('daily returns 1', () =>
     Effect.sync(() => {
-      expect(frequencyToDays('daily')).toBe(1)
+      assert.strictEqual(frequencyToDays('daily'), 1)
     })
   )
 
   it.effect('every_3_days returns 3', () =>
     Effect.sync(() => {
-      expect(frequencyToDays('every_3_days')).toBe(3)
+      assert.strictEqual(frequencyToDays('every_3_days'), 3)
     })
   )
 
   it.effect('weekly returns 7', () =>
     Effect.sync(() => {
-      expect(frequencyToDays('weekly')).toBe(7)
+      assert.strictEqual(frequencyToDays('weekly'), 7)
     })
   )
 
   it.effect('every_2_weeks returns 14', () =>
     Effect.sync(() => {
-      expect(frequencyToDays('every_2_weeks')).toBe(14)
+      assert.strictEqual(frequencyToDays('every_2_weeks'), 14)
     })
   )
 
   it.effect('monthly returns 30', () =>
     Effect.sync(() => {
-      expect(frequencyToDays('monthly')).toBe(30)
+      assert.strictEqual(frequencyToDays('monthly'), 30)
     })
   )
 
@@ -360,9 +362,9 @@ describe('frequencyToDays Property Tests', () => {
 
   it.effect('unknown frequency defaults to 7', () =>
     Effect.sync(() => {
-      expect(frequencyToDays('unknown')).toBe(7)
-      expect(frequencyToDays('')).toBe(7)
-      expect(frequencyToDays('biweekly')).toBe(7)
+      assert.strictEqual(frequencyToDays('unknown'), 7)
+      assert.strictEqual(frequencyToDays(''), 7)
+      assert.strictEqual(frequencyToDays('biweekly'), 7)
     })
   )
 })

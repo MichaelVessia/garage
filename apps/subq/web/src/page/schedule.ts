@@ -1,4 +1,10 @@
-import { DateTime, Effect, Match, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { html } from 'foldkit/html'
@@ -24,13 +30,7 @@ import {
 } from '#shared'
 
 import { Api } from '../api.js'
-import {
-  formatDate,
-  formatShortDate,
-  fromLocalDateString,
-  toLocalDateString,
-  utcToLocalDateString,
-} from '../lib/datetime.js'
+import { formatDate, formatShortDate, fromLocalDateString, utcToLocalDateString } from '../lib/datetime.js'
 import { scheduleViewRouter } from '../route.js'
 import { button, card, input, select } from '../ui.js'
 
@@ -51,8 +51,8 @@ const FREQUENCIES: ReadonlyArray<readonly [value: Frequency, label: string]> = [
 export const SchedulesData = AsyncData.Schema(Schema.Array(InjectionSchedule), Schema.String).schema
 export type SchedulesData = AsyncData.AsyncData<ReadonlyArray<InjectionSchedule>, string>
 
-export const NextDoseData = AsyncData.Schema(Schema.NullOr(NextScheduledDose), Schema.String).schema
-export type NextDoseData = AsyncData.AsyncData<NextScheduledDose | null, string>
+export const NextDoseData = AsyncData.Schema(Schema.OptionFromNullOr(NextScheduledDose), Schema.String).schema
+export type NextDoseData = AsyncData.AsyncData<Option.Option<NextScheduledDose>, string>
 
 export const ScheduleDrugData = AsyncData.Schema(Schema.Array(Schema.String), Schema.String).schema
 export type ScheduleDrugData = AsyncData.AsyncData<ReadonlyArray<string>, string>
@@ -199,7 +199,12 @@ export const FetchSchedules = Command.define(
     const api = yield* Api
     const schedules = yield* api.ScheduleList()
     return SucceededFetchSchedules({ schedules })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedFetchSchedules({ message: 'Failed to load schedules' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedFetchSchedules({ message: 'Failed to load schedules' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 export const FetchNextDose = Command.define(
@@ -211,7 +216,12 @@ export const FetchNextDose = Command.define(
     const api = yield* Api
     const nextDose = yield* api.ScheduleGetNextDose()
     return SucceededFetchNextDose({ nextDose })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedFetchNextDose({ message: 'Failed to load next dose' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedFetchNextDose({ message: 'Failed to load next dose' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 const FetchScheduleDrugs = Command.define(
@@ -224,9 +234,10 @@ const FetchScheduleDrugs = Command.define(
     const drugs = yield* api.InjectionLogGetDrugs()
     return SucceededFetchScheduleDrugs({ drugs })
   }).pipe(
-    Effect.catchCause(() =>
-      Effect.succeed(FailedFetchScheduleDrugs({ message: 'Failed to load medication suggestions' }))
-    )
+    Effect.matchCause({
+      onFailure: () => FailedFetchScheduleDrugs({ message: 'Failed to load medication suggestions' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -235,9 +246,7 @@ const OpenScheduleForm = Command.define(
   { schedule: Schema.NullOr(InjectionSchedule) },
   OpenedScheduleForm
 )(({ schedule }) =>
-  DateTime.now.pipe(
-    Effect.map((now) => OpenedScheduleForm({ schedule, todayLocal: toLocalDateString(DateTime.toDate(now)) }))
-  )
+  DateTime.now.pipe(Effect.map((now) => OpenedScheduleForm({ schedule, todayLocal: utcToLocalDateString(now) })))
 )
 
 const SaveSchedule = Command.define(
@@ -289,7 +298,12 @@ const SaveSchedule = Command.define(
           })
         )
     return SucceededSaveSchedule()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSaveSchedule({ message: 'Failed to save schedule' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedSaveSchedule({ message: 'Failed to save schedule' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 const DeleteSchedule = Command.define(
@@ -302,7 +316,12 @@ const DeleteSchedule = Command.define(
     const api = yield* Api
     yield* api.ScheduleDelete(new InjectionScheduleDelete({ id }))
     return SucceededDeleteSchedule()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedDeleteSchedule({ message: 'Failed to delete schedule' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedDeleteSchedule({ message: 'Failed to delete schedule' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 const ActivateSchedule = Command.define(
@@ -315,7 +334,12 @@ const ActivateSchedule = Command.define(
     const api = yield* Api
     yield* api.ScheduleUpdate(new InjectionScheduleUpdate({ id, isActive: true }))
     return SucceededActivateSchedule()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedActivateSchedule({ message: 'Failed to activate schedule' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedActivateSchedule({ message: 'Failed to activate schedule' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 // ============================================
@@ -379,34 +403,36 @@ const scheduleFormError =
   (form: ScheduleForm): ScheduleForm =>
     evo(form, { error: () => message, submitting: () => false })
 
-const validateScheduleForm = (form: ScheduleForm): string | null => {
+const validatePhase = (phase: SchedulePhaseForm, index: number, total: number): Option.Option<string> => {
+  if (!DOSAGE_PATTERN.test(phase.dosage.trim())) {
+    return Option.some(`Phase ${index + 1}: enter dosage with unit`)
+  }
+  if (!phase.isIndefinite) {
+    const days = Number.parseInt(phase.durationDays, 10)
+    if (Number.isNaN(days) || days <= 0) {
+      return Option.some(`Phase ${index + 1}: duration is required`)
+    }
+  }
+  if (phase.isIndefinite && index < total - 1) {
+    return Option.some('Only the last phase can be indefinite')
+  }
+  return Option.none()
+}
+
+const validateScheduleForm = (form: ScheduleForm): Option.Option<string> => {
   if (form.name.trim() === '') {
-    return 'Schedule name is required'
+    return Option.some('Schedule name is required')
   }
   if (form.drug.trim() === '') {
-    return 'Medication is required'
+    return Option.some('Medication is required')
   }
   if (form.startDate === '') {
-    return 'Start date is required'
+    return Option.some('Start date is required')
   }
-  if (form.phases.length === 0) {
-    return 'At least one phase is required'
+  if (Arr.isReadonlyArrayEmpty(form.phases)) {
+    return Option.some('At least one phase is required')
   }
-  for (const [index, phase] of form.phases.entries()) {
-    if (!DOSAGE_PATTERN.test(phase.dosage.trim())) {
-      return `Phase ${index + 1}: enter dosage with unit`
-    }
-    if (!phase.isIndefinite) {
-      const days = Number.parseInt(phase.durationDays, 10)
-      if (Number.isNaN(days) || days <= 0) {
-        return `Phase ${index + 1}: duration is required`
-      }
-    }
-    if (phase.isIndefinite && index < form.phases.length - 1) {
-      return 'Only the last phase can be indefinite'
-    }
-  }
-  return null
+  return Arr.findFirst(form.phases, (phase, index) => validatePhase(phase, index, form.phases.length))
 }
 
 const refreshSchedules = (model: ScheduleModel): UpdateReturn => [
@@ -548,10 +574,10 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
           return [model, []]
         }
         const validationError = validateScheduleForm(model.form)
-        if (validationError !== null) {
+        if (Option.isSome(validationError)) {
           return [
             evo(model, {
-              form: (form) => (form === null ? null : scheduleFormError(validationError)(form)),
+              form: (form) => (form === null ? null : scheduleFormError(validationError.value)(form)),
             }),
             [],
           ]
@@ -575,7 +601,10 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
       },
       SucceededActivateSchedule: () => refreshSchedules(model),
       SucceededDeleteSchedule: () => refreshSchedules(evo(model, { pendingDeleteId: () => null })),
-      SucceededFetchNextDose: ({ nextDose }) => [evo(model, { nextDose: () => AsyncData.succeed(nextDose) }), []],
+      SucceededFetchNextDose: ({ nextDose }) => [
+        evo(model, { nextDose: () => AsyncData.succeed(Option.fromNullOr(nextDose)) }),
+        [],
+      ],
       SucceededFetchScheduleDrugs: ({ drugs }) => [evo(model, { drugs: () => AsyncData.succeed(drugs) }), []],
       SucceededFetchSchedules: ({ schedules }) => [evo(model, { schedules: () => AsyncData.succeed(schedules) }), []],
       SucceededSaveSchedule: () => refreshSchedules(evo(model, { form: () => null })),
@@ -613,20 +642,8 @@ const frequencyFromString = (value: string): Frequency => {
   return frequency === undefined ? 'weekly' : frequency[0]
 }
 
-const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> => {
-  const values: Array<string> = []
-  for (const value of primary) {
-    if (!values.includes(value)) {
-      values.push(value)
-    }
-  }
-  for (const value of fallback) {
-    if (!values.includes(value)) {
-      values.push(value)
-    }
-  }
-  return values
-}
+const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
+  Arr.dedupe(Arr.appendAll(primary, fallback))
 
 const drugSuggestions = (data: ScheduleDrugData): ReadonlyArray<string> =>
   uniqueStrings(
@@ -681,70 +698,68 @@ const dueClassFor = (nextDose: NextScheduledDose): string => {
   return 'text-muted-foreground'
 }
 
-const viewNextDoseValue = (nextDose: NextScheduledDose | null) =>
-  nextDose === null
-    ? h.empty
-    : h.div(
-        [h.Class(`rounded-lg p-4 mb-6 border ${bannerClassFor(nextDose)}`)],
+const viewNextDoseValue = (nextDose: NextScheduledDose) =>
+  h.div(
+    [h.Class(`rounded-lg p-4 mb-6 border ${bannerClassFor(nextDose)}`)],
+    [
+      h.div(
+        [h.Class('flex items-start justify-between gap-4')],
         [
           h.div(
-            [h.Class('flex items-start justify-between gap-4')],
+            [h.Class('flex-1')],
             [
               h.div(
-                [h.Class('flex-1')],
+                [h.Class('flex items-center gap-2 mb-2')],
+                [
+                  h.h3([h.Class('font-semibold')], ['Next Scheduled Dose']),
+                  h.span(
+                    [h.Class('text-xs bg-muted px-2 py-0.5 rounded')],
+                    [`Phase ${nextDose.currentPhase}/${nextDose.totalPhases}`]
+                  ),
+                ]
+              ),
+              h.div(
+                [h.Class('flex flex-wrap items-center gap-4 text-sm')],
                 [
                   h.div(
-                    [h.Class('flex items-center gap-2 mb-2')],
+                    [h.Class('flex items-center gap-1.5')],
                     [
-                      h.h3([h.Class('font-semibold')], ['Next Scheduled Dose']),
-                      h.span(
-                        [h.Class('text-xs bg-muted px-2 py-0.5 rounded')],
-                        [`Phase ${nextDose.currentPhase}/${nextDose.totalPhases}`]
-                      ),
+                      h.span([h.Class('font-medium')], [nextDose.drug]),
+                      h.span([h.Class('text-muted-foreground')], ['-']),
+                      h.span([h.Class('font-mono text-primary')], [nextDose.dosage]),
                     ]
                   ),
                   h.div(
-                    [h.Class('flex flex-wrap items-center gap-4 text-sm')],
-                    [
-                      h.div(
-                        [h.Class('flex items-center gap-1.5')],
-                        [
-                          h.span([h.Class('font-medium')], [nextDose.drug]),
-                          h.span([h.Class('text-muted-foreground')], ['-']),
-                          h.span([h.Class('font-mono text-primary')], [nextDose.dosage]),
-                        ]
-                      ),
-                      h.div(
-                        [h.Class('flex items-center gap-1.5 text-muted-foreground')],
-                        [h.span([], [formatShortDate(nextDose.suggestedDate)])]
-                      ),
-                      h.div(
-                        [h.Class(`flex items-center gap-1.5 ${dueClassFor(nextDose)}`)],
-                        [h.span([h.Class('font-medium')], [dueTextFor(nextDose.daysUntilDue)])]
-                      ),
-                    ]
+                    [h.Class('flex items-center gap-1.5 text-muted-foreground')],
+                    [h.span([], [formatShortDate(nextDose.suggestedDate)])]
+                  ),
+                  h.div(
+                    [h.Class(`flex items-center gap-1.5 ${dueClassFor(nextDose)}`)],
+                    [h.span([h.Class('font-medium')], [dueTextFor(nextDose.daysUntilDue)])]
                   ),
                 ]
               ),
             ]
           ),
         ]
-      )
+      ),
+    ]
+  )
 
 const viewNextDoseBanner = (nextDoseData: NextDoseData) =>
   AsyncData.match(nextDoseData, {
     onFailure: () => h.div([h.Class('mb-6 text-sm text-destructive')], ['Failed to load next dose info']),
     onIdle: () => h.empty,
     onLoading: () => h.empty,
-    onRefreshing: (nextDose) => viewNextDoseValue(nextDose),
-    onStale: ({ data }) => viewNextDoseValue(data),
-    onSuccess: (nextDose) => viewNextDoseValue(nextDose),
+    onRefreshing: (nextDose) => Option.match(nextDose, { onNone: () => h.empty, onSome: viewNextDoseValue }),
+    onStale: ({ data }) => Option.match(data, { onNone: () => h.empty, onSome: viewNextDoseValue }),
+    onSuccess: (nextDose) => Option.match(nextDose, { onNone: () => h.empty, onSome: viewNextDoseValue }),
   })
 
-const totalScheduleDays = (schedule: InjectionSchedule): number | null =>
+const totalScheduleDays = (schedule: InjectionSchedule): Option.Option<number> =>
   schedule.phases.some((phase) => phase.durationDays === null)
-    ? null
-    : schedule.phases.reduce((sum, phase) => sum + (phase.durationDays ?? 0), 0)
+    ? Option.none()
+    : Option.some(schedule.phases.reduce((sum, phase) => sum + (phase.durationDays ?? 0), 0))
 
 const viewScheduleCard = (schedule: InjectionSchedule) => {
   const totalDays = totalScheduleDays(schedule)
@@ -810,7 +825,7 @@ const viewScheduleCard = (schedule: InjectionSchedule) => {
         [
           h.span([], [`Started ${formatDate(schedule.startDate)}`]),
           h.span([], [frequencyLabel(schedule.frequency)]),
-          h.span([], [totalDays === null ? 'Indefinite' : `${totalDays} days total`]),
+          h.span([], [Option.match(totalDays, { onNone: () => 'Indefinite', onSome: (days) => `${days} days total` })]),
         ]
       ),
       h.div(
@@ -837,7 +852,7 @@ const viewScheduleCard = (schedule: InjectionSchedule) => {
           )
         )
       ),
-      schedule.notes !== null && schedule.notes.length > 0
+      schedule.notes !== null && Str.isNonEmpty(schedule.notes)
         ? h.p([h.Class('text-sm text-muted-foreground mt-3 italic')], [schedule.notes])
         : h.empty,
     ]
@@ -1091,7 +1106,7 @@ const viewDeleteConfirm = () =>
   )
 
 const viewSchedules = (schedules: ReadonlyArray<InjectionSchedule>) =>
-  schedules.length > 0
+  Arr.isReadonlyArrayNonEmpty(schedules)
     ? h.div(
         [h.Class('space-y-4')],
         schedules.map((schedule) => h.keyed('div')(schedule.id, [], [viewScheduleCard(schedule)]))

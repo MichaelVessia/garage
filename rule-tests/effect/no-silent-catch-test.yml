@@ -1,0 +1,20 @@
+id: no-silent-catch
+
+valid:
+  - |
+    something.pipe(
+      Effect.tapError((err) => Effect.logDebug("failed", { error: err })),
+      Effect.catchAll(() => Effect.succeed([])),
+    );
+  - |
+    Effect.catchTag("RequestError", (err) =>
+      Effect.logDebug("request failed", { error: err }).pipe(Effect.as(Option.none())),
+    );
+
+invalid:
+  - |
+    program.pipe(Effect.catchAll(() => Effect.succeed([])));
+  - |
+    program.pipe(Effect.catchTag("RequestError", () => Effect.succeed(null)));
+  - |
+    program.pipe(Effect.orElseSucceed(() => ""));

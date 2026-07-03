@@ -1,5 +1,9 @@
-import type { Option } from 'effect'
-import { Config, Context, Effect, Layer, Schema } from 'effect'
+import * as Config from 'effect/Config'
+import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import type * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 
 import { decodeError, envMissing } from './errors.js'
 import type { SonarrError } from './errors.js'
@@ -54,24 +58,24 @@ const readRequiredString = (name: string): Effect.Effect<string, SonarrError> =>
 const readRequiredSecret = (name: string) =>
   Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
 
+const loadConfig = Effect.fn('SonarrConfig.get')(
+  function* () {
+    const url = yield* readRequiredString('SONARR_URL')
+    const apiKey = yield* readRequiredSecret('SONARR_API_KEY')
+    const defaultQualityProfileId = yield* Config.int('SONARR_DEFAULT_QUALITY_PROFILE').pipe(
+      Config.withDefault(1),
+      Effect.mapError((error) => decodeError(error.message, error))
+    )
+
+    return { url, apiKey, defaultQualityProfileId }
+  },
+  Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrConfig', method: 'get' })
+)
+
 export const SonarrConfigLive = Layer.effect(
   SonarrConfig,
   Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(
-      Effect.gen(function* () {
-        const url = yield* readRequiredString('SONARR_URL')
-        const apiKey = yield* readRequiredSecret('SONARR_API_KEY')
-        const defaultQualityProfileId = yield* Config.int('SONARR_DEFAULT_QUALITY_PROFILE').pipe(
-          Config.withDefault(1),
-          Effect.mapError((error) => decodeError(error.message, error))
-        )
-
-        return { url, apiKey, defaultQualityProfileId }
-      }).pipe(
-        Effect.withSpan('SonarrConfig.get'),
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrConfig', method: 'get' })
-      )
-    )
+    const cachedGet = yield* Effect.cached(loadConfig())
     return SonarrConfig.of({ get: () => cachedGet })
   })
 )

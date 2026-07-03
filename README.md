@@ -1,53 +1,86 @@
 # Garage
 
-Bare Effect v4 monorepo scaffolded with Bun, Nix, TypeScript strictness, oxlint/oxfmt, ast-grep, lefthook, and Vitest.
+Agent-first command-line tools for self-hosted services. Each service gets one
+CLI that exposes deterministic, scriptable operations over its HTTP API, with
+human-readable output by default and a `{ command, result }` JSON envelope for
+machine consumers.
+
+Built on Effect v4 with Bun, Nix, TypeScript strictness, oxlint/oxfmt, ast-grep,
+lefthook, and Vitest.
+
+## Quick start
+
+```sh
+bun install        # install dependencies and patch Effect tooling
+bun run validate   # the full local quality gate (mirrors CI)
+bun run test       # just the tests
+```
+
+With Nix + direnv, `direnv allow` drops you into the pinned toolchain first. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for both setup paths.
+
+## The pieces
+
+- `apps/<svc>-cli` — the thin CLI for one service; the composition root that
+  renders typed results.
+- `packages/<svc>` — that service's typed domain: config, the API service, the
+  HTTP adapter, tagged errors, and domain operations.
+- `packages/cli-protocol` — the shared JSON envelope and command metadata every
+  CLI emits.
+- `rules` / `rule-tests` — ast-grep structural lint rules and their fixtures.
+- `repos/effect-smol` — vendored, read-only Effect v4 source used as reference.
+
+## How it fits together
+
+A CLI app is a thin surface over its service package. The package owns the
+network access (one HTTP adapter per service, with a test layer) and the
+deterministic domain logic; the app wires commands to domain operations and
+turns typed results into text or the JSON envelope. Cross-workspace imports use
+package names (`@garage/<pkg>`). See
+[docs/guardrails/effect-services-and-layers.md](docs/guardrails/effect-services-and-layers.md).
 
 ## Commands
 
-- `bun install` installs dependencies and patches Effect tooling.
 - `bun run typecheck` runs Effect-aware TypeScript checks.
-- `bun run lint` runs oxlint.
+- `bun run lint` runs oxlint (with the Effect plugin).
 - `bun run format` checks formatting.
 - `bun run ast-grep` runs structural lint rules.
 - `bun run test` runs Vitest.
 - `bun run validate` runs the full local quality gate.
-- `bun run --filter @garage/adguard-cli build` builds the AdGuard Home CLI binary.
-- `bun run --filter @garage/caddy-cli build` builds the Caddy CLI binary.
-- `bun run --filter @garage/immich-cli build` builds the Immich CLI binary.
-- `bun run --filter @garage/jellyfin-cli build` builds the Jellyfin CLI binary.
-- `bun run --filter @garage/jellyseerr-cli build` builds the Jellyseerr CLI binary.
-- `bun run --filter @garage/prowlarr-cli build` builds the Prowlarr CLI binary.
-- `bun run --filter @garage/radarr-cli build` builds the Radarr CLI binary.
-- `bun run --filter @garage/sabnzbd-cli build` builds the SABnzbd CLI binary.
-- `bun run --filter @garage/sonarr-cli build` builds the Sonarr CLI binary.
-- `bun run --filter @garage/tailscale-cli build` builds the Tailscale CLI binary.
-- `bun run --filter @garage/tubearchivist-cli build` builds the TubeArchivist CLI binary.
+- `bun run --filter '@garage/<svc>-cli' build` compiles a CLI to a standalone
+  binary, for example:
 
-## Layout
+```sh
+bun run --filter '@garage/adguard-cli' build
+bun run --filter '@garage/autocaliweb-cli' build
+bun run --filter '@garage/caddy-cli' build
+bun run --filter '@garage/immich-cli' build
+bun run --filter '@garage/jellyfin-cli' build
+bun run --filter '@garage/jellyseerr-cli' build
+bun run --filter '@garage/prowlarr-cli' build
+bun run --filter '@garage/radarr-cli' build
+bun run --filter '@garage/sabnzbd-cli' build
+bun run --filter '@garage/sonarr-cli' build
+bun run --filter '@garage/tailscale-cli' build
+bun run --filter '@garage/tubearchivist-cli' build
+```
 
-- `apps/adguard-cli` contains the `adguard` agent-first CLI entrypoint.
-- `apps/caddy-cli` contains the `caddy` agent-first CLI entrypoint.
-- `apps/immich-cli` contains the `immich` agent-first CLI entrypoint.
-- `apps/jellyfin-cli` contains the `jellyfin` agent-first CLI entrypoint.
-- `apps/jellyseerr-cli` contains the `jellyseerr` agent-first CLI entrypoint.
-- `apps/prowlarr-cli` contains the `prowlarr` agent-first CLI entrypoint.
-- `apps/radarr-cli` contains the `radarr` agent-first CLI entrypoint.
-- `apps/sabnzbd-cli` contains the `sabnzbd` agent-first CLI entrypoint.
-- `apps/sonarr-cli` contains the `sonarr` agent-first CLI entrypoint.
-- `apps/subq` contains the subq health-tracking web app (Effect RPC worker + foldkit SPA) deployed to Cloudflare Workers via Alchemy.
-- `apps/tailscale-cli` contains the `tailscale` agent-first CLI entrypoint.
-- `apps/tubearchivist-cli` contains the `tubearchivist` agent-first CLI entrypoint.
-- `packages/cli-protocol` contains shared JSON envelope and command metadata types.
-- `packages/adguard` contains the AdGuard Home config, API service, HTTP adapter, and domain operations.
-- `packages/caddy` contains the Caddy config, API service, HTTP adapter, and domain operations.
-- `packages/immich` contains the Immich config, API service, HTTP adapter, and domain operations.
-- `packages/jellyfin` contains the Jellyfin config, API service, HTTP adapter, and domain operations.
-- `packages/jellyseerr` contains the Jellyseerr config, API service, HTTP adapter, and domain operations.
-- `packages/prowlarr` contains the Prowlarr config, API service, HTTP adapter, and domain operations.
-- `packages/radarr` contains the Radarr config, API service, HTTP adapter, and domain operations.
-- `packages/sabnzbd` contains the SABnzbd config, API service, HTTP adapter, and domain operations.
-- `packages/sonarr` contains the Sonarr config, API service, HTTP adapter, and domain operations.
-- `packages/tailscale` contains the Tailscale process service, status JSON adapter, and domain operations.
-- `packages/tubearchivist` contains the TubeArchivist config, API service, HTTP adapter, and domain operations.
-- `rules` contains ast-grep structural lint rules.
-- `rule-tests` contains ast-grep rule fixtures.
+## Services
+
+`adguard`, `autocaliweb`, `caddy`, `immich`, `jellyfin`, `jellyseerr`,
+`prowlarr`, `radarr`, `sabnzbd`, `sonarr`, `tailscale`, `tubearchivist`. Each has
+a `packages/<svc>` library and an `apps/<svc>-cli` entrypoint.
+
+## Web apps
+
+- `apps/subq` — the subq health-tracking web app (Effect RPC worker + foldkit
+  SPA) deployed to Cloudflare Workers via Alchemy.
+
+## Learn more
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — setup and the validation loop.
+- [AGENTS.md](AGENTS.md) — rules for agents working in this repo.
+- [CONTEXT.md](CONTEXT.md) — the domain language.
+- [VISION.md](VISION.md) — what this project is for.
+- [docs/](docs/reference/conventions.md) — conventions, guardrails, how-tos, and
+  ADRs.

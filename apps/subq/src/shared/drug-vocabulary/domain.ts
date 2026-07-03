@@ -1,3 +1,6 @@
+import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
+
 import { SITE_ROTATION } from '../injection/site-rotation.js'
 export interface DrugVocabularyEntry {
   readonly name: string
@@ -36,12 +39,12 @@ const DrugVocabularyEntries: readonly DrugVocabularyEntry[] = [
   { name: 'Dulaglutide (Trulicity)', suggestedDosages: ['0.75mg', '1.5mg', '3mg', '4.5mg'] },
 ]
 const normalizeDrugName = (drug: string): string => drug.trim().toLowerCase()
-const findDrugVocabularyEntry = (drug: string): DrugVocabularyEntry | undefined => {
+const findDrugVocabularyEntry = (drug: string): Option.Option<DrugVocabularyEntry> => {
   const normalizedDrug = normalizeDrugName(drug)
   if (normalizedDrug === '') {
-    return undefined
+    return Option.none()
   }
-  return DrugVocabularyEntries.find((entry) => {
+  return Arr.findFirst(DrugVocabularyEntries, (entry) => {
     const normalizedEntryName = normalizeDrugName(entry.name)
     return normalizedDrug === normalizedEntryName || normalizedDrug.includes(normalizedEntryName)
   })
@@ -49,6 +52,9 @@ const findDrugVocabularyEntry = (drug: string): DrugVocabularyEntry | undefined 
 export const listKnownDrugVariants = (): string[] => DrugVocabularyEntries.map((entry) => entry.name)
 export const suggestedDosagesForDrug = (drug: string): string[] => {
   const entry = findDrugVocabularyEntry(drug)
-  return entry !== undefined ? entry.suggestedDosages.map((dosage) => dosage) : []
+  return Option.match(entry, {
+    onNone: () => [],
+    onSome: (found) => found.suggestedDosages.map((dosage) => dosage),
+  })
 }
 export const listDefaultInjectionSites = (): string[] => SITE_ROTATION.map((site) => site)

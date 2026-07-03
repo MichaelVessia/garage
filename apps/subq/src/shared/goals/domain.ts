@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 import { Notes } from '../common/domain.js'
 import { Weight } from '../weight/domain.js'
@@ -69,8 +69,8 @@ export class UserGoalUpdate extends Schema.Class<UserGoalUpdate>('UserGoalUpdate
   goalWeight: Schema.optional(Weight),
   startingWeight: Schema.optional(Weight),
   startingDate: Schema.optional(Schema.DateTimeUtc),
-  targetDate: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
-  notes: Schema.optional(Schema.NullOr(Notes)),
+  targetDate: Schema.DateTimeUtc.pipe(Schema.NullOr, Schema.optional),
+  notes: Notes.pipe(Schema.NullOr, Schema.optional),
   isActive: Schema.optional(Schema.Boolean),
 }) {}
 

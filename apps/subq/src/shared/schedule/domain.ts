@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import * as Schema from 'effect/Schema'
 
 import { Dosage, DrugName, DrugSource, Notes } from '../common/domain.js'
 
@@ -105,12 +105,12 @@ export class InjectionScheduleUpdate extends Schema.Class<InjectionScheduleUpdat
   id: InjectionScheduleId,
   name: Schema.optional(ScheduleName),
   drug: Schema.optional(DrugName),
-  source: Schema.optional(Schema.NullOr(DrugSource)),
+  source: DrugSource.pipe(Schema.NullOr, Schema.optional),
   frequency: Schema.optional(Frequency),
   startDate: Schema.optional(Schema.DateTimeUtc),
   isActive: Schema.optional(Schema.Boolean),
-  notes: Schema.optional(Schema.NullOr(Notes)),
-  phases: Schema.optional(Schema.Array(SchedulePhaseCreate)),
+  notes: Notes.pipe(Schema.NullOr, Schema.optional),
+  phases: SchedulePhaseCreate.pipe(Schema.Array, Schema.optional),
 }) {}
 
 /**

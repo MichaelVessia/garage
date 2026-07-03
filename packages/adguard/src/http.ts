@@ -1,5 +1,8 @@
-import { Effect, Layer, Redacted } from 'effect'
-import type { Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import type * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
@@ -8,7 +11,7 @@ import {
   DhcpStatusSchema,
   FilteringRulesSchema,
   FilteringStatusSchema,
-  JsonObjectSchema,
+  JsonObjectApi,
   ProtectionStateStatusSchema,
   QueryLogResponseSchema,
   StatsInfoSchema,
@@ -35,7 +38,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string => {
   const query = queryString(params)
-  return query.length === 0
+  return Str.isEmpty(query)
     ? `${normalizeBaseUrl(config.url)}/control${path}`
     : `${normalizeBaseUrl(config.url)}/control${path}?${query}`
 }
@@ -175,7 +178,7 @@ export const AdguardApiLive = Layer.effect(
       ),
       clientsActive: Effect.fn('AdguardApi.clientsActive')(
         function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'adguard.client_ip_present': options.ip.length > 0 })
+          yield* Effect.annotateCurrentSpan({ 'adguard.client_ip_present': Str.isNonEmpty(options.ip) })
           return yield* withConfig((config) =>
             getJson(client, config, '/clients/find', ActiveClientsSchema, [['ip0', options.ip]]).pipe(
               Effect.map(listResult)
@@ -198,7 +201,7 @@ export const AdguardApiLive = Layer.effect(
       ),
       dnsConfig: Effect.fn('AdguardApi.dnsConfig')(
         function* () {
-          return yield* withConfig((config) => getJson(client, config, '/dns_info', JsonObjectSchema))
+          return yield* withConfig((config) => getJson(client, config, '/dns_info', JsonObjectApi))
         },
         Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'dnsConfig' })
       ),

@@ -1,4 +1,9 @@
-import { DateTime, Effect, Match, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { html } from 'foldkit/html'
@@ -20,12 +25,7 @@ import type { WeightUnit } from '#shared'
 
 import { Api } from '../api.js'
 import { formatWeight, toStorageLbs } from '../data/settings.js'
-import {
-  formatDateTime,
-  fromLocalDatetimeString,
-  toLocalDatetimeString,
-  utcToLocalDatetimeString,
-} from '../lib/datetime.js'
+import { formatDateTime, fromLocalDatetimeString, utcToLocalDatetimeString } from '../lib/datetime.js'
 import { button, input } from '../ui.js'
 
 const PAGE_SIZE = 10
@@ -138,7 +138,12 @@ export const FetchWeightLogs = Command.define(
       new WeightLogListParams({ limit: Limit.make(10_000), offset: Offset.make(0) })
     )
     return SucceededFetchWeightLogs({ logs })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedFetchWeightLogs({ message: 'Failed to load weight logs' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedFetchWeightLogs({ message: 'Failed to load weight logs' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 // Opening the form needs "now" for the datetime default and max.
@@ -147,9 +152,7 @@ export const OpenWeightForm = Command.define(
   { log: Schema.NullOr(WeightLog) },
   OpenedWeightForm
 )(({ log }) =>
-  DateTime.now.pipe(
-    Effect.map((now) => OpenedWeightForm({ log, nowLocal: toLocalDatetimeString(DateTime.toDate(now)) }))
-  )
+  DateTime.now.pipe(Effect.map((now) => OpenedWeightForm({ log, nowLocal: utcToLocalDatetimeString(now) })))
 )
 
 export const SaveWeight = Command.define(
@@ -174,7 +177,12 @@ export const SaveWeight = Command.define(
       ? api.WeightLogCreate(new WeightLogCreate(fields))
       : api.WeightLogUpdate(new WeightLogUpdate({ id: editingId, ...fields }))
     return SucceededSaveWeight()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSaveWeight({ message: 'Failed to save entry' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedSaveWeight({ message: 'Failed to save entry' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 export const DeleteWeight = Command.define(
@@ -187,7 +195,12 @@ export const DeleteWeight = Command.define(
     const api = yield* Api
     yield* api.WeightLogDelete({ id })
     return SucceededDeleteWeight()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedDeleteWeight({ message: 'Failed to delete entry' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedDeleteWeight({ message: 'Failed to delete entry' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 // ============================================
@@ -595,7 +608,7 @@ export const viewWeight = (model: WeightModel, unit: WeightUnit) =>
         onRefreshing: (data) => viewTable(model, data, unit),
         onStale: ({ data }) => viewTable(model, data, unit),
         onSuccess: (data) =>
-          data.length > 0
+          Arr.isReadonlyArrayNonEmpty(data)
             ? viewTable(model, data, unit)
             : h.div(
                 [h.Class('text-center py-12 text-muted-foreground')],

@@ -1,4 +1,9 @@
-import { DateTime, Effect, Match, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { html } from 'foldkit/html'
@@ -27,12 +32,7 @@ import {
 } from '#shared'
 
 import { Api } from '../api.js'
-import {
-  formatDateTime,
-  fromLocalDatetimeString,
-  toLocalDatetimeString,
-  utcToLocalDatetimeString,
-} from '../lib/datetime.js'
+import { formatDateTime, fromLocalDatetimeString, utcToLocalDatetimeString } from '../lib/datetime.js'
 import { button, card, input, select } from '../ui.js'
 
 const PAGE_SIZE = 10
@@ -198,7 +198,10 @@ export const FetchInjectionLogs = Command.define(
     )
     return SucceededFetchInjectionLogs({ logs })
   }).pipe(
-    Effect.catchCause(() => Effect.succeed(FailedFetchInjectionLogs({ message: 'Failed to load injection logs' })))
+    Effect.matchCause({
+      onFailure: () => FailedFetchInjectionLogs({ message: 'Failed to load injection logs' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -212,9 +215,10 @@ const FetchInjectionDrugs = Command.define(
     const drugs = yield* api.InjectionLogGetDrugs()
     return SucceededFetchInjectionDrugs({ drugs })
   }).pipe(
-    Effect.catchCause(() =>
-      Effect.succeed(FailedFetchInjectionDrugs({ message: 'Failed to load medication suggestions' }))
-    )
+    Effect.matchCause({
+      onFailure: () => FailedFetchInjectionDrugs({ message: 'Failed to load medication suggestions' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -228,7 +232,10 @@ const FetchInjectionSites = Command.define(
     const sites = yield* api.InjectionLogGetSites()
     return SucceededFetchInjectionSites({ sites })
   }).pipe(
-    Effect.catchCause(() => Effect.succeed(FailedFetchInjectionSites({ message: 'Failed to load site suggestions' })))
+    Effect.matchCause({
+      onFailure: () => FailedFetchInjectionSites({ message: 'Failed to load site suggestions' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -242,7 +249,10 @@ const FetchInjectionSchedules = Command.define(
     const schedules = yield* api.ScheduleList()
     return SucceededFetchInjectionSchedules({ schedules })
   }).pipe(
-    Effect.catchCause(() => Effect.succeed(FailedFetchInjectionSchedules({ message: 'Failed to load schedules' })))
+    Effect.matchCause({
+      onFailure: () => FailedFetchInjectionSchedules({ message: 'Failed to load schedules' }),
+      onSuccess: (message) => message,
+    })
   )
 )
 
@@ -251,9 +261,7 @@ const OpenInjectionForm = Command.define(
   { log: Schema.NullOr(InjectionLog) },
   OpenedInjectionForm
 )(({ log }) =>
-  DateTime.now.pipe(
-    Effect.map((now) => OpenedInjectionForm({ log, nowLocal: toLocalDatetimeString(DateTime.toDate(now)) }))
-  )
+  DateTime.now.pipe(Effect.map((now) => OpenedInjectionForm({ log, nowLocal: utcToLocalDatetimeString(now) })))
 )
 
 const SaveInjection = Command.define(
@@ -288,7 +296,12 @@ const SaveInjection = Command.define(
       ? api.InjectionLogCreate(new InjectionLogCreate(fields))
       : api.InjectionLogUpdate(new InjectionLogUpdate({ id: editingId, ...fields }))
     return SucceededSaveInjection()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSaveInjection({ message: 'Failed to save injection log' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedSaveInjection({ message: 'Failed to save injection log' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 const DeleteInjection = Command.define(
@@ -301,7 +314,12 @@ const DeleteInjection = Command.define(
     const api = yield* Api
     yield* api.InjectionLogDelete(new InjectionLogDelete({ id }))
     return SucceededDeleteInjection()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedDeleteInjection({ message: 'Failed to delete injection log' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedDeleteInjection({ message: 'Failed to delete injection log' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 // ============================================
@@ -352,51 +370,43 @@ const formError =
   (form: InjectionForm): InjectionForm =>
     evo(form, { error: () => message, submitting: () => false })
 
-const validateForm = (form: InjectionForm): string | null => {
+const validateForm = (form: InjectionForm): Option.Option<string> => {
   if (form.datetime === '') {
-    return 'Date & time is required'
+    return Option.some('Date & time is required')
   }
   if (form.drug.trim().length < 2) {
-    return 'Enter a valid medication name'
+    return Option.some('Enter a valid medication name')
   }
   if (!DOSAGE_PATTERN.test(form.dosage.trim())) {
-    return 'Enter dosage with unit (e.g., 2.5mg, 0.5ml)'
+    return Option.some('Enter dosage with unit (e.g., 2.5mg, 0.5ml)')
   }
-  return null
+  return Option.none()
 }
 
-const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> => {
-  const values: Array<string> = []
-  for (const value of primary) {
-    if (!values.includes(value)) {
-      values.push(value)
-    }
-  }
-  for (const value of fallback) {
-    if (!values.includes(value)) {
-      values.push(value)
-    }
-  }
-  return values
-}
+const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
+  Arr.dedupe([...primary, ...fallback])
 
-const scheduleById = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: string): InjectionSchedule | null =>
-  schedules.find((schedule) => schedule.id === scheduleId) ?? null
+const scheduleById = (
+  schedules: ReadonlyArray<InjectionSchedule>,
+  scheduleId: string
+): Option.Option<InjectionSchedule> => Arr.findFirst(schedules, (schedule) => schedule.id === scheduleId)
 
-const scheduleDosages = (schedule: InjectionSchedule | null): ReadonlyArray<string> =>
-  schedule === null
-    ? []
-    : uniqueStrings(
-        schedule.phases.map((phase) => phase.dosage),
+const scheduleDosages = (schedule: Option.Option<InjectionSchedule>): ReadonlyArray<string> =>
+  Option.match(schedule, {
+    onNone: () => [],
+    onSome: (s) =>
+      uniqueStrings(
+        s.phases.map((phase) => phase.dosage),
         []
-      )
+      ),
+  })
 
 const isOffScheduleDose = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>): boolean => {
   if (form.scheduleId === '' || form.dosage === '') {
     return false
   }
   const dosages = scheduleDosages(scheduleById(schedules, form.scheduleId))
-  return dosages.length > 0 && !dosages.includes(form.dosage)
+  return Arr.isReadonlyArrayNonEmpty(dosages) && !dosages.includes(form.dosage)
 }
 
 export const updateInjections = (model: InjectionsModel, message: InjectionsMessage): UpdateReturn =>
@@ -531,10 +541,11 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
           return [model, []]
         }
         const validationError = validateForm(model.form)
-        if (validationError !== null) {
+        if (Option.isSome(validationError)) {
+          const errorMessage = validationError.value
           return [
             evo(model, {
-              form: (form) => (form === null ? null : formError(validationError)(form)),
+              form: (form) => (form === null ? null : formError(errorMessage)(form)),
             }),
             [],
           ]
@@ -640,8 +651,10 @@ const viewDatalist = (id: string, values: ReadonlyArray<string>) =>
     values.map((value) => h.keyed('option')(value, [h.Value(value)], []))
   )
 
-const selectedSchedule = (schedules: ReadonlyArray<InjectionSchedule>, form: InjectionForm): InjectionSchedule | null =>
-  scheduleById(schedules, form.scheduleId)
+const selectedSchedule = (
+  schedules: ReadonlyArray<InjectionSchedule>,
+  form: InjectionForm
+): Option.Option<InjectionSchedule> => scheduleById(schedules, form.scheduleId)
 
 const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>) => {
   if (!isOffScheduleDose(form, schedules)) {
@@ -883,8 +896,11 @@ const viewDeleteConfirm = () =>
     ]
   )
 
-const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: string | null): string =>
-  scheduleId === null ? '-' : (schedules.find((schedule) => schedule.id === scheduleId)?.name ?? '-')
+const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: Option.Option<string>): string =>
+  scheduleId.pipe(
+    Option.flatMap((id) => scheduleById(schedules, id)),
+    Option.match({ onNone: () => '-', onSome: (schedule) => schedule.name })
+  )
 
 const viewTable = (
   model: InjectionsModel,
@@ -951,7 +967,7 @@ const viewTable = (
                       h.td([h.Class('p-3 font-medium')], [log.drug]),
                       h.td([h.Class('p-3 font-mono')], [log.dosage]),
                       h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.injectionSite ?? '-']),
-                      h.td([h.Class('p-3 text-sm')], [scheduleName(schedules, log.scheduleId)]),
+                      h.td([h.Class('p-3 text-sm')], [scheduleName(schedules, Option.fromNullOr(log.scheduleId))]),
                       h.td(
                         [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
                         [log.notes ?? '-']
@@ -1044,7 +1060,7 @@ export const viewInjections = (model: InjectionsModel) =>
             AsyncData.getOrElse(model.schedules, () => [])
           ),
         onSuccess: (data) =>
-          data.length > 0
+          Arr.isReadonlyArrayNonEmpty(data)
             ? viewTable(
                 model,
                 data,

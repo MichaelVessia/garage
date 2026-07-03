@@ -1,9 +1,16 @@
-import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { SettingsDatabaseError, UserSettings } from '#shared'
 import type { UserSettingsUpdate } from '#shared'
 
+import { SettingsMissingAfterUpsert } from '../errors.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
 
 // ============================================
@@ -59,31 +66,33 @@ export const SettingsRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const get = (userId: string) =>
-      Effect.gen(function* () {
+    const get = Effect.fn('SettingsRepo.get')(
+      function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, weight_unit, reminders_enabled, created_at, updated_at
           FROM user_settings
           WHERE user_id = ${userId}
         `
-        if (rows.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
         const decoded = yield* decodeSettingsRow(rows[0])
         return Option.some(settingsRowToDomain(decoded))
-      }).pipe(Effect.mapError((cause) => SettingsDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => SettingsDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const upsert = (userId: string, data: UserSettingsUpdate) =>
-      Effect.gen(function* () {
+    const upsert = Effect.fn('SettingsRepo.upsert')(
+      function* (userId: string, data: UserSettingsUpdate) {
         const now = DateTime.formatIso(yield* DateTime.now)
 
         // Check if settings exist
         const existing =
           yield* sql`SELECT id, weight_unit, reminders_enabled FROM user_settings WHERE user_id = ${userId}`
 
-        if (existing.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(existing)) {
           // Insert new settings
-          const id = yield* randomUuid
+          const id = yield* randomUuid()
           const weightUnit = data.weightUnit ?? 'lbs'
           const remindersEnabled = data.remindersEnabled ?? true
           yield* sql`
@@ -109,12 +118,14 @@ export const SettingsRepoLive = Layer.effect(
             Effect.fail(
               SettingsDatabaseError.make({
                 operation: 'query',
-                cause: new Error('Settings not found after upsert'),
+                cause: new SettingsMissingAfterUpsert({ message: 'Settings not found after upsert' }),
               })
             ),
           onSome: Effect.succeed,
         })
-      }).pipe(Effect.mapError((cause) => SettingsDatabaseError.make({ operation: 'update', cause })))
+      },
+      Effect.mapError((cause) => SettingsDatabaseError.make({ operation: 'update', cause }))
+    )
 
     return { get, upsert }
   })

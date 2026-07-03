@@ -17,27 +17,12 @@ export {
 export type { JellyfinErrorCode } from './errors.js'
 export { JellyfinApiLive } from './http.js'
 export {
-  ItemRecordSchema,
-  JellyfinConfigValueSchema,
-  LibraryRecordSchema,
-  LibraryStatsSchema,
-  LimitOptionsSchema,
-  ListResultSchema,
-  NowPlayingRecordSchema,
-  RunTaskResultSchema,
-  ScheduledTaskRecordSchema,
-  SearchOptionsSchema,
-  SessionRecordSchema,
-  SystemStatusSchema,
-  UserRecordSchema,
-} from './model.js'
-export type {
   ItemRecord,
   JellyfinConfigValue,
   LibraryRecord,
   LibraryStats,
   LimitOptions,
-  ListResult,
+  ListResultSchema,
   NowPlayingRecord,
   RunTaskResult,
   ScheduledTaskRecord,
@@ -46,6 +31,7 @@ export type {
   SystemStatus,
   UserRecord,
 } from './model.js'
+export type { ListResult } from './model.js'
 export {
   defaultLimit,
   itemSearch,

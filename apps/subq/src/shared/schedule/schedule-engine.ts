@@ -1,4 +1,7 @@
-import { DateTime } from 'effect'
+import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
 
 import type { InjectionLog } from '../injection/domain.js'
 import { NextScheduledDose, PhaseInjectionSummary, PhaseOrder, SchedulePhaseView, ScheduleView } from './domain.js'
@@ -21,7 +24,7 @@ export interface NextDoseTiming {
 export interface NextDoseTimingInput {
   readonly startDate: DateTime.Utc
   readonly frequency: string
-  readonly lastInjectionDate: DateTime.Utc | null
+  readonly lastInjectionDate: Option.Option<DateTime.Utc>
   readonly now: DateTime.Utc
 }
 
@@ -32,28 +35,15 @@ export interface ReminderEligibility {
 
 type PhaseStatus = 'completed' | 'current' | 'upcoming'
 
-export const frequencyToDays = (frequency: string): number => {
-  switch (frequency) {
-    case 'daily': {
-      return 1
-    }
-    case 'every_3_days': {
-      return 3
-    }
-    case 'weekly': {
-      return 7
-    }
-    case 'every_2_weeks': {
-      return 14
-    }
-    case 'monthly': {
-      return 30
-    }
-    default: {
-      return 7
-    }
-  }
-}
+export const frequencyToDays = (frequency: string): number =>
+  Match.value(frequency).pipe(
+    Match.when('daily', () => 1),
+    Match.when('every_3_days', () => 3),
+    Match.when('weekly', () => 7),
+    Match.when('every_2_weeks', () => 14),
+    Match.when('monthly', () => 30),
+    Match.orElse(() => 7)
+  )
 
 const addDays = (date: DateTime.Utc, days: number): DateTime.Utc =>
   DateTime.makeUnsafe(DateTime.toEpochMillis(date) + days * MS_PER_DAY)
@@ -70,12 +60,10 @@ export const nextDoseTiming = ({
   lastInjectionDate,
   now,
 }: NextDoseTimingInput): NextDoseTiming => {
-  let suggestedDate = startDate
-  if (lastInjectionDate === null) {
-    suggestedDate = DateTime.isGreaterThan(now, startDate) ? now : startDate
-  } else {
-    suggestedDate = addDays(lastInjectionDate, frequencyToDays(frequency))
-  }
+  const suggestedDate = Option.match(lastInjectionDate, {
+    onNone: () => (DateTime.isGreaterThan(now, startDate) ? now : startDate),
+    onSome: (lastDate) => addDays(lastDate, frequencyToDays(frequency)),
+  })
   const daysUntilDue = daysUntilRounded(suggestedDate, now)
 
   return {
@@ -85,56 +73,57 @@ export const nextDoseTiming = ({
   }
 }
 
-export const currentPhase = (schedule: InjectionSchedule, now: DateTime.Utc): CurrentPhase | null => {
+interface PhaseWindow extends CurrentPhase {
+  readonly daysBeforePhase: number
+}
+
+export const currentPhase = (schedule: InjectionSchedule, now: DateTime.Utc): Option.Option<CurrentPhase> => {
   const daysSinceStart = daysBetweenFloor(schedule.startDate, now)
-  let fallback: CurrentPhase | null = null
-  let cumulativeDays = 0
+  const [, phaseWindows] = Arr.mapAccum(
+    schedule.phases,
+    0,
+    (daysBeforePhase, phase, phaseIndex): readonly [number, PhaseWindow] => [
+      daysBeforePhase + (phase.durationDays ?? 0),
+      { phaseIndex, phase, daysBeforePhase },
+    ]
+  )
+  const active = Arr.findFirst(
+    phaseWindows,
+    ({ daysBeforePhase, phase }) => phase.durationDays === null || daysSinceStart < daysBeforePhase + phase.durationDays
+  )
 
-  for (const [phaseIndex, phase] of schedule.phases.entries()) {
-    const current = { phaseIndex, phase }
-    fallback = current
-
-    if (phase.durationDays === null) {
-      return current
-    }
-
-    if (daysSinceStart < cumulativeDays + phase.durationDays) {
-      return current
-    }
-
-    cumulativeDays += phase.durationDays
-  }
-
-  return fallback
+  return active.pipe(
+    Option.orElse(() => Arr.last(phaseWindows)),
+    Option.map(({ phase, phaseIndex }) => ({ phaseIndex, phase }))
+  )
 }
 
 export const nextDose = (
   schedule: InjectionSchedule,
-  lastInjectionDate: DateTime.Utc | null,
+  lastInjectionDate: Option.Option<DateTime.Utc>,
   now: DateTime.Utc
-): NextScheduledDose | null => {
+): Option.Option<NextScheduledDose> => {
   const activePhase = currentPhase(schedule, now)
-  if (activePhase === null) {
-    return null
-  }
 
-  const timing = nextDoseTiming({
-    startDate: schedule.startDate,
-    frequency: schedule.frequency,
-    lastInjectionDate,
-    now,
-  })
+  return Option.map(activePhase, (active) => {
+    const timing = nextDoseTiming({
+      startDate: schedule.startDate,
+      frequency: schedule.frequency,
+      lastInjectionDate,
+      now,
+    })
 
-  return new NextScheduledDose({
-    scheduleId: schedule.id,
-    scheduleName: schedule.name,
-    drug: schedule.drug,
-    dosage: activePhase.phase.dosage,
-    suggestedDate: timing.suggestedDate,
-    currentPhase: PhaseOrder.make(activePhase.phaseIndex + 1),
-    totalPhases: schedule.phases.length,
-    daysUntilDue: timing.daysUntilDue,
-    isOverdue: timing.isOverdue,
+    return new NextScheduledDose({
+      scheduleId: schedule.id,
+      scheduleName: schedule.name,
+      drug: schedule.drug,
+      dosage: active.phase.dosage,
+      suggestedDate: timing.suggestedDate,
+      currentPhase: PhaseOrder.make(active.phaseIndex + 1),
+      totalPhases: schedule.phases.length,
+      daysUntilDue: timing.daysUntilDue,
+      isOverdue: timing.isOverdue,
+    })
   })
 }
 
@@ -150,34 +139,31 @@ export const reminderEligibilityForNextDose = (nextScheduledDose: NextScheduledD
 
 const phaseStatus = (
   phaseStartDate: DateTime.Utc,
-  phaseEndDate: DateTime.Utc | null,
+  phaseEndDate: Option.Option<DateTime.Utc>,
   now: DateTime.Utc
-): PhaseStatus => {
-  if (phaseEndDate === null) {
-    return DateTime.isGreaterThanOrEqualTo(now, phaseStartDate) ? 'current' : 'upcoming'
-  }
+): PhaseStatus =>
+  Option.match(phaseEndDate, {
+    onNone: () => (DateTime.isGreaterThanOrEqualTo(now, phaseStartDate) ? 'current' : 'upcoming'),
+    onSome: (endDate) => {
+      if (DateTime.isGreaterThan(now, endDate)) {
+        return 'completed'
+      }
 
-  if (DateTime.isGreaterThan(now, phaseEndDate)) {
-    return 'completed'
-  }
-
-  return DateTime.isGreaterThanOrEqualTo(now, phaseStartDate) ? 'current' : 'upcoming'
-}
+      return DateTime.isGreaterThanOrEqualTo(now, phaseStartDate) ? 'current' : 'upcoming'
+    },
+  })
 
 const phaseContainsInjection = (
   phaseStartDate: DateTime.Utc,
-  phaseEndDate: DateTime.Utc | null,
+  phaseEndDate: Option.Option<DateTime.Utc>,
   injection: InjectionLog
-): boolean => {
-  if (phaseEndDate === null) {
-    return DateTime.isGreaterThanOrEqualTo(injection.datetime, phaseStartDate)
-  }
-
-  return (
-    DateTime.isGreaterThanOrEqualTo(injection.datetime, phaseStartDate) &&
-    DateTime.isLessThanOrEqualTo(injection.datetime, phaseEndDate)
-  )
-}
+): boolean =>
+  Option.match(phaseEndDate, {
+    onNone: () => DateTime.isGreaterThanOrEqualTo(injection.datetime, phaseStartDate),
+    onSome: (endDate) =>
+      DateTime.isGreaterThanOrEqualTo(injection.datetime, phaseStartDate) &&
+      DateTime.isLessThanOrEqualTo(injection.datetime, endDate),
+  })
 
 export const scheduleView = (
   schedule: InjectionSchedule,
@@ -185,26 +171,23 @@ export const scheduleView = (
   now: DateTime.Utc
 ): ScheduleView => {
   const intervalDays = frequencyToDays(schedule.frequency)
-  let cumulativeDays = 0
-
-  const phases = schedule.phases.map((phase) => {
+  const [, phases] = Arr.mapAccum(schedule.phases, 0, (cumulativeDays, phase): readonly [number, SchedulePhaseView] => {
     const phaseStartDate = addDays(schedule.startDate, cumulativeDays)
-    const phaseEndDate = phase.durationDays === null ? null : addDays(phaseStartDate, phase.durationDays - 1)
+    const phaseEndDate =
+      phase.durationDays === null
+        ? Option.none<DateTime.Utc>()
+        : Option.some(addDays(phaseStartDate, phase.durationDays - 1))
     const phaseInjections = injections.filter((injection) =>
       phaseContainsInjection(phaseStartDate, phaseEndDate, injection)
     )
 
-    if (phase.durationDays !== null) {
-      cumulativeDays += phase.durationDays
-    }
-
-    return new SchedulePhaseView({
+    const phaseView = new SchedulePhaseView({
       id: phase.id,
       order: phase.order,
       durationDays: phase.durationDays,
       dosage: phase.dosage,
       startDate: phaseStartDate,
-      endDate: phaseEndDate,
+      endDate: Option.getOrNull(phaseEndDate),
       status: phaseStatus(phaseStartDate, phaseEndDate, now),
       expectedInjections: phase.durationDays === null ? null : Math.ceil(phase.durationDays / intervalDays),
       completedInjections: phaseInjections.length,
@@ -218,6 +201,8 @@ export const scheduleView = (
           })
       ),
     })
+
+    return [cumulativeDays + (phase.durationDays ?? 0), phaseView]
   })
 
   const hasIndefinitePhase = schedule.phases.some((phase) => phase.durationDays === null)

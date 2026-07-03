@@ -1,4 +1,8 @@
-import { Effect, Match, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import type { HttpClient } from 'effect/unstable/http'
 import { Command } from 'foldkit'
 import type { Runtime } from 'foldkit'
@@ -170,14 +174,14 @@ const sessionRedirect = (model: Model): Commands => {
 
 const statsRangeOf = (model: Model): StatsRange =>
   model.route._tag === 'Stats'
-    ? { end: Option.getOrNull(model.route.end), start: Option.getOrNull(model.route.start) }
-    : { end: null, start: null }
+    ? { end: model.route.end, start: model.route.start }
+    : { end: Option.none(), start: Option.none() }
 
 // Applies session redirects and kicks off the data fetches the current
 // route needs (only when idle, so navigation is cheap).
 const enterRoute = (model: Model): UpdateReturn => {
   const redirects = sessionRedirect(model)
-  if (redirects.length > 0 || model.user === null) {
+  if (Arr.isReadonlyArrayNonEmpty(redirects) || model.user === null) {
     return [model, redirects]
   }
   const commands: Array<Commands[number]> = []
@@ -302,17 +306,19 @@ export const update = (model: Model, message: Message): UpdateReturn => {
   if (isSettingsPageMessage(message)) {
     const [settingsPage, commands] = updateSettingsPage(model.settingsPage, message)
     const next = evo(model, { settingsPage: () => settingsPage })
-    return message._tag === 'SucceededImportData'
-      ? [
-          evo(next, {
-            injections: () => initialInjectionsModel,
-            schedule: () => initialScheduleModel,
-            scheduleView: () => initialScheduleViewModel,
-            weight: () => initialWeightModel,
-          }),
-          commands,
-        ]
-      : [next, commands]
+    return Match.value(message).pipe(
+      Match.withReturnType<UpdateReturn>(),
+      Match.tag('SucceededImportData', () => [
+        evo(next, {
+          injections: () => initialInjectionsModel,
+          schedule: () => initialScheduleModel,
+          scheduleView: () => initialScheduleViewModel,
+          weight: () => initialWeightModel,
+        }),
+        commands,
+      ]),
+      Match.orElse(() => [next, commands])
+    )
   }
   if (isInjectionsMessage(message)) {
     const [injections, commands] = updateInjections(model.injections, message)

@@ -1,7 +1,9 @@
 import { assert, it } from '@effect/vitest'
 import { TailscaleApi, cliMissing } from '@garage/tailscale'
 import type { LimitOptions, PingOptions, WhoisOptions } from '@garage/tailscale'
-import { Effect, Layer, Ref } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Ref from 'effect/Ref'
 
 import { executeTailscale } from '../src/index.js'
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@effect/vitest'
-import { DateTime } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Option from 'effect/Option'
 
 import {
   Dosage,
@@ -82,7 +83,7 @@ describe('ScheduleEngine', () => {
       { order: 2, durationDays: null, dosage: '5mg' },
     ])
 
-    const active = requireValue(currentPhase(schedule, DateTime.makeUnsafe('2024-01-20T00:00:00Z')))
+    const active = Option.getOrThrow(currentPhase(schedule, DateTime.makeUnsafe('2024-01-20T00:00:00Z')))
 
     expect(active.phase.order).toBe(1)
     expect(active.phase.dosage).toBe('2.5mg')
@@ -95,8 +96,12 @@ describe('ScheduleEngine', () => {
       { order: 3, durationDays: null, dosage: '7.5mg' },
     ])
 
-    const dose = requireValue(
-      nextDose(schedule, DateTime.makeUnsafe('2024-03-08T12:00:00Z'), DateTime.makeUnsafe('2024-03-15T12:00:00Z'))
+    const dose = Option.getOrThrow(
+      nextDose(
+        schedule,
+        Option.some(DateTime.makeUnsafe('2024-03-08T12:00:00Z')),
+        DateTime.makeUnsafe('2024-03-15T12:00:00Z')
+      )
     )
 
     expect(dose.currentPhase).toBe(3)
@@ -108,8 +113,12 @@ describe('ScheduleEngine', () => {
 
   it('marks a due day next scheduled dose eligible for a reminder', () => {
     const schedule = makeSchedule([{ order: 1, durationDays: null, dosage: '2.5mg' }])
-    const dose = requireValue(
-      nextDose(schedule, DateTime.makeUnsafe('2024-01-08T00:00:00Z'), DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+    const dose = Option.getOrThrow(
+      nextDose(
+        schedule,
+        Option.some(DateTime.makeUnsafe('2024-01-08T00:00:00Z')),
+        DateTime.makeUnsafe('2024-01-15T00:00:00Z')
+      )
     )
 
     const eligibility = reminderEligibilityForNextDose(dose)
@@ -120,8 +129,12 @@ describe('ScheduleEngine', () => {
 
   it('suppresses reminders before the next scheduled dose due day', () => {
     const schedule = makeSchedule([{ order: 1, durationDays: null, dosage: '2.5mg' }])
-    const dose = requireValue(
-      nextDose(schedule, DateTime.makeUnsafe('2024-01-14T00:00:00Z'), DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+    const dose = Option.getOrThrow(
+      nextDose(
+        schedule,
+        Option.some(DateTime.makeUnsafe('2024-01-14T00:00:00Z')),
+        DateTime.makeUnsafe('2024-01-15T00:00:00Z')
+      )
     )
 
     const eligibility = reminderEligibilityForNextDose(dose)
@@ -132,8 +145,12 @@ describe('ScheduleEngine', () => {
 
   it('keeps a recent overdue next scheduled dose eligible inside the overdue reminder window', () => {
     const schedule = makeSchedule([{ order: 1, durationDays: null, dosage: '2.5mg' }])
-    const dose = requireValue(
-      nextDose(schedule, DateTime.makeUnsafe('2024-01-01T00:00:00Z'), DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+    const dose = Option.getOrThrow(
+      nextDose(
+        schedule,
+        Option.some(DateTime.makeUnsafe('2024-01-01T00:00:00Z')),
+        DateTime.makeUnsafe('2024-01-15T00:00:00Z')
+      )
     )
 
     const eligibility = reminderEligibilityForNextDose(dose)
@@ -144,8 +161,12 @@ describe('ScheduleEngine', () => {
 
   it('suppresses reminders after the overdue reminder window passes', () => {
     const schedule = makeSchedule([{ order: 1, durationDays: null, dosage: '2.5mg' }])
-    const dose = requireValue(
-      nextDose(schedule, DateTime.makeUnsafe('2024-01-01T00:00:00Z'), DateTime.makeUnsafe('2024-01-16T00:00:00Z'))
+    const dose = Option.getOrThrow(
+      nextDose(
+        schedule,
+        Option.some(DateTime.makeUnsafe('2024-01-01T00:00:00Z')),
+        DateTime.makeUnsafe('2024-01-16T00:00:00Z')
+      )
     )
 
     const eligibility = reminderEligibilityForNextDose(dose)

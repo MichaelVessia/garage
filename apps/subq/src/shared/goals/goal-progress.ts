@@ -1,4 +1,5 @@
-import { DateTime } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as Option from 'effect/Option'
 
 import { Weight } from '../weight/domain.js'
 import { calculateWeightTrajectory, projectWeightTrajectoryDate } from '../weight/trajectory.js'
@@ -31,7 +32,7 @@ export const calculateGoalProgressProjectedDate = ({
   rateOfChange,
   now,
   maxProjectionDays = DEFAULT_MAX_PROJECTION_DAYS,
-}: GoalProgressPaceStatusParams & { readonly maxProjectionDays?: number }): DateTime.Utc | null => {
+}: GoalProgressPaceStatusParams & { readonly maxProjectionDays?: number }): Option.Option<DateTime.Utc> => {
   const projectedDate = projectWeightTrajectoryDate({
     currentWeight,
     targetWeight: goal.goalWeight,
@@ -40,7 +41,7 @@ export const calculateGoalProgressProjectedDate = ({
     maxProjectionDays,
   })
 
-  return projectedDate === null ? null : DateTime.makeUnsafe(projectedDate.toISOString())
+  return Option.map(projectedDate, (date) => DateTime.makeUnsafe(date.toISOString()))
 }
 
 export const calculateGoalProgressPaceStatus = ({
@@ -119,7 +120,7 @@ export const buildGoalProgress = ({
     lbsLost,
     lbsRemaining,
     percentComplete: PercentComplete.make(percentComplete),
-    projectedDate,
+    projectedDate: Option.getOrNull(projectedDate),
     paceStatus,
     daysOnPlan,
     avgLbsPerWeek,

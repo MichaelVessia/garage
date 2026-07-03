@@ -1,22 +1,29 @@
-import { SessionCookiesSchema, TubearchivistSessionCache } from '@garage/tubearchivist'
-import type { SessionCookies } from '@garage/tubearchivist'
-import { Config, Effect, Layer, Schema } from 'effect'
+import { SessionCookies, TubearchivistSessionCache } from '@garage/tubearchivist'
+import * as Config from 'effect/Config'
+import * as Effect from 'effect/Effect'
 import { FileSystem } from 'effect/FileSystem'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import { Path } from 'effect/Path'
-
-const missingSession: SessionCookies | undefined = undefined
+import * as Schema from 'effect/Schema'
 
 const encodeHex = (value: string): string =>
   [...new TextEncoder().encode(value)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 
-const encodeSession = Schema.encodeSync(Schema.fromJsonString(SessionCookiesSchema))
+const sessionFromJsonString = Schema.fromJsonString(SessionCookies)
+const encodeSession = Schema.encodeSync(sessionFromJsonString)
+const decodeSession = Schema.decodeUnknownOption(sessionFromJsonString)
 
 const cacheDirectory = Effect.fn('tubearchivist.sessionCache.cacheDirectory')(function* (
   path: Path
 ): Effect.fn.Return<string> {
-  const tmp = yield* Config.string('TMPDIR').pipe(Effect.orElseSucceed(() => '/tmp'))
+  const tmp = yield* Config.string('TMPDIR').pipe(
+    Effect.tapError((error) => Effect.logDebug('TMPDIR config unavailable, using default', { error })),
+    Effect.orElseSucceed(() => '/tmp')
+  )
   const user = yield* Config.string('UID').pipe(
     Config.orElse(() => Config.string('USER')),
+    Effect.tapError((error) => Effect.logDebug('UID/USER config unavailable, using default', { error })),
     Effect.orElseSucceed(() => 'user')
   )
   return path.join(tmp, `tubearchivist-${encodeHex(user)}`)
@@ -24,22 +31,6 @@ const cacheDirectory = Effect.fn('tubearchivist.sessionCache.cacheDirectory')(fu
 
 const sessionPath = (path: Path, key: string): Effect.Effect<string> =>
   cacheDirectory(path).pipe(Effect.map((directory) => path.join(directory, `${encodeHex(key)}.json`)))
-
-const isJsonObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const decodeSession = (input: string): SessionCookies | undefined => {
-  try {
-    const parsed: unknown = JSON.parse(input)
-    if (!isJsonObject(parsed)) {
-      return undefined
-    }
-    const { sessionId, csrfToken } = parsed
-    return typeof sessionId === 'string' && typeof csrfToken === 'string' ? { sessionId, csrfToken } : undefined
-  } catch {
-    return undefined
-  }
-}
 
 export const TubearchivistSessionCacheFileLive = Layer.effect(
   TubearchivistSessionCache,
@@ -52,7 +43,7 @@ export const TubearchivistSessionCacheFileLive = Layer.effect(
           return yield* sessionPath(path, key).pipe(
             Effect.flatMap((file) => fs.readFileString(file, 'utf-8')),
             Effect.match({
-              onFailure: () => missingSession,
+              onFailure: () => Option.none<SessionCookies>(),
               onSuccess: decodeSession,
             })
           )
@@ -70,6 +61,7 @@ export const TubearchivistSessionCacheFileLive = Layer.effect(
                 .makeDirectory(directory, { mode: 0o700, recursive: true })
                 .pipe(Effect.flatMap(() => fs.writeFileString(file, encodeSession(session), { mode: 0o600 })))
             ),
+            Effect.tapError((error) => Effect.logDebug('session cache write failed', { error })),
             Effect.ignore
           )
         },

@@ -1,5 +1,11 @@
 import * as d3 from 'd3'
-import { DateTime, Effect, Match, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
+import * as Option from 'effect/Option'
+import * as Order from 'effect/Order'
+import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { html } from 'foldkit/html'
@@ -43,7 +49,7 @@ import {
   viewWeightTrend,
 } from '../chart/weight-trend.js'
 import { displayWeight, formatWeight } from '../data/settings.js'
-import { epochToDate, fromLocalDatetimeString, toLocalDatetimeString } from '../lib/datetime.js'
+import { epochToDate, fromLocalDatetimeString, toLocalDatetimeString, utcToLocalDateString } from '../lib/datetime.js'
 import { statsRouter } from '../route.js'
 import { button, card, input } from '../ui.js'
 
@@ -99,11 +105,12 @@ export const initialStatsModel: StatsModel = {
 }
 
 export interface StatsRange {
-  readonly start: string | null
-  readonly end: string | null
+  readonly start: Option.Option<string>
+  readonly end: Option.Option<string>
 }
 
-export const rangeKey = (range: StatsRange): string => `${range.start ?? ''}|${range.end ?? ''}`
+export const rangeKey = (range: StatsRange): string =>
+  `${Option.getOrElse(range.start, () => '')}|${Option.getOrElse(range.end, () => '')}`
 
 // ============================================
 // Messages
@@ -170,8 +177,12 @@ export type StatsMessage = typeof StatsMessage.Type
 
 const toStatsParams = (range: StatsRange, timezone?: string): StatsParams =>
   new StatsParams({
-    endDate: range.end === null ? undefined : fromLocalDatetimeString(`${range.end}T23:59`).pipe(DateTime.toDate),
-    startDate: range.start === null ? undefined : fromLocalDatetimeString(`${range.start}T00:00`).pipe(DateTime.toDate),
+    endDate: Option.getOrUndefined(
+      Option.map(range.end, (end) => fromLocalDatetimeString(`${end}T23:59`).pipe(DateTime.toDate))
+    ),
+    startDate: Option.getOrUndefined(
+      Option.map(range.start, (start) => fromLocalDatetimeString(`${start}T00:00`).pipe(DateTime.toDate))
+    ),
     ...(timezone === undefined ? {} : { timezone }),
   })
 
@@ -183,15 +194,15 @@ export const FetchStats = Command.define(
 )(({ end, start }) =>
   Effect.gen(function* () {
     const api = yield* Api
-    const range: StatsRange = { end, start }
+    const range: StatsRange = { end: Option.fromNullishOr(end), start: Option.fromNullishOr(start) }
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
     const params = toStatsParams(range)
     const tzParams = toStatsParams(range, timezone)
     const listParams = new InjectionLogListParams({
-      endDate: range.end === null ? undefined : fromLocalDatetimeString(`${range.end}T23:59`),
+      endDate: end === null ? undefined : fromLocalDatetimeString(`${end}T23:59`),
       limit: Limit.make(10_000),
       offset: Offset.make(0),
-      startDate: range.start === null ? undefined : fromLocalDatetimeString(`${range.start}T00:00`),
+      startDate: start === null ? undefined : fromLocalDatetimeString(`${start}T00:00`),
     })
     const bundle = yield* Effect.all(
       {
@@ -209,7 +220,10 @@ export const FetchStats = Command.define(
       { concurrency: 'unbounded' }
     )
     return SucceededFetchStats({ bundle, key: rangeKey(range) })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedFetchStats({ message: 'Failed to load stats' }))))
+  }).pipe(
+    Effect.tapError((cause) => Effect.logDebug('FetchStats failed', { error: cause })),
+    Effect.orElseSucceed(() => FailedFetchStats({ message: 'Failed to load stats' }))
+  )
 )
 
 // Preset click → compute range from "now" → push URL (route change refetches)
@@ -257,11 +271,7 @@ const NavigateStatsRange = Command.define(
 const OpenGoalForm = Command.define(
   'OpenGoalForm',
   OpenedGoalForm
-)(
-  DateTime.now.pipe(
-    Effect.map((now) => OpenedGoalForm({ todayLocal: toLocalDatetimeString(DateTime.toDate(now)).slice(0, 10) }))
-  )
-)
+)(DateTime.now.pipe(Effect.map((now) => OpenedGoalForm({ todayLocal: utcToLocalDateString(now) }))))
 
 const SaveGoal = Command.define(
   'SaveGoal',
@@ -296,7 +306,10 @@ const SaveGoal = Command.define(
           })
         )
     return SucceededSaveGoal()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSaveGoal({ message: 'Failed to save goal' }))))
+  }).pipe(
+    Effect.tapError((cause) => Effect.logDebug('SaveGoal failed', { error: cause })),
+    Effect.orElseSucceed(() => FailedSaveGoal({ message: 'Failed to save goal' }))
+  )
 )
 
 const DeleteGoal = Command.define(
@@ -309,7 +322,10 @@ const DeleteGoal = Command.define(
     const api = yield* Api
     yield* api.GoalDelete(new UserGoalDelete({ id: goalId }))
     return SucceededDeleteGoal()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSaveGoal({ message: 'Failed to delete goal' }))))
+  }).pipe(
+    Effect.tapError((cause) => Effect.logDebug('DeleteGoal failed', { error: cause })),
+    Effect.orElseSucceed(() => FailedSaveGoal({ message: 'Failed to delete goal' }))
+  )
 )
 
 // ============================================
@@ -319,6 +335,9 @@ const DeleteGoal = Command.define(
 type StatsCommands = ReadonlyArray<Command.Command<StatsMessage | typeof NavigatedStats.Type, never, Api>>
 type UpdateReturn = readonly [StatsModel, StatsCommands]
 
+const fetchStatsCommand = (range: StatsRange) =>
+  FetchStats({ end: Option.getOrNull(range.end), start: Option.getOrNull(range.start) })
+
 // Called by the app root when the stats route is entered or its range changes.
 export const syncStatsFetch = (model: StatsModel, range: StatsRange): UpdateReturn => {
   const key = rangeKey(range)
@@ -327,20 +346,20 @@ export const syncStatsFetch = (model: StatsModel, range: StatsRange): UpdateRetu
   }
   return [
     evo(model, {
-      customEnd: () => range.end ?? '',
-      customStart: () => range.start ?? '',
+      customEnd: () => Option.getOrElse(range.end, () => ''),
+      customStart: () => Option.getOrElse(range.start, () => ''),
       data: () => AsyncData.Loading(),
       fetchedRange: () => key,
     }),
-    [FetchStats({ end: range.end, start: range.start })],
+    [fetchStatsCommand(range)],
   ]
 }
 
-const splitRangeKey = (key: string): { readonly start: string | null; readonly end: string | null } => {
+const splitRangeKey = (key: string): StatsRange => {
   const [start, end] = key.split('|')
   return {
-    end: end === undefined || end === '' ? null : end,
-    start: start === undefined || start === '' ? null : start,
+    end: end === undefined || end === '' ? Option.none() : Option.some(end),
+    start: start === undefined || start === '' ? Option.none() : Option.some(start),
   }
 }
 
@@ -350,12 +369,14 @@ export const updateStats = (model: StatsModel, message: StatsMessage): UpdateRet
   if (isChartMessage(message)) {
     const [chart, zoom] = updateChart(model.chart, message)
     const next = evo(model, { chart: () => chart })
-    if (zoom === null) {
-      return [next, []]
-    }
-    const start = toLocalDatetimeString(epochToDate(zoom.startMs)).slice(0, 10)
-    const end = toLocalDatetimeString(epochToDate(zoom.endMs)).slice(0, 10)
-    return [next, [NavigateStatsRange({ end, start })]]
+    return Option.match(zoom, {
+      onNone: (): UpdateReturn => [next, []],
+      onSome: (committed) => {
+        const start = toLocalDatetimeString(epochToDate(committed.startMs)).slice(0, 10)
+        const end = toLocalDatetimeString(epochToDate(committed.endMs)).slice(0, 10)
+        return [next, [NavigateStatsRange({ end, start })]]
+      },
+    })
   }
   return Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
@@ -464,7 +485,7 @@ export const updateStats = (model: StatsModel, message: StatsMessage): UpdateRet
       },
       SucceededDeleteGoal: () => [
         evo(model, { data: () => AsyncData.Loading(), fetchedRange: () => null }),
-        model.fetchedRange === null ? [] : [FetchStats(splitRangeKey(model.fetchedRange))],
+        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange))],
       ],
       SucceededFetchStats: ({ bundle, key }) => [
         evo(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }),
@@ -472,7 +493,7 @@ export const updateStats = (model: StatsModel, message: StatsMessage): UpdateRet
       ],
       SucceededSaveGoal: () => [
         evo(model, { data: () => AsyncData.Loading(), goalForm: () => null }),
-        model.fetchedRange === null ? [] : [FetchStats(splitRangeKey(model.fetchedRange))],
+        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange))],
       ],
     })
   )
@@ -520,12 +541,8 @@ const PRESETS: ReadonlyArray<readonly ['1m' | '3m' | '6m' | '1y' | 'all', string
   ['all', 'All Time'],
 ]
 
-const activePresetOf = (range: StatsRange): '1m' | '3m' | '6m' | '1y' | 'all' | null => {
-  if (range.start === null && range.end === null) {
-    return 'all'
-  }
-  return null
-}
+const activePresetOf = (range: StatsRange): Option.Option<'1m' | '3m' | '6m' | '1y' | 'all'> =>
+  Option.isNone(range.start) && Option.isNone(range.end) ? Option.some('all') : Option.none()
 
 const viewRangeSelector = (model: StatsModel, range: StatsRange) => {
   const active = activePresetOf(range)
@@ -537,14 +554,19 @@ const viewRangeSelector = (model: StatsModel, range: StatsRange) => {
         PRESETS.map(([key, label]) =>
           h.button(
             [
-              h.Class(button({ size: 'sm', variant: active === key ? 'default' : 'outline' })),
+              h.Class(
+                button({
+                  size: 'sm',
+                  variant: Option.exists(active, (preset) => preset === key) ? 'default' : 'outline',
+                })
+              ),
               h.OnClick(ClickedStatsPreset({ preset: key })),
             ],
             [label]
           )
         )
       ),
-      active === null
+      Option.isNone(active)
         ? h.div(
             [h.Class('flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3')],
             [
@@ -578,15 +600,16 @@ const viewRangeSelector = (model: StatsModel, range: StatsRange) => {
 // ---- Pie chart (pure SVG, replaces recharts SimplePieChart) ----
 
 const viewPieChart = (data: ReadonlyArray<readonly [string, number]>) => {
-  if (data.length === 0) {
+  if (Arr.isReadonlyArrayEmpty(data)) {
     return h.div([h.Class('text-muted-foreground h-[200px] flex items-center justify-center')], ['No data available'])
   }
+  // d3's pie generator method, not Array#sort — null disables slice reordering
+  // oxlint-disable-next-line effect/prefer-arr-sort
   const pie = d3
     .pie<readonly [string, number]>()
     .value(([, value]) => value)
     .padAngle(0.035)
-    // d3's pie generator method, not Array#sort — null disables slice reordering
-    // eslint-disable-next-line unicorn/no-array-sort
+    // oxlint-disable-next-line unicorn/no-array-sort
     .sort(null)
   const arc = d3.arc<d3.PieArcDatum<readonly [string, number]>>().innerRadius(50).outerRadius(80)
   const labelArc = d3.arc<d3.PieArcDatum<readonly [string, number]>>().innerRadius(65).outerRadius(65)
@@ -657,7 +680,7 @@ const viewPieChart = (data: ReadonlyArray<readonly [string, number]>) => {
 // ---- Horizontal bar chart (pure HTML, replaces recharts) ----
 
 const viewBarChart = (data: ReadonlyArray<readonly [string, number]>) => {
-  if (data.length === 0) {
+  if (Arr.isReadonlyArrayEmpty(data)) {
     return h.div([h.Class('text-muted-foreground h-[100px] flex items-center justify-center')], ['No data available'])
   }
   const max = Math.max(...data.map(([, value]) => value), 1)
@@ -695,20 +718,37 @@ const viewBarChart = (data: ReadonlyArray<readonly [string, number]>) => {
 const DOSAGE_W = 800
 const DOSAGE_H = 200
 
+interface DosagePoint {
+  readonly date: Date
+  readonly drug: string
+  readonly dosage: string
+  readonly dosageValue: number
+  readonly color: string
+}
+
+interface DosageSegment {
+  readonly points: ReadonlyArray<DosagePoint>
+  readonly color: string
+}
+
+interface DosageSegmentBuild {
+  readonly segments: ReadonlyArray<DosageSegment>
+  readonly current: ReadonlyArray<DosagePoint>
+  readonly color: string
+}
+
+const flushDosageSegment = (build: DosageSegmentBuild): ReadonlyArray<DosageSegment> =>
+  Arr.isReadonlyArrayNonEmpty(build.current)
+    ? [...build.segments, { color: build.color, points: build.current }]
+    : build.segments
+
 const viewDosageHistory = (data: DosageHistoryStats) => {
-  if (data.points.length === 0) {
+  if (Arr.isReadonlyArrayEmpty(data.points)) {
     return h.div([h.Class('text-muted-foreground h-[200px]')], ['No dosage data available'])
   }
   const margin = { bottom: 40, left: 50, right: 20, top: 20 }
   const width = DOSAGE_W - margin.left - margin.right
   const height = DOSAGE_H - margin.top - margin.bottom
-  interface DosagePoint {
-    readonly date: Date
-    readonly drug: string
-    readonly dosage: string
-    readonly dosageValue: number
-    readonly color: string
-  }
   const points: ReadonlyArray<DosagePoint> = [...data.points]
     .map((point) => ({
       color: getDosageColor(`${point.drug}::${point.dosage}`),
@@ -734,23 +774,15 @@ const viewDosageHistory = (data: DosageHistoryStats) => {
     .x((point) => xScale(point.date))
     .y((point) => yScale(point.dosageValue))
     .curve(d3.curveStepAfter)
-  const segments: Array<{ readonly points: Array<DosagePoint>; readonly color: string }> = []
-  let current: Array<DosagePoint> = []
-  let color = ''
-  for (const point of points) {
-    if (point.color !== color) {
-      if (current.length > 0) {
-        segments.push({ color, points: current })
-        const last = current.at(-1)
-        current = last === undefined ? [] : [last]
-      }
-      ;({ color } = point)
+  const segmentInitial: DosageSegmentBuild = { color: '', current: [], segments: [] }
+  const builtSegments = Arr.reduce(points, segmentInitial, (build, point) => {
+    if (point.color === build.color) {
+      return { ...build, current: [...build.current, point] }
     }
-    current.push(point)
-  }
-  if (current.length > 0) {
-    segments.push({ color, points: current })
-  }
+    const seed = Arr.isReadonlyArrayNonEmpty(build.current) ? [Arr.lastNonEmpty(build.current), point] : [point]
+    return { color: point.color, current: seed, segments: flushDosageSegment(build) }
+  })
+  const segments = flushDosageSegment(builtSegments)
   const attr = h.Attribute
   const formatDate = d3.timeFormat('%b %d, %Y')
   const formatTick = d3.timeFormat('%b %d')
@@ -782,7 +814,7 @@ const viewDosageHistory = (data: DosageHistoryStats) => {
                 if (segment.points.length < 2) {
                   return []
                 }
-                const d = line(segment.points)
+                const d = line([...segment.points])
                 return d === null
                   ? []
                   : [h.path([attr('d', d), h.Fill('none'), h.Stroke(segment.color), h.StrokeWidth('2')], [])]
@@ -966,13 +998,13 @@ const goalStat = (label: string, value: string, suffix: string) =>
     ]
   )
 
-const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: WeightUnit) => {
+const goalCardContent = (model: StatsModel, goal: Option.Option<GoalProgress>, unit: WeightUnit) => {
   const show = (lbs: number): number => displayWeight(unit, lbs)
   const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' })
   if (model.goalForm !== null) {
     return viewGoalForm(model.goalForm, unit)
   }
-  if (model.goalDeleteConfirm && goal !== null) {
+  if (model.goalDeleteConfirm && Option.isSome(goal)) {
     return h.div(
       [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
       [
@@ -987,7 +1019,7 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
             h.button(
               [
                 h.Class(button({ size: 'sm', variant: 'destructive' })),
-                h.OnClick(ConfirmedDeleteGoal({ goalId: goal.goal.id })),
+                h.OnClick(ConfirmedDeleteGoal({ goalId: goal.value.goal.id })),
               ],
               ['Delete Goal']
             ),
@@ -996,7 +1028,7 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
       ]
     )
   }
-  if (goal === null) {
+  if (Option.isNone(goal)) {
     return h.div(
       [h.Class('flex flex-col items-start gap-3')],
       [
@@ -1005,6 +1037,7 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
       ]
     )
   }
+  const progress = goal.value
   return h.div(
     [h.Class('space-y-6')],
     [
@@ -1018,7 +1051,7 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
               h.div(
                 [h.Class('flex items-center gap-2')],
                 [
-                  paceBadge(goal.paceStatus),
+                  paceBadge(progress.paceStatus),
                   h.button([h.Class(button({ size: 'sm', variant: 'ghost' })), h.OnClick(ClickedEditGoal())], ['Edit']),
                   h.button(
                     [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(RequestedDeleteGoal())],
@@ -1034,7 +1067,7 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
               h.div(
                 [
                   h.Class('bg-primary h-full rounded-full transition-all duration-500'),
-                  h.Style({ width: `${Math.min(100, Math.max(0, goal.percentComplete)).toFixed(0)}%` }),
+                  h.Style({ width: `${Math.min(100, Math.max(0, progress.percentComplete)).toFixed(0)}%` }),
                 ],
                 []
               ),
@@ -1043,9 +1076,9 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
           h.div(
             [h.Class('flex justify-between mt-2 text-sm')],
             [
-              h.span([h.Class('font-mono')], [`${show(goal.goal.startingWeight).toFixed(1)} ${unit}`]),
-              h.span([h.Class('font-semibold')], [`${goal.percentComplete.toFixed(0)}%`]),
-              h.span([h.Class('font-mono')], [`${show(goal.goal.goalWeight).toFixed(1)} ${unit}`]),
+              h.span([h.Class('font-mono')], [`${show(progress.goal.startingWeight).toFixed(1)} ${unit}`]),
+              h.span([h.Class('font-semibold')], [`${progress.percentComplete.toFixed(0)}%`]),
+              h.span([h.Class('font-mono')], [`${show(progress.goal.goalWeight).toFixed(1)} ${unit}`]),
             ]
           ),
         ]
@@ -1053,31 +1086,48 @@ const goalCardContent = (model: StatsModel, goal: GoalProgress | null, unit: Wei
       h.div(
         [h.Class('grid grid-cols-2 sm:grid-cols-4 gap-4')],
         [
-          goalStat('Lost', show(goal.lbsLost).toFixed(1), unit),
-          goalStat('To Go', show(goal.lbsRemaining).toFixed(1), unit),
-          goalStat('Avg/Week', show(goal.avgLbsPerWeek).toFixed(2), unit),
-          goalStat('Days', String(goal.daysOnPlan), 'on plan'),
+          goalStat('Lost', show(progress.lbsLost).toFixed(1), unit),
+          goalStat('To Go', show(progress.lbsRemaining).toFixed(1), unit),
+          goalStat('Avg/Week', show(progress.avgLbsPerWeek).toFixed(2), unit),
+          goalStat('Days', String(progress.daysOnPlan), 'on plan'),
         ]
       ),
-      goal.projectedDate === null
+      progress.projectedDate === null
         ? h.empty
         : h.div(
             [h.Class('p-3 bg-muted/50 rounded-lg')],
             [
               h.span([h.Class('text-sm text-muted-foreground')], ['Projected goal date: ']),
-              h.span([h.Class('font-semibold')], [dateFormat.format(DateTime.toDate(goal.projectedDate))]),
+              h.span([h.Class('font-semibold')], [dateFormat.format(DateTime.toDate(progress.projectedDate))]),
             ]
           ),
     ]
   )
 }
 
-const viewGoalCard = (model: StatsModel, goal: GoalProgress | null, unit: WeightUnit) =>
+const viewGoalCard = (model: StatsModel, goal: Option.Option<GoalProgress>, unit: WeightUnit) =>
   viewCard('Goal Progress', goalCardContent(model, goal, unit))
 
 // ---- Page ----
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// Ended schedules end after the sum of their phase durations; active schedules
+// and schedules without a bounded phase have no end date.
+const scheduleEndDate = (schedule: InjectionSchedule): Option.Option<Date> => {
+  if (schedule.isActive) {
+    return Option.none()
+  }
+  const orderedPhases = Arr.sortWith(schedule.phases, (phase) => phase.order, Order.Number)
+  const durationsMs = Arr.flatMap(orderedPhases, (phase) =>
+    phase.durationDays === null ? [] : [phase.durationDays * 24 * 60 * 60 * 1000]
+  )
+  if (Arr.isReadonlyArrayEmpty(durationsMs)) {
+    return Option.none()
+  }
+  const totalMs = Arr.reduce(durationsMs, 0, (sum, ms) => sum + ms)
+  return Option.some(epochToDate(DateTime.toDate(schedule.startDate).getTime() + totalMs))
+}
 
 const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, range: StatsRange) => {
   const show = (lbs: number): number => displayWeight(unit, lbs)
@@ -1112,7 +1162,7 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
 
   const weightData: ReadonlyArray<WeightPoint> = bundle.weightTrend.points.map((point) => ({
     date: point.date,
-    notes: null,
+    notes: Option.none(),
     weight: point.weight,
   }))
   const injectionData: ReadonlyArray<InjectionPoint> = bundle.injections.map((injection) => ({
@@ -1120,51 +1170,41 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
     dosage: injection.dosage,
     drug: injection.drug,
   }))
-  const schedulePeriods: ReadonlyArray<SchedulePeriod> = bundle.schedules.map((schedule) => {
-    let endDate: Date | null = null
-    if (!schedule.isActive) {
-      let cursor = DateTime.toDate(schedule.startDate)
-      for (const phase of [...schedule.phases].toSorted((a, b) => a.order - b.order)) {
-        if (phase.durationDays !== null) {
-          cursor = epochToDate(cursor.getTime() + phase.durationDays * 24 * 60 * 60 * 1000)
-          endDate = cursor
-        }
-      }
-    }
-    return {
-      drug: schedule.drug,
-      endDate,
-      scheduleName: schedule.name,
-      startDate: DateTime.toDate(schedule.startDate),
-    }
-  })
-  const zoomRange =
-    range.start !== null && range.end !== null && activePresetOf(range) === null
-      ? {
-          end: DateTime.toDate(fromLocalDatetimeString(`${range.end}T23:59`)),
-          start: DateTime.toDate(fromLocalDatetimeString(`${range.start}T00:00`)),
-        }
-      : null
+  const schedulePeriods: ReadonlyArray<SchedulePeriod> = bundle.schedules.map((schedule) => ({
+    drug: schedule.drug,
+    endDate: scheduleEndDate(schedule),
+    scheduleName: schedule.name,
+    startDate: DateTime.toDate(schedule.startDate),
+  }))
+  const zoomRange: Option.Option<{ readonly start: Date; readonly end: Date }> = Option.all([
+    range.start,
+    range.end,
+  ]).pipe(
+    Option.map(([start, end]) => ({
+      end: DateTime.toDate(fromLocalDatetimeString(`${end}T23:59`)),
+      start: DateTime.toDate(fromLocalDatetimeString(`${start}T00:00`)),
+    }))
+  )
 
   return h.div(
     [h.Class('grid gap-5')],
     [
-      viewGoalCard(model, bundle.goal, unit),
+      viewGoalCard(model, Option.fromNullishOr(bundle.goal), unit),
       viewCard(
         'Weight Statistics',
-        weightItems.length === 0
+        Arr.isReadonlyArrayEmpty(weightItems)
           ? h.div([h.Class('text-muted-foreground')], ['No weight data available'])
           : viewStatGrid(weightItems, 'sm:grid-cols-3 lg:grid-cols-5')
       ),
       viewCard(
         'Weight Trend',
-        weightData.length > 0
+        Arr.isReadonlyArrayNonEmpty(weightData)
           ? viewWeightTrend({
               displayWeight: show,
               injectionData,
               schedulePeriods,
               state: model.chart,
-              trendLine: bundle.weightTrend.trendLine,
+              trendLine: Option.fromNullishOr(bundle.weightTrend.trendLine),
               unitLabel: unit,
               weightData,
               zoomRange,
@@ -1173,7 +1213,7 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
       ),
       viewCard(
         'Injection Frequency',
-        frequencyItems.length === 0
+        Arr.isReadonlyArrayEmpty(frequencyItems)
           ? h.div([h.Class('text-muted-foreground')], ['No injection data available'])
           : viewStatGrid(frequencyItems, 'sm:grid-cols-4')
       ),

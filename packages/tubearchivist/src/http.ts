@@ -1,11 +1,16 @@
-import { Effect, Layer, Redacted, Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import {
   ChannelDetailSchema,
   ChannelResponseSchema,
   DownloadResponseSchema,
-  JsonObjectSchema,
+  JsonObject,
   PlaylistResponseSchema,
   SearchResponseSchema,
   TasksSchema,
@@ -32,7 +37,7 @@ const endpoint = (
   params: ReadonlyArray<readonly [string, string | number | boolean]> = []
 ): string => {
   const query = queryString(params)
-  return query.length === 0
+  return Str.isEmpty(query)
     ? `${normalizeBaseUrl(config.url)}/api${path}`
     : `${normalizeBaseUrl(config.url)}/api${path}?${query}`
 }
@@ -116,7 +121,7 @@ const session = Effect.fn('tubearchivist.session')(
     cache: TubearchivistSessionCacheService
   ): Effect.fn.Return<SessionCookies, TubearchivistError> {
     const cached = yield* cache.read(cacheKey(config))
-    return cached ?? (yield* login(client, config, cache))
+    return Option.isSome(cached) ? cached.value : yield* login(client, config, cache)
   },
   Effect.annotateLogs({ package: '@garage/tubearchivist', service: 'TubearchivistApi', method: 'session' })
 )
@@ -208,11 +213,11 @@ export const TubearchivistApiLive = Layer.effect(
             Effect.all(
               {
                 health: getJson(client, config, cache, '/health/', Schema.String),
-                config: getJson(client, config, cache, '/appsettings/config/', JsonObjectSchema),
-                video: getJson(client, config, cache, '/stats/video/', JsonObjectSchema),
-                channel: getJson(client, config, cache, '/stats/channel/', JsonObjectSchema),
-                download: getJson(client, config, cache, '/stats/download/', JsonObjectSchema),
-                watch: getJson(client, config, cache, '/stats/watch/', JsonObjectSchema),
+                config: getJson(client, config, cache, '/appsettings/config/', JsonObject),
+                video: getJson(client, config, cache, '/stats/video/', JsonObject),
+                channel: getJson(client, config, cache, '/stats/channel/', JsonObject),
+                download: getJson(client, config, cache, '/stats/download/', JsonObject),
+                watch: getJson(client, config, cache, '/stats/watch/', JsonObject),
               },
               { concurrency: 1 }
             ).pipe(
@@ -247,7 +252,7 @@ export const TubearchivistApiLive = Layer.effect(
       subscribe: Effect.fn('TubearchivistApi.subscribe')(
         function* (options) {
           return yield* withConfig((config) =>
-            postJson(client, config, cache, '/channel/', subscriptionBody(options, true), JsonObjectSchema).pipe(
+            postJson(client, config, cache, '/channel/', subscriptionBody(options, true), JsonObject).pipe(
               Effect.map((response) => ({
                 target: options.target,
                 subscribed: true,
@@ -262,7 +267,7 @@ export const TubearchivistApiLive = Layer.effect(
       unsubscribe: Effect.fn('TubearchivistApi.unsubscribe')(
         function* (options) {
           return yield* withConfig((config) =>
-            postJson(client, config, cache, '/channel/', subscriptionBody(options, false), JsonObjectSchema).pipe(
+            postJson(client, config, cache, '/channel/', subscriptionBody(options, false), JsonObject).pipe(
               Effect.map((response) => ({ target: options.target, subscribed: false, response }))
             )
           )

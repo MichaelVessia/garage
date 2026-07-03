@@ -1,4 +1,6 @@
-import { Effect, Schema } from 'effect'
+import * as Effect from 'effect/Effect'
+import * as P from 'effect/Predicate'
+import * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 import { Command } from 'foldkit'
 import { m } from 'foldkit/message'
@@ -52,18 +54,17 @@ export type AuthMessage = typeof AuthMessage.Type
 const errorMessage =
   (fallback: string) =>
   (body: unknown): string => {
-    if (typeof body === 'object' && body !== null && 'message' in body && typeof body.message === 'string') {
+    if (P.isObject(body) && 'message' in body && P.isString(body.message)) {
       return body.message
     }
     return fallback
   }
 
-const postJson = (url: string, body: unknown) =>
-  Effect.gen(function* () {
-    const client = yield* HttpClient.HttpClient
-    const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
-    return yield* client.execute(request)
-  })
+const postJson = Effect.fn('auth.postJson')(function* (url: string, body: unknown) {
+  const client = yield* HttpClient.HttpClient
+  const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
+  return yield* client.execute(request)
+})
 
 // ============================================
 // Commands
@@ -82,7 +83,12 @@ export const FetchSession = Command.define(
     }
     const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
     return SucceededFetchSession({ user: session.user })
-  }).pipe(Effect.catchCause(() => Effect.succeed(SucceededFetchSession({ user: null }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => SucceededFetchSession({ user: null }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 export const SignIn = Command.define(
@@ -99,7 +105,12 @@ export const SignIn = Command.define(
     }
     const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
     return SucceededSignIn({ user: session.user })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSignIn({ message: 'Sign in failed' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedSignIn({ message: 'Sign in failed' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 export const SignUp = Command.define(
@@ -116,7 +127,12 @@ export const SignUp = Command.define(
     }
     const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
     return SucceededSignUp({ user: session.user })
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedSignUp({ message: 'Sign up failed' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedSignUp({ message: 'Sign up failed' }),
+      onSuccess: (message) => message,
+    })
+  )
 )
 
 export const SignOut = Command.define(
@@ -124,8 +140,10 @@ export const SignOut = Command.define(
   SucceededSignOut
 )(
   postJson('/api/auth/sign-out', {}).pipe(
-    Effect.as(SucceededSignOut()),
-    Effect.catchCause(() => Effect.succeed(SucceededSignOut()))
+    Effect.matchCause({
+      onFailure: () => SucceededSignOut(),
+      onSuccess: () => SucceededSignOut(),
+    })
   )
 )
 
@@ -146,5 +164,10 @@ export const ChangePassword = Command.define(
       return FailedChangePassword({ message: errorMessage('Password change failed')(body) })
     }
     return SucceededChangePassword()
-  }).pipe(Effect.catchCause(() => Effect.succeed(FailedChangePassword({ message: 'Password change failed' }))))
+  }).pipe(
+    Effect.matchCause({
+      onFailure: () => FailedChangePassword({ message: 'Password change failed' }),
+      onSuccess: (message) => message,
+    })
+  )
 )

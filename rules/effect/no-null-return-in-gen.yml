@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-null-return-in-gen
+language: tsx
+severity: error
+message: "Return Option instead of null from Effect.gen / Effect.fn generators"
+
+rule:
+  any:
+    - pattern: return null
+    - pattern: "return $COND ? $THEN : null"
+    - pattern: "return $COND ? null : $ELSE"
+  inside:
+    kind: generator_function
+    stopBy:
+      any:
+        - kind: arrow_function
+        - kind: function_expression
+        - kind: function_declaration
+        - kind: method_definition
+        - kind: generator_function_declaration
+    inside:
+      any:
+        - pattern: Effect.gen($$$ARGS)
+        - pattern: Effect.fn($$$ARGS)
+        - pattern: Effect.fn($NAME)($$$ARGS)
+      stopBy: end
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+note: |
+  The oxlint prefer-option-over-null rule only sees declared types, so a
+  generator that returns null gives the surrounding Effect an inferred
+  `T | null` and forces hand-written type-predicate filters downstream.
+  Return Option instead and compact with Arr.getSomes.
+
+  ```typescript
+  // Bad - null leaks into the inferred Effect type
+  const entries = yield* Effect.forEach(names, (name) =>
+    Effect.gen(function* () {
+      const stat = yield* fs.stat(name)
+      if (stat.type !== 'Directory') {
+        return null
+      }
+      return yield* parseEntry(name)
+    }),
+  )
+  return entries.filter((entry): entry is Entry => entry !== null)
+
+  // Good - Option in, Arr.getSomes out, no type predicate
+  const entries = yield* Effect.forEach(names, (name) =>
+    Effect.gen(function* () {
+      const stat = yield* fs.stat(name)
+      if (stat.type !== 'Directory') {
+        return Option.none<Entry>()
+      }
+      return Option.some(yield* parseEntry(name))
+    }),
+  )
+  return Arr.getSomes(entries)
+  ```
+
+ignores:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/node_modules/**"

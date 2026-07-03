@@ -1,4 +1,11 @@
-import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
+import * as Arr from 'effect/Array'
+import * as Context from 'effect/Context'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { Notes, Weight, WeightLog, WeightLogDatabaseError, WeightLogId, WeightLogNotFoundError } from '#shared'
@@ -30,7 +37,7 @@ const rowToDomain = (row: typeof WeightLogRow.Type): WeightLog =>
     id: WeightLogId.make(row.id),
     datetime: DateTime.makeUnsafe(row.datetime),
     weight: Weight.make(row.weight),
-    notes: row.notes !== null && row.notes.length > 0 ? Notes.make(row.notes) : null,
+    notes: row.notes !== null && Str.isNonEmpty(row.notes) ? Notes.make(row.notes) : null,
     createdAt: DateTime.makeUnsafe(row.created_at),
     updatedAt: DateTime.makeUnsafe(row.updated_at),
   })
@@ -65,8 +72,8 @@ export const WeightLogRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const list = (params: WeightLogListParams, userId: string) =>
-      Effect.gen(function* () {
+    const list = Effect.fn('WeightLogRepo.list')(
+      function* (params: WeightLogListParams, userId: string) {
         // Convert DateTime params to ISO strings for SQLite comparison
         const startDateStr = params.startDate !== undefined ? DateTime.formatIso(params.startDate) : undefined
         const endDateStr = params.endDate !== undefined ? DateTime.formatIso(params.endDate) : undefined
@@ -81,26 +88,30 @@ export const WeightLogRepoLive = Layer.effect(
           LIMIT ${params.limit}
           OFFSET ${params.offset}
         `
-        return yield* Effect.all(rows.map(decodeAndTransform))
-      }).pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause })))
+        return yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+      },
+      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const findById = (id: string, userId: string) =>
-      Effect.gen(function* () {
+    const findById = Effect.fn('WeightLogRepo.findById')(
+      function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE id = ${id} AND user_id = ${userId}
         `
-        if (rows.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
         const decoded = yield* decodeAndTransform(rows[0])
         return Option.some(decoded)
-      }).pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause })))
+      },
+      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+    )
 
-    const create = (data: WeightLogCreate, userId: string) =>
-      Effect.gen(function* () {
-        const id = yield* randomUuid
+    const create = Effect.fn('WeightLogRepo.create')(
+      function* (data: WeightLogCreate, userId: string) {
+        const id = yield* randomUuid()
         const notes = Option.isSome(data.notes) ? data.notes.value : null
         const now = DateTime.formatIso(yield* DateTime.now)
         const datetimeStr = DateTime.formatIso(data.datetime)
@@ -117,29 +128,30 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE id = ${id}
         `
         return yield* decodeAndTransform(rows[0])
-      }).pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'insert', cause })))
+      },
+      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'insert', cause }))
+    )
 
-    const update = (data: WeightLogUpdate, userId: string) =>
-      Effect.gen(function* () {
-        // First get current values - include user_id check to prevent IDOR
-        const current = yield* sql`
+    const update = Effect.fn('WeightLogRepo.update')(function* (data: WeightLogUpdate, userId: string) {
+      // First get current values - include user_id check to prevent IDOR
+      const current = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause })))
 
-        if (current.length === 0) {
-          return yield* Effect.fail(WeightLogNotFoundError.make({ id: data.id }))
-        }
+      if (Arr.isReadonlyArrayEmpty(current)) {
+        return yield* Effect.fail(WeightLogNotFoundError.make({ id: data.id }))
+      }
 
-        const curr = yield* decodeRow(current[0]).pipe(
-          Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
-        )
-        const newDatetime = data.datetime !== undefined ? DateTime.formatIso(data.datetime) : curr.datetime
-        const newWeight = data.weight ?? curr.weight
-        const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
-        const now = DateTime.formatIso(yield* DateTime.now)
+      const curr = yield* decodeRow(current[0]).pipe(
+        Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+      )
+      const newDatetime = data.datetime !== undefined ? DateTime.formatIso(data.datetime) : curr.datetime
+      const newWeight = data.weight ?? curr.weight
+      const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
+      const now = DateTime.formatIso(yield* DateTime.now)
 
-        yield* sql`
+      yield* sql`
           UPDATE weight_logs
           SET datetime = ${newDatetime},
               weight = ${newWeight},
@@ -148,29 +160,31 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'update', cause })))
 
-        // Fetch updated row
-        const rows = yield* sql`
+      // Fetch updated row
+      const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause })))
 
-        return yield* decodeAndTransform(rows[0]).pipe(
-          Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'update', cause }))
-        )
-      })
+      return yield* decodeAndTransform(rows[0]).pipe(
+        Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'update', cause }))
+      )
+    })
 
-    const del = (id: string, userId: string) =>
-      Effect.gen(function* () {
+    const del = Effect.fn('WeightLogRepo.delete')(
+      function* (id: string, userId: string) {
         // Check if exists and belongs to user
         const existing = yield* sql`SELECT id FROM weight_logs WHERE id = ${id} AND user_id = ${userId}`
-        if (existing.length === 0) {
+        if (Arr.isReadonlyArrayEmpty(existing)) {
           return false
         }
 
         yield* sql`DELETE FROM weight_logs WHERE id = ${id} AND user_id = ${userId}`
         return true
-      }).pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'delete', cause })))
+      },
+      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'delete', cause }))
+    )
 
     return {
       list,

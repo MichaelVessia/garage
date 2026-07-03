@@ -1,5 +1,6 @@
-import { describe, expect, it } from '@effect/vitest'
-import { Effect, Schema } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as Effect from 'effect/Effect'
+import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import { InjectionLogId, InjectionScheduleId } from '#shared'
@@ -49,9 +50,9 @@ describe('ScheduleAssignment', () => {
         )
 
         const rows = yield* listAssignments(['inj-1', 'inj-2'])
-        expect(count).toBe(2)
-        expect(scheduleIdFor(rows, 'inj-1')).toBe('sched-1')
-        expect(scheduleIdFor(rows, 'inj-2')).toBe('sched-1')
+        assert.strictEqual(count, 2)
+        assert.strictEqual(scheduleIdFor(rows, 'inj-1'), 'sched-1')
+        assert.strictEqual(scheduleIdFor(rows, 'inj-2'), 'sched-1')
       })
     )
   })
@@ -74,8 +75,8 @@ describe('ScheduleAssignment', () => {
         )
 
         const rows = yield* listAssignments(['inj-1'])
-        expect(count).toBe(1)
-        expect(scheduleIdFor(rows, 'inj-1')).toBeNull()
+        assert.strictEqual(count, 1)
+        assert.isNull(scheduleIdFor(rows, 'inj-1'))
       })
     )
   })
@@ -97,9 +98,9 @@ describe('ScheduleAssignment', () => {
         )
 
         const rows = yield* listAssignments(['inj-1', 'inj-2'])
-        expect(count).toBe(1)
-        expect(scheduleIdFor(rows, 'inj-1')).toBe('sched-1')
-        expect(scheduleIdFor(rows, 'inj-2')).toBeNull()
+        assert.strictEqual(count, 1)
+        assert.strictEqual(scheduleIdFor(rows, 'inj-1'), 'sched-1')
+        assert.isNull(scheduleIdFor(rows, 'inj-2'))
       })
     )
   })
@@ -122,11 +123,11 @@ describe('ScheduleAssignment', () => {
           .pipe(Effect.result)
 
         const rows = yield* listAssignments(['inj-1'])
-        expect(result._tag).toBe('Failure')
+        assert.strictEqual(result._tag, 'Failure')
         if (result._tag === 'Failure') {
-          expect(result.failure._tag).toBe('ScheduleAssignmentTargetNotFoundError')
+          assert.strictEqual(result.failure._tag, 'ScheduleAssignmentTargetNotFoundError')
         }
-        expect(scheduleIdFor(rows, 'inj-1')).toBeNull()
+        assert.isNull(scheduleIdFor(rows, 'inj-1'))
       })
     )
   })
@@ -143,7 +144,7 @@ describe('ScheduleAssignment', () => {
           'user-123'
         )
 
-        expect(count).toBe(0)
+        assert.strictEqual(count, 0)
       })
     )
   })

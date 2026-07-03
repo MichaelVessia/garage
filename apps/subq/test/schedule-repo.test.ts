@@ -1,5 +1,7 @@
-import { describe, expect, it } from '@effect/vitest'
-import { DateTime, Effect, Option } from 'effect'
+import { assert, describe, it } from '@effect/vitest'
+import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import {
   Dosage,
@@ -67,14 +69,14 @@ describe('ScheduleRepo', () => {
             'user-123'
           )
 
-          expect(created.name).toBe('TRT Schedule')
-          expect(created.drug).toBe('Testosterone Cypionate')
-          expect(created.source).toBe('Empower')
-          expect(created.frequency).toBe('weekly')
-          expect(created.isActive).toBe(true)
-          expect(created.phases.length).toBe(3)
-          expect(requireValue(created.phases[0]).dosage).toBe('100mg')
-          expect(requireValue(created.phases[2]).durationDays).toBeNull()
+          assert.strictEqual(created.name, 'TRT Schedule')
+          assert.strictEqual(created.drug, 'Testosterone Cypionate')
+          assert.strictEqual(created.source, 'Empower')
+          assert.strictEqual(created.frequency, 'weekly')
+          assert.strictEqual(created.isActive, true)
+          assert.strictEqual(created.phases.length, 3)
+          assert.strictEqual(requireValue(created.phases[0]).dosage, '100mg')
+          assert.isNull(requireValue(created.phases[2]).durationDays)
         })
       )
     })
@@ -102,7 +104,7 @@ describe('ScheduleRepo', () => {
             'user-123'
           )
 
-          expect(first.isActive).toBe(true)
+          assert.strictEqual(first.isActive, true)
 
           const second = yield* repo.create(
             {
@@ -123,12 +125,12 @@ describe('ScheduleRepo', () => {
             'user-123'
           )
 
-          expect(second.isActive).toBe(true)
+          assert.strictEqual(second.isActive, true)
 
           const firstAfter = yield* repo.findById(first.id, 'user-123')
-          expect(Option.isSome(firstAfter)).toBe(true)
+          assert.strictEqual(Option.isSome(firstAfter), true)
           if (Option.isSome(firstAfter)) {
-            expect(firstAfter.value.isActive).toBe(false)
+            assert.strictEqual(firstAfter.value.isActive, false)
           }
         })
       )
@@ -141,7 +143,7 @@ describe('ScheduleRepo', () => {
         Effect.gen(function* () {
           const repo = yield* ScheduleRepo
           const active = yield* repo.getActive('user-123')
-          expect(Option.isNone(active)).toBe(true)
+          assert.strictEqual(Option.isNone(active), true)
         })
       )
     })
@@ -170,9 +172,9 @@ describe('ScheduleRepo', () => {
           )
 
           const active = yield* repo.getActive('user-123')
-          expect(Option.isSome(active)).toBe(true)
+          assert.strictEqual(Option.isSome(active), true)
           if (Option.isSome(active)) {
-            expect(active.value.id).toBe(created.id)
+            assert.strictEqual(active.value.id, created.id)
           }
         })
       )
@@ -195,7 +197,7 @@ describe('ScheduleRepo', () => {
 
           const repo = yield* ScheduleRepo
           const active = yield* repo.getActive('user-123')
-          expect(Option.isNone(active)).toBe(true)
+          assert.strictEqual(Option.isNone(active), true)
         })
       )
     })
@@ -207,7 +209,7 @@ describe('ScheduleRepo', () => {
         Effect.gen(function* () {
           const repo = yield* ScheduleRepo
           const found = yield* repo.findById('non-existent', 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.strictEqual(Option.isNone(found), true)
         })
       )
     })
@@ -241,10 +243,10 @@ describe('ScheduleRepo', () => {
           )
 
           const found = yield* repo.findById(created.id, 'user-123')
-          expect(Option.isSome(found)).toBe(true)
+          assert.strictEqual(Option.isSome(found), true)
           if (Option.isSome(found)) {
-            expect(found.value.name).toBe('Find Me')
-            expect(found.value.phases.length).toBe(2)
+            assert.strictEqual(found.value.name, 'Find Me')
+            assert.strictEqual(found.value.phases.length, 2)
           }
         })
       )
@@ -257,7 +259,7 @@ describe('ScheduleRepo', () => {
 
           const repo = yield* ScheduleRepo
           const found = yield* repo.findById('sched-1', 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.strictEqual(Option.isNone(found), true)
         })
       )
     })
@@ -296,9 +298,9 @@ describe('ScheduleRepo', () => {
             'user-123'
           )
 
-          expect(updated.name).toBe('Updated')
-          expect(updated.frequency).toBe('every_3_days')
-          expect(updated.drug).toBe('Drug')
+          assert.strictEqual(updated.name, 'Updated')
+          assert.strictEqual(updated.frequency, 'every_3_days')
+          assert.strictEqual(updated.drug, 'Drug')
         })
       )
     })
@@ -326,7 +328,7 @@ describe('ScheduleRepo', () => {
             'user-123'
           )
 
-          expect(created.phases.length).toBe(1)
+          assert.strictEqual(created.phases.length, 1)
 
           const updated = yield* repo.update(
             {
@@ -347,9 +349,9 @@ describe('ScheduleRepo', () => {
             'user-123'
           )
 
-          expect(updated.phases.length).toBe(2)
-          expect(requireValue(updated.phases[0]).dosage).toBe('50mg')
-          expect(requireValue(updated.phases[1]).durationDays).toBeNull()
+          assert.strictEqual(updated.phases.length, 2)
+          assert.strictEqual(requireValue(updated.phases[0]).dosage, '50mg')
+          assert.isNull(requireValue(updated.phases[1]).durationDays)
         })
       )
     })
@@ -401,8 +403,8 @@ describe('ScheduleRepo', () => {
           const firstAfter = yield* repo.findById(first.id, 'user-123')
           const secondAfter = yield* repo.findById(second.id, 'user-123')
 
-          expect(Option.isSome(firstAfter) && firstAfter.value.isActive).toBe(true)
-          expect(Option.isSome(secondAfter) && secondAfter.value.isActive).toBe(false)
+          assert.strictEqual(Option.isSome(firstAfter) && firstAfter.value.isActive, true)
+          assert.strictEqual(Option.isSome(secondAfter) && secondAfter.value.isActive, false)
         })
       )
     })
@@ -421,9 +423,9 @@ describe('ScheduleRepo', () => {
             )
             .pipe(Effect.result)
 
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure._tag).toBe('ScheduleNotFoundError')
+            assert.strictEqual(result.failure._tag, 'ScheduleNotFoundError')
           }
         })
       )
@@ -445,9 +447,9 @@ describe('ScheduleRepo', () => {
             )
             .pipe(Effect.result)
 
-          expect(result._tag).toBe('Failure')
+          assert.strictEqual(result._tag, 'Failure')
           if (result._tag === 'Failure') {
-            expect(result.failure._tag).toBe('ScheduleNotFoundError')
+            assert.strictEqual(result.failure._tag, 'ScheduleNotFoundError')
           }
         })
       )
@@ -479,10 +481,10 @@ describe('ScheduleRepo', () => {
           )
 
           const deleted = yield* repo.delete(created.id, 'user-123')
-          expect(deleted).toBe(true)
+          assert.strictEqual(deleted, true)
 
           const found = yield* repo.findById(created.id, 'user-123')
-          expect(Option.isNone(found)).toBe(true)
+          assert.strictEqual(Option.isNone(found), true)
         })
       )
     })
@@ -492,7 +494,7 @@ describe('ScheduleRepo', () => {
         Effect.gen(function* () {
           const repo = yield* ScheduleRepo
           const deleted = yield* repo.delete('non-existent', 'user-123')
-          expect(deleted).toBe(false)
+          assert.strictEqual(deleted, false)
         })
       )
     })
@@ -504,7 +506,7 @@ describe('ScheduleRepo', () => {
 
           const repo = yield* ScheduleRepo
           const deleted = yield* repo.delete('sched-1', 'user-123')
-          expect(deleted).toBe(false)
+          assert.strictEqual(deleted, false)
         })
       )
     })
@@ -516,7 +518,7 @@ describe('ScheduleRepo', () => {
         Effect.gen(function* () {
           const repo = yield* ScheduleRepo
           const lastDate = yield* repo.getLastInjectionDate('user-123', 'Test Drug')
-          expect(Option.isNone(lastDate)).toBe(true)
+          assert.strictEqual(Option.isNone(lastDate), true)
         })
       )
     })
@@ -531,9 +533,9 @@ describe('ScheduleRepo', () => {
           const repo = yield* ScheduleRepo
           const lastDate = yield* repo.getLastInjectionDate('user-123', 'Testosterone')
 
-          expect(Option.isSome(lastDate)).toBe(true)
+          assert.strictEqual(Option.isSome(lastDate), true)
           if (Option.isSome(lastDate)) {
-            expect(DateTime.formatIso(lastDate.value)).toContain('2024-01-22')
+            assert.include(DateTime.formatIso(lastDate.value), '2024-01-22')
           }
         })
       )
@@ -548,9 +550,9 @@ describe('ScheduleRepo', () => {
           const repo = yield* ScheduleRepo
           const lastDate = yield* repo.getLastInjectionDate('user-123', 'Testosterone')
 
-          expect(Option.isSome(lastDate)).toBe(true)
+          assert.strictEqual(Option.isSome(lastDate), true)
           if (Option.isSome(lastDate)) {
-            expect(DateTime.formatIso(lastDate.value)).toContain('2024-01-15')
+            assert.include(DateTime.formatIso(lastDate.value), '2024-01-15')
           }
         })
       )
@@ -615,20 +617,20 @@ describe('ScheduleRepo', () => {
           const input = requireValue(inputs[0])
           const firstPhase = requireValue(input.schedule.phases[0])
           const secondPhase = requireValue(input.schedule.phases[1])
-          const lastInjectionDate = requireValue(input.lastInjectionDate)
+          const lastInjectionDate = Option.getOrThrow(input.lastInjectionDate)
 
-          expect(inputs).toHaveLength(1)
-          expect(input.userId).toBe('eligible-user')
-          expect(input.email).toBe('eligible@example.com')
-          expect(input.name).toBe('Eligible User')
-          expect(input.schedule.name).toBe('Eligible schedule')
-          expect(input.schedule.source).toBe('Compounded')
-          expect(input.schedule.notes).toBe('Reminder notes')
-          expect(firstPhase.order).toBe(1)
-          expect(firstPhase.dosage).toBe('2.5mg')
-          expect(secondPhase.order).toBe(2)
-          expect(DateTime.formatIso(lastInjectionDate)).toBe('2024-01-08T12:00:00.000Z')
-          expect(input.lastInjectionSite).toBe('abdomen')
+          assert.lengthOf(inputs, 1)
+          assert.strictEqual(input.userId, 'eligible-user')
+          assert.strictEqual(input.email, 'eligible@example.com')
+          assert.strictEqual(input.name, 'Eligible User')
+          assert.strictEqual(input.schedule.name, 'Eligible schedule')
+          assert.strictEqual(input.schedule.source, 'Compounded')
+          assert.strictEqual(input.schedule.notes, 'Reminder notes')
+          assert.strictEqual(firstPhase.order, 1)
+          assert.strictEqual(firstPhase.dosage, '2.5mg')
+          assert.strictEqual(secondPhase.order, 2)
+          assert.strictEqual(DateTime.formatIso(lastInjectionDate), '2024-01-08T12:00:00.000Z')
+          assert.strictEqual(Option.getOrThrow(input.lastInjectionSite), 'abdomen')
         })
       )
     })
@@ -698,10 +700,10 @@ describe('ScheduleRepo', () => {
 
           const schedules = yield* repo.list('user-123')
 
-          expect(schedules.length).toBe(3)
-          expect(requireValue(schedules[0]).name).toBe('March')
-          expect(requireValue(schedules[1]).name).toBe('February')
-          expect(requireValue(schedules[2]).name).toBe('January')
+          assert.strictEqual(schedules.length, 3)
+          assert.strictEqual(requireValue(schedules[0]).name, 'March')
+          assert.strictEqual(requireValue(schedules[1]).name, 'February')
+          assert.strictEqual(requireValue(schedules[2]).name, 'January')
         })
       )
     })
@@ -715,8 +717,8 @@ describe('ScheduleRepo', () => {
           const repo = yield* ScheduleRepo
           const schedules = yield* repo.list('user-123')
 
-          expect(schedules.length).toBe(1)
-          expect(requireValue(schedules[0]).id).toBe('sched-1')
+          assert.strictEqual(schedules.length, 1)
+          assert.strictEqual(requireValue(schedules[0]).id, 'sched-1')
         })
       )
     })
@@ -731,11 +733,11 @@ describe('ScheduleRepo', () => {
           const repo = yield* ScheduleRepo
           const schedules = yield* repo.list('user-123')
 
-          expect(schedules.length).toBe(1)
+          assert.strictEqual(schedules.length, 1)
           const schedule = requireValue(schedules[0])
-          expect(schedule.phases.length).toBe(2)
-          expect(requireValue(schedule.phases[0]).dosage).toBe('100mg')
-          expect(requireValue(schedule.phases[1]).durationDays).toBeNull()
+          assert.strictEqual(schedule.phases.length, 2)
+          assert.strictEqual(requireValue(schedule.phases[0]).dosage, '100mg')
+          assert.isNull(requireValue(schedule.phases[1]).durationDays)
         })
       )
     })

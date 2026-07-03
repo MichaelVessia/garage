@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
-import { DateTime } from 'effect'
+import * as DateTime from 'effect/DateTime'
+import * as P from 'effect/Predicate'
 import * as Story from 'foldkit/story'
 
 import { Notes, Weight, WeightLog, WeightLogId } from '#shared'
@@ -209,8 +210,8 @@ describe('weight page update', () => {
         const [command] = simulation.commands
         expect(command).toBeDefined()
         const weightLbs = command?.args?.weightLbs
-        expect(typeof weightLbs).toBe('number')
-        if (typeof weightLbs === 'number') {
+        expect(P.isNumber(weightLbs)).toBe(true)
+        if (P.isNumber(weightLbs)) {
           expect(weightLbs).toBeCloseTo(185.19, 1)
         }
         return simulation

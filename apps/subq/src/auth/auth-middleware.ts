@@ -1,5 +1,8 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as P from 'effect/Predicate'
+import * as R from 'effect/Record'
+import * as Result from 'effect/Result'
 import type { Headers } from 'effect/unstable/http/Headers'
 
 import { AuthContext, AuthRpcMiddleware, Unauthorized } from '#shared'
@@ -16,19 +19,17 @@ export const AuthRpcMiddlewareLive = Layer.effect(
   Effect.gen(function* () {
     const { auth } = yield* AuthService
 
-    return AuthRpcMiddleware.of((effect, { headers }: { headers: Headers }) =>
-      Effect.gen(function* () {
-        // Convert Headers to a plain object for better-auth
-        const headerObj: Record<string, string> = {}
-        for (const [key, value] of Object.entries(headers)) {
-          if (typeof value === 'string') {
-            headerObj[key] = value
-          }
-        }
+    return AuthRpcMiddleware.of((effect, { headers }: { headers: Headers }) => {
+      const authenticate = Effect.fn('AuthRpcMiddleware.authenticate')(function* () {
+        // Convert Headers to a plain object of string values for better-auth
+        const headerObj = R.filterMap(headers, (value) => (P.isString(value) ? Result.succeed(value) : Result.failVoid))
 
         // better-auth's getSession handles both cookies and Bearer tokens (via bearer plugin)
         const session = yield* Effect.tryPromise(() => auth.api.getSession({ headers: headerObj })).pipe(
-          Effect.catch(() => Effect.succeed(null))
+          Effect.tapError((error) =>
+            Effect.logDebug('Auth: session lookup failed').pipe(Effect.annotateLogs({ error }))
+          ),
+          Effect.catchTag('UnknownError', () => Effect.succeed(null))
         )
 
         if (session?.user === undefined) {
@@ -58,6 +59,8 @@ export const AuthRpcMiddlewareLive = Layer.effect(
           })
         )
       })
-    )
+
+      return authenticate()
+    })
   })
 )

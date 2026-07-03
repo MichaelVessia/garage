@@ -1,0 +1,11 @@
+id: tagged-error-location
+
+valid:
+  - |
+    import { SyncError } from "../errors";
+
+invalid:
+  - |
+    class SyncError extends Data.TaggedError("SyncError")<{
+      readonly reason: string;
+    }> {}
