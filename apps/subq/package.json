@@ -11,6 +11,7 @@
     "dev": "alchemy dev",
     "dev:web": "vite web",
     "deploy": "bun run build && alchemy deploy",
+    "deploy:prod": "bun run build && alchemy deploy --stage prod --env-file .env.prod --yes",
     "db:generate": "drizzle-kit generate",
     "seed:demo": "bun scripts/seed-demo.ts",
     "seed:demo:local": "BETTER_AUTH_URL=http://localhost:1337 bun scripts/seed-demo.ts",

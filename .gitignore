@@ -22,3 +22,5 @@ tmp/
 **/.alchemy/
 .env
 **/.env
+.env.*
+**/.env.*

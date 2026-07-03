@@ -1,6 +1,6 @@
 import { D1Client } from '@effect/sql-d1'
 import * as Cloudflare from 'alchemy/Cloudflare'
-import { Config, Effect, Layer, Redacted } from 'effect'
+import { Config, Effect, Layer, Option, Redacted } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 
@@ -54,6 +54,9 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
   'Subq',
   {
     main: import.meta.filename,
+    // Custom domain, set only in prod's env file (.env.prod); dev stages
+    // stay on workers.dev.
+    domain: Config.string('SUBQ_DOMAIN').pipe(Config.option, Config.map(Option.getOrUndefined)),
     compatibility: {
       date: '2026-06-01',
       flags: ['nodejs_compat'],
