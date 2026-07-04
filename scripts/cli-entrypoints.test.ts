@@ -27,12 +27,19 @@ const cliEntrypoints = Effect.fn('cli-entrypoints.cliEntrypoints')(function* () 
 })
 
 describe('CLI entrypoints', () => {
-  it.effect('run main programs through the Bun Effect runtime', () =>
+  it.effect('run main programs through the shared runCliMain entrypoint', () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem
       const entrypoints = yield* cliEntrypoints()
 
       assert.isTrue(Arr.isReadonlyArrayNonEmpty(entrypoints))
+
+      const runtimeSource = yield* fs.readFileString('packages/cli-protocol/src/index.ts')
+      assert.include(
+        runtimeSource,
+        'BunRuntime.runMain(program)',
+        'runCliMain should run programs through the Bun Effect runtime'
+      )
 
       yield* Effect.forEach(
         entrypoints,
@@ -42,11 +49,12 @@ describe('CLI entrypoints', () => {
 
             assert.match(
               source,
-              /import\s+\{[^}]*\bBunRuntime\b[^}]*\}\s+from\s+'@effect\/platform-bun'/su,
-              `${entrypoint} should import BunRuntime`
+              /import\s+\{[^}]*\brunCliMain\b[^}]*\}\s+from\s+'@garage\/cli-protocol'/su,
+              `${entrypoint} should import runCliMain`
             )
-            assert.include(source, 'BunRuntime.runMain(program)', `${entrypoint} should use BunRuntime.runMain`)
-            assert.notInclude(source, 'Effect.runPromise(program)', `${entrypoint} should not bypass the runtime`)
+            assert.include(source, 'runCliMain({', `${entrypoint} should hand off to runCliMain`)
+            assert.notInclude(source, 'Effect.runPromise', `${entrypoint} should not bypass the runtime`)
+            assert.notInclude(source, 'BunRuntime', `${entrypoint} should leave runtime wiring to runCliMain`)
           }),
         { concurrency: 'unbounded' }
       )
