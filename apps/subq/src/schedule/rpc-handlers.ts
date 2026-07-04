@@ -7,8 +7,6 @@ import type { InjectionScheduleCreate, InjectionScheduleId, InjectionScheduleUpd
 import { ScheduleCadenceService } from './schedule-cadence-service.js'
 import { ScheduleRepo } from './schedule-repo.js'
 
-export { frequencyToDays } from '#shared'
-
 export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
   Effect.gen(function* () {
     const scheduleRepo = yield* ScheduleRepo

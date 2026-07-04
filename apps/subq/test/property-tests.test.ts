@@ -13,6 +13,7 @@ import {
   DayOfWeek,
   DaysBetween,
   Frequency,
+  frequencyToDays,
   InjectionsPerWeek,
   Limit,
   Offset,
@@ -20,8 +21,6 @@ import {
   PhaseOrder,
   Weight,
 } from '#shared'
-
-import { frequencyToDays } from '../src/schedule/rpc-handlers.js'
 
 /**
  * Helper to run property tests within Effect context.

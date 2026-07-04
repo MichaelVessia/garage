@@ -54,14 +54,14 @@ const WeightTrendRow = Schema.Struct({
   datetime: Schema.DateFromString,
   weight: Schema.Number,
 })
-const decodeWeightTrendRow = Schema.decodeUnknownEffect(WeightTrendRow)
+const decodeWeightTrendRows = Schema.decodeUnknownEffect(Schema.Array(WeightTrendRow))
 
 // Injection site count row schema
 const InjectionSiteRow = Schema.Struct({
   injection_site: Schema.NullOr(Schema.String),
   count: Schema.Number,
 })
-const decodeInjectionSiteRow = Schema.decodeUnknownEffect(InjectionSiteRow)
+const decodeInjectionSiteRows = Schema.decodeUnknownEffect(Schema.Array(InjectionSiteRow))
 
 // Dosage history row schema - decode ISO8601 string to Date
 const DosageHistoryRow = Schema.Struct({
@@ -69,14 +69,14 @@ const DosageHistoryRow = Schema.Struct({
   drug: Schema.String,
   dosage: Schema.String,
 })
-const decodeDosageHistoryRow = Schema.decodeUnknownEffect(DosageHistoryRow)
+const decodeDosageHistoryRows = Schema.decodeUnknownEffect(Schema.Array(DosageHistoryRow))
 
 // Drug count row schema
 const DrugCountRow = Schema.Struct({
   drug: Schema.String,
   count: Schema.Number,
 })
-const decodeDrugCountRow = Schema.decodeUnknownEffect(DrugCountRow)
+const decodeDrugCountRows = Schema.decodeUnknownEffect(Schema.Array(DrugCountRow))
 
 // Datetime-only row schema (for timezone-aware day of week calculation)
 const DatetimeRow = Schema.Struct({
@@ -113,18 +113,24 @@ export const StatsServiceLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
+    const dateRangeClause = (params: StatsParams) => {
+      const startDateStr = params.startDate?.toISOString()
+      const endDateStr = params.endDate?.toISOString()
+      return sql`
+        ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
+        ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+      `
+    }
+
     const listInjectionDatetimes = Effect.fn('StatsService.listInjectionDatetimes')(function* (
       params: StatsParams,
       userId: string
     ) {
-      const startDateStr = params.startDate?.toISOString()
-      const endDateStr = params.endDate?.toISOString()
       const rows = yield* sql`
           SELECT datetime
           FROM injection_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${dateRangeClause(params)}
           ORDER BY datetime ASC
         `
       const decoded = yield* decodeDatetimeRows(rows)
@@ -133,8 +139,6 @@ export const StatsServiceLive = Layer.effect(
 
     const getWeightStats = Effect.fn('StatsService.getWeightStats')(function* (params: StatsParams, userId: string) {
       yield* Effect.annotateCurrentSpan('userId', userId)
-      const startDateStr = params.startDate?.toISOString()
-      const endDateStr = params.endDate?.toISOString()
 
       // Combined query: get summary stats and all points in a single D1 roundtrip
       const rows = yield* sql`
@@ -149,15 +153,13 @@ export const StatsServiceLive = Layer.effect(
                 SELECT datetime, weight
                 FROM weight_logs
                 WHERE user_id = ${userId}
-                ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-                ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+                ${dateRangeClause(params)}
                 ORDER BY datetime ASC
               )
             ) as points_json
           FROM weight_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${dateRangeClause(params)}
         `
       if (Arr.isReadonlyArrayEmpty(rows)) {
         return Option.none()
@@ -191,24 +193,17 @@ export const StatsServiceLive = Layer.effect(
 
     const getWeightTrend = Effect.fn('StatsService.getWeightTrend')(function* (params: StatsParams, userId: string) {
       yield* Effect.annotateCurrentSpan('userId', userId)
-      const startDateStr = params.startDate?.toISOString()
-      const endDateStr = params.endDate?.toISOString()
       const rows = yield* sql`
           SELECT datetime, weight
           FROM weight_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${dateRangeClause(params)}
           ORDER BY datetime ASC
         `
-      const points = yield* Effect.forEach(
-        rows,
-        (row) =>
-          Effect.map(
-            decodeWeightTrendRow(row),
-            (decoded) => new WeightTrendPoint({ date: decoded.datetime, weight: Weight.make(decoded.weight) })
-          ),
-        { concurrency: 1 }
+      const decoded = yield* decodeWeightTrendRows(rows)
+      const points = Arr.map(
+        decoded,
+        (row) => new WeightTrendPoint({ date: row.datetime, weight: Weight.make(row.weight) })
       )
 
       const trajectory = calculateWeightTrajectory(points)
@@ -234,22 +229,17 @@ export const StatsServiceLive = Layer.effect(
       userId: string
     ) {
       yield* Effect.annotateCurrentSpan('userId', userId)
-      const startDateStr = params.startDate?.toISOString()
-      const endDateStr = params.endDate?.toISOString()
       const rows = yield* sql`
           SELECT
             COALESCE(injection_site, 'Unknown') as injection_site,
             COUNT(*) as count
           FROM injection_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${dateRangeClause(params)}
           GROUP BY injection_site
           ORDER BY count DESC
         `
-      const decodedRows = yield* Effect.forEach(rows, (row) => decodeInjectionSiteRow(row), {
-        concurrency: 1,
-      })
+      const decodedRows = yield* decodeInjectionSiteRows(rows)
       const sites = Arr.map(
         decodedRows,
         (decoded) =>
@@ -268,26 +258,19 @@ export const StatsServiceLive = Layer.effect(
       userId: string
     ) {
       yield* Effect.annotateCurrentSpan('userId', userId)
-      const startDateStr = params.startDate?.toISOString()
-      const endDateStr = params.endDate?.toISOString()
       const rows = yield* sql`
           SELECT datetime, drug, dosage
           FROM injection_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${dateRangeClause(params)}
           ORDER BY datetime ASC
         `
-      const inputs = yield* Effect.forEach(
-        rows,
-        (row) =>
-          Effect.map(decodeDosageHistoryRow(row), (decoded) => ({
-            date: decoded.datetime,
-            drug: decoded.drug,
-            dosage: decoded.dosage,
-          })),
-        { concurrency: 1 }
-      )
+      const decoded = yield* decodeDosageHistoryRows(rows)
+      const inputs = Arr.map(decoded, (row) => ({
+        date: row.datetime,
+        drug: row.drug,
+        dosage: row.dosage,
+      }))
       yield* Effect.annotateCurrentSpan('pointCount', inputs.length)
       return buildDosageHistoryStats(inputs)
     }, Effect.orDie)
@@ -314,20 +297,15 @@ export const StatsServiceLive = Layer.effect(
       userId: string
     ) {
       yield* Effect.annotateCurrentSpan('userId', userId)
-      const startDateStr = params.startDate?.toISOString()
-      const endDateStr = params.endDate?.toISOString()
       const rows = yield* sql`
           SELECT drug, COUNT(*) as count
           FROM injection_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${dateRangeClause(params)}
           GROUP BY drug
           ORDER BY count DESC
         `
-      const decodedRows = yield* Effect.forEach(rows, (row) => decodeDrugCountRow(row), {
-        concurrency: 1,
-      })
+      const decodedRows = yield* decodeDrugCountRows(rows)
       const drugs = Arr.map(
         decodedRows,
         (decoded) => new DrugCount({ drug: DrugName.make(decoded.drug), count: Count.make(decoded.count) })

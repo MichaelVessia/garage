@@ -55,11 +55,8 @@ export const DataExportServiceLive = Layer.effect(
         FROM schedule_phases WHERE schedule_id = ${r.id}
         ORDER BY "order" ASC
       `
-      const phases = yield* Effect.forEach(
-        phaseRows,
-        (pr) => Schema.decodeUnknownEffect(PhaseRow)(pr).pipe(Effect.map(phaseRowToDomain)),
-        { concurrency: 1 }
-      )
+      const decodedPhaseRows = yield* Schema.decodeUnknownEffect(Schema.Array(PhaseRow))(phaseRows)
+      const phases = Arr.map(decodedPhaseRows, phaseRowToDomain)
 
       return scheduleRowToDomain(r, phases)
     })
@@ -72,11 +69,8 @@ export const DataExportServiceLive = Layer.effect(
           FROM weight_logs WHERE user_id = ${userId}
           ORDER BY datetime DESC
         `
-        const weightLogs = yield* Effect.forEach(
-          weightLogRows,
-          (row) => Schema.decodeUnknownEffect(WeightLogRow)(row).pipe(Effect.map(weightLogRowToDomain)),
-          { concurrency: 1 }
-        )
+        const decodedWeightLogRows = yield* Schema.decodeUnknownEffect(Schema.Array(WeightLogRow))(weightLogRows)
+        const weightLogs = Arr.map(decodedWeightLogRows, weightLogRowToDomain)
 
         // Fetch all injection logs
         const injectionLogRows = yield* sql`
@@ -84,11 +78,10 @@ export const DataExportServiceLive = Layer.effect(
           FROM injection_logs WHERE user_id = ${userId}
           ORDER BY datetime DESC
         `
-        const injectionLogs = yield* Effect.forEach(
-          injectionLogRows,
-          (row) => Schema.decodeUnknownEffect(InjectionLogRow)(row).pipe(Effect.map(injectionLogRowToDomain)),
-          { concurrency: 1 }
+        const decodedInjectionLogRows = yield* Schema.decodeUnknownEffect(Schema.Array(InjectionLogRow))(
+          injectionLogRows
         )
+        const injectionLogs = Arr.map(decodedInjectionLogRows, injectionLogRowToDomain)
 
         // Fetch all schedules with phases
         const scheduleRows = yield* sql`
@@ -106,11 +99,8 @@ export const DataExportServiceLive = Layer.effect(
           FROM user_goals WHERE user_id = ${userId}
           ORDER BY created_at DESC
         `
-        const goals = yield* Effect.forEach(
-          goalRows,
-          (row) => Schema.decodeUnknownEffect(GoalRow)(row).pipe(Effect.map(goalRowToDomain)),
-          { concurrency: 1 }
-        )
+        const decodedGoalRows = yield* Schema.decodeUnknownEffect(Schema.Array(GoalRow))(goalRows)
+        const goals = Arr.map(decodedGoalRows, goalRowToDomain)
 
         // Fetch settings
         const settingsRows = yield* sql`
