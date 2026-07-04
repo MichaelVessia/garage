@@ -5,6 +5,8 @@ import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 import { Command } from 'foldkit'
 import { m } from 'foldkit/message'
 
+import { toCommandResult } from './lib/command.js'
+
 // ============================================
 // Session
 // ============================================
@@ -105,12 +107,7 @@ export const SignIn = Command.define(
     }
     const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
     return SucceededSignIn({ user: session.user })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedSignIn({ message: 'Sign in failed' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedSignIn, 'Sign in failed'))
 )
 
 export const SignUp = Command.define(
@@ -127,12 +124,7 @@ export const SignUp = Command.define(
     }
     const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
     return SucceededSignUp({ user: session.user })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedSignUp({ message: 'Sign up failed' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedSignUp, 'Sign up failed'))
 )
 
 export const SignOut = Command.define(
@@ -164,10 +156,5 @@ export const ChangePassword = Command.define(
       return FailedChangePassword({ message: errorMessage('Password change failed')(body) })
     }
     return SucceededChangePassword()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedChangePassword({ message: 'Password change failed' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedChangePassword, 'Password change failed'))
 )

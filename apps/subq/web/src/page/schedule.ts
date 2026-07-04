@@ -33,18 +33,12 @@ import { Api } from '../api.js'
 import { toCommandResult } from '../lib/command.js'
 import { formatDate, formatShortDate, fromLocalDateString, utcToLocalDateString } from '../lib/datetime.js'
 import { withForm } from '../lib/form.js'
+import { FREQUENCIES, frequencyFromString, frequencyLabel } from '../lib/frequency.js'
+import { viewDatalist } from '../lib/view.js'
 import { scheduleViewRouter } from '../route.js'
 import { button, card, input, select } from '../ui.js'
 
 const DOSAGE_PATTERN = /^\d+(\.\d+)?\s*(mg|mcg|ml|units?|iu)$/iu
-
-const FREQUENCIES: ReadonlyArray<readonly [value: Frequency, label: string]> = [
-  ['daily', 'Daily'],
-  ['every_3_days', 'Every 3 days'],
-  ['weekly', 'Weekly'],
-  ['every_2_weeks', 'Every 2 weeks'],
-  ['monthly', 'Monthly'],
-]
 
 // ============================================
 // Model
@@ -550,14 +544,6 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
 
 const h = html<ScheduleMessage>()
 
-const frequencyLabel = (frequency: Frequency): string =>
-  FREQUENCIES.find(([value]) => value === frequency)?.[1] ?? frequency
-
-const frequencyFromString = (value: string): Frequency => {
-  const frequency = FREQUENCIES.find(([candidate]) => candidate === value)
-  return frequency === undefined ? 'weekly' : frequency[0]
-}
-
 const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
   Arr.dedupe(Arr.appendAll(primary, fallback))
 
@@ -573,12 +559,6 @@ const scheduleSubmitLabel = (form: ScheduleForm): string => {
   }
   return form.editingId !== null ? 'Update Schedule' : 'Create Schedule'
 }
-
-const viewDatalist = (id: string, values: ReadonlyArray<string>) =>
-  h.datalist(
-    [h.Id(id)],
-    values.map((value) => h.keyed('option')(value, [h.Value(value)], []))
-  )
 
 const dueTextFor = (daysUntilDue: number): string => {
   if (daysUntilDue === 0) {
@@ -918,7 +898,7 @@ const viewForm = (model: ScheduleModel, form: ScheduleForm) => {
                 h.Value(form.drug),
                 h.OnInput((value) => ChangedScheduleDrug({ value })),
               ]),
-              viewDatalist('schedule-drug-suggestions', drugSuggestions(model.drugs)),
+              viewDatalist(h, 'schedule-drug-suggestions', drugSuggestions(model.drugs)),
             ]
           ),
           h.div(

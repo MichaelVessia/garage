@@ -35,6 +35,7 @@ import { Api } from '../api.js'
 import { toCommandResult } from '../lib/command.js'
 import { formatDateTime, fromLocalDatetimeString, utcToLocalDatetimeString } from '../lib/datetime.js'
 import { withForm } from '../lib/form.js'
+import { headerButton, viewDatalist } from '../lib/view.js'
 import { button, card, input, select } from '../ui.js'
 
 const PAGE_SIZE = 10
@@ -558,18 +559,6 @@ const injectionSubmitLabel = (form: InjectionForm): string => {
   return form.editingId !== null ? 'Update' : 'Save'
 }
 
-const headerButton = (label: string, message: InjectionsMessage) =>
-  h.button(
-    [h.Class('flex items-center gap-1 text-left font-medium hover:text-foreground'), h.OnClick(message)],
-    [label]
-  )
-
-const viewDatalist = (id: string, values: ReadonlyArray<string>) =>
-  h.datalist(
-    [h.Id(id)],
-    values.map((value) => h.keyed('option')(value, [h.Value(value)], []))
-  )
-
 const selectedSchedule = (
   schedules: ReadonlyArray<InjectionSchedule>,
   form: InjectionForm
@@ -661,7 +650,7 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                 h.Value(form.drug),
                 h.OnInput((value) => ChangedInjectionDrug({ value })),
               ]),
-              viewDatalist('injection-drug-suggestions', drugSuggestions),
+              viewDatalist(h, 'injection-drug-suggestions', drugSuggestions),
             ]
           ),
           h.div(
@@ -703,7 +692,7 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                     h.Value(form.dosage),
                     h.OnInput((value) => ChangedInjectionDosage({ value })),
                   ]),
-                  viewDatalist('injection-dosage-suggestions', dosageSuggestions),
+                  viewDatalist(h, 'injection-dosage-suggestions', dosageSuggestions),
                 ]
               ),
               h.div(
@@ -736,7 +725,7 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                 h.Value(form.injectionSite),
                 h.OnInput((value) => ChangedInjectionSite({ value })),
               ]),
-              viewDatalist('injection-site-suggestions', siteSuggestions),
+              viewDatalist(h, 'injection-site-suggestions', siteSuggestions),
               h.p(
                 [h.Class('text-xs text-muted-foreground mt-1')],
                 ['Rotating injection sites helps prevent lipodystrophy']
@@ -849,6 +838,7 @@ const viewTable = (
                         [h.Class('h-10 px-3 text-left align-middle')],
                         [
                           headerButton(
+                            h,
                             `Date${sortIndicator(model, 'datetime')}`,
                             ClickedInjectionSort({ column: 'datetime' })
                           ),
@@ -856,12 +846,19 @@ const viewTable = (
                       ),
                       h.th(
                         [h.Class('h-10 px-3 text-left align-middle')],
-                        [headerButton(`Drug${sortIndicator(model, 'drug')}`, ClickedInjectionSort({ column: 'drug' }))]
+                        [
+                          headerButton(
+                            h,
+                            `Drug${sortIndicator(model, 'drug')}`,
+                            ClickedInjectionSort({ column: 'drug' })
+                          ),
+                        ]
                       ),
                       h.th(
                         [h.Class('h-10 px-3 text-left align-middle')],
                         [
                           headerButton(
+                            h,
                             `Dosage${sortIndicator(model, 'dosage')}`,
                             ClickedInjectionSort({ column: 'dosage' })
                           ),

@@ -28,6 +28,7 @@ import { formatWeight, toStorageLbs } from '../data/settings.js'
 import { toCommandResult } from '../lib/command.js'
 import { formatDateTime, fromLocalDatetimeString, utcToLocalDatetimeString } from '../lib/datetime.js'
 import { withForm } from '../lib/form.js'
+import { headerButton } from '../lib/view.js'
 import { button, input } from '../ui.js'
 
 const PAGE_SIZE = 10
@@ -433,12 +434,6 @@ const viewDeleteConfirm = () =>
     ]
   )
 
-const headerButton = (label: string, message: WeightMessage) =>
-  h.button(
-    [h.Class('flex items-center gap-1 text-left font-medium hover:text-foreground'), h.OnClick(message)],
-    [label]
-  )
-
 const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: WeightUnit) => {
   const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
   const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
@@ -463,6 +458,7 @@ const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: Wei
                         [h.Class('h-10 px-3 text-left align-middle')],
                         [
                           headerButton(
+                            h,
                             `Date${sortIndicator(model, 'datetime')}`,
                             ClickedWeightSort({ column: 'datetime' })
                           ),
@@ -472,6 +468,7 @@ const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: Wei
                         [h.Class('h-10 px-3 text-left align-middle')],
                         [
                           headerButton(
+                            h,
                             `Weight (${unit})${sortIndicator(model, 'weight')}`,
                             ClickedWeightSort({ column: 'weight' })
                           ),

@@ -9,6 +9,7 @@ import { DEFAULT_WEIGHT_UNIT, UserSettings, kgToLbs, lbsToKg } from '#shared'
 import type { WeightUnit } from '#shared'
 
 import { Api } from '../api.js'
+import { toCommandResult } from '../lib/command.js'
 
 // ============================================
 // App-level user settings (weight unit)
@@ -29,12 +30,7 @@ export const FetchSettings = Command.define(
     const api = yield* Api
     const settings = yield* api.UserSettingsGet()
     return SucceededFetchSettings({ settings })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchSettings({ message: 'Failed to load settings' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchSettings, 'Failed to load settings'))
 )
 
 // ============================================

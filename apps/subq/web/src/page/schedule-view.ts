@@ -11,21 +11,14 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
 import { InjectionScheduleId, ScheduleView } from '#shared'
-import type { Frequency, SchedulePhaseView } from '#shared'
+import type { SchedulePhaseView } from '#shared'
 
 import { Api } from '../api.js'
 import { toCommandResult } from '../lib/command.js'
 import { formatDate, formatDateTime, formatShortDate } from '../lib/datetime.js'
+import { frequencyLabel } from '../lib/frequency.js'
 import { scheduleRouter } from '../route.js'
 import { card } from '../ui.js'
-
-const FREQUENCY_LABELS: ReadonlyArray<readonly [value: Frequency, label: string]> = [
-  ['daily', 'Daily'],
-  ['every_3_days', 'Every 3 days'],
-  ['weekly', 'Weekly'],
-  ['every_2_weeks', 'Every 2 weeks'],
-  ['monthly', 'Monthly'],
-]
 
 // ============================================
 // Model
@@ -110,9 +103,6 @@ export const updateScheduleView = (model: ScheduleViewModel, message: ScheduleVi
 // ============================================
 
 const h = html<ScheduleViewMessage>()
-
-const frequencyLabel = (frequency: Frequency): string =>
-  FREQUENCY_LABELS.find(([value]) => value === frequency)?.[1] ?? frequency
 
 const phaseCircleClass = (status: SchedulePhaseView['status']): string => {
   if (status === 'completed') {
