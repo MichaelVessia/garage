@@ -20,7 +20,7 @@ import { randomUuid } from '../shared/common/random-uuid.js'
 // Schema for rows as they come from SQLite
 // (snake_case columns, ISO strings for dates, numbers for weight)
 // All weights are stored in lbs
-const WeightLogRow = Schema.Struct({
+export const WeightLogRow = Schema.Struct({
   id: Schema.String,
   datetime: Schema.String,
   weight: Schema.Number,
@@ -28,11 +28,12 @@ const WeightLogRow = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+export type WeightLogRow = typeof WeightLogRow.Type
 
 const decodeRow = Schema.decodeUnknownEffect(WeightLogRow)
 
 // Transform DB row to domain object using branded type constructors
-const rowToDomain = (row: typeof WeightLogRow.Type): WeightLog =>
+export const rowToDomain = (row: typeof WeightLogRow.Type): WeightLog =>
   new WeightLog({
     id: WeightLogId.make(row.id),
     datetime: DateTime.makeUnsafe(row.datetime),

@@ -4,38 +4,16 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
-import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
 
-import type { DataImportResult } from '#shared'
-import {
-  DataExport,
-  DataExportError,
-  DataImportError,
-  Dosage,
-  DrugName,
-  DrugSource,
-  ExportedSettings,
-  Frequency,
-  GoalId,
-  InjectionLog,
-  InjectionLogId,
-  InjectionSchedule,
-  InjectionScheduleId,
-  InjectionSite,
-  Notes,
-  PhaseDurationDays,
-  PhaseOrder,
-  ScheduleName,
-  SchedulePhase,
-  SchedulePhaseId,
-  UserGoal,
-  Weight,
-  WeightLog,
-  WeightLogId,
-} from '#shared'
+import type { DataImportResult, InjectionSchedule } from '#shared'
+import { DataExport, DataExportError, DataImportError, ExportedSettings } from '#shared'
 
+import { goalRowToDomain, GoalRow } from '../goals/goal-repo.js'
+import { InjectionLogRow, rowToDomain as injectionLogRowToDomain } from '../injection/injection-log-repo.js'
+import { phaseRowToDomain, PhaseRow, scheduleRowToDomain, ScheduleRow } from '../schedule/schedule-repo.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
+import { rowToDomain as weightLogRowToDomain, WeightLogRow } from '../weight/weight-log-repo.js'
 import { planDataImport } from './data-import-plan.js'
 import type { DataImportPlan } from './data-import-plan.js'
 
@@ -54,64 +32,6 @@ export class DataExportService extends Context.Service<
 // ============================================
 // Row Schemas for Direct SQL Queries
 // ============================================
-
-const WeightLogRow = Schema.Struct({
-  id: Schema.String,
-  datetime: Schema.String,
-  weight: Schema.Number,
-  notes: Schema.NullOr(Schema.String),
-  created_at: Schema.String,
-  updated_at: Schema.String,
-})
-
-const InjectionLogRow = Schema.Struct({
-  id: Schema.String,
-  datetime: Schema.String,
-  drug: Schema.String,
-  source: Schema.NullOr(Schema.String),
-  dosage: Schema.String,
-  injection_site: Schema.NullOr(Schema.String),
-  notes: Schema.NullOr(Schema.String),
-  schedule_id: Schema.NullOr(Schema.String),
-  created_at: Schema.String,
-  updated_at: Schema.String,
-})
-
-const ScheduleRow = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  drug: Schema.String,
-  source: Schema.NullOr(Schema.String),
-  frequency: Frequency,
-  start_date: Schema.String,
-  is_active: Schema.Number,
-  notes: Schema.NullOr(Schema.String),
-  created_at: Schema.String,
-  updated_at: Schema.String,
-})
-
-const PhaseRow = Schema.Struct({
-  id: Schema.String,
-  schedule_id: Schema.String,
-  order: PhaseOrder,
-  duration_days: Schema.NullOr(PhaseDurationDays),
-  dosage: Schema.String,
-  created_at: Schema.String,
-  updated_at: Schema.String,
-})
-
-const GoalRow = Schema.Struct({
-  id: Schema.String,
-  goal_weight: Schema.Number,
-  starting_weight: Schema.Number,
-  starting_date: Schema.String,
-  target_date: Schema.NullOr(Schema.String),
-  notes: Schema.NullOr(Schema.String),
-  is_active: Schema.Number,
-  completed_at: Schema.NullOr(Schema.String),
-  created_at: Schema.String,
-  updated_at: Schema.String,
-})
 
 const SettingsRow = Schema.Struct({
   weight_unit: Schema.Literals(['lbs', 'kg'] as const),
@@ -137,37 +57,11 @@ export const DataExportServiceLive = Layer.effect(
       `
       const phases = yield* Effect.forEach(
         phaseRows,
-        (pr) =>
-          Schema.decodeUnknownEffect(PhaseRow)(pr).pipe(
-            Effect.map(
-              (p) =>
-                new SchedulePhase({
-                  id: SchedulePhaseId.make(p.id),
-                  scheduleId: InjectionScheduleId.make(p.schedule_id),
-                  order: p.order,
-                  durationDays: p.duration_days,
-                  dosage: Dosage.make(p.dosage),
-                  createdAt: DateTime.makeUnsafe(p.created_at),
-                  updatedAt: DateTime.makeUnsafe(p.updated_at),
-                })
-            )
-          ),
+        (pr) => Schema.decodeUnknownEffect(PhaseRow)(pr).pipe(Effect.map(phaseRowToDomain)),
         { concurrency: 1 }
       )
 
-      return new InjectionSchedule({
-        id: InjectionScheduleId.make(r.id),
-        name: ScheduleName.make(r.name),
-        drug: DrugName.make(r.drug),
-        source: r.source !== null && Str.isNonEmpty(r.source) ? DrugSource.make(r.source) : null,
-        frequency: r.frequency,
-        startDate: DateTime.makeUnsafe(r.start_date),
-        isActive: r.is_active === 1,
-        notes: r.notes !== null && Str.isNonEmpty(r.notes) ? Notes.make(r.notes) : null,
-        phases,
-        createdAt: DateTime.makeUnsafe(r.created_at),
-        updatedAt: DateTime.makeUnsafe(r.updated_at),
-      })
+      return scheduleRowToDomain(r, phases)
     })
 
     const exportData = Effect.fn('DataExportService.exportData')(
@@ -180,20 +74,7 @@ export const DataExportServiceLive = Layer.effect(
         `
         const weightLogs = yield* Effect.forEach(
           weightLogRows,
-          (row) =>
-            Schema.decodeUnknownEffect(WeightLogRow)(row).pipe(
-              Effect.map(
-                (r) =>
-                  new WeightLog({
-                    id: WeightLogId.make(r.id),
-                    datetime: DateTime.makeUnsafe(r.datetime),
-                    weight: Weight.make(r.weight),
-                    notes: r.notes !== null && Str.isNonEmpty(r.notes) ? Notes.make(r.notes) : null,
-                    createdAt: DateTime.makeUnsafe(r.created_at),
-                    updatedAt: DateTime.makeUnsafe(r.updated_at),
-                  })
-              )
-            ),
+          (row) => Schema.decodeUnknownEffect(WeightLogRow)(row).pipe(Effect.map(weightLogRowToDomain)),
           { concurrency: 1 }
         )
 
@@ -205,30 +86,7 @@ export const DataExportServiceLive = Layer.effect(
         `
         const injectionLogs = yield* Effect.forEach(
           injectionLogRows,
-          (row) =>
-            Schema.decodeUnknownEffect(InjectionLogRow)(row).pipe(
-              Effect.map(
-                (r) =>
-                  new InjectionLog({
-                    id: InjectionLogId.make(r.id),
-                    datetime: DateTime.makeUnsafe(r.datetime),
-                    drug: DrugName.make(r.drug),
-                    source: r.source !== null && Str.isNonEmpty(r.source) ? DrugSource.make(r.source) : null,
-                    dosage: Dosage.make(r.dosage),
-                    injectionSite:
-                      r.injection_site !== null && Str.isNonEmpty(r.injection_site)
-                        ? InjectionSite.make(r.injection_site)
-                        : null,
-                    notes: r.notes !== null && Str.isNonEmpty(r.notes) ? Notes.make(r.notes) : null,
-                    scheduleId:
-                      r.schedule_id !== null && Str.isNonEmpty(r.schedule_id)
-                        ? InjectionScheduleId.make(r.schedule_id)
-                        : null,
-                    createdAt: DateTime.makeUnsafe(r.created_at),
-                    updatedAt: DateTime.makeUnsafe(r.updated_at),
-                  })
-              )
-            ),
+          (row) => Schema.decodeUnknownEffect(InjectionLogRow)(row).pipe(Effect.map(injectionLogRowToDomain)),
           { concurrency: 1 }
         )
 
@@ -248,30 +106,7 @@ export const DataExportServiceLive = Layer.effect(
         `
         const goals = yield* Effect.forEach(
           goalRows,
-          (row) =>
-            Schema.decodeUnknownEffect(GoalRow)(row).pipe(
-              Effect.map(
-                (r) =>
-                  new UserGoal({
-                    id: GoalId.make(r.id),
-                    goalWeight: Weight.make(r.goal_weight),
-                    startingWeight: Weight.make(r.starting_weight),
-                    startingDate: DateTime.makeUnsafe(r.starting_date),
-                    targetDate:
-                      r.target_date !== null && Str.isNonEmpty(r.target_date)
-                        ? DateTime.makeUnsafe(r.target_date)
-                        : null,
-                    notes: r.notes !== null && Str.isNonEmpty(r.notes) ? Notes.make(r.notes) : null,
-                    isActive: r.is_active === 1,
-                    completedAt:
-                      r.completed_at !== null && Str.isNonEmpty(r.completed_at)
-                        ? DateTime.makeUnsafe(r.completed_at)
-                        : null,
-                    createdAt: DateTime.makeUnsafe(r.created_at),
-                    updatedAt: DateTime.makeUnsafe(r.updated_at),
-                  })
-              )
-            ),
+          (row) => Schema.decodeUnknownEffect(GoalRow)(row).pipe(Effect.map(goalRowToDomain)),
           { concurrency: 1 }
         )
 

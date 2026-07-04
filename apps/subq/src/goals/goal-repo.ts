@@ -17,7 +17,7 @@ import { randomUuid } from '../shared/common/random-uuid.js'
 // Database Row Schemas
 // ============================================
 
-const GoalRow = Schema.Struct({
+export const GoalRow = Schema.Struct({
   id: Schema.String,
   user_id: Schema.String,
   goal_weight: Schema.Number,
@@ -30,10 +30,11 @@ const GoalRow = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+export type GoalRow = typeof GoalRow.Type
 
 const decodeGoalRow = Schema.decodeUnknownEffect(GoalRow)
 
-const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
+export const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
   new UserGoal({
     id: GoalId.make(row.id),
     goalWeight: Weight.make(row.goal_weight),

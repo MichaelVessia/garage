@@ -33,7 +33,7 @@ import { randomUuid } from '../shared/common/random-uuid.js'
 // Database Row Schemas
 // ============================================
 
-const ScheduleRow = Schema.Struct({
+export const ScheduleRow = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   drug: Schema.String,
@@ -45,13 +45,14 @@ const ScheduleRow = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+export type ScheduleRow = typeof ScheduleRow.Type
 
 const DatetimeRow = Schema.Struct({
   datetime: Schema.String,
 })
 const decodeDatetimeRow = Schema.decodeUnknownEffect(DatetimeRow)
 
-const PhaseRow = Schema.Struct({
+export const PhaseRow = Schema.Struct({
   id: Schema.String,
   schedule_id: Schema.String,
   order: PhaseOrder,
@@ -60,6 +61,7 @@ const PhaseRow = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+export type PhaseRow = typeof PhaseRow.Type
 
 // Schema for joined schedule + phase rows (single query with LEFT JOIN)
 const ScheduleWithPhaseRow = Schema.Struct({
@@ -142,7 +144,7 @@ interface ActiveScheduleAccumulator {
   readonly phases: readonly SchedulePhase[]
 }
 
-const phaseRowToDomain = (row: typeof PhaseRow.Type): SchedulePhase =>
+export const phaseRowToDomain = (row: typeof PhaseRow.Type): SchedulePhase =>
   new SchedulePhase({
     id: SchedulePhaseId.make(row.id),
     scheduleId: InjectionScheduleId.make(row.schedule_id),
@@ -153,7 +155,7 @@ const phaseRowToDomain = (row: typeof PhaseRow.Type): SchedulePhase =>
     updatedAt: DateTime.makeUnsafe(row.updated_at),
   })
 
-const scheduleRowToDomain = (row: typeof ScheduleRow.Type, phases: SchedulePhase[]): InjectionSchedule =>
+export const scheduleRowToDomain = (row: typeof ScheduleRow.Type, phases: SchedulePhase[]): InjectionSchedule =>
   new InjectionSchedule({
     id: InjectionScheduleId.make(row.id),
     name: ScheduleName.make(row.name),

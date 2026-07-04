@@ -30,7 +30,7 @@ import { randomUuid } from '../shared/common/random-uuid.js'
 
 // Schema for rows as they come from SQLite
 // (snake_case columns, ISO strings for dates)
-const InjectionLogRow = Schema.Struct({
+export const InjectionLogRow = Schema.Struct({
   id: Schema.String,
   datetime: Schema.String,
   drug: Schema.String,
@@ -42,6 +42,7 @@ const InjectionLogRow = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+export type InjectionLogRow = typeof InjectionLogRow.Type
 
 const decodeRow = Schema.decodeUnknownEffect(InjectionLogRow)
 
@@ -56,7 +57,7 @@ const LastSiteRow = Schema.Struct({ injection_site: Schema.NullOr(Schema.String)
 const decodeLastSiteRows = Schema.decodeUnknownEffect(Schema.Array(LastSiteRow))
 
 // Transform DB row to domain object using branded type constructors
-const rowToDomain = (row: typeof InjectionLogRow.Type): InjectionLog =>
+export const rowToDomain = (row: typeof InjectionLogRow.Type): InjectionLog =>
   new InjectionLog({
     id: InjectionLogId.make(row.id),
     datetime: DateTime.makeUnsafe(row.datetime),
