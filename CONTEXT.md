@@ -54,8 +54,9 @@ The shared package defining the JSON envelope (`{ command, result }` /
 _Avoid_: shared, common, utils.
 
 **Tagged error** (`packages/<svc>/src/errors.ts`):
-A `Data.TaggedError` (or `Schema.ErrorClass`) defined in a package's `errors.ts`
-and carried in an Effect's error channel. Errors are values, never thrown.
+A `Schema.TaggedErrorClass` defined in a package's `errors.ts` and carried in
+an Effect's error channel. Errors are values, never thrown. Lint rule EF-1
+bans `Data.TaggedError`.
 _Avoid_: exception, custom error.
 
 **Validation gate** (`bun run validate`):
