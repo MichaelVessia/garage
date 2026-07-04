@@ -91,83 +91,39 @@ export const SabnzbdApiLive = Layer.effect(
     ): Effect.Effect<A, E | SabnzbdError, R> => sabnzbdConfig.get().pipe(Effect.flatMap(f))
 
     return SabnzbdApi.of({
-      status: Effect.fn('SabnzbdApi.status')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, 'fullstatus', FullStatusResponseSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'status' })
-      ),
-      version: Effect.fn('SabnzbdApi.version')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, 'version', VersionResponseSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'version' })
-      ),
-      queue: Effect.fn('SabnzbdApi.queue')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'sabnzbd.limit': options.limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, 'queue', QueueResponseSchema, [
-              ['start', 0],
-              ['limit', options.limit],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'queue' })
-      ),
-      history: Effect.fn('SabnzbdApi.history')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'sabnzbd.limit': options.limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, 'history', HistoryResponseSchema, [
-              ['start', 0],
-              ['limit', options.limit],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'history' })
-      ),
-      pause: Effect.fn('SabnzbdApi.pause')(
-        function* () {
-          yield* Effect.annotateCurrentSpan({ 'sabnzbd.action': 'pause' })
-          return yield* withConfig((config) =>
-            getJson(client, config, 'pause', ActionResponseSchema).pipe(Effect.map((ok) => actionResult('pause', ok)))
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'pause' })
-      ),
-      resume: Effect.fn('SabnzbdApi.resume')(
-        function* () {
-          yield* Effect.annotateCurrentSpan({ 'sabnzbd.action': 'resume' })
-          return yield* withConfig((config) =>
-            getJson(client, config, 'resume', ActionResponseSchema).pipe(Effect.map((ok) => actionResult('resume', ok)))
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'resume' })
-      ),
-      delete: Effect.fn('SabnzbdApi.delete')(
-        function* (nzoId, options) {
-          yield* Effect.annotateCurrentSpan({
-            'sabnzbd.nzo_id': nzoId,
-            'sabnzbd.delete_files': options.deleteFiles,
-            'sabnzbd.action': 'delete',
-          })
-          return yield* withConfig((config) =>
-            getJson(client, config, 'queue', ActionResponseSchema, [
-              ['name', 'delete'],
-              ['value', nzoId],
-              ['del_files', options.deleteFiles ? 1 : 0],
-            ]).pipe(Effect.map((ok) => actionResult('delete', ok, nzoId, options.deleteFiles)))
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'delete' })
-      ),
-      serverStats: Effect.fn('SabnzbdApi.serverStats')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, 'server_stats', ServerStatsSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdApi', method: 'serverStats' })
-      ),
+      status: () => withConfig((config) => getJson(client, config, 'fullstatus', FullStatusResponseSchema)),
+      version: () => withConfig((config) => getJson(client, config, 'version', VersionResponseSchema)),
+      queue: (options) =>
+        withConfig((config) =>
+          getJson(client, config, 'queue', QueueResponseSchema, [
+            ['start', 0],
+            ['limit', options.limit],
+          ])
+        ),
+      history: (options) =>
+        withConfig((config) =>
+          getJson(client, config, 'history', HistoryResponseSchema, [
+            ['start', 0],
+            ['limit', options.limit],
+          ])
+        ),
+      pause: () =>
+        withConfig((config) =>
+          getJson(client, config, 'pause', ActionResponseSchema).pipe(Effect.map((ok) => actionResult('pause', ok)))
+        ),
+      resume: () =>
+        withConfig((config) =>
+          getJson(client, config, 'resume', ActionResponseSchema).pipe(Effect.map((ok) => actionResult('resume', ok)))
+        ),
+      delete: (nzoId, options) =>
+        withConfig((config) =>
+          getJson(client, config, 'queue', ActionResponseSchema, [
+            ['name', 'delete'],
+            ['value', nzoId],
+            ['del_files', options.deleteFiles ? 1 : 0],
+          ]).pipe(Effect.map((ok) => actionResult('delete', ok, nzoId, options.deleteFiles)))
+        ),
+      serverStats: () => withConfig((config) => getJson(client, config, 'server_stats', ServerStatsSchema)),
     })
   })
 )

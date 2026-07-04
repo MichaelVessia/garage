@@ -122,107 +122,39 @@ export const AdguardApiLive = Layer.effect(
     ): Effect.Effect<A, E | AdguardError, R> => adguardConfig.get().pipe(Effect.flatMap(f))
 
     return AdguardApi.of({
-      status: Effect.fn('AdguardApi.status')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/status', StatusSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'status' })
-      ),
-      version: Effect.fn('AdguardApi.version')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/status', VersionStatusSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'version' })
-      ),
-      stats: Effect.fn('AdguardApi.stats')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/stats', StatsSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'stats' })
-      ),
-      statsInfo: Effect.fn('AdguardApi.statsInfo')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/stats_info', StatsInfoSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'statsInfo' })
-      ),
-      queryLog: Effect.fn('AdguardApi.queryLog')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'adguard.limit': options.limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/querylog', QueryLogResponseSchema, [['limit', options.limit]])
+      status: () => withConfig((config) => getJson(client, config, '/status', StatusSchema)),
+      version: () => withConfig((config) => getJson(client, config, '/status', VersionStatusSchema)),
+      stats: () => withConfig((config) => getJson(client, config, '/stats', StatsSchema)),
+      statsInfo: () => withConfig((config) => getJson(client, config, '/stats_info', StatsInfoSchema)),
+      queryLog: (options) =>
+        withConfig((config) =>
+          getJson(client, config, '/querylog', QueryLogResponseSchema, [['limit', options.limit]])
+        ),
+      queryLogSearch: (options) =>
+        withConfig((config) =>
+          getJson(client, config, '/querylog', QueryLogResponseSchema, [
+            ['search', options.query],
+            ['limit', options.limit],
+          ])
+        ),
+      clients: () => withConfig((config) => getJson(client, config, '/clients', ClientsSchema)),
+      clientsActive: (options) =>
+        withConfig((config) =>
+          getJson(client, config, '/clients/find', ActiveClientsSchema, [['ip0', options.ip]]).pipe(
+            Effect.map(listResult)
           )
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'queryLog' })
-      ),
-      queryLogSearch: Effect.fn('AdguardApi.queryLogSearch')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({
-            'adguard.query_length': options.query.length,
-            'adguard.limit': options.limit,
-          })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/querylog', QueryLogResponseSchema, [
-              ['search', options.query],
-              ['limit', options.limit],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'queryLogSearch' })
-      ),
-      clients: Effect.fn('AdguardApi.clients')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/clients', ClientsSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'clients' })
-      ),
-      clientsActive: Effect.fn('AdguardApi.clientsActive')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'adguard.client_ip_present': Str.isNonEmpty(options.ip) })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/clients/find', ActiveClientsSchema, [['ip0', options.ip]]).pipe(
-              Effect.map(listResult)
-            )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'clientsActive' })
-      ),
-      filters: Effect.fn('AdguardApi.filters')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/filtering/status', FilteringStatusSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'filters' })
-      ),
-      rules: Effect.fn('AdguardApi.rules')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/filtering/status', FilteringRulesSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'rules' })
-      ),
-      dnsConfig: Effect.fn('AdguardApi.dnsConfig')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/dns_info', JsonObjectApi))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'dnsConfig' })
-      ),
-      dhcpStatus: Effect.fn('AdguardApi.dhcpStatus')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/dhcp/status', DhcpStatusSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'dhcpStatus' })
-      ),
-      protectionToggle: Effect.fn('AdguardApi.protectionToggle')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'adguard.protection_state': options.state })
-          return yield* withConfig((config) =>
-            postStatus(client, config, '/protection', {
-              enabled: options.state === 'on',
-              duration: 0,
-            }).pipe(Effect.flatMap(() => getJson(client, config, '/status', ProtectionStateStatusSchema)))
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/adguard', service: 'AdguardApi', method: 'protectionToggle' })
-      ),
+        ),
+      filters: () => withConfig((config) => getJson(client, config, '/filtering/status', FilteringStatusSchema)),
+      rules: () => withConfig((config) => getJson(client, config, '/filtering/status', FilteringRulesSchema)),
+      dnsConfig: () => withConfig((config) => getJson(client, config, '/dns_info', JsonObjectApi)),
+      dhcpStatus: () => withConfig((config) => getJson(client, config, '/dhcp/status', DhcpStatusSchema)),
+      protectionToggle: (options) =>
+        withConfig((config) =>
+          postStatus(client, config, '/protection', {
+            enabled: options.state === 'on',
+            duration: 0,
+          }).pipe(Effect.flatMap(() => getJson(client, config, '/status', ProtectionStateStatusSchema)))
+        ),
     })
   })
 )

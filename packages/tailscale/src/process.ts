@@ -94,76 +94,43 @@ export const TailscaleApiLive = Layer.effect(
     const process = yield* TailscaleProcess
 
     return TailscaleApi.of({
-      status: Effect.fn('TailscaleApi.status')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'tailscale.limit': options.limit })
-          return yield* statusResult(process, options.limit)
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'status' })
-      ),
-      peers: Effect.fn('TailscaleApi.peers')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'tailscale.limit': options.limit })
-          const status = yield* statusResult(process, options.limit)
-          return yield* requireRunning(status).pipe(Effect.as(status.peers))
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'peers' })
-      ),
-      exitNodes: Effect.fn('TailscaleApi.exitNodes')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'tailscale.limit': options.limit })
-          const [status, nodes] = yield* exitNodeList(process, options.limit)
-          return yield* requireRunning(status).pipe(Effect.as(nodes))
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'exitNodes' })
-      ),
-      currentExitNode: Effect.fn('TailscaleApi.currentExitNode')(
-        function* () {
-          const status = yield* statusResult(process, 1)
-          yield* requireRunning(status)
-          return { usingExitNode: status.currentExitNode !== undefined, peer: status.currentExitNode }
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'currentExitNode' })
-      ),
-      dns: Effect.fn('TailscaleApi.dns')(
-        function* () {
-          const status = yield* statusResult(process, 1)
-          yield* requireRunning(status)
-          const output = yield* runText(process, ['dns', 'status'])
-          return { output, lines: lines(output) }
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'dns' })
-      ),
-      ip: Effect.fn('TailscaleApi.ip')(
-        function* () {
-          const status = yield* statusResult(process, 1)
-          yield* requireRunning(status)
-          const result = yield* Effect.all(
-            { v4: process.run(['ip', '-4']), v6: process.run(['ip', '-6']) },
-            { concurrency: 1 }
-          )
-          return {
-            ipv4: result.v4.exitCode === 0 ? Option.getOrUndefined(firstLine(result.v4.stdout)) : undefined,
-            ipv6: result.v6.exitCode === 0 ? Option.getOrUndefined(firstLine(result.v6.stdout)) : undefined,
-          }
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'ip' })
-      ),
-      whois: Effect.fn('TailscaleApi.whois')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'tailscale.target_length': options.target.length })
-          return yield* runText(process, ['whois', '--json', options.target]).pipe(Effect.flatMap(decodeJsonObject))
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'whois' })
-      ),
-      ping: Effect.fn('TailscaleApi.ping')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'tailscale.target_length': options.target.length })
-          const output = yield* runText(process, ['ping', '--c', '3', options.target])
-          return { target: options.target, output, lines: lines(output) }
-        },
-        Effect.annotateLogs({ package: '@garage/tailscale', service: 'TailscaleApi', method: 'ping' })
-      ),
+      status: (options) => statusResult(process, options.limit),
+      peers: Effect.fnUntraced(function* (options) {
+        const status = yield* statusResult(process, options.limit)
+        return yield* requireRunning(status).pipe(Effect.as(status.peers))
+      }),
+      exitNodes: Effect.fnUntraced(function* (options) {
+        const [status, nodes] = yield* exitNodeList(process, options.limit)
+        return yield* requireRunning(status).pipe(Effect.as(nodes))
+      }),
+      currentExitNode: Effect.fnUntraced(function* () {
+        const status = yield* statusResult(process, 1)
+        yield* requireRunning(status)
+        return { usingExitNode: status.currentExitNode !== undefined, peer: status.currentExitNode }
+      }),
+      dns: Effect.fnUntraced(function* () {
+        const status = yield* statusResult(process, 1)
+        yield* requireRunning(status)
+        const output = yield* runText(process, ['dns', 'status'])
+        return { output, lines: lines(output) }
+      }),
+      ip: Effect.fnUntraced(function* () {
+        const status = yield* statusResult(process, 1)
+        yield* requireRunning(status)
+        const result = yield* Effect.all(
+          { v4: process.run(['ip', '-4']), v6: process.run(['ip', '-6']) },
+          { concurrency: 1 }
+        )
+        return {
+          ipv4: result.v4.exitCode === 0 ? Option.getOrUndefined(firstLine(result.v4.stdout)) : undefined,
+          ipv6: result.v6.exitCode === 0 ? Option.getOrUndefined(firstLine(result.v6.stdout)) : undefined,
+        }
+      }),
+      whois: (options) => runText(process, ['whois', '--json', options.target]).pipe(Effect.flatMap(decodeJsonObject)),
+      ping: Effect.fnUntraced(function* (options) {
+        const output = yield* runText(process, ['ping', '--c', '3', options.target])
+        return { target: options.target, output, lines: lines(output) }
+      }),
     })
   })
 )

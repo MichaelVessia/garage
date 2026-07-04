@@ -154,174 +154,100 @@ export const RadarrApiLive = Layer.effect(
     ): Effect.Effect<A, E | RadarrError, R> => radarrConfig.get().pipe(Effect.flatMap(f))
 
     return RadarrApi.of({
-      status: Effect.fn('RadarrApi.status')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/api/v3/system/status', StatusSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'status' })
-      ),
-      rootFolders: Effect.fn('RadarrApi.rootFolders')(
-        function* () {
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema))
+      status: () => withConfig((config) => getJson(client, config, '/api/v3/system/status', StatusSchema)),
+      rootFolders: () =>
+        withConfig((config) => getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema))),
+      qualityProfiles: () =>
+        withConfig((config) => getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema))),
+      lookupMovies: (query) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', query]])
+        ),
+      lookupMovieByTmdbId: (tmdbId) => withConfig((config) => lookupByTmdbId(client, config, tmdbId)),
+      getMovieByTmdbId: (tmdbId) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/movie', Schema.Array(MovieRecordSchema), [['tmdbId', tmdbId]]).pipe(
+            Effect.map((records) => Option.fromUndefinedOr(records[0]))
           )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'rootFolders' })
-      ),
-      qualityProfiles: Effect.fn('RadarrApi.qualityProfiles')(
-        function* () {
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema))
+        ),
+      addMovie: (lookup, options) =>
+        withConfig((config) =>
+          postJson(
+            client,
+            config,
+            '/api/v3/movie',
+            {
+              title: lookup.title,
+              titleSlug: lookup.titleSlug,
+              year: lookup.year,
+              tmdbId: lookup.tmdbId,
+              qualityProfileId: options.qualityProfileId,
+              rootFolderPath: options.rootFolderPath,
+              monitored: true,
+              minimumAvailability: 'released',
+              addOptions: { searchForMovie: options.searchForMovie },
+            },
+            MovieRecordSchema
           )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'qualityProfiles' })
-      ),
-      lookupMovies: Effect.fn('RadarrApi.lookupMovies')(
-        function* (query) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.query_length': query.length })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', query]])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'lookupMovies' })
-      ),
-      lookupMovieByTmdbId: Effect.fn('RadarrApi.lookupMovieByTmdbId')(
-        function* (tmdbId) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
-          return yield* withConfig((config) => lookupByTmdbId(client, config, tmdbId))
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'lookupMovieByTmdbId' })
-      ),
-      getMovieByTmdbId: Effect.fn('RadarrApi.getMovieByTmdbId')(
-        function* (tmdbId) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/movie', Schema.Array(MovieRecordSchema), [['tmdbId', tmdbId]]).pipe(
-              Effect.map((records) => Option.fromUndefinedOr(records[0]))
-            )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'getMovieByTmdbId' })
-      ),
-      addMovie: Effect.fn('RadarrApi.addMovie')(
-        function* (lookup, options) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': lookup.tmdbId })
-          return yield* withConfig((config) =>
-            postJson(
+        ),
+      removeMovie: (movieId, options) =>
+        withConfig((config) =>
+          deleteJson(client, config, `/api/v3/movie/${movieId}`, Schema.Unknown, [
+            ['deleteFiles', options.deleteFiles],
+            ['addImportExclusion', false],
+          ]).pipe(Effect.asVoid)
+        ),
+      collections: () =>
+        withConfig((config) => getJson(client, config, '/api/v3/collection', Schema.Array(CollectionRecordSchema))),
+      setCollectionMonitoring: (collectionId) =>
+        withConfig(
+          Effect.fn('RadarrApi.setCollectionMonitoring.configured')(function* (config) {
+            const collection = yield* getJson(client, config, `/api/v3/collection/${collectionId}`, JsonObject)
+            yield* putJson(
               client,
               config,
-              '/api/v3/movie',
-              {
-                title: lookup.title,
-                titleSlug: lookup.titleSlug,
-                year: lookup.year,
-                tmdbId: lookup.tmdbId,
-                qualityProfileId: options.qualityProfileId,
-                rootFolderPath: options.rootFolderPath,
-                monitored: true,
-                minimumAvailability: 'released',
-                addOptions: { searchForMovie: options.searchForMovie },
-              },
-              MovieRecordSchema
+              `/api/v3/collection/${collectionId}`,
+              { ...collection, monitored: true, searchOnAdd: true },
+              Schema.Unknown
             )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'addMovie' })
-      ),
-      removeMovie: Effect.fn('RadarrApi.removeMovie')(
-        function* (movieId, options) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.movie_id': movieId, 'radarr.delete_files': options.deleteFiles })
-          return yield* withConfig((config) =>
-            deleteJson(client, config, `/api/v3/movie/${movieId}`, Schema.Unknown, [
-              ['deleteFiles', options.deleteFiles],
-              ['addImportExclusion', false],
-            ]).pipe(Effect.asVoid)
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'removeMovie' })
-      ),
-      collections: Effect.fn('RadarrApi.collections')(
-        function* () {
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/collection', Schema.Array(CollectionRecordSchema))
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'collections' })
-      ),
-      setCollectionMonitoring: Effect.fn('RadarrApi.setCollectionMonitoring')(
-        function* (collectionId) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.collection_id': collectionId })
-          return yield* withConfig(
-            Effect.fn('RadarrApi.setCollectionMonitoring.configured')(function* (config) {
-              const collection = yield* getJson(client, config, `/api/v3/collection/${collectionId}`, JsonObject)
-              yield* putJson(
-                client,
-                config,
-                `/api/v3/collection/${collectionId}`,
-                { ...collection, monitored: true, searchOnAdd: true },
-                Schema.Unknown
-              )
-            })
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'setCollectionMonitoring' })
-      ),
-      queue: Effect.fn('RadarrApi.queue')(
-        function* (limit) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.limit': limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/queue', QueueResponseSchema, [
-              ['pageSize', limit],
-              ['includeUnknownMovieItems', true],
-              ['includeMovie', true],
+          })
+        ),
+      queue: (limit) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/queue', QueueResponseSchema, [
+            ['pageSize', limit],
+            ['includeUnknownMovieItems', true],
+            ['includeMovie', true],
+          ])
+        ),
+      calendar: (days) =>
+        withConfig(
+          Effect.fn('RadarrApi.calendar.configured')(function* (config) {
+            const range = yield* currentCalendarRange(days)
+            return yield* getJson(client, config, '/api/v3/calendar', Schema.Array(MovieReleaseSchema), [
+              ...range,
+              ['unmonitored', false],
             ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'queue' })
-      ),
-      calendar: Effect.fn('RadarrApi.calendar')(
-        function* (days) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.days': days })
-          return yield* withConfig(
-            Effect.fn('RadarrApi.calendar.configured')(function* (config) {
-              const range = yield* currentCalendarRange(days)
-              return yield* getJson(client, config, '/api/v3/calendar', Schema.Array(MovieReleaseSchema), [
-                ...range,
-                ['unmonitored', false],
-              ])
-            })
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'calendar' })
-      ),
-      missing: Effect.fn('RadarrApi.missing')(
-        function* (limit) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.limit': limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
-              ['pageSize', limit],
-              ['monitored', true],
-              ['sortKey', 'releaseDate'],
-              ['sortDirection', 'descending'],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'missing' })
-      ),
-      history: Effect.fn('RadarrApi.history')(
-        function* (limit) {
-          yield* Effect.annotateCurrentSpan({ 'radarr.limit': limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
-              ['pageSize', limit],
-              ['includeMovie', true],
-              ['sortKey', 'date'],
-              ['sortDirection', 'descending'],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/radarr', service: 'RadarrApi', method: 'history' })
-      ),
+          })
+        ),
+      missing: (limit) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
+            ['pageSize', limit],
+            ['monitored', true],
+            ['sortKey', 'releaseDate'],
+            ['sortDirection', 'descending'],
+          ])
+        ),
+      history: (limit) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
+            ['pageSize', limit],
+            ['includeMovie', true],
+            ['sortKey', 'date'],
+            ['sortDirection', 'descending'],
+          ])
+        ),
     })
   })
 )

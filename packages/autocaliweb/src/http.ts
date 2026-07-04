@@ -118,89 +118,47 @@ export const AutocaliwebApiLive = Layer.effect(
     const loadStats = (config: AutocaliwebConfigValue) => getJson(client, config, '/opds/stats', StatsSchema)
 
     return AutocaliwebApi.of({
-      status: Effect.fn('AutocaliwebApi.status')(
-        function* () {
-          return yield* withConfig(
-            Effect.fn('AutocaliwebApi.status.configured')(function* (config) {
-              const feed = yield* getFeed(client, config, '/opds')
-              const statRecords = yield* loadStats(config)
-              yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
-              return {
-                title: Option.getOrUndefined(feed.title),
-                updated: Option.getOrUndefined(feed.updated),
-                catalogCount: feed.navigation.length,
-                stats: statRecords,
-              }
+      status: () =>
+        withConfig(
+          Effect.fn('AutocaliwebApi.status.configured')(function* (config) {
+            const feed = yield* getFeed(client, config, '/opds')
+            const statRecords = yield* loadStats(config)
+            yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
+            return {
+              title: Option.getOrUndefined(feed.title),
+              updated: Option.getOrUndefined(feed.updated),
+              catalogCount: feed.navigation.length,
+              stats: statRecords,
+            }
+          })
+        ),
+      stats: () => withConfig(loadStats),
+      catalog: () =>
+        withConfig((config) =>
+          getFeed(client, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
+        ),
+      books: (options) =>
+        withConfig((config) => collectBookFeed(client, config, '/opds/books/letter/00', options.limit)),
+      recent: (options) => withConfig((config) => collectBookFeed(client, config, '/opds/new', options.limit)),
+      search: (options) =>
+        withConfig((config) =>
+          getFeed(client, config, withQuery('/opds/search', options.query)).pipe(
+            Effect.map((feed) => {
+              const records = feed.books.slice(0, options.limit)
+              return { query: options.query, total: feed.books.length, count: records.length, records }
             })
           )
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'status' })
-      ),
-      stats: Effect.fn('AutocaliwebApi.stats')(
-        function* () {
-          return yield* withConfig(loadStats)
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'stats' })
-      ),
-      catalog: Effect.fn('AutocaliwebApi.catalog')(
-        function* () {
-          return yield* withConfig((config) =>
-            getFeed(client, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
+        ),
+      bookInfo: (options) =>
+        withConfig((config) =>
+          getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)
+        ),
+      shelves: () =>
+        withConfig((config) =>
+          getFeed(client, config, '/opds/shelfindex').pipe(
+            Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
           )
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'catalog' })
-      ),
-      books: Effect.fn('AutocaliwebApi.books')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'autocaliweb.limit': options.limit })
-          return yield* withConfig((config) => collectBookFeed(client, config, '/opds/books/letter/00', options.limit))
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'books' })
-      ),
-      recent: Effect.fn('AutocaliwebApi.recent')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({ 'autocaliweb.limit': options.limit })
-          return yield* withConfig((config) => collectBookFeed(client, config, '/opds/new', options.limit))
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'recent' })
-      ),
-      search: Effect.fn('AutocaliwebApi.search')(
-        function* (options) {
-          yield* Effect.annotateCurrentSpan({
-            'autocaliweb.query_length': options.query.length,
-            'autocaliweb.limit': options.limit,
-          })
-          return yield* withConfig((config) =>
-            getFeed(client, config, withQuery('/opds/search', options.query)).pipe(
-              Effect.map((feed) => {
-                const records = feed.books.slice(0, options.limit)
-                return { query: options.query, total: feed.books.length, count: records.length, records }
-              })
-            )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'search' })
-      ),
-      bookInfo: Effect.fn('AutocaliwebApi.bookInfo')(
-        function* (options) {
-          // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
-          yield* Effect.annotateCurrentSpan({ 'autocaliweb.book_uuid_present': options.uuid.length > 0 })
-          return yield* withConfig((config) =>
-            getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'bookInfo' })
-      ),
-      shelves: Effect.fn('AutocaliwebApi.shelves')(
-        function* () {
-          return yield* withConfig((config) =>
-            getFeed(client, config, '/opds/shelfindex').pipe(
-              Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
-            )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebApi', method: 'shelves' })
-      ),
+        ),
     })
   })
 )

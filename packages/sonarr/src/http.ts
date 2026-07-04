@@ -136,146 +136,80 @@ export const SonarrApiLive = Layer.effect(
     ): Effect.Effect<A, E | SonarrError, R> => sonarrConfig.get().pipe(Effect.flatMap(f))
 
     return SonarrApi.of({
-      status: Effect.fn('SonarrApi.status')(
-        function* () {
-          return yield* withConfig((config) => getJson(client, config, '/api/v3/system/status', StatusSchema))
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'status' })
-      ),
-      rootFolders: Effect.fn('SonarrApi.rootFolders')(
-        function* () {
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema))
+      status: () => withConfig((config) => getJson(client, config, '/api/v3/system/status', StatusSchema)),
+      rootFolders: () =>
+        withConfig((config) => getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema))),
+      qualityProfiles: () =>
+        withConfig((config) => getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema))),
+      lookupSeries: (query) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/series/lookup', Schema.Array(LookupSeriesSchema), [['term', query]])
+        ),
+      lookupSeriesByTvdbId: (tvdbId) => withConfig((config) => lookupByTvdbId(client, config, tvdbId)),
+      getSeriesByTvdbId: (tvdbId) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/series', Schema.Array(SeriesRecordSchema)).pipe(
+            Effect.map((records) => Option.fromUndefinedOr(records.find((record) => record.tvdbId === tvdbId)))
           )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'rootFolders' })
-      ),
-      qualityProfiles: Effect.fn('SonarrApi.qualityProfiles')(
-        function* () {
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema))
+        ),
+      addSeries: (lookup, options) =>
+        withConfig((config) =>
+          postJson(
+            client,
+            config,
+            '/api/v3/series',
+            {
+              title: lookup.title,
+              titleSlug: lookup.titleSlug,
+              tvdbId: lookup.tvdbId,
+              qualityProfileId: options.qualityProfileId,
+              rootFolderPath: options.rootFolderPath,
+              monitored: true,
+              addOptions: { searchForMissingEpisodes: options.searchForMissingEpisodes },
+            },
+            SeriesRecordSchema
           )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'qualityProfiles' })
-      ),
-      lookupSeries: Effect.fn('SonarrApi.lookupSeries')(
-        function* (query) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.query_length': query.length })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/series/lookup', Schema.Array(LookupSeriesSchema), [['term', query]])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'lookupSeries' })
-      ),
-      lookupSeriesByTvdbId: Effect.fn('SonarrApi.lookupSeriesByTvdbId')(
-        function* (tvdbId) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId })
-          return yield* withConfig((config) => lookupByTvdbId(client, config, tvdbId))
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'lookupSeriesByTvdbId' })
-      ),
-      getSeriesByTvdbId: Effect.fn('SonarrApi.getSeriesByTvdbId')(
-        function* (tvdbId) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': tvdbId })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/series', Schema.Array(SeriesRecordSchema)).pipe(
-              Effect.map((records) => Option.fromUndefinedOr(records.find((record) => record.tvdbId === tvdbId)))
-            )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'getSeriesByTvdbId' })
-      ),
-      addSeries: Effect.fn('SonarrApi.addSeries')(
-        function* (lookup, options) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.tvdb_id': lookup.tvdbId })
-          return yield* withConfig((config) =>
-            postJson(
-              client,
-              config,
-              '/api/v3/series',
-              {
-                title: lookup.title,
-                titleSlug: lookup.titleSlug,
-                tvdbId: lookup.tvdbId,
-                qualityProfileId: options.qualityProfileId,
-                rootFolderPath: options.rootFolderPath,
-                monitored: true,
-                addOptions: { searchForMissingEpisodes: options.searchForMissingEpisodes },
-              },
-              SeriesRecordSchema
-            )
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'addSeries' })
-      ),
-      removeSeries: Effect.fn('SonarrApi.removeSeries')(
-        function* (seriesId, options) {
-          yield* Effect.annotateCurrentSpan({
-            'sonarr.series_id': seriesId,
-            'sonarr.delete_files': options.deleteFiles,
+        ),
+      removeSeries: (seriesId, options) =>
+        withConfig((config) =>
+          deleteJson(client, config, `/api/v3/series/${seriesId}`, Schema.Unknown, [
+            ['deleteFiles', options.deleteFiles],
+          ]).pipe(Effect.asVoid)
+        ),
+      queue: (limit) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/queue', QueueResponseSchema, [
+            ['pageSize', limit],
+            ['includeSeries', true],
+            ['includeEpisode', true],
+          ])
+        ),
+      calendar: (days) =>
+        withConfig(
+          Effect.fn('SonarrApi.calendar.configured')(function* (config) {
+            const range = yield* currentCalendarRange(days)
+            return yield* getJson(client, config, '/api/v3/calendar', Schema.Array(EpisodeRecordSchema), [
+              ...range,
+              ['includeSeries', true],
+              ['unmonitored', false],
+            ])
           })
-          return yield* withConfig((config) =>
-            deleteJson(client, config, `/api/v3/series/${seriesId}`, Schema.Unknown, [
-              ['deleteFiles', options.deleteFiles],
-            ]).pipe(Effect.asVoid)
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'removeSeries' })
-      ),
-      queue: Effect.fn('SonarrApi.queue')(
-        function* (limit) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.limit': limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/queue', QueueResponseSchema, [
-              ['pageSize', limit],
-              ['includeSeries', true],
-              ['includeEpisode', true],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'queue' })
-      ),
-      calendar: Effect.fn('SonarrApi.calendar')(
-        function* (days) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.days': days })
-          return yield* withConfig(
-            Effect.fn('SonarrApi.calendar.configured')(function* (config) {
-              const range = yield* currentCalendarRange(days)
-              return yield* getJson(client, config, '/api/v3/calendar', Schema.Array(EpisodeRecordSchema), [
-                ...range,
-                ['includeSeries', true],
-                ['unmonitored', false],
-              ])
-            })
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'calendar' })
-      ),
-      missing: Effect.fn('SonarrApi.missing')(
-        function* (limit) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.limit': limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
-              ['pageSize', limit],
-              ['includeSeries', true],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'missing' })
-      ),
-      history: Effect.fn('SonarrApi.history')(
-        function* (limit) {
-          yield* Effect.annotateCurrentSpan({ 'sonarr.limit': limit })
-          return yield* withConfig((config) =>
-            getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
-              ['pageSize', limit],
-              ['includeSeries', true],
-              ['includeEpisode', true],
-            ])
-          )
-        },
-        Effect.annotateLogs({ package: '@garage/sonarr', service: 'SonarrApi', method: 'history' })
-      ),
+        ),
+      missing: (limit) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
+            ['pageSize', limit],
+            ['includeSeries', true],
+          ])
+        ),
+      history: (limit) =>
+        withConfig((config) =>
+          getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
+            ['pageSize', limit],
+            ['includeSeries', true],
+            ['includeEpisode', true],
+          ])
+        ),
     })
   })
 )
