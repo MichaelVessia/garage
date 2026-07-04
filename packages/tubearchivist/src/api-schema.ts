@@ -1,3 +1,4 @@
+import { JsonObject as BaseJsonObject } from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 import * as SchemaGetter from 'effect/SchemaGetter'
 
@@ -24,7 +25,7 @@ const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
 const NullableBoolean = Schema.Boolean.pipe(Schema.NullOr, Schema.optional)
 const NullableNumber = Schema.Number.pipe(Schema.NullOr, Schema.optional)
 
-export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = BaseJsonObject
 export type JsonObject = typeof JsonObject.Type
 
 const PaginateApi = Schema.Struct({

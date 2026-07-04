@@ -1,3 +1,4 @@
+import { JsonObject as BaseJsonObject, ListResultSchema } from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
@@ -115,7 +116,7 @@ export const FiltersResult = Schema.Struct({
 })
 export type FiltersResult = typeof FiltersResult.Type
 
-export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = BaseJsonObject
 export type JsonObject = typeof JsonObject.Type
 
 export const DhcpStatus = Schema.Struct({
@@ -154,9 +155,5 @@ export type ClientLookupOptions = typeof ClientLookupOptions.Type
 export const ProtectionToggleOptions = Schema.Struct({ state: ProtectionToggleState })
 export type ProtectionToggleOptions = typeof ProtectionToggleOptions.Type
 
-export const ListResult = <Record>(record: Schema.Codec<Record>) =>
-  Schema.Struct({
-    count: Schema.Number,
-    records: Schema.Array(record),
-  })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
+export const ListResult = ListResultSchema
+export type ListResult<Record> = ListResultSchema<Record>

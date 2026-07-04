@@ -1,4 +1,4 @@
-import { makeJsonClient } from '@garage/cli-protocol'
+import { listResult as toListResult, makeJsonClient } from '@garage/cli-protocol'
 import type { JsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -61,11 +61,6 @@ const getFeed = (
       Effect.flatMap(responseText),
       Effect.flatMap((xml) => parseOpdsFeed(config.url, xml))
     )
-
-const toListResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
-  count: records.length,
-  records,
-})
 
 const loadStats = (http: JsonClient<AutocaliwebError>) => http.getJson('/opds/stats', StatsSchema)
 

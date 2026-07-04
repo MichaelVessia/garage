@@ -1,4 +1,4 @@
-import { makeJsonClient } from '@garage/cli-protocol'
+import { listResult, makeJsonClient } from '@garage/cli-protocol'
 import type { JsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -18,7 +18,7 @@ import {
 } from './api-schema.js'
 import { decodeError, httpError, notFound, unreachable } from './errors.js'
 import type { JellyfinError } from './errors.js'
-import type { JellyfinConfigValue, ListResult } from './model.js'
+import type { JellyfinConfigValue } from './model.js'
 import { JellyfinApi, JellyfinConfig } from './services.js'
 
 const applyAuth = (config: JellyfinConfigValue) =>
@@ -31,8 +31,6 @@ const httpClientFor = (client: HttpClient.HttpClient, config: JellyfinConfigValu
     applyAuth: applyAuth(config),
     errors: { httpError, unreachable, decodeError },
   })
-
-const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
 
 const enabledUserId = Effect.fn('jellyfin.enabledUserId')(function* (
   http: JsonClient<JellyfinError>

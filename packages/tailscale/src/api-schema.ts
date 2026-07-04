@@ -1,3 +1,4 @@
+import { JsonObject as BaseJsonObject } from '@garage/cli-protocol'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import type * as Order from 'effect/Order'
@@ -16,7 +17,7 @@ const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
 const NullableBoolean = Schema.NullOr(Schema.Boolean).pipe(Schema.optional)
 const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 
-export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = BaseJsonObject
 export type JsonObject = typeof JsonObject.Type
 
 const PeerApi = Schema.Struct({

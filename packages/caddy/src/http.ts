@@ -1,4 +1,4 @@
-import { makeJsonClient } from '@garage/cli-protocol'
+import { listResult, makeJsonClient } from '@garage/cli-protocol'
 import type { JsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -8,7 +8,7 @@ import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 import { JsonObjectApi, PkiCaWire, RoutesConfig, Upstream } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { CaddyError } from './errors.js'
-import type { CaddyConfigValue, ListResult } from './model.js'
+import type { CaddyConfigValue } from './model.js'
 import { CaddyApi, CaddyConfig } from './services.js'
 
 const applyAuth = HttpClientRequest.setHeaders({ accept: 'application/json' })
@@ -20,8 +20,6 @@ const httpClientFor = (client: HttpClient.HttpClient, config: CaddyConfigValue) 
     applyAuth,
     errors: { httpError, unreachable, decodeError },
   })
-
-const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
 
 export const CaddyApiLive = Layer.effect(
   CaddyApi,

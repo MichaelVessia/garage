@@ -1,4 +1,4 @@
-import { makeJsonClient } from '@garage/cli-protocol'
+import { listResult as recordsList, makeJsonClient } from '@garage/cli-protocol'
 import type { JsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -20,7 +20,6 @@ import {
   TagSchema,
   UserSchema,
   VersionSchema,
-  recordsList,
   usersResult,
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'

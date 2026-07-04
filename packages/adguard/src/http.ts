@@ -1,4 +1,4 @@
-import { makeJsonClient } from '@garage/cli-protocol'
+import { listResult, makeJsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
@@ -20,7 +20,7 @@ import {
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { AdguardError } from './errors.js'
-import type { AdguardConfigValue, ListResult } from './model.js'
+import type { AdguardConfigValue } from './model.js'
 import { AdguardApi, AdguardConfig } from './services.js'
 
 const applyAuth =
@@ -39,8 +39,6 @@ const httpClientFor = (client: HttpClient.HttpClient, config: AdguardConfigValue
     applyAuth: applyAuth(config),
     errors: { httpError, unreachable, decodeError },
   })
-
-const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
 
 export const AdguardApiLive = Layer.effect(
   AdguardApi,

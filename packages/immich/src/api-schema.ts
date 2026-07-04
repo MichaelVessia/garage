@@ -1,3 +1,4 @@
+import { listResult } from '@garage/cli-protocol'
 import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as SchemaGetter from 'effect/SchemaGetter'
@@ -327,8 +328,6 @@ const assetRecordToApi = (asset: AssetRecord): typeof AssetApi.Type => ({
   exifInfo: asset.exifInfo,
 })
 
-const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
-
 const albumInfoFromApi =
   (limit: number) =>
   (album: typeof AlbumInfoApi.Type): AlbumInfo => {
@@ -503,5 +502,3 @@ export const usersResult = (records: ReadonlyArray<UserRecord>, note?: string): 
   records,
   note,
 })
-
-export const recordsList = listResult

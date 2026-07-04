@@ -1,3 +1,4 @@
+import { JsonObject as BaseJsonObject, ListResultSchema } from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
@@ -8,7 +9,7 @@ const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 export const CaddyConfigValue = Schema.Struct({ url: Schema.String })
 export type CaddyConfigValue = typeof CaddyConfigValue.Type
 
-export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = BaseJsonObject
 export type JsonObject = typeof JsonObject.Type
 
 export const RouteRecord = Schema.Struct({
@@ -48,9 +49,5 @@ export const ReloadResult = Schema.Struct({
 })
 export type ReloadResult = typeof ReloadResult.Type
 
-export const ListResult = <Record>(record: Schema.Codec<Record>) =>
-  Schema.Struct({
-    count: Schema.Number,
-    records: Schema.Array(record),
-  })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
+export const ListResult = ListResultSchema
+export type ListResult<Record> = ListResultSchema<Record>

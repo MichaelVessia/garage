@@ -26,6 +26,8 @@ import {
 
 export { makeConfigReaders } from './config'
 export { makeJsonClient } from './http'
+export { JsonObject } from './json'
+export { ListResultSchema, listResult } from './list-result'
 export type {
   HttpMethod,
   JsonClient,

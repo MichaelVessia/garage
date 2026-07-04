@@ -1,3 +1,4 @@
+import { ListResultSchema as BaseListResultSchema } from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
@@ -107,9 +108,5 @@ export const SearchOptions = Schema.Struct({
 })
 export type SearchOptions = typeof SearchOptions.Type
 
-export const ListResultSchema = <Record>(record: Schema.Codec<Record>) =>
-  Schema.Struct({
-    count: Schema.Number,
-    records: Schema.Array(record),
-  })
-export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResultSchema<Record>>>
+export const ListResultSchema = BaseListResultSchema
+export type ListResult<Record> = BaseListResultSchema<Record>

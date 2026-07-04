@@ -1,3 +1,4 @@
+import { JsonObject as SharedJsonObject } from '@garage/cli-protocol'
 import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as SchemaGetter from 'effect/SchemaGetter'
@@ -40,7 +41,7 @@ const NullableNumber = Schema.Number.pipe(Schema.NullOr, Schema.optional)
 const NullableBoolean = Schema.Boolean.pipe(Schema.NullOr, Schema.optional)
 const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 const StringOrNumber = Schema.Union([Schema.String, Schema.Number])
-export const JsonObjectApi = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObjectApi = SharedJsonObject
 export type JsonObjectApi = typeof JsonObjectApi.Type
 
 const StatusApi = Schema.Struct({

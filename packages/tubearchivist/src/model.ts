@@ -1,10 +1,11 @@
+import { JsonObject as BaseJsonObject, ListResultSchema as BaseListResultSchema } from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
 
-export const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+export const JsonObject = BaseJsonObject
 export type JsonObject = typeof JsonObject.Type
 
 export const TubearchivistConfigValue = Schema.Struct({
@@ -85,9 +86,8 @@ export type TaskRecord = typeof TaskRecord.Type
 
 export const ListResult = <Record>(record: Schema.Codec<Record>) =>
   Schema.Struct({
-    count: Schema.Number,
+    ...BaseListResultSchema(record).fields,
     total: OptionalNumber,
-    records: Schema.Array(record),
     moreAvailable: OptionalBoolean,
   })
 export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>
