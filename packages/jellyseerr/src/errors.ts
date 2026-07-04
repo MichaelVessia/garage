@@ -1,3 +1,13 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix =
@@ -5,35 +15,23 @@ export const envFix =
 
 export class JellyseerrEnvMissingError extends Schema.TaggedErrorClass<JellyseerrEnvMissingError>()(
   'JellyseerrEnvMissingError',
-  {
-    code: Schema.Literal('JELLYSEERR_ENV_MISSING'),
-    message: Schema.String,
-    fix: Schema.String,
-  }
+  envMissingFields('JELLYSEERR_ENV_MISSING')
 ) {}
 
 export class JellyseerrUnreachableError extends Schema.TaggedErrorClass<JellyseerrUnreachableError>()(
   'JellyseerrUnreachableError',
-  {
-    code: Schema.Literal('JELLYSEERR_UNREACHABLE'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  unreachableFields('JELLYSEERR_UNREACHABLE')
 ) {}
 
-export class JellyseerrHttpError extends Schema.TaggedErrorClass<JellyseerrHttpError>()('JellyseerrHttpError', {
-  code: Schema.Literal('JELLYSEERR_HTTP_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class JellyseerrHttpError extends Schema.TaggedErrorClass<JellyseerrHttpError>()(
+  'JellyseerrHttpError',
+  httpErrorFields('JELLYSEERR_HTTP_ERROR')
+) {}
 
-export class JellyseerrDecodeError extends Schema.TaggedErrorClass<JellyseerrDecodeError>()('JellyseerrDecodeError', {
-  code: Schema.Literal('JELLYSEERR_DECODE_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class JellyseerrDecodeError extends Schema.TaggedErrorClass<JellyseerrDecodeError>()(
+  'JellyseerrDecodeError',
+  decodeErrorFields('JELLYSEERR_DECODE_ERROR')
+) {}
 
 export class JellyseerrConfirmationRequiredError extends Schema.TaggedErrorClass<JellyseerrConfirmationRequiredError>()(
   'JellyseerrConfirmationRequiredError',
@@ -54,35 +52,26 @@ export const JellyseerrError = Schema.Union([
 export type JellyseerrError = typeof JellyseerrError.Type
 export type JellyseerrErrorCode = JellyseerrError['code']
 
-export const envMissing = (variable: string): JellyseerrEnvMissingError =>
-  new JellyseerrEnvMissingError({
-    code: 'JELLYSEERR_ENV_MISSING',
-    message: `${variable} is not set`,
-    fix: envFix,
-  })
+export const envMissing = makeEnvMissing(JellyseerrEnvMissingError, 'JELLYSEERR_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): JellyseerrUnreachableError =>
-  new JellyseerrUnreachableError({
-    code: 'JELLYSEERR_UNREACHABLE',
-    message,
-    fix: 'Verify Jellyseerr is reachable from this host and JELLYSEERR_URL points to the Jellyseerr base URL.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  JellyseerrUnreachableError,
+  'JELLYSEERR_UNREACHABLE',
+  'Verify Jellyseerr is reachable from this host and JELLYSEERR_URL points to the Jellyseerr base URL.'
+)
 
-export const httpError = (status: number): JellyseerrHttpError =>
-  new JellyseerrHttpError({
-    code: 'JELLYSEERR_HTTP_ERROR',
-    message: `Jellyseerr returned HTTP ${status}`,
-    fix: 'Check the Jellyseerr API key, request parameters, and Jellyseerr server logs.',
-  })
+export const httpError = makeHttpError(
+  JellyseerrHttpError,
+  'JELLYSEERR_HTTP_ERROR',
+  'Jellyseerr',
+  'Check the Jellyseerr API key, request parameters, and Jellyseerr server logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): JellyseerrDecodeError =>
-  new JellyseerrDecodeError({
-    code: 'JELLYSEERR_DECODE_ERROR',
-    message,
-    fix: 'Update the Jellyseerr schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  JellyseerrDecodeError,
+  'JELLYSEERR_DECODE_ERROR',
+  'Update the Jellyseerr schemas to match the API response shape.'
+)
 
 export const confirmationRequired = (action: string, flag: string): JellyseerrConfirmationRequiredError =>
   new JellyseerrConfirmationRequiredError({

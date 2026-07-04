@@ -1,3 +1,13 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix =
@@ -5,35 +15,23 @@ export const envFix =
 
 export class JellyfinEnvMissingError extends Schema.TaggedErrorClass<JellyfinEnvMissingError>()(
   'JellyfinEnvMissingError',
-  {
-    code: Schema.Literal('JELLYFIN_ENV_MISSING'),
-    message: Schema.String,
-    fix: Schema.String,
-  }
+  envMissingFields('JELLYFIN_ENV_MISSING')
 ) {}
 
 export class JellyfinUnreachableError extends Schema.TaggedErrorClass<JellyfinUnreachableError>()(
   'JellyfinUnreachableError',
-  {
-    code: Schema.Literal('JELLYFIN_UNREACHABLE'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  unreachableFields('JELLYFIN_UNREACHABLE')
 ) {}
 
-export class JellyfinHttpError extends Schema.TaggedErrorClass<JellyfinHttpError>()('JellyfinHttpError', {
-  code: Schema.Literal('JELLYFIN_HTTP_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class JellyfinHttpError extends Schema.TaggedErrorClass<JellyfinHttpError>()(
+  'JellyfinHttpError',
+  httpErrorFields('JELLYFIN_HTTP_ERROR')
+) {}
 
-export class JellyfinDecodeError extends Schema.TaggedErrorClass<JellyfinDecodeError>()('JellyfinDecodeError', {
-  code: Schema.Literal('JELLYFIN_DECODE_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class JellyfinDecodeError extends Schema.TaggedErrorClass<JellyfinDecodeError>()(
+  'JellyfinDecodeError',
+  decodeErrorFields('JELLYFIN_DECODE_ERROR')
+) {}
 
 export class JellyfinNotFoundError extends Schema.TaggedErrorClass<JellyfinNotFoundError>()('JellyfinNotFoundError', {
   code: Schema.Literal('JELLYFIN_NOT_FOUND'),
@@ -61,31 +59,26 @@ export const JellyfinError = Schema.Union([
 export type JellyfinError = typeof JellyfinError.Type
 export type JellyfinErrorCode = JellyfinError['code']
 
-export const envMissing = (variable: string): JellyfinEnvMissingError =>
-  new JellyfinEnvMissingError({ code: 'JELLYFIN_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+export const envMissing = makeEnvMissing(JellyfinEnvMissingError, 'JELLYFIN_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): JellyfinUnreachableError =>
-  new JellyfinUnreachableError({
-    code: 'JELLYFIN_UNREACHABLE',
-    message,
-    fix: 'Verify Jellyfin is reachable from this host and JELLYFIN_URL points to the Jellyfin base URL.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  JellyfinUnreachableError,
+  'JELLYFIN_UNREACHABLE',
+  'Verify Jellyfin is reachable from this host and JELLYFIN_URL points to the Jellyfin base URL.'
+)
 
-export const httpError = (status: number): JellyfinHttpError =>
-  new JellyfinHttpError({
-    code: 'JELLYFIN_HTTP_ERROR',
-    message: `Jellyfin returned HTTP ${status}`,
-    fix: 'Check the Jellyfin API key, request parameters, and Jellyfin server logs.',
-  })
+export const httpError = makeHttpError(
+  JellyfinHttpError,
+  'JELLYFIN_HTTP_ERROR',
+  'Jellyfin',
+  'Check the Jellyfin API key, request parameters, and Jellyfin server logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): JellyfinDecodeError =>
-  new JellyfinDecodeError({
-    code: 'JELLYFIN_DECODE_ERROR',
-    message,
-    fix: 'Update the Jellyfin schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  JellyfinDecodeError,
+  'JELLYFIN_DECODE_ERROR',
+  'Update the Jellyfin schemas to match the API response shape.'
+)
 
 export const notFound = (message: string): JellyfinNotFoundError =>
   new JellyfinNotFoundError({

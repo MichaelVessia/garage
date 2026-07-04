@@ -1,32 +1,36 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix = 'Open a fresh shell so sops-nix exports CADDY_URL from modules/programs/shell.nix.'
 
-export class CaddyEnvMissingError extends Schema.TaggedErrorClass<CaddyEnvMissingError>()('CaddyEnvMissingError', {
-  code: Schema.Literal('CADDY_ENV_MISSING'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class CaddyEnvMissingError extends Schema.TaggedErrorClass<CaddyEnvMissingError>()(
+  'CaddyEnvMissingError',
+  envMissingFields('CADDY_ENV_MISSING')
+) {}
 
-export class CaddyUnreachableError extends Schema.TaggedErrorClass<CaddyUnreachableError>()('CaddyUnreachableError', {
-  code: Schema.Literal('CADDY_UNREACHABLE'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class CaddyUnreachableError extends Schema.TaggedErrorClass<CaddyUnreachableError>()(
+  'CaddyUnreachableError',
+  unreachableFields('CADDY_UNREACHABLE')
+) {}
 
-export class CaddyHttpError extends Schema.TaggedErrorClass<CaddyHttpError>()('CaddyHttpError', {
-  code: Schema.Literal('CADDY_HTTP_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class CaddyHttpError extends Schema.TaggedErrorClass<CaddyHttpError>()(
+  'CaddyHttpError',
+  httpErrorFields('CADDY_HTTP_ERROR')
+) {}
 
-export class CaddyDecodeError extends Schema.TaggedErrorClass<CaddyDecodeError>()('CaddyDecodeError', {
-  code: Schema.Literal('CADDY_DECODE_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class CaddyDecodeError extends Schema.TaggedErrorClass<CaddyDecodeError>()(
+  'CaddyDecodeError',
+  decodeErrorFields('CADDY_DECODE_ERROR')
+) {}
 
 export class CaddyConfirmationRequiredError extends Schema.TaggedErrorClass<CaddyConfirmationRequiredError>()(
   'CaddyConfirmationRequiredError',
@@ -47,31 +51,26 @@ export const CaddyError = Schema.Union([
 export type CaddyError = typeof CaddyError.Type
 export type CaddyErrorCode = CaddyError['code']
 
-export const envMissing = (variable: string): CaddyEnvMissingError =>
-  new CaddyEnvMissingError({ code: 'CADDY_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+export const envMissing = makeEnvMissing(CaddyEnvMissingError, 'CADDY_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): CaddyUnreachableError =>
-  new CaddyUnreachableError({
-    code: 'CADDY_UNREACHABLE',
-    message,
-    fix: 'Verify Caddy is reachable from this host and CADDY_URL points to the Caddy admin API.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  CaddyUnreachableError,
+  'CADDY_UNREACHABLE',
+  'Verify Caddy is reachable from this host and CADDY_URL points to the Caddy admin API.'
+)
 
-export const httpError = (status: number): CaddyHttpError =>
-  new CaddyHttpError({
-    code: 'CADDY_HTTP_ERROR',
-    message: `Caddy returned HTTP ${status}`,
-    fix: 'Check the Caddy admin API URL, request body, and Caddy logs.',
-  })
+export const httpError = makeHttpError(
+  CaddyHttpError,
+  'CADDY_HTTP_ERROR',
+  'Caddy',
+  'Check the Caddy admin API URL, request body, and Caddy logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): CaddyDecodeError =>
-  new CaddyDecodeError({
-    code: 'CADDY_DECODE_ERROR',
-    message,
-    fix: 'Update the Caddy schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  CaddyDecodeError,
+  'CADDY_DECODE_ERROR',
+  'Update the Caddy schemas to match the API response shape.'
+)
 
 export const confirmationRequired = (): CaddyConfirmationRequiredError =>
   new CaddyConfirmationRequiredError({

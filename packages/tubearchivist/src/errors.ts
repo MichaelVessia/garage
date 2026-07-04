@@ -1,3 +1,13 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix =
@@ -5,41 +15,22 @@ export const envFix =
 
 export class TubearchivistEnvMissingError extends Schema.TaggedErrorClass<TubearchivistEnvMissingError>()(
   'TubearchivistEnvMissingError',
-  {
-    code: Schema.Literal('TUBEARCHIVIST_ENV_MISSING'),
-    message: Schema.String,
-    fix: Schema.String,
-  }
+  envMissingFields('TUBEARCHIVIST_ENV_MISSING')
 ) {}
 
 export class TubearchivistUnreachableError extends Schema.TaggedErrorClass<TubearchivistUnreachableError>()(
   'TubearchivistUnreachableError',
-  {
-    code: Schema.Literal('TUBEARCHIVIST_UNREACHABLE'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  unreachableFields('TUBEARCHIVIST_UNREACHABLE')
 ) {}
 
 export class TubearchivistHttpError extends Schema.TaggedErrorClass<TubearchivistHttpError>()(
   'TubearchivistHttpError',
-  {
-    code: Schema.Literal('TUBEARCHIVIST_HTTP_ERROR'),
-    message: Schema.String,
-    fix: Schema.String,
-    status: Schema.Number,
-  }
+  httpErrorFields('TUBEARCHIVIST_HTTP_ERROR')
 ) {}
 
 export class TubearchivistDecodeError extends Schema.TaggedErrorClass<TubearchivistDecodeError>()(
   'TubearchivistDecodeError',
-  {
-    code: Schema.Literal('TUBEARCHIVIST_DECODE_ERROR'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  decodeErrorFields('TUBEARCHIVIST_DECODE_ERROR')
 ) {}
 
 export class TubearchivistConfirmationRequiredError extends Schema.TaggedErrorClass<TubearchivistConfirmationRequiredError>()(
@@ -61,36 +52,26 @@ export const TubearchivistError = Schema.Union([
 export type TubearchivistError = typeof TubearchivistError.Type
 export type TubearchivistErrorCode = TubearchivistError['code']
 
-export const envMissing = (variable: string): TubearchivistEnvMissingError =>
-  new TubearchivistEnvMissingError({
-    code: 'TUBEARCHIVIST_ENV_MISSING',
-    message: `${variable} is not set`,
-    fix: envFix,
-  })
+export const envMissing = makeEnvMissing(TubearchivistEnvMissingError, 'TUBEARCHIVIST_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): TubearchivistUnreachableError =>
-  new TubearchivistUnreachableError({
-    code: 'TUBEARCHIVIST_UNREACHABLE',
-    message,
-    fix: 'Verify TubeArchivist is reachable from this host and TUBEARCHIVIST_URL points to the base URL.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  TubearchivistUnreachableError,
+  'TUBEARCHIVIST_UNREACHABLE',
+  'Verify TubeArchivist is reachable from this host and TUBEARCHIVIST_URL points to the base URL.'
+)
 
-export const httpError = (status: number): TubearchivistHttpError =>
-  new TubearchivistHttpError({
-    code: 'TUBEARCHIVIST_HTTP_ERROR',
-    message: `TubeArchivist returned HTTP ${status}`,
-    fix: 'Check the TubeArchivist credentials, request parameters, and server logs.',
-    status,
-  })
+export const httpError = makeHttpError(
+  TubearchivistHttpError,
+  'TUBEARCHIVIST_HTTP_ERROR',
+  'TubeArchivist',
+  'Check the TubeArchivist credentials, request parameters, and server logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): TubearchivistDecodeError =>
-  new TubearchivistDecodeError({
-    code: 'TUBEARCHIVIST_DECODE_ERROR',
-    message,
-    fix: 'Update the TubeArchivist schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  TubearchivistDecodeError,
+  'TUBEARCHIVIST_DECODE_ERROR',
+  'Update the TubeArchivist schemas to match the API response shape.'
+)
 
 export const confirmationRequired = (flag: string): TubearchivistConfirmationRequiredError =>
   new TubearchivistConfirmationRequiredError({

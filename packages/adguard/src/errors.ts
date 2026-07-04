@@ -1,3 +1,13 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix =
@@ -5,35 +15,23 @@ export const envFix =
 
 export class AdguardEnvMissingError extends Schema.TaggedErrorClass<AdguardEnvMissingError>()(
   'AdguardEnvMissingError',
-  {
-    code: Schema.Literal('ADGUARD_ENV_MISSING'),
-    message: Schema.String,
-    fix: Schema.String,
-  }
+  envMissingFields('ADGUARD_ENV_MISSING')
 ) {}
 
 export class AdguardUnreachableError extends Schema.TaggedErrorClass<AdguardUnreachableError>()(
   'AdguardUnreachableError',
-  {
-    code: Schema.Literal('ADGUARD_UNREACHABLE'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  unreachableFields('ADGUARD_UNREACHABLE')
 ) {}
 
-export class AdguardHttpError extends Schema.TaggedErrorClass<AdguardHttpError>()('AdguardHttpError', {
-  code: Schema.Literal('ADGUARD_HTTP_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class AdguardHttpError extends Schema.TaggedErrorClass<AdguardHttpError>()(
+  'AdguardHttpError',
+  httpErrorFields('ADGUARD_HTTP_ERROR')
+) {}
 
-export class AdguardDecodeError extends Schema.TaggedErrorClass<AdguardDecodeError>()('AdguardDecodeError', {
-  code: Schema.Literal('ADGUARD_DECODE_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class AdguardDecodeError extends Schema.TaggedErrorClass<AdguardDecodeError>()(
+  'AdguardDecodeError',
+  decodeErrorFields('ADGUARD_DECODE_ERROR')
+) {}
 
 export class AdguardConfirmationRequiredError extends Schema.TaggedErrorClass<AdguardConfirmationRequiredError>()(
   'AdguardConfirmationRequiredError',
@@ -54,31 +52,26 @@ export const AdguardError = Schema.Union([
 export type AdguardError = typeof AdguardError.Type
 export type AdguardErrorCode = AdguardError['code']
 
-export const envMissing = (variable: string): AdguardEnvMissingError =>
-  new AdguardEnvMissingError({ code: 'ADGUARD_ENV_MISSING', message: `${variable} is not set`, fix: envFix })
+export const envMissing = makeEnvMissing(AdguardEnvMissingError, 'ADGUARD_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): AdguardUnreachableError =>
-  new AdguardUnreachableError({
-    code: 'ADGUARD_UNREACHABLE',
-    message,
-    fix: 'Verify AdGuard Home is reachable from this host and ADGUARD_URL points to the AdGuard base URL.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  AdguardUnreachableError,
+  'ADGUARD_UNREACHABLE',
+  'Verify AdGuard Home is reachable from this host and ADGUARD_URL points to the AdGuard base URL.'
+)
 
-export const httpError = (status: number): AdguardHttpError =>
-  new AdguardHttpError({
-    code: 'ADGUARD_HTTP_ERROR',
-    message: `AdGuard Home returned HTTP ${status}`,
-    fix: 'Check the AdGuard username, password, request parameters, and AdGuard server logs.',
-  })
+export const httpError = makeHttpError(
+  AdguardHttpError,
+  'ADGUARD_HTTP_ERROR',
+  'AdGuard Home',
+  'Check the AdGuard username, password, request parameters, and AdGuard server logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): AdguardDecodeError =>
-  new AdguardDecodeError({
-    code: 'ADGUARD_DECODE_ERROR',
-    message,
-    fix: 'Update the AdGuard schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  AdguardDecodeError,
+  'ADGUARD_DECODE_ERROR',
+  'Update the AdGuard schemas to match the API response shape.'
+)
 
 export const confirmationRequired = (): AdguardConfirmationRequiredError =>
   new AdguardConfirmationRequiredError({

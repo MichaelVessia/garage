@@ -1,36 +1,37 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix =
   'Open a fresh shell so sops-nix exports RADARR_URL and RADARR_API_KEY from modules/programs/shell.nix.'
 
-export class RadarrEnvMissingError extends Schema.TaggedErrorClass<RadarrEnvMissingError>()('RadarrEnvMissingError', {
-  code: Schema.Literal('RADARR_ENV_MISSING'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class RadarrEnvMissingError extends Schema.TaggedErrorClass<RadarrEnvMissingError>()(
+  'RadarrEnvMissingError',
+  envMissingFields('RADARR_ENV_MISSING')
+) {}
 
 export class RadarrUnreachableError extends Schema.TaggedErrorClass<RadarrUnreachableError>()(
   'RadarrUnreachableError',
-  {
-    code: Schema.Literal('RADARR_UNREACHABLE'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  unreachableFields('RADARR_UNREACHABLE')
 ) {}
 
-export class RadarrHttpError extends Schema.TaggedErrorClass<RadarrHttpError>()('RadarrHttpError', {
-  code: Schema.Literal('RADARR_HTTP_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class RadarrHttpError extends Schema.TaggedErrorClass<RadarrHttpError>()(
+  'RadarrHttpError',
+  httpErrorFields('RADARR_HTTP_ERROR')
+) {}
 
-export class RadarrDecodeError extends Schema.TaggedErrorClass<RadarrDecodeError>()('RadarrDecodeError', {
-  code: Schema.Literal('RADARR_DECODE_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class RadarrDecodeError extends Schema.TaggedErrorClass<RadarrDecodeError>()(
+  'RadarrDecodeError',
+  decodeErrorFields('RADARR_DECODE_ERROR')
+) {}
 
 export class RadarrNotFoundError extends Schema.TaggedErrorClass<RadarrNotFoundError>()('RadarrNotFoundError', {
   code: Schema.Literal('RADARR_NOT_FOUND'),
@@ -68,35 +69,26 @@ export const RadarrError = Schema.Union([
 export type RadarrError = typeof RadarrError.Type
 export type RadarrErrorCode = RadarrError['code']
 
-export const envMissing = (variable: string): RadarrEnvMissingError =>
-  new RadarrEnvMissingError({
-    code: 'RADARR_ENV_MISSING',
-    message: `${variable} is not set`,
-    fix: envFix,
-  })
+export const envMissing = makeEnvMissing(RadarrEnvMissingError, 'RADARR_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): RadarrUnreachableError =>
-  new RadarrUnreachableError({
-    code: 'RADARR_UNREACHABLE',
-    message,
-    fix: 'Verify Radarr is reachable from this host and RADARR_URL points to the Radarr base URL.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  RadarrUnreachableError,
+  'RADARR_UNREACHABLE',
+  'Verify Radarr is reachable from this host and RADARR_URL points to the Radarr base URL.'
+)
 
-export const httpError = (status: number): RadarrHttpError =>
-  new RadarrHttpError({
-    code: 'RADARR_HTTP_ERROR',
-    message: `Radarr returned HTTP ${status}`,
-    fix: 'Check the Radarr API key, request parameters, and Radarr server logs.',
-  })
+export const httpError = makeHttpError(
+  RadarrHttpError,
+  'RADARR_HTTP_ERROR',
+  'Radarr',
+  'Check the Radarr API key, request parameters, and Radarr server logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): RadarrDecodeError =>
-  new RadarrDecodeError({
-    code: 'RADARR_DECODE_ERROR',
-    message,
-    fix: 'Update the Radarr schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  RadarrDecodeError,
+  'RADARR_DECODE_ERROR',
+  'Update the Radarr schemas to match the API response shape.'
+)
 
 export const notFound = (message: string): RadarrNotFoundError =>
   new RadarrNotFoundError({

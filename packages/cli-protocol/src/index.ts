@@ -12,7 +12,17 @@ import * as Stdio from 'effect/Stdio'
 import type { HttpClient } from 'effect/unstable/http'
 import { OtlpLogger, OtlpSerialization, OtlpTracer } from 'effect/unstable/observability'
 
-import { CliUsageError } from './errors'
+import {
+  CliUsageError,
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from './errors'
 
 export { makeConfigReaders } from './config'
 
@@ -65,7 +75,17 @@ export const CliEnvelopeError = Schema.Struct({
 })
 export type CliEnvelopeError = typeof CliEnvelopeError.Type
 
-export { CliUsageError }
+export {
+  CliUsageError,
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+}
 
 export interface CliObservabilityOptions {
   readonly serviceName: string

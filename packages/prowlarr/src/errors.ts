@@ -1,3 +1,13 @@
+import {
+  decodeErrorFields,
+  envMissingFields,
+  httpErrorFields,
+  makeDecodeError,
+  makeEnvMissing,
+  makeHttpError,
+  makeUnreachable,
+  unreachableFields,
+} from '@garage/cli-protocol'
 import * as Schema from 'effect/Schema'
 
 export const envFix =
@@ -5,35 +15,23 @@ export const envFix =
 
 export class ProwlarrEnvMissingError extends Schema.TaggedErrorClass<ProwlarrEnvMissingError>()(
   'ProwlarrEnvMissingError',
-  {
-    code: Schema.Literal('PROWLARR_ENV_MISSING'),
-    message: Schema.String,
-    fix: Schema.String,
-  }
+  envMissingFields('PROWLARR_ENV_MISSING')
 ) {}
 
 export class ProwlarrUnreachableError extends Schema.TaggedErrorClass<ProwlarrUnreachableError>()(
   'ProwlarrUnreachableError',
-  {
-    code: Schema.Literal('PROWLARR_UNREACHABLE'),
-    message: Schema.String,
-    fix: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  }
+  unreachableFields('PROWLARR_UNREACHABLE')
 ) {}
 
-export class ProwlarrHttpError extends Schema.TaggedErrorClass<ProwlarrHttpError>()('ProwlarrHttpError', {
-  code: Schema.Literal('PROWLARR_HTTP_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class ProwlarrHttpError extends Schema.TaggedErrorClass<ProwlarrHttpError>()(
+  'ProwlarrHttpError',
+  httpErrorFields('PROWLARR_HTTP_ERROR')
+) {}
 
-export class ProwlarrDecodeError extends Schema.TaggedErrorClass<ProwlarrDecodeError>()('ProwlarrDecodeError', {
-  code: Schema.Literal('PROWLARR_DECODE_ERROR'),
-  message: Schema.String,
-  fix: Schema.String,
-  cause: Schema.optional(Schema.Defect()),
-}) {}
+export class ProwlarrDecodeError extends Schema.TaggedErrorClass<ProwlarrDecodeError>()(
+  'ProwlarrDecodeError',
+  decodeErrorFields('PROWLARR_DECODE_ERROR')
+) {}
 
 export class ProwlarrSyncConfirmationRequiredError extends Schema.TaggedErrorClass<ProwlarrSyncConfirmationRequiredError>()(
   'ProwlarrSyncConfirmationRequiredError',
@@ -54,35 +52,26 @@ export const ProwlarrError = Schema.Union([
 export type ProwlarrError = typeof ProwlarrError.Type
 export type ProwlarrErrorCode = ProwlarrError['code']
 
-export const envMissing = (variable: string): ProwlarrEnvMissingError =>
-  new ProwlarrEnvMissingError({
-    code: 'PROWLARR_ENV_MISSING',
-    message: `${variable} is not set`,
-    fix: envFix,
-  })
+export const envMissing = makeEnvMissing(ProwlarrEnvMissingError, 'PROWLARR_ENV_MISSING', envFix)
 
-export const unreachable = (message: string, cause?: unknown): ProwlarrUnreachableError =>
-  new ProwlarrUnreachableError({
-    code: 'PROWLARR_UNREACHABLE',
-    message,
-    fix: 'Verify Prowlarr is reachable from this host and PROWLARR_URL points to the Prowlarr base URL.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const unreachable = makeUnreachable(
+  ProwlarrUnreachableError,
+  'PROWLARR_UNREACHABLE',
+  'Verify Prowlarr is reachable from this host and PROWLARR_URL points to the Prowlarr base URL.'
+)
 
-export const httpError = (status: number): ProwlarrHttpError =>
-  new ProwlarrHttpError({
-    code: 'PROWLARR_HTTP_ERROR',
-    message: `Prowlarr returned HTTP ${status}`,
-    fix: 'Check the Prowlarr API key, request parameters, and Prowlarr server logs.',
-  })
+export const httpError = makeHttpError(
+  ProwlarrHttpError,
+  'PROWLARR_HTTP_ERROR',
+  'Prowlarr',
+  'Check the Prowlarr API key, request parameters, and Prowlarr server logs.'
+)
 
-export const decodeError = (message: string, cause?: unknown): ProwlarrDecodeError =>
-  new ProwlarrDecodeError({
-    code: 'PROWLARR_DECODE_ERROR',
-    message,
-    fix: 'Update the Prowlarr schemas to match the API response shape.',
-    ...(cause === undefined ? {} : { cause }),
-  })
+export const decodeError = makeDecodeError(
+  ProwlarrDecodeError,
+  'PROWLARR_DECODE_ERROR',
+  'Update the Prowlarr schemas to match the API response shape.'
+)
 
 export const syncConfirmationRequired = (): ProwlarrSyncConfirmationRequiredError =>
   new ProwlarrSyncConfirmationRequiredError({
