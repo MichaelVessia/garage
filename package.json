@@ -6,8 +6,8 @@
   "scripts": {
     "build": "bun run --filter '*' build",
     "typecheck": "tsc --noEmit --project tsconfig.scripts.json && bun run --filter '*' typecheck",
-    "lint": "oxlint --type-aware --config oxlint.config.mjs scripts packages/*/src packages/*/test apps/*/src apps/*/test apps/*/web/src",
-    "lint:fix": "oxlint --type-aware --config oxlint.config.mjs --fix scripts packages/*/src packages/*/test apps/*/src apps/*/test apps/*/web/src",
+    "lint": "oxlint --type-aware --config oxlint.config.mjs scripts packages/*/src packages/*/test apps/*/src apps/*/test apps/*/web/src apps/*/web/test",
+    "lint:fix": "oxlint --type-aware --config oxlint.config.mjs --fix scripts packages/*/src packages/*/test apps/*/src apps/*/test apps/*/web/src apps/*/web/test",
     "format": "oxfmt --config oxfmt.config.mjs --check scripts package.json tsconfig.json tsconfig.base.json tsconfig.scripts.json vitest.config.ts && bun run --filter '*' format",
     "format:fix": "oxfmt --config oxfmt.config.mjs scripts package.json tsconfig.json tsconfig.base.json tsconfig.scripts.json vitest.config.ts && bun run --filter '*' format:fix",
     "test": "vitest run scripts && bun run --filter '*' test",
