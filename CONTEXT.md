@@ -49,8 +49,13 @@ these; rendering happens at the edge.
 _Avoid_: handler, action, helper.
 
 **CLI protocol** (`packages/cli-protocol`):
-The shared package defining the JSON envelope (`{ command, result }` /
-`{ command, error }`) and command-description metadata every CLI emits.
+The deep shared package behind every CLI: the JSON envelope
+(`{ command, result }` / `{ command, error }`) and command-description
+metadata, plus the shared machinery — `runCliMain` (entrypoint),
+`makeJsonClient` (HTTP request/decode/error pipeline), `makeConfigReaders`,
+`makeRoot` (health failure branch), the service error field shapes, common
+schemas (`JsonObject`, `ListResultSchema`), and `makeRecordingHttpClient`
+under the `./testing` subpath.
 _Avoid_: shared, common, utils.
 
 **Tagged error** (`packages/<svc>/src/errors.ts`):
