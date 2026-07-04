@@ -1,26 +1,14 @@
 import { assert, it } from '@effect/vitest'
+import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
+import type { RecordedHttpRequest, RecordingHttpResponse } from '@garage/cli-protocol/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
-import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
-import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import { Headers as HttpHeaders } from 'effect/unstable/http'
 
 import { AutocaliwebApiLive, AutocaliwebConfig, bookInfo, books, catalog, search, status } from '../src/index.js'
-
-interface RecordedRequest {
-  readonly method: string
-  readonly url: string
-  readonly authorization?: string | undefined
-  readonly accept?: string | undefined
-}
-
-interface FakeResponse {
-  readonly status: number
-  readonly body: string | Readonly<Record<string, unknown>>
-  readonly contentType: string
-}
 
 const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
   get: () =>
@@ -33,13 +21,25 @@ const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
 
 const basicAuth = `Basic ${btoa('fixture-user:secret')}`
 
-const atomResponse = (body: string): FakeResponse => ({ status: 200, body, contentType: 'application/atom+xml' })
-
-const jsonResponse = (body: Readonly<Record<string, unknown>>): FakeResponse => ({
+const atomResponse = (body: string): RecordingHttpResponse => ({
   status: 200,
   body,
-  contentType: 'application/json',
+  headers: new Headers({ 'content-type': 'application/atom+xml' }),
 })
+
+const jsonResponse = (body: Readonly<Record<string, unknown>>): RecordingHttpResponse => ({
+  status: 200,
+  body: JSON.stringify(body),
+  headers: new Headers({ 'content-type': 'application/json' }),
+})
+
+const withAuth = (records: ReadonlyArray<RecordedHttpRequest>) =>
+  records.map((request) => ({
+    method: request.method,
+    url: request.url,
+    authorization: HttpHeaders.get(request.raw.headers, 'authorization').pipe(Option.getOrUndefined),
+    accept: HttpHeaders.get(request.raw.headers, 'accept').pipe(Option.getOrUndefined),
+  }))
 
 const indexFeed = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -89,41 +89,9 @@ const searchFeed = feedWithEntries(
   `${bookEntry('42', 'uuid-one', 'Fixture Novel One')}${bookEntry('43', 'uuid-two', 'Fixture Novel Two')}`
 )
 
-const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
-  Effect.gen(function* () {
-    const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
-    const client = HttpClient.make((request, url) =>
-      Ref.update(requests, (records) => [
-        ...records,
-        {
-          method: request.method,
-          url: url.toString(),
-          authorization: Headers.get(request.headers, 'authorization').pipe(Option.getOrUndefined),
-          accept: Headers.get(request.headers, 'accept').pipe(Option.getOrUndefined),
-        },
-      ]).pipe(
-        Effect.map(() => {
-          const response = respond(request.method, url)
-          const { body: responseBody, contentType, status: responseStatus } = response
-          let body = ''
-          if (contentType === 'application/json') {
-            body = JSON.stringify(responseBody)
-          } else if (P.isString(responseBody)) {
-            body = responseBody
-          }
-          return HttpClientResponse.fromWeb(
-            request,
-            new Response(body, { status: responseStatus, headers: { 'content-type': contentType } })
-          )
-        })
-      )
-    )
-    return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
-  })
-
 it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method, url) => {
+    const fake = yield* makeRecordingHttpClient((method, url) => {
       if (method === 'GET' && url.pathname === '/opds/stats') {
         return jsonResponse({ books: 2, authors: 1, categories: 1, series: 0 })
       }
@@ -157,7 +125,7 @@ it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =
       })
     }).pipe(Effect.provide(layer))
 
-    assert.deepStrictEqual(yield* Ref.get(fake.requests), [
+    assert.deepStrictEqual(withAuth(yield* Ref.get(fake.requests)), [
       {
         method: 'GET',
         url: 'http://autocaliweb.example.test/opds',
@@ -182,7 +150,7 @@ it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =
 
 it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata JSON', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method, url) => {
+    const fake = yield* makeRecordingHttpClient((method, url) => {
       if (method === 'GET' && url.pathname === '/opds/books/letter/00' && url.searchParams.get('offset') === '1') {
         return atomResponse(secondBooksPage)
       }

@@ -1,10 +1,12 @@
 import { assert, it } from '@effect/vitest'
+import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
+import type { RecordedHttpRequest, RecordingHttpResponse } from '@garage/cli-protocol/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
-import { Headers as HttpHeaders, HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import { Headers as HttpHeaders } from 'effect/unstable/http'
 
 import {
   TubearchivistApiLive,
@@ -16,20 +18,6 @@ import {
   subscribe,
 } from '../src/index.js'
 
-interface RecordedRequest {
-  readonly method: string
-  readonly url: string
-  readonly cookie?: string | undefined
-  readonly csrf?: string | undefined
-  readonly referer?: string | undefined
-}
-
-interface FakeResponse {
-  readonly status: number
-  readonly body: unknown
-  readonly setCookies?: ReadonlyArray<string> | undefined
-}
-
 const ConfigLayer = Layer.succeed(TubearchivistConfig, {
   get: () =>
     Effect.succeed({
@@ -39,45 +27,31 @@ const ConfigLayer = Layer.succeed(TubearchivistConfig, {
     }),
 })
 
-const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
-  Effect.gen(function* () {
-    const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
-    const client = HttpClient.make((request, url) =>
-      Ref.update(requests, (records) => [
-        ...records,
-        {
-          method: request.method,
-          url: url.toString(),
-          cookie: HttpHeaders.get(request.headers, 'cookie').pipe(Option.getOrUndefined),
-          csrf: HttpHeaders.get(request.headers, 'x-csrftoken').pipe(Option.getOrUndefined),
-          referer: HttpHeaders.get(request.headers, 'referer').pipe(Option.getOrUndefined),
-        },
-      ]).pipe(
-        Effect.map(() => {
-          const response = respond(request.method, url)
-          const headers = new Headers()
-          for (const cookie of response.setCookies ?? []) {
-            headers.append('set-cookie', cookie)
-          }
-          const responseInit = { headers, status: response.status }
-          return response.status === 204
-            ? HttpClientResponse.fromWeb(request, new Response(null, responseInit))
-            : HttpClientResponse.fromWeb(request, Response.json(response.body, responseInit))
-        })
-      )
-    )
-    return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
-  })
+const withCookies = (records: ReadonlyArray<RecordedHttpRequest>) =>
+  records.map((request) => ({
+    method: request.method,
+    url: request.url,
+    cookie: HttpHeaders.get(request.raw.headers, 'cookie').pipe(Option.getOrUndefined),
+    csrf: HttpHeaders.get(request.raw.headers, 'x-csrftoken').pipe(Option.getOrUndefined),
+    referer: HttpHeaders.get(request.raw.headers, 'referer').pipe(Option.getOrUndefined),
+  }))
 
-const loginResponse = {
+const setCookies = (cookies: ReadonlyArray<string>): Headers => {
+  const headers = new Headers()
+  for (const cookie of cookies) {
+    headers.append('set-cookie', cookie)
+  }
+  return headers
+}
+
+const loginResponse: RecordingHttpResponse = {
   status: 204,
-  body: null,
-  setCookies: ['csrftoken=csrf-1; Path=/', 'sessionid=session-1; Path=/'],
+  headers: setCookies(['csrftoken=csrf-1; Path=/', 'sessionid=session-1; Path=/']),
 }
 
 it.effect('TubeArchivist HTTP adapter logs in, caches cookies, and sends CSRF for mutations', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method, url) => {
+    const fake = yield* makeRecordingHttpClient((method, url) => {
       if (method === 'POST' && url.pathname === '/api/user/login/') {
         return loginResponse
       }
@@ -101,7 +75,7 @@ it.effect('TubeArchivist HTTP adapter logs in, caches cookies, and sends CSRF fo
       assert.strictEqual((yield* subscribe({ target: 'UC1' })).subscribed, true)
     }).pipe(Effect.provide(layer))
 
-    assert.deepStrictEqual(yield* Ref.get(fake.requests), [
+    assert.deepStrictEqual(withCookies(yield* Ref.get(fake.requests)), [
       {
         method: 'POST',
         url: 'http://tubearchivist.example.test/api/user/login/',
@@ -129,7 +103,7 @@ it.effect('TubeArchivist HTTP adapter logs in, caches cookies, and sends CSRF fo
 
 it.effect('TubeArchivist HTTP adapter maps status and search payloads', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method, url) => {
+    const fake = yield* makeRecordingHttpClient((method, url) => {
       if (method === 'POST' && url.pathname === '/api/user/login/') {
         return loginResponse
       }

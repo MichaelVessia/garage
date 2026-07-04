@@ -1,53 +1,22 @@
 import { assert, it } from '@effect/vitest'
+import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
-import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import { Headers } from 'effect/unstable/http'
 
 import { AdguardApiLive, AdguardConfig, protectionToggle, queryLogSearch, stats, status } from '../src/index.js'
-
-interface RecordedRequest {
-  readonly method: string
-  readonly url: string
-  readonly authorization?: string | undefined
-}
-
-interface FakeResponse {
-  readonly status: number
-  readonly body: unknown
-}
 
 const ConfigLayer = Layer.succeed(AdguardConfig, {
   get: () =>
     Effect.succeed({ url: 'http://adguard.example.test/', username: 'admin', password: Redacted.make('secret') }),
 })
 
-const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
-  Effect.gen(function* () {
-    const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
-    const client = HttpClient.make((request, url) =>
-      Ref.update(requests, (records) => [
-        ...records,
-        {
-          method: request.method,
-          url: url.toString(),
-          authorization: Headers.get(request.headers, 'authorization').pipe(Option.getOrUndefined),
-        },
-      ]).pipe(
-        Effect.map(() => {
-          const response = respond(request.method, url)
-          return HttpClientResponse.fromWeb(request, Response.json(response.body, { status: response.status }))
-        })
-      )
-    )
-    return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
-  })
-
 it.effect('AdguardApiLive authenticates and maps status', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer(() => ({
+    const fake = yield* makeRecordingHttpClient(() => ({
       status: 200,
       body: {
         version: 'v0.107.67',
@@ -68,19 +37,26 @@ it.effect('AdguardApiLive authenticates and maps status', () =>
       httpPort: undefined,
       protectionDisabledDuration: undefined,
     })
-    assert.deepStrictEqual(yield* Ref.get(fake.requests), [
-      {
-        method: 'GET',
-        url: 'http://adguard.example.test/control/status',
-        authorization: 'Basic YWRtaW46c2VjcmV0',
-      },
-    ])
+    assert.deepStrictEqual(
+      (yield* Ref.get(fake.requests)).map((request) => ({
+        method: request.method,
+        url: request.url,
+        authorization: Headers.get(request.raw.headers, 'authorization').pipe(Option.getOrUndefined),
+      })),
+      [
+        {
+          method: 'GET',
+          url: 'http://adguard.example.test/control/status',
+          authorization: 'Basic YWRtaW46c2VjcmV0',
+        },
+      ]
+    )
   })
 )
 
 it.effect('AdguardApiLive maps stats, searches query log, and toggles protection', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method, url) => {
+    const fake = yield* makeRecordingHttpClient((method, url) => {
       if (url.pathname === '/control/stats') {
         return {
           status: 200,

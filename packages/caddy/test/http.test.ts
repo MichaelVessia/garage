@@ -1,42 +1,18 @@
 import { assert, it } from '@effect/vitest'
+import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Ref from 'effect/Ref'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { CaddyApiLive, CaddyConfig, pkiCa, reload, routes, upstreams } from '../src/index.js'
-
-interface RecordedRequest {
-  readonly method: string
-  readonly url: string
-}
-
-interface FakeResponse {
-  readonly status: number
-  readonly body: unknown
-}
 
 const ConfigLayer = Layer.succeed(CaddyConfig, {
   get: () => Effect.succeed({ url: 'http://caddy.example.test:2019/' }),
 })
 
-const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
-  Effect.gen(function* () {
-    const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
-    const client = HttpClient.make((request, url) =>
-      Ref.update(requests, (records) => [...records, { method: request.method, url: url.toString() }]).pipe(
-        Effect.map(() => {
-          const response = respond(request.method, url)
-          return HttpClientResponse.fromWeb(request, Response.json(response.body, { status: response.status }))
-        })
-      )
-    )
-    return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
-  })
-
 it.effect('CaddyApiLive maps routes and upstreams', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((_, url) =>
+    const fake = yield* makeRecordingHttpClient((_, url) =>
       url.pathname === '/config/'
         ? {
             status: 200,
@@ -82,7 +58,7 @@ it.effect('CaddyApiLive maps routes and upstreams', () =>
 
 it.effect('CaddyApiLive maps pki-ca and reloads config', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method, _url) => {
+    const fake = yield* makeRecordingHttpClient((method, _url) => {
       if (method === 'POST') {
         return { status: 200, body: null }
       }

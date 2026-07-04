@@ -1,53 +1,17 @@
 import { assert, it } from '@effect/vitest'
+import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
-import { Headers, HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import { Headers } from 'effect/unstable/http'
 
 import { JellyseerrApiLive, JellyseerrConfig, approve, deleteRequest, requests, search, status } from '../src/index.js'
-
-interface RecordedRequest {
-  readonly method: string
-  readonly url: string
-  readonly apiKey?: string | undefined
-}
-
-interface FakeResponse {
-  readonly status: number
-  readonly body: unknown
-}
 
 const ConfigLayer = Layer.succeed(JellyseerrConfig, {
   get: () => Effect.succeed({ url: 'http://jellyseerr.example.test/', apiKey: Redacted.make('secret') }),
 })
-
-const makeHttpClientLayer = (respond: (method: string, url: URL) => FakeResponse) =>
-  Effect.gen(function* () {
-    const requestsRef = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
-    const client = HttpClient.make((request, url) =>
-      Ref.update(requestsRef, (records) => [
-        ...records,
-        {
-          method: request.method,
-          url: url.toString(),
-          apiKey: Headers.get(request.headers, 'x-api-key').pipe(Option.getOrUndefined),
-        },
-      ]).pipe(
-        Effect.map(() => {
-          const response = respond(request.method, url)
-          const webResponse =
-            response.status === 204
-              ? new Response(null, { status: response.status })
-              : Response.json(response.body, { status: response.status })
-          return HttpClientResponse.fromWeb(request, webResponse)
-        })
-      )
-    )
-
-    return { layer: Layer.succeed(HttpClient.HttpClient, client), requestsRef }
-  })
 
 const requestBody = {
   id: 42,
@@ -59,25 +23,30 @@ const requestBody = {
 
 it.effect('JellyseerrApiLive sends authenticated status requests', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer(() => ({
+    const fake = yield* makeRecordingHttpClient(() => ({
       status: 200,
       body: { version: '2.0.0', commitTag: 'v2.0.0', updateAvailable: false },
     }))
     const layer = JellyseerrApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* status.pipe(Effect.provide(layer))
-    const records = yield* Ref.get(fake.requestsRef)
+    const records = yield* Ref.get(fake.requests)
 
     assert.strictEqual(result.version, '2.0.0')
-    assert.deepStrictEqual(records, [
-      { method: 'GET', url: 'http://jellyseerr.example.test/api/v1/status', apiKey: 'secret' },
-    ])
+    assert.deepStrictEqual(
+      records.map((record) => ({
+        method: record.method,
+        url: record.url,
+        apiKey: Headers.get(record.raw.headers, 'x-api-key').pipe(Option.getOrUndefined),
+      })),
+      [{ method: 'GET', url: 'http://jellyseerr.example.test/api/v1/status', apiKey: 'secret' }]
+    )
   })
 )
 
 it.effect('JellyseerrApiLive maps requests and search list responses', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((_method, url) => {
+    const fake = yield* makeRecordingHttpClient((_method, url) => {
       if (url.pathname === '/api/v1/search') {
         return {
           status: 200,
@@ -91,7 +60,7 @@ it.effect('JellyseerrApiLive maps requests and search list responses', () =>
 
     const requestResult = yield* requests({ limit: 5, filter: 'pending' }).pipe(Effect.provide(layer))
     const searchResult = yield* search({ query: 'Linux ISO', limit: 4 }).pipe(Effect.provide(layer))
-    const records = yield* Ref.get(fake.requestsRef)
+    const records = yield* Ref.get(fake.requests)
 
     assert.strictEqual(requestResult.records[0]?.requestedBy, 'Test User')
     assert.strictEqual(searchResult.records[0]?.title, 'Linux ISO Weekly')
@@ -107,14 +76,14 @@ it.effect('JellyseerrApiLive maps requests and search list responses', () =>
 
 it.effect('JellyseerrApiLive posts approvals and deletes requests', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer((method) =>
+    const fake = yield* makeRecordingHttpClient((method) =>
       method === 'DELETE' ? { status: 204, body: null } : { status: 200, body: requestBody }
     )
     const layer = JellyseerrApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const approved = yield* approve(42).pipe(Effect.provide(layer))
     const deleted = yield* deleteRequest(42).pipe(Effect.provide(layer))
-    const records = yield* Ref.get(fake.requestsRef)
+    const records = yield* Ref.get(fake.requests)
 
     assert.strictEqual(approved.id, 42)
     assert.deepStrictEqual(deleted, { deleted: true, requestId: 42, httpStatus: 204 })

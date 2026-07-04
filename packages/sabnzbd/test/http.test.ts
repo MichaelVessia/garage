@@ -1,21 +1,11 @@
 import { assert, it } from '@effect/vitest'
+import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { SabnzbdApiLive, SabnzbdConfig, deleteQueueItem, queue, status } from '../src/index.js'
-
-interface RecordedRequest {
-  readonly method: string
-  readonly url: string
-}
-
-interface FakeResponse {
-  readonly status: number
-  readonly body: unknown
-}
 
 const ConfigLayer = Layer.succeed(SabnzbdConfig, {
   get: () =>
@@ -25,24 +15,9 @@ const ConfigLayer = Layer.succeed(SabnzbdConfig, {
     }),
 })
 
-const makeHttpClientLayer = (respond: (url: URL) => FakeResponse) =>
-  Effect.gen(function* () {
-    const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>([])
-    const client = HttpClient.make((request, url) =>
-      Ref.update(requests, (records) => [...records, { method: request.method, url: url.toString() }]).pipe(
-        Effect.map(() => {
-          const response = respond(url)
-          return HttpClientResponse.fromWeb(request, Response.json(response.body, { status: response.status }))
-        })
-      )
-    )
-
-    return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
-  })
-
 it.effect('SabnzbdApiLive sends query-authenticated status requests', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer(() => ({
+    const fake = yield* makeRecordingHttpClient(() => ({
       status: 200,
       body: {
         status: {
@@ -61,7 +36,7 @@ it.effect('SabnzbdApiLive sends query-authenticated status requests', () =>
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* status.pipe(Effect.provide(layer))
-    const requests = yield* Ref.get(fake.requests)
+    const requests = (yield* Ref.get(fake.requests)).map((request) => ({ method: request.method, url: request.url }))
 
     assert.strictEqual(result.version, '4.5.3')
     assert.deepStrictEqual(requests, [
@@ -75,7 +50,7 @@ it.effect('SabnzbdApiLive sends query-authenticated status requests', () =>
 
 it.effect('SabnzbdApiLive maps queue responses and limit params', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer(() => ({
+    const fake = yield* makeRecordingHttpClient(() => ({
       status: 200,
       body: {
         queue: {
@@ -107,7 +82,7 @@ it.effect('SabnzbdApiLive maps queue responses and limit params', () =>
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* queue({ limit: 5 }).pipe(Effect.provide(layer))
-    const requests = yield* Ref.get(fake.requests)
+    const requests = (yield* Ref.get(fake.requests)).map((request) => ({ method: request.method, url: request.url }))
 
     assert.strictEqual(result.totalRecords, 22)
     assert.deepStrictEqual(result.slots, [
@@ -134,11 +109,11 @@ it.effect('SabnzbdApiLive maps queue responses and limit params', () =>
 
 it.effect('SabnzbdApiLive sends delete file flags explicitly', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer(() => ({ status: 200, body: { status: true } }))
+    const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: { status: true } }))
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* deleteQueueItem('SABnzbd_nzo_abc', { deleteFiles: true }).pipe(Effect.provide(layer))
-    const requests = yield* Ref.get(fake.requests)
+    const requests = (yield* Ref.get(fake.requests)).map((request) => ({ method: request.method, url: request.url }))
 
     assert.deepStrictEqual(result, {
       action: 'delete',
@@ -157,7 +132,7 @@ it.effect('SabnzbdApiLive sends delete file flags explicitly', () =>
 
 it.effect('SabnzbdApiLive does not treat missing action status as success', () =>
   Effect.gen(function* () {
-    const fake = yield* makeHttpClientLayer(() => ({ status: 200, body: {} }))
+    const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: {} }))
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* deleteQueueItem('SABnzbd_nzo_abc', { deleteFiles: false }).pipe(Effect.provide(layer))
