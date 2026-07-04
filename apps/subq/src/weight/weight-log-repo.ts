@@ -55,6 +55,13 @@ export class WeightLogRepo extends Context.Service<
   {
     readonly list: (params: WeightLogListParams, userId: string) => Effect.Effect<WeightLog[], WeightLogDatabaseError>
     readonly findById: (id: string, userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
+    /** Most recently logged weight entry for a user. */
+    readonly mostRecent: (userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
+    /** Weight entry whose date is nearest to the given date (ties broken arbitrarily). */
+    readonly nearestToDate: (
+      userId: string,
+      date: DateTime.Utc
+    ) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
     readonly create: (data: WeightLogCreate, userId: string) => Effect.Effect<WeightLog, WeightLogDatabaseError>
     readonly update: (
       data: WeightLogUpdate,
@@ -100,6 +107,44 @@ export const WeightLogRepoLive = Layer.effect(
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE id = ${id} AND user_id = ${userId}
+        `
+        if (Arr.isReadonlyArrayEmpty(rows)) {
+          return Option.none()
+        }
+        const decoded = yield* decodeAndTransform(rows[0])
+        return Option.some(decoded)
+      },
+      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+    )
+
+    const mostRecent = Effect.fn('WeightLogRepo.mostRecent')(
+      function* (userId: string) {
+        const rows = yield* sql`
+          SELECT id, datetime, weight, notes, created_at, updated_at
+          FROM weight_logs
+          WHERE user_id = ${userId}
+          ORDER BY datetime DESC
+          LIMIT 1
+        `
+        if (Arr.isReadonlyArrayEmpty(rows)) {
+          return Option.none()
+        }
+        const decoded = yield* decodeAndTransform(rows[0])
+        return Option.some(decoded)
+      },
+      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+    )
+
+    const nearestToDate = Effect.fn('WeightLogRepo.nearestToDate')(
+      function* (userId: string, date: DateTime.Utc) {
+        const dateStr = DateTime.formatIso(date).slice(0, 10)
+        // Nearest by absolute day distance; ties broken by SQLite's default row order.
+        const rows = yield* sql`
+          SELECT id, datetime, weight, notes, created_at, updated_at
+          FROM weight_logs
+          WHERE user_id = ${userId}
+          ORDER BY ABS(julianday(date(datetime)) - julianday(${dateStr}))
+          LIMIT 1
         `
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
@@ -190,6 +235,8 @@ export const WeightLogRepoLive = Layer.effect(
     return {
       list,
       findById,
+      mostRecent,
+      nearestToDate,
       create,
       update,
       delete: del,

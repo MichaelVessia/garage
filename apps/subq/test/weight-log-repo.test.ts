@@ -107,6 +107,122 @@ describe('WeightLogRepo', () => {
     })
   })
 
+  describe('mostRecent', () => {
+    it.layer(TestLayer)((it) => {
+      it.effect('returns none for an empty table', () =>
+        Effect.gen(function* () {
+          const repo = yield* WeightLogRepo
+          const found = yield* repo.mostRecent('user-123')
+          assert.isTrue(Option.isNone(found))
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('returns the entry with the latest datetime regardless of insertion order', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-2', testDate('2024-02-01T00:00:00Z'), 190, 'user-123')
+          yield* insertWeightLog('wl-1', testDate('2024-01-01T00:00:00Z'), 200, 'user-123')
+          yield* insertWeightLog('wl-3', testDate('2024-03-01T00:00:00Z'), 185, 'user-123')
+
+          const repo = yield* WeightLogRepo
+          const found = yield* repo.mostRecent('user-123')
+          assert.isTrue(Option.isSome(found))
+          if (Option.isSome(found)) {
+            assert.strictEqual(found.value.id, 'wl-3')
+            assert.strictEqual(found.value.weight, 185)
+          }
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('ignores entries belonging to a different user', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-1', testDate('2024-03-01T00:00:00Z'), 175, 'user-456')
+
+          const repo = yield* WeightLogRepo
+          const found = yield* repo.mostRecent('user-123')
+          assert.isTrue(Option.isNone(found))
+        })
+      )
+    })
+  })
+
+  describe('nearestToDate', () => {
+    it.layer(TestLayer)((it) => {
+      it.effect('returns none for an empty table', () =>
+        Effect.gen(function* () {
+          const repo = yield* WeightLogRepo
+          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+          assert.isTrue(Option.isNone(found))
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('returns the entry closest to the target date when the target is between two entries', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-before', testDate('2024-01-01T00:00:00Z'), 200, 'user-123')
+          yield* insertWeightLog('wl-after', testDate('2024-01-20T00:00:00Z'), 190, 'user-123')
+
+          const repo = yield* WeightLogRepo
+          // Closer to 2024-01-01 (4 days away) than to 2024-01-20 (15 days away)
+          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-05T00:00:00Z'))
+          assert.isTrue(Option.isSome(found))
+          if (Option.isSome(found)) {
+            assert.strictEqual(found.value.id, 'wl-before')
+          }
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('prefers the entry after the target date when it is closer than the one before', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-before', testDate('2024-01-01T00:00:00Z'), 200, 'user-123')
+          yield* insertWeightLog('wl-after', testDate('2024-01-20T00:00:00Z'), 190, 'user-123')
+
+          const repo = yield* WeightLogRepo
+          // Closer to 2024-01-20 (2 days away) than to 2024-01-01 (17 days away)
+          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-18T00:00:00Z'))
+          assert.isTrue(Option.isSome(found))
+          if (Option.isSome(found)) {
+            assert.strictEqual(found.value.id, 'wl-after')
+          }
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('returns the exact match when an entry exists on the target date', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-exact', testDate('2024-01-15T08:00:00Z'), 180, 'user-123')
+          yield* insertWeightLog('wl-far', testDate('2024-06-01T00:00:00Z'), 170, 'user-123')
+
+          const repo = yield* WeightLogRepo
+          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+          assert.isTrue(Option.isSome(found))
+          if (Option.isSome(found)) {
+            assert.strictEqual(found.value.id, 'wl-exact')
+          }
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('ignores entries belonging to a different user', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-1', testDate('2024-01-15T00:00:00Z'), 180, 'user-456')
+
+          const repo = yield* WeightLogRepo
+          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+          assert.isTrue(Option.isNone(found))
+        })
+      )
+    })
+  })
+
   describe('list', () => {
     it.layer(TestLayer)((it) => {
       it.effect('lists weight logs with pagination', () =>

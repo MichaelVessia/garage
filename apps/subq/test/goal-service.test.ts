@@ -9,10 +9,13 @@ import { GoalId, Notes, Weight } from '#shared'
 
 import { GoalRepoLive } from '../src/goals/goal-repo.js'
 import { GoalService, GoalServiceLive } from '../src/goals/goal-service.js'
+import { WeightLogRepoLive } from '../src/weight/weight-log-repo.js'
 import { testDate } from './helpers/dates.js'
 import { insertWeightLog, makeInitializedTestLayer } from './helpers/test-db.js'
 
-const TestLayer = makeInitializedTestLayer(GoalServiceLive.pipe(Layer.provide(GoalRepoLive)))
+const TestLayer = makeInitializedTestLayer(
+  GoalServiceLive.pipe(Layer.provide(GoalRepoLive), Layer.provide(WeightLogRepoLive))
+)
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 const insertGoal = (params: {

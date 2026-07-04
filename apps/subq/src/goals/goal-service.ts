@@ -1,4 +1,3 @@
-import * as Arr from 'effect/Array'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
@@ -10,6 +9,7 @@ import { SqlClient } from 'effect/unstable/sql'
 import type { GoalNotFoundError, GoalProgress, UserGoal, UserGoalCreate } from '#shared'
 import { buildGoalProgress, GoalDatabaseError, NoWeightDataError, UserGoalUpdate, Weight } from '#shared'
 
+import { WeightLogRepo } from '../weight/weight-log-repo.js'
 import { GoalRepo } from './goal-repo.js'
 
 // ============================================
@@ -69,20 +69,12 @@ export const GoalServiceLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const goalRepo = yield* GoalRepo
+    const weightLogRepo = yield* WeightLogRepo
 
     const getCurrentWeight = Effect.fn('GoalService.getCurrentWeight')(
       function* (userId: string) {
-        const rows = yield* sql`
-          SELECT datetime, weight FROM weight_logs
-          WHERE user_id = ${userId}
-          ORDER BY datetime DESC
-          LIMIT 1
-        `
-        if (Arr.isReadonlyArrayEmpty(rows)) {
-          return Option.none()
-        }
-        const decoded = yield* decodeWeightRow(rows[0])
-        return Option.some(decoded.weight)
+        const entryOpt = yield* weightLogRepo.mostRecent(userId)
+        return Option.map(entryOpt, (entry) => entry.weight)
       },
       Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
     )
@@ -114,19 +106,8 @@ export const GoalServiceLive = Layer.effect(
 
     const getWeightAtDate = Effect.fn('GoalService.getWeightAtDate')(
       function* (userId: string, date: DateTime.Utc) {
-        const dateStr = DateTime.formatIso(date).slice(0, 10)
-        // Get weight entry closest to the target date (on or before preferred, else after)
-        const rows = yield* sql`
-          SELECT datetime, weight FROM weight_logs
-          WHERE user_id = ${userId}
-          ORDER BY ABS(julianday(date(datetime)) - julianday(${dateStr}))
-          LIMIT 1
-        `
-        if (Arr.isReadonlyArrayEmpty(rows)) {
-          return Option.none()
-        }
-        const decoded = yield* decodeWeightRow(rows[0])
-        return Option.some(decoded.weight)
+        const entryOpt = yield* weightLogRepo.nearestToDate(userId, date)
+        return Option.map(entryOpt, (entry) => entry.weight)
       },
       Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
     )
