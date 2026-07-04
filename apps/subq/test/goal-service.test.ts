@@ -5,6 +5,8 @@ import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import { SqlClient } from 'effect/unstable/sql'
 
+import { GoalId, Notes, Weight } from '#shared'
+
 import { GoalRepoLive } from '../src/goals/goal-repo.js'
 import { GoalService, GoalServiceLive } from '../src/goals/goal-service.js'
 import { testDate } from './helpers/dates.js'
@@ -116,4 +118,175 @@ describe('GoalService', () => {
       assert.closeTo(after.percentComplete, 33.333, 0.0005)
     }).pipe(Effect.provide(TestLayer))
   )
+
+  describe('createGoal', () => {
+    it.effect('uses the explicit startingWeight when provided', () =>
+      Effect.gen(function* () {
+        const userId = 'user-create-explicit'
+        const service = yield* GoalService
+
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingWeight: Weight.make(210),
+          startingDate: Option.none(),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        assert.strictEqual(created.startingWeight, 210)
+      }).pipe(Effect.provide(TestLayer))
+    )
+
+    it.effect('falls back to the weight logged at startingDate when startingWeight is omitted', () =>
+      Effect.gen(function* () {
+        const userId = 'user-create-at-date'
+        yield* insertWeightLog('w1', testDate('2024-01-01T00:00:00Z'), 200, userId)
+        yield* insertWeightLog('w2', testDate('2024-02-01T00:00:00Z'), 190, userId)
+
+        const service = yield* GoalService
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingDate: Option.some(DateTime.makeUnsafe('2024-02-01T00:00:00Z')),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        assert.strictEqual(created.startingWeight, 190)
+      }).pipe(Effect.provide(TestLayer))
+    )
+
+    it.effect('falls back to the most recent weight log when neither startingWeight nor startingDate is provided', () =>
+      Effect.gen(function* () {
+        const userId = 'user-create-most-recent'
+        yield* insertWeightLog('w1', testDate('2024-01-01T00:00:00Z'), 200, userId)
+        yield* insertWeightLog('w2', testDate('2024-03-01T00:00:00Z'), 185, userId)
+
+        const service = yield* GoalService
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingDate: Option.none(),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        assert.strictEqual(created.startingWeight, 185)
+      }).pipe(Effect.provide(TestLayer))
+    )
+
+    it.effect('fails with NoWeightDataError when no weight logs exist and no startingWeight is provided', () =>
+      Effect.gen(function* () {
+        const userId = 'user-create-no-data'
+        const service = yield* GoalService
+
+        const result = yield* service
+          .createGoal(userId, {
+            goalWeight: Weight.make(150),
+            startingDate: Option.none(),
+            targetDate: Option.none(),
+            notes: Option.none(),
+          })
+          .pipe(Effect.result)
+
+        assert.strictEqual(result._tag, 'Failure')
+        if (result._tag === 'Failure') {
+          assert.strictEqual(result.failure._tag, 'NoWeightDataError')
+        }
+      }).pipe(Effect.provide(TestLayer))
+    )
+  })
+
+  describe('updateGoal', () => {
+    it.effect('recomputes the starting weight from the weight log at the new startingDate', () =>
+      Effect.gen(function* () {
+        const userId = 'user-update-recompute'
+        const service = yield* GoalService
+
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingWeight: Weight.make(200),
+          startingDate: Option.some(DateTime.makeUnsafe('2024-01-01T00:00:00Z')),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        yield* insertWeightLog('w-new', testDate('2024-03-01T00:00:00Z'), 175, userId)
+
+        const updated = yield* service.updateGoal(userId, {
+          id: GoalId.make(created.id),
+          startingDate: DateTime.makeUnsafe('2024-03-01T00:00:00Z'),
+        })
+
+        assert.strictEqual(updated.startingWeight, 175)
+      }).pipe(Effect.provide(TestLayer))
+    )
+
+    it.effect('keeps the provided startingWeight when startingDate changes alongside it', () =>
+      Effect.gen(function* () {
+        const userId = 'user-update-explicit-weight'
+        const service = yield* GoalService
+
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingWeight: Weight.make(200),
+          startingDate: Option.some(DateTime.makeUnsafe('2024-01-01T00:00:00Z')),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        yield* insertWeightLog('w-new', testDate('2024-03-01T00:00:00Z'), 175, userId)
+
+        const updated = yield* service.updateGoal(userId, {
+          id: GoalId.make(created.id),
+          startingDate: DateTime.makeUnsafe('2024-03-01T00:00:00Z'),
+          startingWeight: Weight.make(198),
+        })
+
+        assert.strictEqual(updated.startingWeight, 198)
+      }).pipe(Effect.provide(TestLayer))
+    )
+
+    it.effect('leaves the starting weight unchanged when startingDate is not part of the update', () =>
+      Effect.gen(function* () {
+        const userId = 'user-update-no-change'
+        const service = yield* GoalService
+
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingWeight: Weight.make(200),
+          startingDate: Option.some(DateTime.makeUnsafe('2024-01-01T00:00:00Z')),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        const updated = yield* service.updateGoal(userId, {
+          id: GoalId.make(created.id),
+          notes: Notes.make('just a note update'),
+        })
+
+        assert.strictEqual(updated.startingWeight, 200)
+      }).pipe(Effect.provide(TestLayer))
+    )
+
+    it.effect('leaves the starting weight unchanged when startingDate changes but no weight logs exist', () =>
+      Effect.gen(function* () {
+        const userId = 'user-update-no-weight-logs'
+        const service = yield* GoalService
+
+        const created = yield* service.createGoal(userId, {
+          goalWeight: Weight.make(150),
+          startingWeight: Weight.make(200),
+          startingDate: Option.some(DateTime.makeUnsafe('2024-01-01T00:00:00Z')),
+          targetDate: Option.none(),
+          notes: Option.none(),
+        })
+
+        const updated = yield* service.updateGoal(userId, {
+          id: GoalId.make(created.id),
+          startingDate: DateTime.makeUnsafe('2024-03-01T00:00:00Z'),
+        })
+
+        assert.strictEqual(updated.startingWeight, 200)
+      }).pipe(Effect.provide(TestLayer))
+    )
+  })
 })

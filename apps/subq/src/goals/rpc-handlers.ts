@@ -1,8 +1,8 @@
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
-import { authedRpc, GoalRpcs, NoWeightDataError, UserGoalUpdate, Weight } from '#shared'
-import type { GoalId, UserGoalCreate } from '#shared'
+import { authedRpc, GoalRpcs } from '#shared'
+import type { GoalId, UserGoalCreate, UserGoalUpdate } from '#shared'
 
 import { GoalRepo } from './goal-repo.js'
 import { GoalService } from './goal-service.js'
@@ -61,25 +61,7 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
           })
         )
 
-        // Get starting weight - use provided, or lookup at startingDate, or fetch most recent
-        let startingWeight: number
-        if (data.startingWeight !== undefined) {
-          ;({ startingWeight } = data)
-        } else if (Option.isSome(data.startingDate)) {
-          const weightOpt = yield* goalService.getWeightAtDate(user.id, data.startingDate.value)
-          if (Option.isNone(weightOpt)) {
-            return yield* Effect.fail(NoWeightDataError.make({}))
-          }
-          startingWeight = weightOpt.value
-        } else {
-          const weightOpt = yield* goalService.getMostRecentWeight(user.id)
-          if (Option.isNone(weightOpt)) {
-            return yield* Effect.fail(NoWeightDataError.make({}))
-          }
-          startingWeight = weightOpt.value
-        }
-
-        const result = yield* goalRepo.create(data, startingWeight, user.id)
+        const result = yield* goalService.createGoal(user.id, data)
         yield* Effect.logInfo('GoalCreate completed').pipe(
           Effect.annotateLogs({
             rpc: 'GoalCreate',
@@ -101,24 +83,7 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
           })
         )
 
-        // If startingDate changed and no explicit startingWeight, lookup weight at new date
-        let updateData = data
-        if (data.startingDate !== undefined && data.startingWeight === undefined) {
-          const weightOpt = yield* goalService.getWeightAtDate(user.id, data.startingDate)
-          if (Option.isSome(weightOpt)) {
-            updateData = new UserGoalUpdate({
-              id: data.id,
-              ...(data.goalWeight === undefined ? {} : { goalWeight: data.goalWeight }),
-              startingWeight: Weight.make(weightOpt.value),
-              ...(data.startingDate === undefined ? {} : { startingDate: data.startingDate }),
-              ...(data.targetDate === undefined ? {} : { targetDate: data.targetDate }),
-              ...(data.notes === undefined ? {} : { notes: data.notes }),
-              ...(data.isActive === undefined ? {} : { isActive: data.isActive }),
-            })
-          }
-        }
-
-        const result = yield* goalRepo.update(updateData, user.id)
+        const result = yield* goalService.updateGoal(user.id, data)
         yield* Effect.logInfo('GoalUpdate completed').pipe(Effect.annotateLogs({ rpc: 'GoalUpdate', id: data.id }))
         return result
       })
