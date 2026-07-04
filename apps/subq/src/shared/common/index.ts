@@ -3,6 +3,7 @@ export {
   Limit,
   Offset,
   Notes,
+  DbOperation,
   Count,
   DaysBetween,
   DayOfWeek,

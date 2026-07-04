@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 
-import { Limit, Notes, Offset } from '../common/domain.js'
+import { DbOperation, Limit, Notes, Offset } from '../common/domain.js'
 
 // ============================================
 // Weight Conversion Utilities
@@ -59,7 +59,7 @@ export class WeightLogNotFoundError extends Schema.TaggedClass<WeightLogNotFound
 }) {}
 
 export class WeightLogDatabaseError extends Schema.TaggedClass<WeightLogDatabaseError>()('WeightLogDatabaseError', {
-  operation: Schema.Literals(['insert', 'update', 'delete', 'query'] as const),
+  operation: DbOperation,
   cause: Schema.Defect(),
 }) {}
 

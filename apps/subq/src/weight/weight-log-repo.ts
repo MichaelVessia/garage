@@ -11,6 +11,7 @@ import { SqlClient } from 'effect/unstable/sql'
 import { Notes, Weight, WeightLog, WeightLogDatabaseError, WeightLogId, WeightLogNotFoundError } from '#shared'
 import type { WeightLogCreate, WeightLogListParams, WeightLogUpdate } from '#shared'
 
+import { mapDbError } from '../shared/common/db-error.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
 
 // ============================================
@@ -98,7 +99,7 @@ export const WeightLogRepoLive = Layer.effect(
         `
         return yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
       },
-      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(WeightLogDatabaseError, 'query')
     )
 
     const findById = Effect.fn('WeightLogRepo.findById')(
@@ -114,7 +115,7 @@ export const WeightLogRepoLive = Layer.effect(
         const decoded = yield* decodeAndTransform(rows[0])
         return Option.some(decoded)
       },
-      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(WeightLogDatabaseError, 'query')
     )
 
     const mostRecent = Effect.fn('WeightLogRepo.mostRecent')(
@@ -132,7 +133,7 @@ export const WeightLogRepoLive = Layer.effect(
         const decoded = yield* decodeAndTransform(rows[0])
         return Option.some(decoded)
       },
-      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(WeightLogDatabaseError, 'query')
     )
 
     const nearestToDate = Effect.fn('WeightLogRepo.nearestToDate')(
@@ -152,7 +153,7 @@ export const WeightLogRepoLive = Layer.effect(
         const decoded = yield* decodeAndTransform(rows[0])
         return Option.some(decoded)
       },
-      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(WeightLogDatabaseError, 'query')
     )
 
     const create = Effect.fn('WeightLogRepo.create')(
@@ -175,7 +176,7 @@ export const WeightLogRepoLive = Layer.effect(
         `
         return yield* decodeAndTransform(rows[0])
       },
-      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'insert', cause }))
+      mapDbError(WeightLogDatabaseError, 'insert')
     )
 
     const update = Effect.fn('WeightLogRepo.update')(function* (data: WeightLogUpdate, userId: string) {
@@ -183,15 +184,13 @@ export const WeightLogRepoLive = Layer.effect(
       const current = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs WHERE id = ${data.id} AND user_id = ${userId}
-        `.pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause })))
+        `.pipe(mapDbError(WeightLogDatabaseError, 'query'))
 
       if (Arr.isReadonlyArrayEmpty(current)) {
         return yield* Effect.fail(WeightLogNotFoundError.make({ id: data.id }))
       }
 
-      const curr = yield* decodeRow(current[0]).pipe(
-        Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause }))
-      )
+      const curr = yield* decodeRow(current[0]).pipe(mapDbError(WeightLogDatabaseError, 'query'))
       const newDatetime = data.datetime !== undefined ? DateTime.formatIso(data.datetime) : curr.datetime
       const newWeight = data.weight ?? curr.weight
       const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
@@ -204,18 +203,16 @@ export const WeightLogRepoLive = Layer.effect(
               notes = ${newNotes},
               updated_at = ${now}
           WHERE id = ${data.id} AND user_id = ${userId}
-        `.pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'update', cause })))
+        `.pipe(mapDbError(WeightLogDatabaseError, 'update'))
 
       // Fetch updated row
       const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE id = ${data.id} AND user_id = ${userId}
-        `.pipe(Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'query', cause })))
+        `.pipe(mapDbError(WeightLogDatabaseError, 'query'))
 
-      return yield* decodeAndTransform(rows[0]).pipe(
-        Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'update', cause }))
-      )
+      return yield* decodeAndTransform(rows[0]).pipe(mapDbError(WeightLogDatabaseError, 'update'))
     })
 
     const del = Effect.fn('WeightLogRepo.delete')(
@@ -229,7 +226,7 @@ export const WeightLogRepoLive = Layer.effect(
         yield* sql`DELETE FROM weight_logs WHERE id = ${id} AND user_id = ${userId}`
         return true
       },
-      Effect.mapError((cause) => WeightLogDatabaseError.make({ operation: 'delete', cause }))
+      mapDbError(WeightLogDatabaseError, 'delete')
     )
 
     return {

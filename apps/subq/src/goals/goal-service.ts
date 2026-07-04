@@ -9,6 +9,7 @@ import { SqlClient } from 'effect/unstable/sql'
 import type { GoalNotFoundError, GoalProgress, UserGoal, UserGoalCreate } from '#shared'
 import { buildGoalProgress, GoalDatabaseError, NoWeightDataError, UserGoalUpdate, Weight } from '#shared'
 
+import { mapDbError } from '../shared/common/db-error.js'
 import { WeightLogRepo } from '../weight/weight-log-repo.js'
 import { GoalRepo } from './goal-repo.js'
 
@@ -76,7 +77,7 @@ export const GoalServiceLive = Layer.effect(
         const entryOpt = yield* weightLogRepo.mostRecent(userId)
         return Option.map(entryOpt, (entry) => entry.weight)
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(GoalDatabaseError, 'query')
     )
 
     const getMostRecentWeight = getCurrentWeight
@@ -101,7 +102,7 @@ export const GoalServiceLive = Layer.effect(
           { concurrency: 1 }
         )
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(GoalDatabaseError, 'query')
     )
 
     const getWeightAtDate = Effect.fn('GoalService.getWeightAtDate')(
@@ -109,7 +110,7 @@ export const GoalServiceLive = Layer.effect(
         const entryOpt = yield* weightLogRepo.nearestToDate(userId, date)
         return Option.map(entryOpt, (entry) => entry.weight)
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(GoalDatabaseError, 'query')
     )
 
     const getGoalProgress = Effect.fn('GoalService.getGoalProgress')(function* (userId: string) {

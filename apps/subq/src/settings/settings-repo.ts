@@ -11,6 +11,7 @@ import { SettingsDatabaseError, UserSettings } from '#shared'
 import type { UserSettingsUpdate } from '#shared'
 
 import { SettingsMissingAfterUpsert } from '../errors.js'
+import { mapDbError } from '../shared/common/db-error.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
 
 // ============================================
@@ -79,7 +80,7 @@ export const SettingsRepoLive = Layer.effect(
         const decoded = yield* decodeSettingsRow(rows[0])
         return Option.some(settingsRowToDomain(decoded))
       },
-      Effect.mapError((cause) => SettingsDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(SettingsDatabaseError, 'query')
     )
 
     const upsert = Effect.fn('SettingsRepo.upsert')(
@@ -126,7 +127,7 @@ export const SettingsRepoLive = Layer.effect(
           onSome: Effect.succeed,
         })
       },
-      Effect.mapError((cause) => SettingsDatabaseError.make({ operation: 'update', cause }))
+      mapDbError(SettingsDatabaseError, 'update')
     )
 
     return { get, upsert }

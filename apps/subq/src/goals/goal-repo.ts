@@ -11,6 +11,7 @@ import { SqlClient } from 'effect/unstable/sql'
 import { GoalDatabaseError, GoalId, GoalNotFoundError, Notes, UserGoal, Weight } from '#shared'
 import type { UserGoalCreate, UserGoalUpdate } from '#shared'
 
+import { mapDbError } from '../shared/common/db-error.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
 
 // ============================================
@@ -124,7 +125,7 @@ export const GoalRepoLive = Layer.effect(
         )
         return decoded.map(goalRowToDomain)
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(GoalDatabaseError, 'query')
     )
 
     const getActive = Effect.fn('GoalRepo.getActive')(
@@ -141,7 +142,7 @@ export const GoalRepoLive = Layer.effect(
         const decoded = yield* decodeGoalRow(rows[0])
         return Option.some(goalRowToDomain(decoded))
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(GoalDatabaseError, 'query')
     )
 
     const findById = Effect.fn('GoalRepo.findById')(
@@ -158,7 +159,7 @@ export const GoalRepoLive = Layer.effect(
         const decoded = yield* decodeGoalRow(rows[0])
         return Option.some(goalRowToDomain(decoded))
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(GoalDatabaseError, 'query')
     )
 
     const create = Effect.fn('GoalRepo.create')(function* (
@@ -176,14 +177,14 @@ export const GoalRepoLive = Layer.effect(
 
       // Deactivate any existing active goals for this user
       yield* sql`UPDATE user_goals SET is_active = 0, updated_at = ${now} WHERE user_id = ${userId} AND is_active = 1`.pipe(
-        Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause }))
+        mapDbError(GoalDatabaseError, 'update')
       )
 
       // Create the goal
       yield* sql`
           INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, created_at, updated_at)
           VALUES (${id}, ${userId}, ${data.goalWeight}, ${startingWeight}, ${startingDate}, ${targetDate}, ${notes}, 1, ${now}, ${now})
-        `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'insert', cause })))
+        `.pipe(mapDbError(GoalDatabaseError, 'insert'))
 
       // Fetch and return the created goal
       const result = yield* findById(id, userId)
@@ -199,15 +200,13 @@ export const GoalRepoLive = Layer.effect(
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
                  target_date, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals WHERE id = ${data.id} AND user_id = ${userId}
-        `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause })))
+        `.pipe(mapDbError(GoalDatabaseError, 'query'))
 
       if (Arr.isReadonlyArrayEmpty(current)) {
         return yield* Effect.fail(GoalNotFoundError.make({ id: data.id }))
       }
 
-      const curr = yield* decodeGoalRow(current[0]).pipe(
-        Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'query', cause }))
-      )
+      const curr = yield* decodeGoalRow(current[0]).pipe(mapDbError(GoalDatabaseError, 'query'))
 
       const now = DateTime.formatIso(yield* DateTime.now)
 
@@ -227,7 +226,7 @@ export const GoalRepoLive = Layer.effect(
         yield* sql`
             UPDATE user_goals SET is_active = 0, updated_at = ${now}
             WHERE user_id = ${userId} AND is_active = 1 AND id != ${data.id}
-          `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause })))
+          `.pipe(mapDbError(GoalDatabaseError, 'update'))
       }
 
       yield* sql`
@@ -240,7 +239,7 @@ export const GoalRepoLive = Layer.effect(
               is_active = ${newIsActive ? 1 : 0},
               updated_at = ${now}
           WHERE id = ${data.id} AND user_id = ${userId}
-        `.pipe(Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'update', cause })))
+        `.pipe(mapDbError(GoalDatabaseError, 'update'))
 
       // Fetch updated
       const result = yield* findById(data.id, userId)
@@ -259,7 +258,7 @@ export const GoalRepoLive = Layer.effect(
         yield* sql`DELETE FROM user_goals WHERE id = ${id} AND user_id = ${userId}`
         return true
       },
-      Effect.mapError((cause) => GoalDatabaseError.make({ operation: 'delete', cause }))
+      mapDbError(GoalDatabaseError, 'delete')
     )
 
     return {

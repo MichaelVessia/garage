@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 
-import { Dosage, DrugName, DrugSource, Limit, Notes, Offset } from '../common/domain.js'
+import { DbOperation, Dosage, DrugName, DrugSource, Limit, Notes, Offset } from '../common/domain.js'
 import { InjectionScheduleId } from '../schedule/domain.js'
 
 // ============================================
@@ -40,7 +40,7 @@ export class InjectionLogNotFoundError extends Schema.TaggedClass<InjectionLogNo
 export class InjectionLogDatabaseError extends Schema.TaggedClass<InjectionLogDatabaseError>()(
   'InjectionLogDatabaseError',
   {
-    operation: Schema.Literals(['insert', 'update', 'delete', 'query'] as const),
+    operation: DbOperation,
     cause: Schema.Defect(),
   }
 ) {}

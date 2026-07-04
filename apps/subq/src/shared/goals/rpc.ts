@@ -2,6 +2,7 @@ import * as Schema from 'effect/Schema'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
+import { DbOperation } from '../common/domain.js'
 import { GoalId, GoalProgress, UserGoal, UserGoalCreate, UserGoalDelete, UserGoalUpdate } from './domain.js'
 
 // ============================================
@@ -13,7 +14,7 @@ export class GoalNotFoundError extends Schema.TaggedClass<GoalNotFoundError>()('
 }) {}
 
 export class GoalDatabaseError extends Schema.TaggedClass<GoalDatabaseError>()('GoalDatabaseError', {
-  operation: Schema.Literals(['insert', 'update', 'delete', 'query'] as const),
+  operation: DbOperation,
   cause: Schema.Defect(),
 }) {}
 

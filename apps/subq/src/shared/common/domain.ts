@@ -29,6 +29,14 @@ export const Notes = Schema.String.pipe(Schema.brand('Notes'))
 export type Notes = typeof Notes.Type
 
 // ============================================
+// Database Error Primitives
+// ============================================
+
+/** Kind of write/read that failed, shared by the per-domain database error classes */
+export const DbOperation = Schema.Literals(['insert', 'update', 'delete', 'query'] as const)
+export type DbOperation = typeof DbOperation.Type
+
+// ============================================
 // Count/Stats Primitives
 // ============================================
 

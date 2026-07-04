@@ -9,6 +9,8 @@ import { SqlClient } from 'effect/unstable/sql'
 import { InjectionLogDatabaseError, ScheduleAssignmentTargetNotFoundError } from '#shared'
 import type { InjectionLogBulkAssignSchedule } from '#shared'
 
+import { mapDbError } from '../shared/common/db-error.js'
+
 const CountRow = Schema.Struct({ count: Schema.Number })
 const decodeCountRow = Schema.decodeUnknownEffect(CountRow)
 
@@ -37,7 +39,7 @@ export const ScheduleAssignmentLive = Layer.effect(
         const row = yield* decodeCountRow(rawRow)
         return row.count
       },
-      Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'query', cause }))
+      mapDbError(InjectionLogDatabaseError, 'query')
     )
 
     const requireScheduleOwnedByUser = Effect.fn('ScheduleAssignment.requireScheduleOwnedByUser')(function* (
@@ -49,7 +51,7 @@ export const ScheduleAssignmentLive = Layer.effect(
         WHERE id = ${scheduleId} AND user_id = ${userId}
       `.pipe(
         Effect.flatMap((rows) => decodeCountRow(rows[0])),
-        Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'query', cause }))
+        mapDbError(InjectionLogDatabaseError, 'query')
       )
 
       if (row.count === 0) {
@@ -78,7 +80,7 @@ export const ScheduleAssignmentLive = Layer.effect(
         SET schedule_id = ${scheduleId},
             updated_at = ${now}
         WHERE id IN ${sql.in(data.ids)} AND user_id = ${userId}
-      `.pipe(Effect.mapError((cause) => InjectionLogDatabaseError.make({ operation: 'update', cause })))
+      `.pipe(mapDbError(InjectionLogDatabaseError, 'update'))
 
       return yield* countRowsForUser(data.ids, userId)
     })

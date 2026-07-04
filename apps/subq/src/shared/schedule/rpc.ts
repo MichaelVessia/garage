@@ -2,6 +2,7 @@ import * as Schema from 'effect/Schema'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
+import { DbOperation } from '../common/domain.js'
 import {
   InjectionSchedule,
   InjectionScheduleCreate,
@@ -21,7 +22,7 @@ export class ScheduleNotFoundError extends Schema.TaggedClass<ScheduleNotFoundEr
 }) {}
 
 export class ScheduleDatabaseError extends Schema.TaggedClass<ScheduleDatabaseError>()('ScheduleDatabaseError', {
-  operation: Schema.Literals(['insert', 'update', 'delete', 'query'] as const),
+  operation: DbOperation,
   cause: Schema.Defect(),
 }) {}
 
