@@ -25,6 +25,15 @@ import {
 } from './errors'
 
 export { makeConfigReaders } from './config'
+export { makeJsonClient } from './http'
+export type {
+  HttpMethod,
+  JsonClient,
+  JsonClientConfig,
+  JsonClientErrors,
+  QueryParams,
+  RequestStatusOptions,
+} from './http'
 
 export const NextActionParam = Schema.Struct({
   value: Schema.optional(Schema.Unknown),

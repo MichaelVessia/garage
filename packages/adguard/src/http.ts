@@ -1,9 +1,8 @@
+import { makeJsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
-import type * as Schema from 'effect/Schema'
-import * as Str from 'effect/String'
-import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
+import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 
 import {
   ActiveClientsSchema,
@@ -24,26 +23,7 @@ import type { AdguardError } from './errors.js'
 import type { AdguardConfigValue, ListResult } from './model.js'
 import { AdguardApi, AdguardConfig } from './services.js'
 
-const normalizeBaseUrl = (baseUrl: string): string => {
-  const trimmed = baseUrl.trim()
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
-}
-
-const queryString = (params: ReadonlyArray<readonly [string, string | number | boolean]>): string =>
-  params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join('&')
-
-const endpoint = (
-  config: AdguardConfigValue,
-  path: string,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): string => {
-  const query = queryString(params)
-  return Str.isEmpty(query)
-    ? `${normalizeBaseUrl(config.url)}/control${path}`
-    : `${normalizeBaseUrl(config.url)}/control${path}?${query}`
-}
-
-const withAuth =
+const applyAuth =
   (config: AdguardConfigValue) =>
   (request: HttpClientRequest.HttpClientRequest): HttpClientRequest.HttpClientRequest =>
     request.pipe(
@@ -51,109 +31,54 @@ const withAuth =
       HttpClientRequest.basicAuth(config.username, Redacted.value(config.password))
     )
 
-const toDecodeError = (error: { readonly message: string }): AdguardError => decodeError(error.message, error)
-
-const decodeBody = <A, I, RD, RE>(
-  response: HttpClientResponse.HttpClientResponse,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, AdguardError, RD> =>
-  HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
-
-const executeJson = Effect.fn('adguard.executeJson')(function* <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  request: HttpClientRequest.HttpClientRequest,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.fn.Return<A, AdguardError, RD> {
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
-
-  if (response.status < 200 || response.status >= 300) {
-    return yield* httpError(response.status)
-  }
-
-  return yield* decodeBody(response, schema)
-})
-
-const executeStatus = Effect.fn('adguard.executeStatus')(function* (
-  client: HttpClient.HttpClient,
-  request: HttpClientRequest.HttpClientRequest
-): Effect.fn.Return<number, AdguardError> {
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
-
-  if (response.status < 200 || response.status >= 300) {
-    return yield* httpError(response.status)
-  }
-
-  return response.status
-})
-
-const getJson = <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: AdguardConfigValue,
-  path: string,
-  schema: Schema.Codec<A, I, RD, RE>,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): Effect.Effect<A, AdguardError, RD> =>
-  executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
+const httpClientFor = (client: HttpClient.HttpClient, config: AdguardConfigValue) =>
+  makeJsonClient<AdguardError>({
+    client,
+    baseUrl: config.url,
+    basePath: '/control',
+    applyAuth: applyAuth(config),
+    errors: { httpError, unreachable, decodeError },
+  })
 
 const listResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({ count: records.length, records })
-
-const postStatus = Effect.fn('adguard.postStatus')(function* (
-  client: HttpClient.HttpClient,
-  config: AdguardConfigValue,
-  path: string,
-  body: unknown
-): Effect.fn.Return<number, AdguardError> {
-  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-    withAuth(config),
-    HttpClientRequest.bodyJson(body),
-    Effect.mapError((error) => decodeError(error.message, error))
-  )
-
-  return yield* executeStatus(client, request)
-})
 
 export const AdguardApiLive = Layer.effect(
   AdguardApi,
   Effect.gen(function* () {
     const adguardConfig = yield* AdguardConfig
     const client = yield* HttpClient.HttpClient
-    const withConfig = <A, E, R>(
-      f: (config: AdguardConfigValue) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | AdguardError, R> => adguardConfig.get().pipe(Effect.flatMap(f))
+    const withConfig = <A, E>(
+      f: (http: ReturnType<typeof httpClientFor>, config: AdguardConfigValue) => Effect.Effect<A, E>
+    ) => adguardConfig.get().pipe(Effect.flatMap((config) => f(httpClientFor(client, config), config)))
 
     return AdguardApi.of({
-      status: () => withConfig((config) => getJson(client, config, '/status', StatusSchema)),
-      version: () => withConfig((config) => getJson(client, config, '/status', VersionStatusSchema)),
-      stats: () => withConfig((config) => getJson(client, config, '/stats', StatsSchema)),
-      statsInfo: () => withConfig((config) => getJson(client, config, '/stats_info', StatsInfoSchema)),
+      status: () => withConfig((http) => http.getJson('/status', StatusSchema)),
+      version: () => withConfig((http) => http.getJson('/status', VersionStatusSchema)),
+      stats: () => withConfig((http) => http.getJson('/stats', StatsSchema)),
+      statsInfo: () => withConfig((http) => http.getJson('/stats_info', StatsInfoSchema)),
       queryLog: (options) =>
-        withConfig((config) =>
-          getJson(client, config, '/querylog', QueryLogResponseSchema, [['limit', options.limit]])
-        ),
+        withConfig((http) => http.getJson('/querylog', QueryLogResponseSchema, [['limit', options.limit]])),
       queryLogSearch: (options) =>
-        withConfig((config) =>
-          getJson(client, config, '/querylog', QueryLogResponseSchema, [
+        withConfig((http) =>
+          http.getJson('/querylog', QueryLogResponseSchema, [
             ['search', options.query],
             ['limit', options.limit],
           ])
         ),
-      clients: () => withConfig((config) => getJson(client, config, '/clients', ClientsSchema)),
+      clients: () => withConfig((http) => http.getJson('/clients', ClientsSchema)),
       clientsActive: (options) =>
-        withConfig((config) =>
-          getJson(client, config, '/clients/find', ActiveClientsSchema, [['ip0', options.ip]]).pipe(
-            Effect.map(listResult)
-          )
+        withConfig((http) =>
+          http.getJson('/clients/find', ActiveClientsSchema, [['ip0', options.ip]]).pipe(Effect.map(listResult))
         ),
-      filters: () => withConfig((config) => getJson(client, config, '/filtering/status', FilteringStatusSchema)),
-      rules: () => withConfig((config) => getJson(client, config, '/filtering/status', FilteringRulesSchema)),
-      dnsConfig: () => withConfig((config) => getJson(client, config, '/dns_info', JsonObjectApi)),
-      dhcpStatus: () => withConfig((config) => getJson(client, config, '/dhcp/status', DhcpStatusSchema)),
+      filters: () => withConfig((http) => http.getJson('/filtering/status', FilteringStatusSchema)),
+      rules: () => withConfig((http) => http.getJson('/filtering/status', FilteringRulesSchema)),
+      dnsConfig: () => withConfig((http) => http.getJson('/dns_info', JsonObjectApi)),
+      dhcpStatus: () => withConfig((http) => http.getJson('/dhcp/status', DhcpStatusSchema)),
       protectionToggle: (options) =>
-        withConfig((config) =>
-          postStatus(client, config, '/protection', {
-            enabled: options.state === 'on',
-            duration: 0,
-          }).pipe(Effect.flatMap(() => getJson(client, config, '/status', ProtectionStateStatusSchema)))
+        withConfig((http) =>
+          http
+            .requestStatus('post', '/protection', { body: { enabled: options.state === 'on', duration: 0 } })
+            .pipe(Effect.flatMap(() => http.getJson('/status', ProtectionStateStatusSchema)))
         ),
     })
   })

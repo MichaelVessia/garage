@@ -1,9 +1,10 @@
+import { makeJsonClient } from '@garage/cli-protocol'
+import type { JsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 import * as Schema from 'effect/Schema'
-import * as Str from 'effect/String'
-import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
+import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 
 import {
   ApplicationRecordSchema,
@@ -20,81 +21,22 @@ import type { ProwlarrError } from './errors.js'
 import type { ProwlarrConfigValue, SearchOptions } from './model.js'
 import { ProwlarrApi, ProwlarrConfig } from './services.js'
 
-const normalizeBaseUrl = (baseUrl: string): string => {
-  const trimmed = baseUrl.trim()
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
-}
-
-const queryString = (params: ReadonlyArray<readonly [string, string | number | boolean]>): string =>
-  params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join('&')
-
-const endpoint = (
-  config: ProwlarrConfigValue,
-  path: string,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): string => {
-  const query = queryString(params)
-  return Str.isEmpty(query)
-    ? `${normalizeBaseUrl(config.url)}${path}`
-    : `${normalizeBaseUrl(config.url)}${path}?${query}`
-}
-
-const withAuth = (config: ProwlarrConfigValue) =>
+const applyAuth = (config: ProwlarrConfigValue) =>
   HttpClientRequest.setHeaders({
     accept: 'application/json',
     'x-api-key': Redacted.value(config.apiKey),
   })
 
-const toDecodeError = (error: { readonly message: string }): ProwlarrError => decodeError(error.message, error)
-
-const decodeBody = <A, I, RD, RE>(
-  response: HttpClientResponse.HttpClientResponse,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, ProwlarrError, RD> =>
-  HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
-
-const executeJson = Effect.fn('prowlarr.executeJson')(function* <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  request: HttpClientRequest.HttpClientRequest,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.fn.Return<A, ProwlarrError, RD> {
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
-
-  if (response.status < 200 || response.status >= 300) {
-    return yield* httpError(response.status)
-  }
-
-  return yield* decodeBody(response, schema)
-})
-
-const getJson = <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: ProwlarrConfigValue,
-  path: string,
-  schema: Schema.Codec<A, I, RD, RE>,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): Effect.Effect<A, ProwlarrError, RD> =>
-  executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
-
-const postJson = Effect.fn('prowlarr.postJson')(function* <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: ProwlarrConfigValue,
-  path: string,
-  body: unknown,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.fn.Return<A, ProwlarrError, RD> {
-  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-    withAuth(config),
-    HttpClientRequest.bodyJson(body),
-    Effect.mapError((error) => decodeError(error.message, error))
-  )
-
-  return yield* executeJson(client, request, schema)
-})
+const httpClientFor = (client: HttpClient.HttpClient, config: ProwlarrConfigValue) =>
+  makeJsonClient<ProwlarrError>({
+    client,
+    baseUrl: config.url,
+    applyAuth: applyAuth(config),
+    errors: { httpError, unreachable, decodeError },
+  })
 
 const postIndexerTest = Effect.fn('prowlarr.postIndexerTest')(function* (
-  client: HttpClient.HttpClient,
-  config: ProwlarrConfigValue,
+  http: JsonClient<ProwlarrError>,
   indexerId: number,
   body: unknown
 ): Effect.fn.Return<
@@ -102,22 +44,13 @@ const postIndexerTest = Effect.fn('prowlarr.postIndexerTest')(function* (
   ProwlarrError
 > {
   yield* Effect.annotateCurrentSpan({ 'prowlarr.indexer_id': indexerId })
-  const request = yield* HttpClientRequest.post(endpoint(config, '/api/v1/indexer/test')).pipe(
-    withAuth(config),
-    HttpClientRequest.bodyJson(body),
-    Effect.mapError((error) => decodeError(error.message, error))
+  const httpStatus = yield* http.requestStatus('post', '/api/v1/indexer/test', { body }).pipe(
+    Effect.tapError((failure) => Effect.logDebug('prowlarr indexer test rejected', { failure })),
+    Effect.catchTag('ProwlarrHttpError', (failure) =>
+      failure.status === 400 ? Effect.succeed(400) : Effect.fail(failure)
+    )
   )
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
-
-  if (response.status >= 200 && response.status < 300) {
-    return { indexerId, passed: true, httpStatus: response.status }
-  }
-
-  if (response.status === 400) {
-    return { indexerId, passed: false, httpStatus: response.status }
-  }
-
-  return yield* httpError(response.status)
+  return { indexerId, passed: httpStatus >= 200 && httpStatus < 300, httpStatus }
 })
 
 const searchParams = (
@@ -146,37 +79,32 @@ export const ProwlarrApiLive = Layer.effect(
   Effect.gen(function* () {
     const prowlarrConfig = yield* ProwlarrConfig
     const client = yield* HttpClient.HttpClient
-    const withConfig = <A, E, R>(
-      f: (config: ProwlarrConfigValue) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | ProwlarrError, R> => prowlarrConfig.get().pipe(Effect.flatMap(f))
+    const withConfig = <A, E>(f: (http: JsonClient<ProwlarrError>) => Effect.Effect<A, E>) =>
+      prowlarrConfig.get().pipe(Effect.flatMap((config) => f(httpClientFor(client, config))))
 
     return ProwlarrApi.of({
-      status: () => withConfig((config) => getJson(client, config, '/api/v1/system/status', StatusSchema)),
-      health: () => withConfig((config) => getJson(client, config, '/api/v1/health', Schema.Array(HealthRecordSchema))),
-      indexers: () =>
-        withConfig((config) => getJson(client, config, '/api/v1/indexer', Schema.Array(IndexerRecordSchema))),
-      indexerStats: () =>
-        withConfig((config) => getJson(client, config, '/api/v1/indexerstats', IndexerStatsResponseSchema)),
+      status: () => withConfig((http) => http.getJson('/api/v1/system/status', StatusSchema)),
+      health: () => withConfig((http) => http.getJson('/api/v1/health', Schema.Array(HealthRecordSchema))),
+      indexers: () => withConfig((http) => http.getJson('/api/v1/indexer', Schema.Array(IndexerRecordSchema))),
+      indexerStats: () => withConfig((http) => http.getJson('/api/v1/indexerstats', IndexerStatsResponseSchema)),
       search: (query, options) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v1/search', Schema.Array(ReleaseRecordSchema), searchParams(query, options))
+        withConfig((http) =>
+          http.getJson('/api/v1/search', Schema.Array(ReleaseRecordSchema), searchParams(query, options))
         ),
       testIndexer: (indexerId) =>
         withConfig(
-          Effect.fn('ProwlarrApi.testIndexer.configured')(function* (config) {
-            const indexer = yield* getJson(client, config, `/api/v1/indexer/${indexerId}`, Schema.Unknown)
-            return yield* postIndexerTest(client, config, indexerId, indexer)
+          Effect.fn('ProwlarrApi.testIndexer.configured')(function* (http) {
+            const indexer = yield* http.getJson(`/api/v1/indexer/${indexerId}`, Schema.Unknown)
+            return yield* postIndexerTest(http, indexerId, indexer)
           })
         ),
       applications: () =>
-        withConfig((config) => getJson(client, config, '/api/v1/applications', Schema.Array(ApplicationRecordSchema))),
+        withConfig((http) => http.getJson('/api/v1/applications', Schema.Array(ApplicationRecordSchema))),
       sync: () =>
-        withConfig((config) =>
-          postJson(client, config, '/api/v1/command', { name: 'ApplicationIndexerSync' }, CommandRecordSchema)
-        ),
+        withConfig((http) => http.postJson('/api/v1/command', CommandRecordSchema, { name: 'ApplicationIndexerSync' })),
       history: (limit) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v1/history', HistoryResponseSchema, [
+        withConfig((http) =>
+          http.getJson('/api/v1/history', HistoryResponseSchema, [
             ['page', 1],
             ['pageSize', limit],
             ['sortKey', 'date'],

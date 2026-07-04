@@ -1,9 +1,11 @@
+import { makeJsonClient } from '@garage/cli-protocol'
+import type { JsonClient } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
-import type * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
+import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
+import type { HttpClientResponse } from 'effect/unstable/http'
 
 import { BookInfoSchema, StatsSchema } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
@@ -18,7 +20,13 @@ const normalizeBaseUrl = (baseUrl: string): string => {
   return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
 }
 
-const endpoint = (config: AutocaliwebConfigValue, path: string): string =>
+// OPDS pagination hands back either a relative path or an absolute
+// `nextHref` URL to follow, so the feed reader needs a URL builder the
+// shared client doesn't expose; it also needs an `application/atom+xml`
+// accept header instead of the shared client's fixed JSON one. Both the
+// plain JSON endpoints (getJson below) and the raw feed fetch share the
+// same error mapping via the client's `execute` escape hatch.
+const feedUrl = (config: AutocaliwebConfigValue, path: string): string =>
   path.startsWith('http://') || path.startsWith('https://')
     ? path
     : `${normalizeBaseUrl(config.url)}${path.startsWith('/') ? path : `/${path}`}`
@@ -26,63 +34,45 @@ const endpoint = (config: AutocaliwebConfigValue, path: string): string =>
 const basicAuth = (config: AutocaliwebConfigValue): string =>
   `Basic ${btoa(`${config.username}:${Redacted.value(config.password)}`)}`
 
-const withBasicAuth = (config: AutocaliwebConfigValue, accept: string) =>
-  HttpClientRequest.setHeaders({ accept, authorization: basicAuth(config) })
-
-const toDecodeError = (error: { readonly message: string }): AutocaliwebError => decodeError(error.message, error)
-
-const decodeJsonBody = <A, I, RD, RE>(
-  response: HttpClientResponse.HttpClientResponse,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, AutocaliwebError, RD> =>
-  HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
+const httpClientFor = (client: HttpClient.HttpClient, config: AutocaliwebConfigValue) =>
+  makeJsonClient<AutocaliwebError>({
+    client,
+    baseUrl: config.url,
+    applyAuth: (request) =>
+      request.pipe(HttpClientRequest.setHeaders({ accept: 'application/json', authorization: basicAuth(config) })),
+    errors: { httpError, unreachable, decodeError },
+  })
 
 const responseText = (response: HttpClientResponse.HttpClientResponse): Effect.Effect<string, AutocaliwebError> =>
-  response.text.pipe(Effect.mapError(toDecodeError))
-
-const execute = Effect.fn('autocaliweb.execute')(function* (
-  client: HttpClient.HttpClient,
-  request: HttpClientRequest.HttpClientRequest
-): Effect.fn.Return<HttpClientResponse.HttpClientResponse, AutocaliwebError> {
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
-  if (response.status < 200 || response.status >= 300) {
-    return yield* httpError(response.status)
-  }
-  return response
-})
-
-const getJson = <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: AutocaliwebConfigValue,
-  path: string,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, AutocaliwebError, RD> =>
-  execute(client, HttpClientRequest.get(endpoint(config, path)).pipe(withBasicAuth(config, 'application/json'))).pipe(
-    Effect.flatMap((response) => decodeJsonBody(response, schema))
-  )
+  response.text.pipe(Effect.mapError((cause) => decodeError(cause.message, cause)))
 
 const getFeed = (
-  client: HttpClient.HttpClient,
+  http: JsonClient<AutocaliwebError>,
   config: AutocaliwebConfigValue,
   path: string
 ): Effect.Effect<OpdsFeed, AutocaliwebError> =>
-  execute(
-    client,
-    HttpClientRequest.get(endpoint(config, path)).pipe(withBasicAuth(config, 'application/atom+xml'))
-  ).pipe(
-    Effect.flatMap(responseText),
-    Effect.flatMap((xml) => parseOpdsFeed(config.url, xml))
-  )
+  http
+    .execute(
+      HttpClientRequest.get(feedUrl(config, path)).pipe(
+        HttpClientRequest.setHeaders({ accept: 'application/atom+xml', authorization: basicAuth(config) })
+      )
+    )
+    .pipe(
+      Effect.flatMap(responseText),
+      Effect.flatMap((xml) => parseOpdsFeed(config.url, xml))
+    )
 
 const toListResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
   count: records.length,
   records,
 })
 
+const loadStats = (http: JsonClient<AutocaliwebError>) => http.getJson('/opds/stats', StatsSchema)
+
 const withQuery = (path: string, query: string): string => `${path}?query=${encodeURIComponent(query)}`
 
 const collectBookFeed = (
-  client: HttpClient.HttpClient,
+  http: JsonClient<AutocaliwebError>,
   config: AutocaliwebConfigValue,
   path: string,
   limit: number
@@ -91,7 +81,7 @@ const collectBookFeed = (
     nextPath: string,
     records: ReadonlyArray<BookRecord>
   ): Effect.Effect<ReadonlyArray<BookRecord>, AutocaliwebError> =>
-    getFeed(client, config, nextPath).pipe(
+    getFeed(http, config, nextPath).pipe(
       Effect.withSpan('autocaliweb.collectOpdsPage'),
       Effect.flatMap((feed) => {
         const nextRecords = [...records, ...feed.books].slice(0, limit)
@@ -111,18 +101,16 @@ export const AutocaliwebApiLive = Layer.effect(
   Effect.gen(function* () {
     const autocaliwebConfig = yield* AutocaliwebConfig
     const client = yield* HttpClient.HttpClient
-    const withConfig = <A, E, R>(
-      f: (config: AutocaliwebConfigValue) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | AutocaliwebError, R> => autocaliwebConfig.get().pipe(Effect.flatMap(f))
-
-    const loadStats = (config: AutocaliwebConfigValue) => getJson(client, config, '/opds/stats', StatsSchema)
+    const withConfig = <A, E>(
+      f: (http: JsonClient<AutocaliwebError>, config: AutocaliwebConfigValue) => Effect.Effect<A, E>
+    ) => autocaliwebConfig.get().pipe(Effect.flatMap((config) => f(httpClientFor(client, config), config)))
 
     return AutocaliwebApi.of({
       status: () =>
         withConfig(
-          Effect.fn('AutocaliwebApi.status.configured')(function* (config) {
-            const feed = yield* getFeed(client, config, '/opds')
-            const statRecords = yield* loadStats(config)
+          Effect.fn('AutocaliwebApi.status.configured')(function* (http, config) {
+            const feed = yield* getFeed(http, config, '/opds')
+            const statRecords = yield* loadStats(http)
             yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
             return {
               title: Option.getOrUndefined(feed.title),
@@ -132,17 +120,17 @@ export const AutocaliwebApiLive = Layer.effect(
             }
           })
         ),
-      stats: () => withConfig(loadStats),
+      stats: () => withConfig((http) => loadStats(http)),
       catalog: () =>
-        withConfig((config) =>
-          getFeed(client, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
+        withConfig((http, config) =>
+          getFeed(http, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
         ),
       books: (options) =>
-        withConfig((config) => collectBookFeed(client, config, '/opds/books/letter/00', options.limit)),
-      recent: (options) => withConfig((config) => collectBookFeed(client, config, '/opds/new', options.limit)),
+        withConfig((http, config) => collectBookFeed(http, config, '/opds/books/letter/00', options.limit)),
+      recent: (options) => withConfig((http, config) => collectBookFeed(http, config, '/opds/new', options.limit)),
       search: (options) =>
-        withConfig((config) =>
-          getFeed(client, config, withQuery('/opds/search', options.query)).pipe(
+        withConfig((http, config) =>
+          getFeed(http, config, withQuery('/opds/search', options.query)).pipe(
             Effect.map((feed) => {
               const records = feed.books.slice(0, options.limit)
               return { query: options.query, total: feed.books.length, count: records.length, records }
@@ -150,12 +138,10 @@ export const AutocaliwebApiLive = Layer.effect(
           )
         ),
       bookInfo: (options) =>
-        withConfig((config) =>
-          getJson(client, config, `/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)
-        ),
+        withConfig((http) => http.getJson(`/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)),
       shelves: () =>
-        withConfig((config) =>
-          getFeed(client, config, '/opds/shelfindex').pipe(
+        withConfig((http, config) =>
+          getFeed(http, config, '/opds/shelfindex').pipe(
             Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
           )
         ),

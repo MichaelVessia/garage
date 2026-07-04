@@ -1,11 +1,12 @@
+import { makeJsonClient } from '@garage/cli-protocol'
+import type { JsonClient } from '@garage/cli-protocol'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Schema from 'effect/Schema'
-import * as Str from 'effect/String'
-import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
+import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 
 import {
   CollectionRecordSchema,
@@ -25,112 +26,28 @@ import type { RadarrError } from './errors.js'
 import type { MovieLookupResult, RadarrConfigValue } from './model.js'
 import { RadarrApi, RadarrConfig } from './services.js'
 
-const normalizeBaseUrl = (baseUrl: string): string => {
-  const trimmed = baseUrl.trim()
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
-}
-
-const queryString = (params: ReadonlyArray<readonly [string, string | number | boolean]>): string =>
-  params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join('&')
-
-const endpoint = (
-  config: RadarrConfigValue,
-  path: string,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): string => {
-  const query = queryString(params)
-  return Str.isEmpty(query)
-    ? `${normalizeBaseUrl(config.url)}${path}`
-    : `${normalizeBaseUrl(config.url)}${path}?${query}`
-}
-
-const withAuth = (config: RadarrConfigValue) =>
+const applyAuth = (config: RadarrConfigValue) =>
   HttpClientRequest.setHeaders({
     accept: 'application/json',
     'x-api-key': Redacted.value(config.apiKey),
   })
 
-const toDecodeError = (error: { readonly message: string }): RadarrError => decodeError(error.message, error)
-
-const decodeBody = <A, I, RD, RE>(
-  response: HttpClientResponse.HttpClientResponse,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.Effect<A, RadarrError, RD> =>
-  HttpClientResponse.schemaBodyJson(schema)(response).pipe(Effect.mapError(toDecodeError))
-
-const executeJson = Effect.fn('radarr.executeJson')(function* <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  request: HttpClientRequest.HttpClientRequest,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.fn.Return<A, RadarrError, RD> {
-  const response = yield* client.execute(request).pipe(Effect.mapError((error) => unreachable(error.message, error)))
-
-  if (response.status < 200 || response.status >= 300) {
-    return yield* httpError(response.status)
-  }
-
-  return yield* decodeBody(response, schema)
-})
-
-const getJson = <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: RadarrConfigValue,
-  path: string,
-  schema: Schema.Codec<A, I, RD, RE>,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): Effect.Effect<A, RadarrError, RD> =>
-  executeJson(client, HttpClientRequest.get(endpoint(config, path, params)).pipe(withAuth(config)), schema)
-
-const deleteJson = <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: RadarrConfigValue,
-  path: string,
-  schema: Schema.Codec<A, I, RD, RE>,
-  params: ReadonlyArray<readonly [string, string | number | boolean]> = []
-): Effect.Effect<A, RadarrError, RD> =>
-  executeJson(client, HttpClientRequest.delete(endpoint(config, path, params)).pipe(withAuth(config)), schema)
-
-const postJson = Effect.fn('radarr.postJson')(function* <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: RadarrConfigValue,
-  path: string,
-  body: unknown,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.fn.Return<A, RadarrError, RD> {
-  const request = yield* HttpClientRequest.post(endpoint(config, path)).pipe(
-    withAuth(config),
-    HttpClientRequest.bodyJson(body),
-    Effect.mapError((error) => decodeError(error.message, error))
-  )
-
-  return yield* executeJson(client, request, schema)
-})
-
-const putJson = Effect.fn('radarr.putJson')(function* <A, I, RD, RE>(
-  client: HttpClient.HttpClient,
-  config: RadarrConfigValue,
-  path: string,
-  body: unknown,
-  schema: Schema.Codec<A, I, RD, RE>
-): Effect.fn.Return<A, RadarrError, RD> {
-  const request = yield* HttpClientRequest.put(endpoint(config, path)).pipe(
-    withAuth(config),
-    HttpClientRequest.bodyJson(body),
-    Effect.mapError((error) => decodeError(error.message, error))
-  )
-
-  return yield* executeJson(client, request, schema)
-})
+const httpClientFor = (client: HttpClient.HttpClient, config: RadarrConfigValue) =>
+  makeJsonClient<RadarrError>({
+    client,
+    baseUrl: config.url,
+    applyAuth: applyAuth(config),
+    errors: { httpError, unreachable, decodeError },
+  })
 
 const lookupByTmdbId = Effect.fn('radarr.lookupByTmdbId')(function* (
-  client: HttpClient.HttpClient,
-  config: RadarrConfigValue,
+  http: JsonClient<RadarrError>,
   tmdbId: number
 ): Effect.fn.Return<Option.Option<MovieLookupResult>, RadarrError> {
   yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
-  return yield* getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [
-    ['term', `tmdb:${tmdbId}`],
-  ]).pipe(Effect.map((results) => Option.fromUndefinedOr(results[0])))
+  return yield* http
+    .getJson('/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', `tmdb:${tmdbId}`]])
+    .pipe(Effect.map((results) => Option.fromUndefinedOr(results[0])))
 })
 
 const currentCalendarRange = Effect.fn('radarr.currentCalendarRange')(function* (
@@ -149,72 +66,61 @@ export const RadarrApiLive = Layer.effect(
   Effect.gen(function* () {
     const radarrConfig = yield* RadarrConfig
     const client = yield* HttpClient.HttpClient
-    const withConfig = <A, E, R>(
-      f: (config: RadarrConfigValue) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | RadarrError, R> => radarrConfig.get().pipe(Effect.flatMap(f))
+    const withConfig = <A, E>(f: (http: JsonClient<RadarrError>) => Effect.Effect<A, E>) =>
+      radarrConfig.get().pipe(Effect.flatMap((config) => f(httpClientFor(client, config))))
 
     return RadarrApi.of({
-      status: () => withConfig((config) => getJson(client, config, '/api/v3/system/status', StatusSchema)),
-      rootFolders: () =>
-        withConfig((config) => getJson(client, config, '/api/v3/rootfolder', Schema.Array(RootFolderSchema))),
+      status: () => withConfig((http) => http.getJson('/api/v3/system/status', StatusSchema)),
+      rootFolders: () => withConfig((http) => http.getJson('/api/v3/rootfolder', Schema.Array(RootFolderSchema))),
       qualityProfiles: () =>
-        withConfig((config) => getJson(client, config, '/api/v3/qualityprofile', Schema.Array(QualityProfileSchema))),
+        withConfig((http) => http.getJson('/api/v3/qualityprofile', Schema.Array(QualityProfileSchema))),
       lookupMovies: (query) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', query]])
-        ),
-      lookupMovieByTmdbId: (tmdbId) => withConfig((config) => lookupByTmdbId(client, config, tmdbId)),
+        withConfig((http) => http.getJson('/api/v3/movie/lookup', Schema.Array(MovieLookupSchema), [['term', query]])),
+      lookupMovieByTmdbId: (tmdbId) => withConfig((http) => lookupByTmdbId(http, tmdbId)),
       getMovieByTmdbId: (tmdbId) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v3/movie', Schema.Array(MovieRecordSchema), [['tmdbId', tmdbId]]).pipe(
-            Effect.map((records) => Option.fromUndefinedOr(records[0]))
-          )
+        withConfig((http) =>
+          http
+            .getJson('/api/v3/movie', Schema.Array(MovieRecordSchema), [['tmdbId', tmdbId]])
+            .pipe(Effect.map((records) => Option.fromUndefinedOr(records[0])))
         ),
       addMovie: (lookup, options) =>
-        withConfig((config) =>
-          postJson(
-            client,
-            config,
-            '/api/v3/movie',
-            {
-              title: lookup.title,
-              titleSlug: lookup.titleSlug,
-              year: lookup.year,
-              tmdbId: lookup.tmdbId,
-              qualityProfileId: options.qualityProfileId,
-              rootFolderPath: options.rootFolderPath,
-              monitored: true,
-              minimumAvailability: 'released',
-              addOptions: { searchForMovie: options.searchForMovie },
-            },
-            MovieRecordSchema
-          )
+        withConfig((http) =>
+          http.postJson('/api/v3/movie', MovieRecordSchema, {
+            title: lookup.title,
+            titleSlug: lookup.titleSlug,
+            year: lookup.year,
+            tmdbId: lookup.tmdbId,
+            qualityProfileId: options.qualityProfileId,
+            rootFolderPath: options.rootFolderPath,
+            monitored: true,
+            minimumAvailability: 'released',
+            addOptions: { searchForMovie: options.searchForMovie },
+          })
         ),
       removeMovie: (movieId, options) =>
-        withConfig((config) =>
-          deleteJson(client, config, `/api/v3/movie/${movieId}`, Schema.Unknown, [
-            ['deleteFiles', options.deleteFiles],
-            ['addImportExclusion', false],
-          ]).pipe(Effect.asVoid)
+        withConfig((http) =>
+          http
+            .deleteJson(`/api/v3/movie/${movieId}`, Schema.Unknown, [
+              ['deleteFiles', options.deleteFiles],
+              ['addImportExclusion', false],
+            ])
+            .pipe(Effect.asVoid)
         ),
-      collections: () =>
-        withConfig((config) => getJson(client, config, '/api/v3/collection', Schema.Array(CollectionRecordSchema))),
+      collections: () => withConfig((http) => http.getJson('/api/v3/collection', Schema.Array(CollectionRecordSchema))),
       setCollectionMonitoring: (collectionId) =>
         withConfig(
-          Effect.fn('RadarrApi.setCollectionMonitoring.configured')(function* (config) {
-            const collection = yield* getJson(client, config, `/api/v3/collection/${collectionId}`, JsonObject)
-            yield* putJson(
-              client,
-              config,
-              `/api/v3/collection/${collectionId}`,
-              { ...collection, monitored: true, searchOnAdd: true },
-              Schema.Unknown
-            )
+          Effect.fn('RadarrApi.setCollectionMonitoring.configured')(function* (http) {
+            const collection = yield* http.getJson(`/api/v3/collection/${collectionId}`, JsonObject)
+            yield* http.putJson(`/api/v3/collection/${collectionId}`, Schema.Unknown, {
+              ...collection,
+              monitored: true,
+              searchOnAdd: true,
+            })
           })
         ),
       queue: (limit) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v3/queue', QueueResponseSchema, [
+        withConfig((http) =>
+          http.getJson('/api/v3/queue', QueueResponseSchema, [
             ['pageSize', limit],
             ['includeUnknownMovieItems', true],
             ['includeMovie', true],
@@ -222,17 +128,17 @@ export const RadarrApiLive = Layer.effect(
         ),
       calendar: (days) =>
         withConfig(
-          Effect.fn('RadarrApi.calendar.configured')(function* (config) {
+          Effect.fn('RadarrApi.calendar.configured')(function* (http) {
             const range = yield* currentCalendarRange(days)
-            return yield* getJson(client, config, '/api/v3/calendar', Schema.Array(MovieReleaseSchema), [
+            return yield* http.getJson('/api/v3/calendar', Schema.Array(MovieReleaseSchema), [
               ...range,
               ['unmonitored', false],
             ])
           })
         ),
       missing: (limit) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v3/wanted/missing', MissingResponseSchema, [
+        withConfig((http) =>
+          http.getJson('/api/v3/wanted/missing', MissingResponseSchema, [
             ['pageSize', limit],
             ['monitored', true],
             ['sortKey', 'releaseDate'],
@@ -240,8 +146,8 @@ export const RadarrApiLive = Layer.effect(
           ])
         ),
       history: (limit) =>
-        withConfig((config) =>
-          getJson(client, config, '/api/v3/history', HistoryResponseSchema, [
+        withConfig((http) =>
+          http.getJson('/api/v3/history', HistoryResponseSchema, [
             ['pageSize', limit],
             ['includeMovie', true],
             ['sortKey', 'date'],
