@@ -232,7 +232,7 @@ export interface RootInvocation<Error extends CliEnvelopeError> {
 
 export interface CreateCliRunnerOptions<CliResult, Error extends CliEnvelopeError, Context> {
   readonly rootCommand: string
-  readonly rootDescription: CommandDescription
+  readonly rootDescription?: CommandDescription
   readonly commands: ReadonlyArray<CommandDefinition<CliResult, Error, Context>>
   readonly usageError: (message: string) => Error
   readonly fallbackNextActions: (error: Error) => ReadonlyArray<NextAction>
@@ -253,6 +253,82 @@ export const errorEnvelope = (input: ErrorEnvelopeInput): ErrorEnvelope => ({
   fix: input.fix,
   next_actions: input.nextActions ?? [],
 })
+
+export const defaultRootDescription = (rootCommand: string): CommandDescription => ({
+  command: rootCommand,
+  description: 'Show this command tree and configuration health',
+})
+
+// Every app CLI's root command runs the same three-way health check: env
+// missing -> unconfigured, any other status-check failure -> configured but
+// unreachable, success -> app-specific health fields. Only the success shape
+// and the two identifying error codes/next-actions vary per app.
+export interface EnvMissingRootHealth {
+  readonly configured: false
+}
+
+export interface UnreachableRootHealth {
+  readonly configured: true
+  readonly reachable: false
+  readonly errorCode: string
+}
+
+export type FailureRootHealth = EnvMissingRootHealth | UnreachableRootHealth
+
+export interface RootHealthResult<Name extends string, Health> {
+  readonly name: Name
+  readonly description: string
+  readonly commands: ReadonlyArray<CommandDescription>
+  readonly health: FailureRootHealth | Health
+}
+
+export interface MakeRootOptions<
+  Name extends string,
+  StatusResult,
+  Health,
+  Err extends { readonly code: string },
+  Context,
+> {
+  readonly command: string
+  readonly commandTree: ReadonlyArray<CommandDescription>
+  readonly name: Name
+  readonly description: string
+  readonly status: Effect.Effect<StatusResult, Err, Context>
+  readonly envMissingCode: string
+  readonly envNextAction: NextAction
+  readonly showCommandsAction: NextAction
+  readonly onReachable: (result: StatusResult) => Health
+}
+
+export const makeRoot = <Name extends string, StatusResult, Health, Err extends { readonly code: string }, Context>(
+  options: MakeRootOptions<Name, StatusResult, Health, Err, Context>
+): Effect.Effect<SuccessEnvelope<RootHealthResult<Name, Health>>, never, Context> =>
+  options.status.pipe(
+    Effect.match({
+      onFailure: (error) => {
+        const health: FailureRootHealth =
+          error.code === options.envMissingCode
+            ? { configured: false }
+            : { configured: true, reachable: false, errorCode: error.code }
+
+        return successEnvelope({
+          command: options.command,
+          result: { name: options.name, description: options.description, commands: options.commandTree, health },
+          nextActions: error.code === options.envMissingCode ? [options.envNextAction] : [options.showCommandsAction],
+        })
+      },
+      onSuccess: (result) =>
+        successEnvelope({
+          command: options.command,
+          result: {
+            name: options.name,
+            description: options.description,
+            commands: options.commandTree,
+            health: options.onReachable(result),
+          },
+        }),
+    })
+  )
 
 const encodeEnvelopeJson = Schema.encodeSync(Schema.UnknownFromJsonString)
 
@@ -287,7 +363,10 @@ export const createCliUsageError = (rootCommand: string): ((message: string) => 
 export const createCliRunner = <CliResult, Error extends CliEnvelopeError, Context>(
   options: CreateCliRunnerOptions<CliResult, Error, Context>
 ): ((args: ReadonlyArray<string>) => Effect.Effect<CliEnvelope<CliResult>, never, Context>) => {
-  const commandTree = commandDescriptions(options.rootDescription, options.commands)
+  const commandTree = commandDescriptions(
+    options.rootDescription ?? defaultRootDescription(options.rootCommand),
+    options.commands
+  )
   const toEnvelope = (command: string, error: Error, nextActions?: ReadonlyArray<NextAction>): ErrorEnvelope =>
     errorEnvelope({
       command,

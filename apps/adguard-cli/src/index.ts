@@ -33,7 +33,7 @@ import type {
   SystemStatus,
   VersionResult,
 } from '@garage/adguard'
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -71,38 +71,21 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, AdguardCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'adguard',
-            description: 'Agent-first AdGuard Home CLI',
-            commands: commandTree,
-            health:
-              error.code === 'ADGUARD_ENV_MISSING'
-                ? { configured: false }
-                : { configured: true, reachable: false, errorCode: error.code },
-          },
-          nextActions: error.code === 'ADGUARD_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        }),
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'adguard',
-            description: 'Agent-first AdGuard Home CLI',
-            commands: commandTree,
-            health: {
-              configured: true,
-              version: result.version,
-              protectionEnabled: result.protectionEnabled,
-            },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'adguard',
+    description: 'Agent-first AdGuard Home CLI',
+    status,
+    envMissingCode: 'ADGUARD_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({
+      configured: true,
+      version: result.version,
+      protectionEnabled: result.protectionEnabled,
+    }),
+  })
 
 const limitCommand = <Result extends AdguardCliResult>(
   { args, limitFromArgs, recover, wrap }: AdguardInvocation,
@@ -155,8 +138,6 @@ const protectionToggleCommand = ({ args, errorToEnvelope, parseFlags, recover, u
       return yield* wrap(protectionToggle({ state }))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<CommandDefinition<AdguardCliResult, AdguardCliError, AdguardCliContext>> = [
   {
@@ -244,7 +225,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<AdguardCliResult, Adgu
 
 const execute = createCliRunner<AdguardCliResult, AdguardCliError, AdguardCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

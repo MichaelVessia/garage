@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -72,41 +72,21 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, SabnzbdCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) => {
-        const health =
-          error.code === 'SABNZBD_ENV_MISSING'
-            ? { configured: false }
-            : { configured: true, reachable: false, errorCode: error.code }
-
-        return successEnvelope({
-          command,
-          result: {
-            name: 'sabnzbd',
-            description: 'Agent-first SABnzbd CLI',
-            commands: commandTree,
-            health,
-          },
-          nextActions: error.code === 'SABNZBD_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        })
-      },
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'sabnzbd',
-            description: 'Agent-first SABnzbd CLI',
-            commands: commandTree,
-            health: {
-              configured: true,
-              ...(result.version === undefined ? {} : { version: result.version }),
-              ...(result.paused === undefined ? {} : { paused: result.paused }),
-            },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'sabnzbd',
+    description: 'Agent-first SABnzbd CLI',
+    status,
+    envMissingCode: 'SABNZBD_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({
+      configured: true,
+      ...(result.version === undefined ? {} : { version: result.version }),
+      ...(result.paused === undefined ? {} : { paused: result.paused }),
+    }),
+  })
 
 const limitFromArgs = (
   { args, parseFlags, parsePositiveInteger }: SabnzbdInvocation,
@@ -186,8 +166,6 @@ const deleteCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError,
     })
   )
 
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
-
 const commandDefinitions: ReadonlyArray<CommandDefinition<SabnzbdCliResult, SabnzbdCliError, SabnzbdCliContext>> = [
   {
     name: 'status',
@@ -247,7 +225,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<SabnzbdCliResult, Sabn
 
 const execute = createCliRunner<SabnzbdCliResult, SabnzbdCliError, SabnzbdCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

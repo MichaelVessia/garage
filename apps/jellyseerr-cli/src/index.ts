@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -88,37 +88,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, JellyseerrCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) => {
-        const health =
-          error.code === 'JELLYSEERR_ENV_MISSING'
-            ? { configured: false }
-            : { configured: true, reachable: false, errorCode: error.code }
-
-        return successEnvelope({
-          command,
-          result: {
-            name: 'jellyseerr',
-            description: 'Agent-first Jellyseerr CLI',
-            commands: commandTree,
-            health,
-          },
-          nextActions: error.code === 'JELLYSEERR_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        })
-      },
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'jellyseerr',
-            description: 'Agent-first Jellyseerr CLI',
-            commands: commandTree,
-            health: { configured: true, version: result.version },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'jellyseerr',
+    description: 'Agent-first Jellyseerr CLI',
+    status,
+    envMissingCode: 'JELLYSEERR_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, version: result.version }),
+  })
 
 const limitFromParsed = (
   parsed: ParsedFlags,
@@ -201,8 +181,6 @@ const confirmedRequestCommand = (
       return yield* wrap(program(requestId))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<
   CommandDefinition<JellyseerrCliResult, JellyseerrCliError, JellyseerrCliContext>
@@ -309,7 +287,6 @@ const commandDefinitions: ReadonlyArray<
 
 const execute = createCliRunner<JellyseerrCliResult, JellyseerrCliError, JellyseerrCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

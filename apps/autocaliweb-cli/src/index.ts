@@ -22,7 +22,7 @@ import type {
   StatsResult,
   StatusResult,
 } from '@garage/autocaliweb'
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -53,38 +53,21 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, AutocaliwebCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'autocaliweb',
-            description: 'Agent-first Autocaliweb CLI',
-            commands: commandTree,
-            health:
-              error.code === 'AUTOCALIWEB_ENV_MISSING'
-                ? { configured: false }
-                : { configured: true, reachable: false, errorCode: error.code },
-          },
-          nextActions: error.code === 'AUTOCALIWEB_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        }),
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'autocaliweb',
-            description: 'Agent-first Autocaliweb CLI',
-            commands: commandTree,
-            health: {
-              configured: true,
-              ...(result.title === undefined ? {} : { title: result.title }),
-              books: result.stats.books,
-            },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'autocaliweb',
+    description: 'Agent-first Autocaliweb CLI',
+    status,
+    envMissingCode: 'AUTOCALIWEB_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({
+      configured: true,
+      ...(result.title === undefined ? {} : { title: result.title }),
+      books: result.stats.books,
+    }),
+  })
 
 const limitCommand = <Result extends AutocaliwebCliResult>(
   { args, limitFromArgs, recover, wrap }: AutocaliwebInvocation,
@@ -117,8 +100,6 @@ const bookInfoCommand = ({ args, parseFlags, recover, usageError, wrap }: Autoca
       return yield* wrap(bookInfo({ uuid }))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<
   CommandDefinition<AutocaliwebCliResult, AutocaliwebCliError, AutocaliwebCliContext>
@@ -184,7 +165,6 @@ const commandDefinitions: ReadonlyArray<
 
 const execute = createCliRunner<AutocaliwebCliResult, AutocaliwebCliError, AutocaliwebCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

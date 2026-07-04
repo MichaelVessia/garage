@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -71,34 +71,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, ImmichCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'immich',
-            description: 'Agent-first Immich CLI',
-            commands: commandTree,
-            health:
-              error.code === 'IMMICH_ENV_MISSING'
-                ? { configured: false }
-                : { configured: true, reachable: false, errorCode: error.code },
-          },
-          nextActions: error.code === 'IMMICH_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        }),
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'immich',
-            description: 'Agent-first Immich CLI',
-            commands: commandTree,
-            health: { configured: true, version: result.version, ping: result.ping },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'immich',
+    description: 'Agent-first Immich CLI',
+    status,
+    envMissingCode: 'IMMICH_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, version: result.version, ping: result.ping }),
+  })
 
 const limitCommand = <Result extends ImmichCliResult>(
   { args, limitFromArgs, recover, wrap }: ImmichInvocation,
@@ -148,8 +131,6 @@ const singleIdCommand = <Result extends ImmichCliResult>(
       return yield* wrap(program(id))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<CommandDefinition<ImmichCliResult, ImmichCliError, ImmichCliContext>> = [
   {
@@ -245,7 +226,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<ImmichCliResult, Immic
 
 const execute = createCliRunner<ImmichCliResult, ImmichCliError, ImmichCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

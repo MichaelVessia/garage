@@ -10,7 +10,7 @@ import type {
   RouteSummary,
   UpstreamRecord,
 } from '@garage/caddy'
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -41,34 +41,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, CaddyCliContext> =>
-  routes.pipe(
-    Effect.match({
-      onFailure: (error) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'caddy',
-            description: 'Agent-first Caddy CLI',
-            commands: commandTree,
-            health:
-              error.code === 'CADDY_ENV_MISSING'
-                ? { configured: false }
-                : { configured: true, reachable: false, errorCode: error.code },
-          },
-          nextActions: error.code === 'CADDY_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        }),
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'caddy',
-            description: 'Agent-first Caddy CLI',
-            commands: commandTree,
-            health: { configured: true, reachable: true, routeServers: result.count },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'caddy',
+    description: 'Agent-first Caddy CLI',
+    status: routes,
+    envMissingCode: 'CADDY_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, reachable: true, routeServers: result.count }),
+  })
 
 const reloadCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError, wrap }: CaddyInvocation) =>
   recover(
@@ -92,8 +75,6 @@ const reloadCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError,
       return yield* wrap(reload(nextConfig))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<CommandDefinition<CaddyCliResult, CaddyCliError, CaddyCliContext>> = [
   {
@@ -131,7 +112,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<CaddyCliResult, CaddyC
 
 const execute = createCliRunner<CaddyCliResult, CaddyCliError, CaddyCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

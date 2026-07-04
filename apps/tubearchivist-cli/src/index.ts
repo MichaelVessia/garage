@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -63,37 +63,21 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, TubearchivistCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'tubearchivist',
-            description: 'Agent-first TubeArchivist CLI',
-            commands: commandTree,
-            health:
-              error.code === 'TUBEARCHIVIST_ENV_MISSING'
-                ? { configured: false }
-                : { configured: true, reachable: false, errorCode: error.code },
-          },
-          nextActions: error.code === 'TUBEARCHIVIST_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        }),
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'tubearchivist',
-            description: 'Agent-first TubeArchivist CLI',
-            commands: commandTree,
-            health: Option.match(Option.fromUndefinedOr(result.health), {
-              onNone: (): RootHealth => ({ configured: true, reachable: true }),
-              onSome: (health): RootHealth => ({ configured: true, health }),
-            }),
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'tubearchivist',
+    description: 'Agent-first TubeArchivist CLI',
+    status,
+    envMissingCode: 'TUBEARCHIVIST_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) =>
+      Option.match(Option.fromUndefinedOr(result.health), {
+        onNone: (): RootHealth => ({ configured: true, reachable: true }),
+        onSome: (health): RootHealth => ({ configured: true, health }),
+      }),
+  })
 
 const limitCommand = <Result extends TubearchivistCliResult>(
   { args, limitFromArgs, recover, wrap }: TubearchivistInvocation,
@@ -160,8 +144,6 @@ const searchCommand = ({
       return yield* wrap(search({ query, limit }))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<
   CommandDefinition<TubearchivistCliResult, TubearchivistCliError, TubearchivistCliContext>
@@ -243,7 +225,6 @@ const commandDefinitions: ReadonlyArray<
 
 const execute = createCliRunner<TubearchivistCliResult, TubearchivistCliError, TubearchivistCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

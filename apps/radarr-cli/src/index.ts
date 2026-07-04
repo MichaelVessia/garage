@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -163,37 +163,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, RadarrCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) => {
-        const health =
-          error.code === 'RADARR_ENV_MISSING'
-            ? { configured: false }
-            : { configured: true, reachable: false, errorCode: error.code }
-
-        return successEnvelope({
-          command,
-          result: {
-            name: 'radarr',
-            description: 'Agent-first Radarr CLI',
-            commands: commandTree,
-            health,
-          },
-          nextActions: error.code === 'RADARR_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        })
-      },
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'radarr',
-            description: 'Agent-first Radarr CLI',
-            commands: commandTree,
-            health: { configured: true, appName: result.appName ?? 'Radarr', version: result.version },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'radarr',
+    description: 'Agent-first Radarr CLI',
+    status,
+    envMissingCode: 'RADARR_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, appName: result.appName ?? 'Radarr', version: result.version }),
+  })
 
 const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: RadarrInvocation) =>
   recover(
@@ -347,8 +327,6 @@ const historyCommand = ({ args, limitFromArgs, recover, wrap }: RadarrInvocation
     )
   )
 
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
-
 const commandDefinitions: ReadonlyArray<CommandDefinition<RadarrCliResult, RadarrCliError, RadarrCliContext>> = [
   {
     name: 'status',
@@ -451,7 +429,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<RadarrCliResult, Radar
 
 const execute = createCliRunner<RadarrCliResult, RadarrCliError, RadarrCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

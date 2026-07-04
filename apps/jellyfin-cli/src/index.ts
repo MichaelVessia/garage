@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -62,34 +62,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, JellyfinCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'jellyfin',
-            description: 'Agent-first Jellyfin CLI',
-            commands: commandTree,
-            health:
-              error.code === 'JELLYFIN_ENV_MISSING'
-                ? { configured: false }
-                : { configured: true, reachable: false, errorCode: error.code },
-          },
-          nextActions: error.code === 'JELLYFIN_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        }),
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'jellyfin',
-            description: 'Agent-first Jellyfin CLI',
-            commands: commandTree,
-            health: { configured: true, version: result.version, serverName: result.serverName },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'jellyfin',
+    description: 'Agent-first Jellyfin CLI',
+    status,
+    envMissingCode: 'JELLYFIN_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, version: result.version, serverName: result.serverName }),
+  })
 
 const limitCommand = <Result extends JellyfinCliResult>(
   { args, limitFromArgs, recover, wrap }: JellyfinInvocation,
@@ -130,8 +113,6 @@ const runTaskCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError
       return yield* wrap(runTask(taskId))
     })
   )
-
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
 
 const commandDefinitions: ReadonlyArray<CommandDefinition<JellyfinCliResult, JellyfinCliError, JellyfinCliContext>> = [
   {
@@ -201,7 +182,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<JellyfinCliResult, Jel
 
 const execute = createCliRunner<JellyfinCliResult, JellyfinCliError, JellyfinCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -92,37 +92,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, ProwlarrCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) => {
-        const rootHealth =
-          error.code === 'PROWLARR_ENV_MISSING'
-            ? { configured: false }
-            : { configured: true, reachable: false, errorCode: error.code }
-
-        return successEnvelope({
-          command,
-          result: {
-            name: 'prowlarr',
-            description: 'Agent-first Prowlarr CLI',
-            commands: commandTree,
-            health: rootHealth,
-          },
-          nextActions: error.code === 'PROWLARR_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        })
-      },
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'prowlarr',
-            description: 'Agent-first Prowlarr CLI',
-            commands: commandTree,
-            health: { configured: true, appName: result.appName ?? 'Prowlarr', version: result.version },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'prowlarr',
+    description: 'Agent-first Prowlarr CLI',
+    status,
+    envMissingCode: 'PROWLARR_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, appName: result.appName ?? 'Prowlarr', version: result.version }),
+  })
 
 const listNextAction = (
   command: string,
@@ -324,8 +304,6 @@ const historyCommand = (invocation: ProwlarrInvocation) =>
     true
   )
 
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
-
 const commandDefinitions: ReadonlyArray<CommandDefinition<ProwlarrCliResult, ProwlarrCliError, ProwlarrCliContext>> = [
   {
     name: 'status',
@@ -435,7 +413,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<ProwlarrCliResult, Pro
 
 const execute = createCliRunner<ProwlarrCliResult, ProwlarrCliError, ProwlarrCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],

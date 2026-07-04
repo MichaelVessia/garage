@@ -1,4 +1,4 @@
-import { createCliRunner, createCliUsageError, successEnvelope } from '@garage/cli-protocol'
+import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -135,37 +135,17 @@ const root = (
   command: string,
   commandTree: RootResult['commands']
 ): Effect.Effect<SuccessEnvelope<RootResult>, never, SonarrCliContext> =>
-  status.pipe(
-    Effect.match({
-      onFailure: (error) => {
-        const health =
-          error.code === 'SONARR_ENV_MISSING'
-            ? { configured: false }
-            : { configured: true, reachable: false, errorCode: error.code }
-
-        return successEnvelope({
-          command,
-          result: {
-            name: 'sonarr',
-            description: 'Agent-first Sonarr CLI',
-            commands: commandTree,
-            health,
-          },
-          nextActions: error.code === 'SONARR_ENV_MISSING' ? [envNextAction] : [showCommandsAction],
-        })
-      },
-      onSuccess: (result) =>
-        successEnvelope({
-          command,
-          result: {
-            name: 'sonarr',
-            description: 'Agent-first Sonarr CLI',
-            commands: commandTree,
-            health: { configured: true, appName: result.appName, version: result.version },
-          },
-        }),
-    })
-  )
+  makeRoot({
+    command,
+    commandTree,
+    name: 'sonarr',
+    description: 'Agent-first Sonarr CLI',
+    status,
+    envMissingCode: 'SONARR_ENV_MISSING',
+    envNextAction,
+    showCommandsAction,
+    onReachable: (result) => ({ configured: true, appName: result.appName, version: result.version }),
+  })
 
 const searchCommand = ({ args, usageError, wrap }: SonarrInvocation) => {
   const query = args.join(' ').trim()
@@ -269,8 +249,6 @@ const historyCommand = ({ args, limitFromArgs, recover, wrap }: SonarrInvocation
     )
   )
 
-const rootDescription = { command: rootCommand, description: 'Show this command tree and configuration health' }
-
 const commandDefinitions: ReadonlyArray<CommandDefinition<SonarrCliResult, SonarrCliError, SonarrCliContext>> = [
   {
     name: 'status',
@@ -351,7 +329,6 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<SonarrCliResult, Sonar
 
 const execute = createCliRunner<SonarrCliResult, SonarrCliError, SonarrCliContext>({
   rootCommand,
-  rootDescription,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
   fallbackNextActions: () => [showCommandsAction],
