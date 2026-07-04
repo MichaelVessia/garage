@@ -118,7 +118,9 @@ export const SettingsRepoLive = Layer.effect(
             Effect.fail(
               SettingsDatabaseError.make({
                 operation: 'query',
-                cause: new SettingsMissingAfterUpsert({ message: 'Settings not found after upsert' }),
+                cause: new SettingsMissingAfterUpsert({
+                  message: 'Settings not found after upsert',
+                }),
               })
             ),
           onSome: Effect.succeed,

@@ -75,7 +75,9 @@ export const injectionSchedules = sqliteTable(
     name: text('name').notNull(),
     drug: text('drug').notNull(),
     source: text('source'),
-    frequency: text('frequency', { enum: ['daily', 'every_3_days', 'weekly', 'every_2_weeks', 'monthly'] }).notNull(),
+    frequency: text('frequency', {
+      enum: ['daily', 'every_3_days', 'weekly', 'every_2_weeks', 'monthly'],
+    }).notNull(),
     startDate: text('start_date').notNull(),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     notes: text('notes'),
@@ -100,7 +102,9 @@ export const injectionLogs = sqliteTable(
     dosage: text('dosage').notNull(),
     injectionSite: text('injection_site'),
     notes: text('notes'),
-    scheduleId: text('schedule_id').references(() => injectionSchedules.id, { onDelete: 'set null' }),
+    scheduleId: text('schedule_id').references(() => injectionSchedules.id, {
+      onDelete: 'set null',
+    }),
     userId: text('user_id'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),

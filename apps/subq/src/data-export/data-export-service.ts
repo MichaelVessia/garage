@@ -96,7 +96,9 @@ export const DataExportServiceLive = Layer.effect(
           FROM injection_schedules WHERE user_id = ${userId}
           ORDER BY start_date DESC
         `
-        const schedules = yield* Effect.forEach(scheduleRows, (row) => decodeSchedule(row), { concurrency: 1 })
+        const schedules = yield* Effect.forEach(scheduleRows, (row) => decodeSchedule(row), {
+          concurrency: 1,
+        })
 
         // Fetch all goals
         const goalRows = yield* sql`

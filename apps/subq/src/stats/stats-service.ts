@@ -247,7 +247,9 @@ export const StatsServiceLive = Layer.effect(
           GROUP BY injection_site
           ORDER BY count DESC
         `
-      const decodedRows = yield* Effect.forEach(rows, (row) => decodeInjectionSiteRow(row), { concurrency: 1 })
+      const decodedRows = yield* Effect.forEach(rows, (row) => decodeInjectionSiteRow(row), {
+        concurrency: 1,
+      })
       const sites = Arr.map(
         decodedRows,
         (decoded) =>
@@ -323,7 +325,9 @@ export const StatsServiceLive = Layer.effect(
           GROUP BY drug
           ORDER BY count DESC
         `
-      const decodedRows = yield* Effect.forEach(rows, (row) => decodeDrugCountRow(row), { concurrency: 1 })
+      const decodedRows = yield* Effect.forEach(rows, (row) => decodeDrugCountRow(row), {
+        concurrency: 1,
+      })
       const drugs = Arr.map(
         decodedRows,
         (decoded) => new DrugCount({ drug: DrugName.make(decoded.drug), count: Count.make(decoded.count) })

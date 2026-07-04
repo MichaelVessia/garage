@@ -1,4 +1,5 @@
 import * as Context from 'effect/Context'
+import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 import * as RpcMiddleware from 'effect/unstable/rpc/RpcMiddleware'
 
@@ -35,3 +36,19 @@ export class AuthRpcMiddleware extends RpcMiddleware.Service<AuthRpcMiddleware, 
     error: Unauthorized,
   }
 ) {}
+
+/**
+ * Wraps an RPC handler body in a named tracing span and extracts the
+ * authenticated user, removing the `const { user } = yield*
+ * Effect.service(AuthContext)` boilerplate repeated across every handler.
+ * `body` receives the user first, followed by the handler's own arguments
+ * (zero for payload-less RPCs, one otherwise).
+ */
+export const authedRpc = <Args extends ReadonlyArray<unknown>, A, E, R>(
+  spanName: string,
+  body: (user: AuthUser, ...args: Args) => Effect.Effect<A, E, R>
+): ((...args: Args) => Effect.Effect<A, E, R | AuthContext>) =>
+  Effect.fn(spanName)(function* (...args: Args) {
+    const { user } = yield* Effect.service(AuthContext)
+    return yield* body(user, ...args)
+  })

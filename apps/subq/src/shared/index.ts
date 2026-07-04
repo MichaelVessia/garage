@@ -167,5 +167,5 @@ export {
 export { listKnownDrugVariants, suggestedDosagesForDrug, listDefaultInjectionSites } from './drug-vocabulary/index.js'
 export type { DrugVocabularyEntry } from './drug-vocabulary/index.js'
 export { AppRpcs } from './rpc.js'
-export { AuthContext, Unauthorized, AuthRpcMiddleware } from './auth-middleware.js'
+export { AuthContext, Unauthorized, AuthRpcMiddleware, authedRpc } from './auth-middleware.js'
 export type { AuthUser, AuthSession } from './auth-middleware.js'

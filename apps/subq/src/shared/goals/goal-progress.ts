@@ -32,7 +32,9 @@ export const calculateGoalProgressProjectedDate = ({
   rateOfChange,
   now,
   maxProjectionDays = DEFAULT_MAX_PROJECTION_DAYS,
-}: GoalProgressPaceStatusParams & { readonly maxProjectionDays?: number }): Option.Option<DateTime.Utc> => {
+}: GoalProgressPaceStatusParams & {
+  readonly maxProjectionDays?: number
+}): Option.Option<DateTime.Utc> => {
   const projectedDate = projectWeightTrajectoryDate({
     currentWeight,
     targetWeight: goal.goalWeight,
