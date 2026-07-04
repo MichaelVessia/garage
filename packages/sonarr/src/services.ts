@@ -1,9 +1,9 @@
+import { makeConfigReaders } from '@garage/cli-protocol'
 import * as Config from 'effect/Config'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Option from 'effect/Option'
-import * as Schema from 'effect/Schema'
 
 import { decodeError, envMissing } from './errors.js'
 import type { SonarrError } from './errors.js'
@@ -52,11 +52,7 @@ export class SonarrApi extends Context.Service<
   }
 >()('@garage/sonarr/services/SonarrApi') {}
 
-const readRequiredString = (name: string): Effect.Effect<string, SonarrError> =>
-  Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
-
-const readRequiredSecret = (name: string) =>
-  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
 
 const loadConfig = Effect.fn('SonarrConfig.get')(
   function* () {

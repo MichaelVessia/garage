@@ -1,4 +1,4 @@
-import * as Config from 'effect/Config'
+import { makeConfigReaders } from '@garage/cli-protocol'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -31,8 +31,7 @@ export class CaddyApi extends Context.Service<
   }
 >()('@garage/caddy/services/CaddyApi') {}
 
-const readRequiredString = (name: string): Effect.Effect<string, CaddyError> =>
-  Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
+const { readRequiredString } = makeConfigReaders(envMissing)
 
 export const CaddyConfigLive = Layer.effect(
   CaddyConfig,

@@ -1,8 +1,7 @@
-import * as Config from 'effect/Config'
+import { makeConfigReaders } from '@garage/cli-protocol'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import * as Schema from 'effect/Schema'
 
 import { envMissing } from './errors.js'
 import type { AutocaliwebError } from './errors.js'
@@ -39,11 +38,7 @@ export class AutocaliwebApi extends Context.Service<
   }
 >()('@garage/autocaliweb/services/AutocaliwebApi') {}
 
-const readRequiredString = (name: string): Effect.Effect<string, AutocaliwebError> =>
-  Config.nonEmptyString(name).pipe(Effect.mapError(() => envMissing(name)))
-
-const readRequiredSecret = (name: string) =>
-  Config.schema(Schema.Redacted(Schema.NonEmptyString), name).pipe(Effect.mapError(() => envMissing(name)))
+const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
 
 export const AutocaliwebConfigLive = Layer.effect(
   AutocaliwebConfig,

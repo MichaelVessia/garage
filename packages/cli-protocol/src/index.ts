@@ -14,6 +14,8 @@ import { OtlpLogger, OtlpSerialization, OtlpTracer } from 'effect/unstable/obser
 
 import { CliUsageError } from './errors'
 
+export { makeConfigReaders } from './config'
+
 export const NextActionParam = Schema.Struct({
   value: Schema.optional(Schema.Unknown),
   default: Schema.optional(Schema.Unknown),
