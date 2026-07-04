@@ -18,6 +18,7 @@ import { ChangePassword } from '../auth.js'
 import type { FailedChangePassword, SucceededChangePassword } from '../auth.js'
 import { FetchSettings, remindersEnabledOf, weightUnitOf } from '../data/settings.js'
 import type { FailedFetchSettings, SettingsData, SucceededFetchSettings } from '../data/settings.js'
+import { toCommandResult } from '../lib/command.js'
 import { button, card, input } from '../ui.js'
 
 // ============================================
@@ -137,12 +138,7 @@ const UpdateWeightUnit = Command.define(
     const api = yield* Api
     yield* api.UserSettingsUpdate(new UserSettingsUpdate({ weightUnit: unit }))
     return SucceededUpdateSettingsPreference()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedUpdateSettingsPreference({ message: 'Failed to update display preferences' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update display preferences'))
 )
 
 const UpdateReminders = Command.define(
@@ -155,12 +151,7 @@ const UpdateReminders = Command.define(
     const api = yield* Api
     yield* api.UserSettingsUpdate(new UserSettingsUpdate({ remindersEnabled: enabled }))
     return SucceededUpdateSettingsPreference()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedUpdateSettingsPreference({ message: 'Failed to update notification preferences' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update notification preferences'))
 )
 
 const ExportData = Command.define(
@@ -186,12 +177,7 @@ const ExportData = Command.define(
       URL.revokeObjectURL(url)
     })
     return SucceededExportData()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedExportData({ message: 'Failed to export data. Please try again.' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedExportData, 'Failed to export data. Please try again.'))
 )
 
 const SelectImportFile = Command.define(
@@ -222,10 +208,7 @@ const ReadImportFile = Command.define(
   Effect.tryPromise(() => file.text()).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(DataExportJson)),
     Effect.map((data) => PreparedImportData({ data })),
-    Effect.matchCause({
-      onFailure: () => FailedImportData({ message: 'Invalid export file. Please select a valid SubQ export file.' }),
-      onSuccess: (message) => message,
-    })
+    toCommandResult(FailedImportData, 'Invalid export file. Please select a valid SubQ export file.')
   )
 )
 
@@ -239,12 +222,7 @@ const ImportData = Command.define(
     const api = yield* Api
     const result = yield* api.UserDataImport(data)
     return SucceededImportData({ result })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedImportData({ message: 'Failed to import data. Please try again.' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedImportData, 'Failed to import data. Please try again.'))
 )
 
 // ============================================

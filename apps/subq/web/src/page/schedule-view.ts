@@ -14,6 +14,7 @@ import { InjectionScheduleId, ScheduleView } from '#shared'
 import type { Frequency, SchedulePhaseView } from '#shared'
 
 import { Api } from '../api.js'
+import { toCommandResult } from '../lib/command.js'
 import { formatDate, formatDateTime, formatShortDate } from '../lib/datetime.js'
 import { scheduleRouter } from '../route.js'
 import { card } from '../ui.js'
@@ -70,12 +71,7 @@ const FetchScheduleView = Command.define(
     const api = yield* Api
     const view = yield* api.ScheduleGetView({ id: InjectionScheduleId.make(scheduleId) })
     return SucceededFetchScheduleView({ view })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchScheduleView({ message: 'Failed to load schedule' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchScheduleView, 'Failed to load schedule'))
 )
 
 // ============================================

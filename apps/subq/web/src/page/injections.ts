@@ -32,7 +32,9 @@ import {
 } from '#shared'
 
 import { Api } from '../api.js'
+import { toCommandResult } from '../lib/command.js'
 import { formatDateTime, fromLocalDatetimeString, utcToLocalDatetimeString } from '../lib/datetime.js'
+import { withForm } from '../lib/form.js'
 import { button, card, input, select } from '../ui.js'
 
 const PAGE_SIZE = 10
@@ -197,12 +199,7 @@ export const FetchInjectionLogs = Command.define(
       new InjectionLogListParams({ limit: Limit.make(10_000), offset: Offset.make(0) })
     )
     return SucceededFetchInjectionLogs({ logs })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchInjectionLogs({ message: 'Failed to load injection logs' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchInjectionLogs, 'Failed to load injection logs'))
 )
 
 const FetchInjectionDrugs = Command.define(
@@ -214,12 +211,7 @@ const FetchInjectionDrugs = Command.define(
     const api = yield* Api
     const drugs = yield* api.InjectionLogGetDrugs()
     return SucceededFetchInjectionDrugs({ drugs })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchInjectionDrugs({ message: 'Failed to load medication suggestions' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchInjectionDrugs, 'Failed to load medication suggestions'))
 )
 
 const FetchInjectionSites = Command.define(
@@ -231,12 +223,7 @@ const FetchInjectionSites = Command.define(
     const api = yield* Api
     const sites = yield* api.InjectionLogGetSites()
     return SucceededFetchInjectionSites({ sites })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchInjectionSites({ message: 'Failed to load site suggestions' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchInjectionSites, 'Failed to load site suggestions'))
 )
 
 const FetchInjectionSchedules = Command.define(
@@ -248,12 +235,7 @@ const FetchInjectionSchedules = Command.define(
     const api = yield* Api
     const schedules = yield* api.ScheduleList()
     return SucceededFetchInjectionSchedules({ schedules })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchInjectionSchedules({ message: 'Failed to load schedules' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchInjectionSchedules, 'Failed to load schedules'))
 )
 
 const OpenInjectionForm = Command.define(
@@ -296,12 +278,7 @@ const SaveInjection = Command.define(
       ? api.InjectionLogCreate(new InjectionLogCreate(fields))
       : api.InjectionLogUpdate(new InjectionLogUpdate({ id: editingId, ...fields }))
     return SucceededSaveInjection()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedSaveInjection({ message: 'Failed to save injection log' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedSaveInjection, 'Failed to save injection log'))
 )
 
 const DeleteInjection = Command.define(
@@ -314,12 +291,7 @@ const DeleteInjection = Command.define(
     const api = yield* Api
     yield* api.InjectionLogDelete(new InjectionLogDelete({ id }))
     return SucceededDeleteInjection()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedDeleteInjection({ message: 'Failed to delete injection log' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedDeleteInjection, 'Failed to delete injection log'))
 )
 
 // ============================================
@@ -365,11 +337,6 @@ export const fetchInjectionsIfIdle = (model: InjectionsModel): UpdateReturn => {
   return [next, commands]
 }
 
-const formError =
-  (message: string) =>
-  (form: InjectionForm): InjectionForm =>
-    evo(form, { error: () => message, submitting: () => false })
-
 const validateForm = (form: InjectionForm): Option.Option<string> => {
   if (form.datetime === '') {
     return Option.some('Date & time is required')
@@ -414,51 +381,22 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
       CancelledDeleteInjection: () => [evo(model, { pendingDeleteId: () => null }), []],
-      ChangedInjectionDatetime: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { datetime: () => value })) }),
-        [],
-      ],
+      ChangedInjectionDatetime: ({ value }) => [withForm(model, () => ({ datetime: value })), []],
       ChangedInjectionDosage: ({ value }) => [
-        evo(model, {
-          form: (form) =>
-            form === null ? null : evo(form, { confirmedOffSchedule: () => false, dosage: () => value }),
-        }),
+        withForm(model, () => ({ confirmedOffSchedule: false, dosage: value })),
         [],
       ],
       ChangedInjectionDrug: ({ value }) => [
-        evo(model, {
-          form: (form) =>
-            form === null
-              ? null
-              : evo(form, {
-                  confirmedOffSchedule: () => false,
-                  drug: () => value,
-                  scheduleId: () => '',
-                }),
-        }),
+        withForm(model, () => ({ confirmedOffSchedule: false, drug: value, scheduleId: '' })),
         [],
       ],
-      ChangedInjectionNotes: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { notes: () => value })) }),
-        [],
-      ],
+      ChangedInjectionNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
       ChangedInjectionSchedule: ({ value }) => [
-        evo(model, {
-          form: (form) =>
-            form === null ? null : evo(form, { confirmedOffSchedule: () => false, scheduleId: () => value }),
-        }),
+        withForm(model, () => ({ confirmedOffSchedule: false, scheduleId: value })),
         [],
       ],
-      ChangedInjectionSite: ({ value }) => [
-        evo(model, {
-          form: (form) => (form === null ? null : evo(form, { injectionSite: () => value })),
-        }),
-        [],
-      ],
-      ChangedInjectionSource: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { source: () => value })) }),
-        [],
-      ],
+      ChangedInjectionSite: ({ value }) => [withForm(model, () => ({ injectionSite: value })), []],
+      ChangedInjectionSource: ({ value }) => [withForm(model, () => ({ source: value })), []],
       ClickedAddInjection: () => [model, [OpenInjectionForm({ log: null })]],
       ClickedCancelInjectionForm: () => [evo(model, { form: () => null }), []],
       ClickedEditInjection: ({ log }) => [model, [OpenInjectionForm({ log })]],
@@ -473,12 +411,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
       ],
       ConfirmedDeleteInjection: () =>
         model.pendingDeleteId === null ? [model, []] : [model, [DeleteInjection({ id: model.pendingDeleteId })]],
-      ConfirmedInjectionOffSchedule: () => [
-        evo(model, {
-          form: (form) => (form === null ? null : evo(form, { confirmedOffSchedule: () => true })),
-        }),
-        [],
-      ],
+      ConfirmedInjectionOffSchedule: () => [withForm(model, () => ({ confirmedOffSchedule: true })), []],
       FailedDeleteInjection: () => [evo(model, { pendingDeleteId: () => null }), []],
       FailedFetchInjectionDrugs: ({ message: error }) => [
         evo(model, { drugs: () => AsyncData.Failure({ error }) }),
@@ -493,12 +426,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
         evo(model, { sites: () => AsyncData.Failure({ error }) }),
         [],
       ],
-      FailedSaveInjection: ({ message: error }) => [
-        evo(model, {
-          form: (form) => (form === null ? null : formError(error)(form)),
-        }),
-        [],
-      ],
+      FailedSaveInjection: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
       OpenedInjectionForm: ({ log, nowLocal }) => [
         evo(model, {
           form: () =>
@@ -543,26 +471,17 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
         const validationError = validateForm(model.form)
         if (Option.isSome(validationError)) {
           const errorMessage = validationError.value
-          return [
-            evo(model, {
-              form: (form) => (form === null ? null : formError(errorMessage)(form)),
-            }),
-            [],
-          ]
+          return [withForm(model, () => ({ error: errorMessage, submitting: false })), []]
         }
         const schedules = AsyncData.getOrElse(model.schedules, () => [])
         if (isOffScheduleDose(model.form, schedules) && !model.form.confirmedOffSchedule) {
           return [
-            evo(model, {
-              form: (form) => (form === null ? null : formError('Confirm off-schedule dosage before saving')(form)),
-            }),
+            withForm(model, () => ({ error: 'Confirm off-schedule dosage before saving', submitting: false })),
             [],
           ]
         }
         return [
-          evo(model, {
-            form: (form) => (form === null ? null : evo(form, { error: () => null, submitting: () => true })),
-          }),
+          withForm(model, () => ({ error: null, submitting: true })),
           [
             SaveInjection({
               datetime: model.form.datetime,

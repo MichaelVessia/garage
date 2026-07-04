@@ -25,7 +25,9 @@ import type { WeightUnit } from '#shared'
 
 import { Api } from '../api.js'
 import { formatWeight, toStorageLbs } from '../data/settings.js'
+import { toCommandResult } from '../lib/command.js'
 import { formatDateTime, fromLocalDatetimeString, utcToLocalDatetimeString } from '../lib/datetime.js'
+import { withForm } from '../lib/form.js'
 import { button, input } from '../ui.js'
 
 const PAGE_SIZE = 10
@@ -138,12 +140,7 @@ export const FetchWeightLogs = Command.define(
       new WeightLogListParams({ limit: Limit.make(10_000), offset: Offset.make(0) })
     )
     return SucceededFetchWeightLogs({ logs })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchWeightLogs({ message: 'Failed to load weight logs' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchWeightLogs, 'Failed to load weight logs'))
 )
 
 // Opening the form needs "now" for the datetime default and max.
@@ -177,12 +174,7 @@ export const SaveWeight = Command.define(
       ? api.WeightLogCreate(new WeightLogCreate(fields))
       : api.WeightLogUpdate(new WeightLogUpdate({ id: editingId, ...fields }))
     return SucceededSaveWeight()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedSaveWeight({ message: 'Failed to save entry' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedSaveWeight, 'Failed to save entry'))
 )
 
 export const DeleteWeight = Command.define(
@@ -195,12 +187,7 @@ export const DeleteWeight = Command.define(
     const api = yield* Api
     yield* api.WeightLogDelete({ id })
     return SucceededDeleteWeight()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedDeleteWeight({ message: 'Failed to delete entry' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedDeleteWeight, 'Failed to delete entry'))
 )
 
 // ============================================
@@ -226,18 +213,9 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
       CancelledDeleteWeight: () => [evo(model, { pendingDeleteId: () => null }), []],
-      ChangedWeightDatetime: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { datetime: () => value })) }),
-        [],
-      ],
-      ChangedWeightNotes: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { notes: () => value })) }),
-        [],
-      ],
-      ChangedWeightValue: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { weight: () => value })) }),
-        [],
-      ],
+      ChangedWeightDatetime: ({ value }) => [withForm(model, () => ({ datetime: value })), []],
+      ChangedWeightNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
+      ChangedWeightValue: ({ value }) => [withForm(model, () => ({ weight: value })), []],
       ClickedAddWeight: () => [model, [OpenWeightForm({ log: null })]],
       ClickedCancelWeightForm: () => [evo(model, { form: () => null }), []],
       ClickedEditWeight: ({ log }) => [model, [OpenWeightForm({ log })]],
@@ -254,12 +232,7 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
         model.pendingDeleteId === null ? [model, []] : [model, [DeleteWeight({ id: model.pendingDeleteId })]],
       FailedDeleteWeight: () => [evo(model, { pendingDeleteId: () => null }), []],
       FailedFetchWeightLogs: ({ message: error }) => [evo(model, { logs: () => AsyncData.Failure({ error }) }), []],
-      FailedSaveWeight: ({ message: error }) => [
-        evo(model, {
-          form: (form) => (form === null ? null : evo(form, { error: () => error, submitting: () => false })),
-        }),
-        [],
-      ],
+      FailedSaveWeight: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
       OpenedWeightForm: ({ log, nowLocal }) => [
         evo(model, {
           form: () =>
@@ -293,17 +266,10 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
         }
         const parsed = Number.parseFloat(model.form.weight)
         if (Number.isNaN(parsed) || parsed <= 0 || parsed > 1000) {
-          return [
-            evo(model, {
-              form: (form) => (form === null ? null : evo(form, { error: () => 'Enter a valid weight' })),
-            }),
-            [],
-          ]
+          return [withForm(model, () => ({ error: 'Enter a valid weight' })), []]
         }
         return [
-          evo(model, {
-            form: (form) => (form === null ? null : evo(form, { error: () => null, submitting: () => true })),
-          }),
+          withForm(model, () => ({ error: null, submitting: true })),
           [
             SaveWeight({
               datetime: model.form.datetime,

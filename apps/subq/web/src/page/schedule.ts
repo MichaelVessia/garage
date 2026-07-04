@@ -30,7 +30,9 @@ import {
 } from '#shared'
 
 import { Api } from '../api.js'
+import { toCommandResult } from '../lib/command.js'
 import { formatDate, formatShortDate, fromLocalDateString, utcToLocalDateString } from '../lib/datetime.js'
+import { withForm } from '../lib/form.js'
 import { scheduleViewRouter } from '../route.js'
 import { button, card, input, select } from '../ui.js'
 
@@ -199,12 +201,7 @@ export const FetchSchedules = Command.define(
     const api = yield* Api
     const schedules = yield* api.ScheduleList()
     return SucceededFetchSchedules({ schedules })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchSchedules({ message: 'Failed to load schedules' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchSchedules, 'Failed to load schedules'))
 )
 
 export const FetchNextDose = Command.define(
@@ -216,12 +213,7 @@ export const FetchNextDose = Command.define(
     const api = yield* Api
     const nextDose = yield* api.ScheduleGetNextDose()
     return SucceededFetchNextDose({ nextDose })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchNextDose({ message: 'Failed to load next dose' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchNextDose, 'Failed to load next dose'))
 )
 
 const FetchScheduleDrugs = Command.define(
@@ -233,12 +225,7 @@ const FetchScheduleDrugs = Command.define(
     const api = yield* Api
     const drugs = yield* api.InjectionLogGetDrugs()
     return SucceededFetchScheduleDrugs({ drugs })
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedFetchScheduleDrugs({ message: 'Failed to load medication suggestions' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedFetchScheduleDrugs, 'Failed to load medication suggestions'))
 )
 
 const OpenScheduleForm = Command.define(
@@ -298,12 +285,7 @@ const SaveSchedule = Command.define(
           })
         )
     return SucceededSaveSchedule()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedSaveSchedule({ message: 'Failed to save schedule' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedSaveSchedule, 'Failed to save schedule'))
 )
 
 const DeleteSchedule = Command.define(
@@ -316,12 +298,7 @@ const DeleteSchedule = Command.define(
     const api = yield* Api
     yield* api.ScheduleDelete(new InjectionScheduleDelete({ id }))
     return SucceededDeleteSchedule()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedDeleteSchedule({ message: 'Failed to delete schedule' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedDeleteSchedule, 'Failed to delete schedule'))
 )
 
 const ActivateSchedule = Command.define(
@@ -334,12 +311,7 @@ const ActivateSchedule = Command.define(
     const api = yield* Api
     yield* api.ScheduleUpdate(new InjectionScheduleUpdate({ id, isActive: true }))
     return SucceededActivateSchedule()
-  }).pipe(
-    Effect.matchCause({
-      onFailure: () => FailedActivateSchedule({ message: 'Failed to activate schedule' }),
-      onSuccess: (message) => message,
-    })
-  )
+  }).pipe(toCommandResult(FailedActivateSchedule, 'Failed to activate schedule'))
 )
 
 // ============================================
@@ -398,11 +370,6 @@ const updatePhase = (
 ): ReadonlyArray<SchedulePhaseForm> =>
   reorderPhases(phases.map((phase, current) => (current === index ? update(phase) : phase)))
 
-const scheduleFormError =
-  (message: string) =>
-  (form: ScheduleForm): ScheduleForm =>
-    evo(form, { error: () => message, submitting: () => false })
-
 const validatePhase = (phase: SchedulePhaseForm, index: number, total: number): Option.Option<string> => {
   if (!DOSAGE_PATTERN.test(phase.dosage.trim())) {
     return Option.some(`Phase ${index + 1}: enter dosage with unit`)
@@ -445,64 +412,34 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
       AddedSchedulePhase: () => [
-        evo(model, {
-          form: (form) =>
-            form === null
-              ? null
-              : evo(form, {
-                  phases: (phases) => [
-                    ...phases.map((phase) =>
-                      phase.isIndefinite ? evo(phase, { durationDays: () => '28', isIndefinite: () => false }) : phase
-                    ),
-                    defaultPhase(phases.length + 1),
-                  ],
-                }),
-        }),
+        withForm(model, (form) => ({
+          phases: [
+            ...form.phases.map((phase) =>
+              phase.isIndefinite ? evo(phase, { durationDays: () => '28', isIndefinite: () => false }) : phase
+            ),
+            defaultPhase(form.phases.length + 1),
+          ],
+        })),
         [],
       ],
       CancelledDeleteSchedule: () => [evo(model, { pendingDeleteId: () => null }), []],
-      ChangedScheduleDrug: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { drug: () => value })) }),
-        [],
-      ],
-      ChangedScheduleFrequency: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { frequency: () => value })) }),
-        [],
-      ],
-      ChangedScheduleName: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { name: () => value })) }),
-        [],
-      ],
-      ChangedScheduleNotes: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { notes: () => value })) }),
-        [],
-      ],
+      ChangedScheduleDrug: ({ value }) => [withForm(model, () => ({ drug: value })), []],
+      ChangedScheduleFrequency: ({ value }) => [withForm(model, () => ({ frequency: value })), []],
+      ChangedScheduleName: ({ value }) => [withForm(model, () => ({ name: value })), []],
+      ChangedScheduleNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
       ChangedSchedulePhaseDosage: ({ index, value }) => [
-        evo(model, {
-          form: (form) =>
-            form === null
-              ? null
-              : evo(form, {
-                  phases: (phases) => updatePhase(phases, index, (phase) => evo(phase, { dosage: () => value })),
-                }),
-        }),
+        withForm(model, (form) => ({
+          phases: updatePhase(form.phases, index, (phase) => evo(phase, { dosage: () => value })),
+        })),
         [],
       ],
       ChangedSchedulePhaseDuration: ({ index, value }) => [
-        evo(model, {
-          form: (form) =>
-            form === null
-              ? null
-              : evo(form, {
-                  phases: (phases) => updatePhase(phases, index, (phase) => evo(phase, { durationDays: () => value })),
-                }),
-        }),
+        withForm(model, (form) => ({
+          phases: updatePhase(form.phases, index, (phase) => evo(phase, { durationDays: () => value })),
+        })),
         [],
       ],
-      ChangedScheduleStartDate: ({ value }) => [
-        evo(model, { form: (form) => (form === null ? null : evo(form, { startDate: () => value })) }),
-        [],
-      ],
+      ChangedScheduleStartDate: ({ value }) => [withForm(model, () => ({ startDate: value })), []],
       ClickedActivateSchedule: ({ schedule }) => [model, [ActivateSchedule({ id: schedule.id })]],
       ClickedAddSchedule: () => [model, [OpenScheduleForm({ schedule: null })]],
       ClickedCancelScheduleForm: () => [evo(model, { form: () => null }), []],
@@ -514,12 +451,7 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
       FailedFetchNextDose: ({ message: error }) => [evo(model, { nextDose: () => AsyncData.Failure({ error }) }), []],
       FailedFetchScheduleDrugs: ({ message: error }) => [evo(model, { drugs: () => AsyncData.Failure({ error }) }), []],
       FailedFetchSchedules: ({ message: error }) => [evo(model, { schedules: () => AsyncData.Failure({ error }) }), []],
-      FailedSaveSchedule: ({ message: error }) => [
-        evo(model, {
-          form: (form) => (form === null ? null : scheduleFormError(error)(form)),
-        }),
-        [],
-      ],
+      FailedSaveSchedule: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
       OpenedScheduleForm: ({ schedule, todayLocal }) => [
         evo(model, {
           form: () =>
@@ -558,14 +490,11 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
         [],
       ],
       RemovedSchedulePhase: ({ index }) => [
-        evo(model, {
-          form: (form) =>
-            form === null || form.phases.length <= 1
-              ? form
-              : evo(form, {
-                  phases: (phases) => reorderPhases(phases.filter((_, current) => current !== index)),
-                }),
-        }),
+        withForm(model, (form) =>
+          form.phases.length <= 1
+            ? {}
+            : { phases: reorderPhases(form.phases.filter((_, current) => current !== index)) }
+        ),
         [],
       ],
       RequestedDeleteSchedule: ({ id }) => [evo(model, { form: () => null, pendingDeleteId: () => id }), []],
@@ -575,17 +504,10 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
         }
         const validationError = validateScheduleForm(model.form)
         if (Option.isSome(validationError)) {
-          return [
-            evo(model, {
-              form: (form) => (form === null ? null : scheduleFormError(validationError.value)(form)),
-            }),
-            [],
-          ]
+          return [withForm(model, () => ({ error: validationError.value, submitting: false })), []]
         }
         return [
-          evo(model, {
-            form: (form) => (form === null ? null : evo(form, { error: () => null, submitting: () => true })),
-          }),
+          withForm(model, () => ({ error: null, submitting: true })),
           [
             SaveSchedule({
               drug: model.form.drug,
@@ -609,20 +531,14 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
       SucceededFetchSchedules: ({ schedules }) => [evo(model, { schedules: () => AsyncData.succeed(schedules) }), []],
       SucceededSaveSchedule: () => refreshSchedules(evo(model, { form: () => null })),
       ToggledSchedulePhaseIndefinite: ({ checked, index }) => [
-        evo(model, {
-          form: (form) =>
-            form === null
-              ? null
-              : evo(form, {
-                  phases: (phases) =>
-                    updatePhase(phases, index, (phase) =>
-                      evo(phase, {
-                        durationDays: () => (checked ? '' : '28'),
-                        isIndefinite: () => checked,
-                      })
-                    ),
-                }),
-        }),
+        withForm(model, (form) => ({
+          phases: updatePhase(form.phases, index, (phase) =>
+            evo(phase, {
+              durationDays: () => (checked ? '' : '28'),
+              isIndefinite: () => checked,
+            })
+          ),
+        })),
         [],
       ],
     })
