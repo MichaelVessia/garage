@@ -1013,9 +1013,7 @@ const viewSchedules = (schedules: ReadonlyArray<InjectionSchedule>) =>
           h.h3([h.Class('text-lg font-medium mb-2')], ['No schedules yet']),
           h.p(
             [h.Class('text-muted-foreground mb-4')],
-            [
-              'Create your first injection schedule to track your titration phases and get reminders for upcoming doses.',
-            ]
+            ['Create your first injection schedule to track your titration phases and upcoming doses.']
           ),
           h.button([h.Class(button()), h.OnClick(ClickedAddSchedule())], ['Create Schedule']),
         ]

@@ -8,7 +8,6 @@ import { NextScheduledDose, PhaseInjectionSummary, PhaseOrder, SchedulePhaseView
 import type { InjectionSchedule, SchedulePhase } from './domain.js'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-export const OVERDUE_REMINDER_WINDOW_DAYS = 7
 
 export interface CurrentPhase {
   readonly phaseIndex: number
@@ -26,11 +25,6 @@ export interface NextDoseTimingInput {
   readonly frequency: string
   readonly lastInjectionDate: Option.Option<DateTime.Utc>
   readonly now: DateTime.Utc
-}
-
-export interface ReminderEligibility {
-  readonly shouldSendReminder: boolean
-  readonly daysOverdue: number
 }
 
 type PhaseStatus = 'completed' | 'current' | 'upcoming'
@@ -125,16 +119,6 @@ export const nextDose = (
       isOverdue: timing.isOverdue,
     })
   })
-}
-
-export const reminderEligibilityForNextDose = (nextScheduledDose: NextScheduledDose): ReminderEligibility => {
-  const daysOverdue = nextScheduledDose.isOverdue ? Math.abs(nextScheduledDose.daysUntilDue) : 0
-
-  return {
-    shouldSendReminder:
-      nextScheduledDose.daysUntilDue <= 0 && nextScheduledDose.daysUntilDue >= -OVERDUE_REMINDER_WINDOW_DAYS,
-    daysOverdue,
-  }
 }
 
 const phaseStatus = (

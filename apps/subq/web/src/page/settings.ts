@@ -16,7 +16,7 @@ import type { WeightUnit } from '#shared'
 import { Api } from '../api.js'
 import { ChangePassword } from '../auth.js'
 import type { FailedChangePassword, SucceededChangePassword } from '../auth.js'
-import { FetchSettings, remindersEnabledOf, weightUnitOf } from '../data/settings.js'
+import { FetchSettings, weightUnitOf } from '../data/settings.js'
 import type { FailedFetchSettings, SettingsData, SucceededFetchSettings } from '../data/settings.js'
 import { toCommandResult } from '../lib/command.js'
 import { button, card, input } from '../ui.js'
@@ -72,9 +72,6 @@ export const initialSettingsModel: SettingsModel = {
 export const ClickedSettingsWeightUnit = m('ClickedSettingsWeightUnit', {
   unit: Schema.Literals(['lbs', 'kg']),
 })
-export const ClickedSettingsReminders = m('ClickedSettingsReminders', {
-  enabled: Schema.Boolean,
-})
 export const SucceededUpdateSettingsPreference = m('SucceededUpdateSettingsPreference')
 export const FailedUpdateSettingsPreference = m('FailedUpdateSettingsPreference', {
   message: Schema.String,
@@ -101,7 +98,6 @@ export const FailedImportData = m('FailedImportData', { message: Schema.String }
 
 export const SettingsPageMessage = Schema.Union([
   ClickedSettingsWeightUnit,
-  ClickedSettingsReminders,
   SucceededUpdateSettingsPreference,
   FailedUpdateSettingsPreference,
   ChangedSettingsCurrentPassword,
@@ -139,19 +135,6 @@ const UpdateWeightUnit = Command.define(
     yield* api.UserSettingsUpdate(new UserSettingsUpdate({ weightUnit: unit }))
     return SucceededUpdateSettingsPreference()
   }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update display preferences'))
-)
-
-const UpdateReminders = Command.define(
-  'UpdateSettingsReminders',
-  { enabled: Schema.Boolean },
-  SucceededUpdateSettingsPreference,
-  FailedUpdateSettingsPreference
-)(({ enabled }) =>
-  Effect.gen(function* () {
-    const api = yield* Api
-    yield* api.UserSettingsUpdate(new UserSettingsUpdate({ remindersEnabled: enabled }))
-    return SucceededUpdateSettingsPreference()
-  }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update notification preferences'))
 )
 
 const ExportData = Command.define(
@@ -318,10 +301,6 @@ export const updateSettingsPage = (model: SettingsModel, message: SettingsPageMe
         }),
         [SelectImportFile()],
       ],
-      ClickedSettingsReminders: ({ enabled }) => [
-        evo(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
-        [UpdateReminders({ enabled })],
-      ],
       ClickedSettingsWeightUnit: ({ unit }) => [
         evo(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
         [UpdateWeightUnit({ unit })],
@@ -464,43 +443,6 @@ const viewDisplayPreferences = (model: SettingsModel, settings: SettingsData) =>
       ]
     ),
   ])
-
-const viewNotifications = (model: SettingsModel, settings: SettingsData) => {
-  const enabled = remindersEnabledOf(settings)
-  return viewCard('Notifications', [
-    h.div(
-      [h.Class('space-y-4')],
-      [
-        h.div(
-          [h.Class('flex items-center justify-between gap-4')],
-          [
-            h.div(
-              [],
-              [
-                h.label([h.Class('block text-sm font-medium')], ['Email Reminders']),
-                h.p([h.Class('text-sm text-muted-foreground')], ['Receive an email reminder on shot days.']),
-              ]
-            ),
-            h.button(
-              [
-                h.Class(
-                  button({
-                    class: enabled ? 'min-w-20' : 'min-w-20 bg-background',
-                    variant: enabled ? 'default' : 'outline',
-                  })
-                ),
-                h.Disabled(model.preferenceSubmitting),
-                h.Attribute('aria-pressed', String(enabled)),
-                h.OnClick(ClickedSettingsReminders({ enabled: !enabled })),
-              ],
-              [enabled ? 'On' : 'Off']
-            ),
-          ]
-        ),
-      ]
-    ),
-  ])
-}
 
 const viewPasswordForm = (form: PasswordForm) =>
   viewCard('Change Password', [
@@ -652,7 +594,6 @@ export const viewSettings = (model: SettingsModel, settings: SettingsData) =>
     [
       h.h2([h.Class('text-xl font-semibold tracking-tight mb-6')], ['Settings']),
       viewDisplayPreferences(model, settings),
-      viewNotifications(model, settings),
       viewPasswordForm(model.password),
       viewDataManagement(model),
       model.importConfirm === null ? h.empty : viewImportConfirm(model.importConfirm),

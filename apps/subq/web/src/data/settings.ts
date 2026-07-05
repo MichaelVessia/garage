@@ -42,11 +42,6 @@ export const weightUnitOf = (settings: SettingsData): WeightUnit => {
   return Option.isSome(data) ? data.value.weightUnit : DEFAULT_WEIGHT_UNIT
 }
 
-export const remindersEnabledOf = (settings: SettingsData): boolean => {
-  const data = AsyncData.getData(settings)
-  return Option.isSome(data) ? data.value.remindersEnabled : false
-}
-
 export const displayWeight = (unit: WeightUnit, lbs: number): number => (unit === 'kg' ? lbsToKg(lbs) : lbs)
 
 export const toStorageLbs = (unit: WeightUnit, value: number): number => (unit === 'kg' ? kgToLbs(value) : value)

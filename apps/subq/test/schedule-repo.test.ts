@@ -16,14 +16,7 @@ import {
 
 import { ScheduleRepo, ScheduleRepoLive } from '../src/schedule/schedule-repo.js'
 import { testDate } from './helpers/dates.js'
-import {
-  insertInjectionLog,
-  insertSchedule,
-  insertSchedulePhase,
-  insertSettings,
-  insertUser,
-  makeInitializedTestLayer,
-} from './helpers/test-db.js'
+import { insertInjectionLog, insertSchedule, insertSchedulePhase, makeInitializedTestLayer } from './helpers/test-db.js'
 
 const TestLayer = makeInitializedTestLayer(ScheduleRepoLive)
 
@@ -554,83 +547,6 @@ describe('ScheduleRepo', () => {
           if (Option.isSome(lastDate)) {
             assert.include(DateTime.formatIso(lastDate.value), '2024-01-15')
           }
-        })
-      )
-    })
-  })
-
-  describe('listActiveReminderInputs', () => {
-    it.layer(TestLayer)((it) => {
-      it.effect('hydrates eligible active schedules with phases and recent injection fields', () =>
-        Effect.gen(function* () {
-          yield* insertUser('eligible-user', 'eligible@example.com', 'Eligible User')
-          yield* insertSchedule(
-            'eligible-schedule',
-            'Eligible schedule',
-            'Semaglutide',
-            'weekly',
-            testDate('2024-01-01T12:00:00Z'),
-            'eligible-user',
-            { source: 'Compounded', notes: 'Reminder notes' }
-          )
-          yield* insertSchedulePhase('eligible-phase-2', 'eligible-schedule', 2, '5mg')
-          yield* insertSchedulePhase('eligible-phase-1', 'eligible-schedule', 1, '2.5mg', 28)
-          yield* insertInjectionLog(
-            'same-drug-old',
-            testDate('2024-01-04T12:00:00Z'),
-            'Semaglutide',
-            '2.5mg',
-            'eligible-user',
-            { injectionSite: 'left thigh' }
-          )
-          yield* insertInjectionLog(
-            'same-drug-new',
-            testDate('2024-01-08T12:00:00Z'),
-            'Semaglutide',
-            '2.5mg',
-            'eligible-user',
-            { injectionSite: 'right thigh' }
-          )
-          yield* insertInjectionLog(
-            'other-drug-newer',
-            testDate('2024-01-10T12:00:00Z'),
-            'Testosterone',
-            '100mg',
-            'eligible-user',
-            { injectionSite: 'abdomen' }
-          )
-
-          yield* insertUser('disabled-user', 'disabled@example.com', 'Disabled User')
-          yield* insertSettings('disabled-settings', 'disabled-user', 'lbs', false)
-          yield* insertSchedule(
-            'disabled-schedule',
-            'Disabled schedule',
-            'Semaglutide',
-            'weekly',
-            testDate('2024-01-01T12:00:00Z'),
-            'disabled-user'
-          )
-          yield* insertSchedulePhase('disabled-phase', 'disabled-schedule', 1, '2.5mg')
-
-          const repo = yield* ScheduleRepo
-          const inputs = yield* repo.listActiveReminderInputs()
-          const input = requireValue(inputs[0])
-          const firstPhase = requireValue(input.schedule.phases[0])
-          const secondPhase = requireValue(input.schedule.phases[1])
-          const lastInjectionDate = Option.getOrThrow(input.lastInjectionDate)
-
-          assert.lengthOf(inputs, 1)
-          assert.strictEqual(input.userId, 'eligible-user')
-          assert.strictEqual(input.email, 'eligible@example.com')
-          assert.strictEqual(input.name, 'Eligible User')
-          assert.strictEqual(input.schedule.name, 'Eligible schedule')
-          assert.strictEqual(input.schedule.source, 'Compounded')
-          assert.strictEqual(input.schedule.notes, 'Reminder notes')
-          assert.strictEqual(firstPhase.order, 1)
-          assert.strictEqual(firstPhase.dosage, '2.5mg')
-          assert.strictEqual(secondPhase.order, 2)
-          assert.strictEqual(DateTime.formatIso(lastInjectionDate), '2024-01-08T12:00:00.000Z')
-          assert.strictEqual(Option.getOrThrow(input.lastInjectionSite), 'abdomen')
         })
       )
     })

@@ -87,63 +87,9 @@ const ScheduleWithPhaseRow = Schema.Struct({
   phase_updated_at: Schema.NullOr(Schema.String),
 })
 
-const ActiveScheduleReminderRow = Schema.Struct({
-  user_id: Schema.String,
-  email: Schema.String,
-  name: Schema.String,
-  schedule_id: Schema.String,
-  schedule_name: Schema.String,
-  schedule_drug: Schema.String,
-  schedule_source: Schema.NullOr(Schema.String),
-  schedule_frequency: Frequency,
-  schedule_start_date: Schema.String,
-  schedule_is_active: Schema.Number,
-  schedule_notes: Schema.NullOr(Schema.String),
-  schedule_created_at: Schema.String,
-  schedule_updated_at: Schema.String,
-  phase_id: Schema.NullOr(Schema.String),
-  phase_schedule_id: Schema.NullOr(Schema.String),
-  phase_order: Schema.NullOr(Schema.Number),
-  phase_duration_days: Schema.NullOr(Schema.Number),
-  phase_dosage: Schema.NullOr(Schema.String),
-  phase_created_at: Schema.NullOr(Schema.String),
-  phase_updated_at: Schema.NullOr(Schema.String),
-  last_injection_date: Schema.NullOr(Schema.String),
-  last_injection_site: Schema.NullOr(Schema.String),
-})
-
 const decodeScheduleRow = Schema.decodeUnknownEffect(ScheduleRow)
 const decodePhaseRow = Schema.decodeUnknownEffect(PhaseRow)
 const decodeScheduleWithPhaseRow = Schema.decodeUnknownEffect(ScheduleWithPhaseRow)
-const decodeActiveScheduleReminderRow = Schema.decodeUnknownEffect(ActiveScheduleReminderRow)
-
-export interface ActiveScheduleReminderInput {
-  readonly userId: string
-  readonly email: string
-  readonly name: string
-  readonly schedule: InjectionSchedule
-  readonly lastInjectionDate: Option.Option<DateTime.Utc>
-  readonly lastInjectionSite: Option.Option<string>
-}
-
-interface ActiveScheduleAccumulator {
-  readonly userId: string
-  readonly email: string
-  readonly name: string
-  readonly scheduleId: string
-  readonly scheduleName: string
-  readonly drug: string
-  readonly source: Option.Option<string>
-  readonly frequency: typeof Frequency.Type
-  readonly startDate: string
-  readonly isActive: number
-  readonly notes: Option.Option<string>
-  readonly createdAt: string
-  readonly updatedAt: string
-  readonly lastInjectionDate: Option.Option<DateTime.Utc>
-  readonly lastInjectionSite: Option.Option<string>
-  readonly phases: readonly SchedulePhase[]
-}
 
 export const phaseRowToDomain = (row: typeof PhaseRow.Type): SchedulePhase =>
   new SchedulePhase({
@@ -170,91 +116,6 @@ export const scheduleRowToDomain = (row: typeof ScheduleRow.Type, phases: Schedu
     createdAt: DateTime.makeUnsafe(row.created_at),
     updatedAt: DateTime.makeUnsafe(row.updated_at),
   })
-
-const reminderRowToPhase = (row: typeof ActiveScheduleReminderRow.Type): Option.Option<SchedulePhase> => {
-  if (
-    row.phase_id === null ||
-    row.phase_schedule_id === null ||
-    row.phase_order === null ||
-    row.phase_dosage === null ||
-    row.phase_created_at === null ||
-    row.phase_updated_at === null
-  ) {
-    return Option.none()
-  }
-
-  return Option.some(
-    new SchedulePhase({
-      id: SchedulePhaseId.make(row.phase_id),
-      scheduleId: InjectionScheduleId.make(row.phase_schedule_id),
-      order: PhaseOrder.make(row.phase_order),
-      durationDays: row.phase_duration_days === null ? null : PhaseDurationDays.make(row.phase_duration_days),
-      dosage: Dosage.make(row.phase_dosage),
-      createdAt: DateTime.makeUnsafe(row.phase_created_at),
-      updatedAt: DateTime.makeUnsafe(row.phase_updated_at),
-    })
-  )
-}
-
-const reminderAccumulatorToSchedule = (accumulator: ActiveScheduleAccumulator): InjectionSchedule =>
-  new InjectionSchedule({
-    id: InjectionScheduleId.make(accumulator.scheduleId),
-    name: ScheduleName.make(accumulator.scheduleName),
-    drug: DrugName.make(accumulator.drug),
-    source: accumulator.source.pipe(
-      Option.map((source) => DrugSource.make(source)),
-      Option.getOrNull
-    ),
-    frequency: accumulator.frequency,
-    startDate: DateTime.makeUnsafe(accumulator.startDate),
-    isActive: accumulator.isActive === 1,
-    notes: accumulator.notes.pipe(
-      Option.map((notes) => Notes.make(notes)),
-      Option.getOrNull
-    ),
-    phases: accumulator.phases,
-    createdAt: DateTime.makeUnsafe(accumulator.createdAt),
-    updatedAt: DateTime.makeUnsafe(accumulator.updatedAt),
-  })
-
-const reminderRowToAccumulator = (row: typeof ActiveScheduleReminderRow.Type): ActiveScheduleAccumulator => ({
-  userId: row.user_id,
-  email: row.email,
-  name: row.name,
-  scheduleId: row.schedule_id,
-  scheduleName: row.schedule_name,
-  drug: row.schedule_drug,
-  source: Option.fromNullOr(row.schedule_source),
-  frequency: row.schedule_frequency,
-  startDate: row.schedule_start_date,
-  isActive: row.schedule_is_active,
-  notes: Option.fromNullOr(row.schedule_notes),
-  createdAt: row.schedule_created_at,
-  updatedAt: row.schedule_updated_at,
-  lastInjectionDate: Option.map(Option.fromNullOr(row.last_injection_date), DateTime.makeUnsafe),
-  lastInjectionSite: Option.fromNullOr(row.last_injection_site),
-  phases: [],
-})
-
-const rowsToReminderInputs = (
-  rows: ReadonlyArray<typeof ActiveScheduleReminderRow.Type>
-): ActiveScheduleReminderInput[] => {
-  const grouped = Arr.groupBy(rows, (row) => row.schedule_id)
-
-  return Arr.map(R.values(grouped), (group) => {
-    const accumulator = reminderRowToAccumulator(Arr.headNonEmpty(group))
-    const phases = Arr.getSomes(Arr.map(group, reminderRowToPhase))
-
-    return {
-      userId: accumulator.userId,
-      email: accumulator.email,
-      name: accumulator.name,
-      schedule: reminderAccumulatorToSchedule({ ...accumulator, phases }),
-      lastInjectionDate: accumulator.lastInjectionDate,
-      lastInjectionSite: accumulator.lastInjectionSite,
-    }
-  })
-}
 
 // Extract a phase from a joined row (LEFT JOIN may return null phase columns)
 const joinedRowToPhase = (row: typeof ScheduleWithPhaseRow.Type): Option.Option<SchedulePhase> => {
@@ -332,7 +193,6 @@ export class ScheduleRepo extends Context.Service<
       userId: string,
       drug: string
     ) => Effect.Effect<Option.Option<DateTime.Utc>, ScheduleDatabaseError>
-    readonly listActiveReminderInputs: () => Effect.Effect<ActiveScheduleReminderInput[], ScheduleDatabaseError>
   }
 >()('@garage/subq/schedule/schedule-repo/ScheduleRepo') {}
 
@@ -586,61 +446,6 @@ export const ScheduleRepoLive = Layer.effect(
       mapDbError(ScheduleDatabaseError, 'query')
     )
 
-    const listActiveReminderInputs = Effect.fn('ScheduleRepo.listActiveReminderInputs')(
-      function* () {
-        const rows = yield* sql`
-          SELECT 
-            u.id as user_id,
-            u.email,
-            u.name,
-            s.id as schedule_id,
-            s.name as schedule_name,
-            s.drug as schedule_drug,
-            s.source as schedule_source,
-            s.frequency as schedule_frequency,
-            s.start_date as schedule_start_date,
-            s.is_active as schedule_is_active,
-            s.notes as schedule_notes,
-            s.created_at as schedule_created_at,
-            s.updated_at as schedule_updated_at,
-            sp.id as phase_id,
-            sp.schedule_id as phase_schedule_id,
-            sp."order" as phase_order,
-            sp.duration_days as phase_duration_days,
-            sp.dosage as phase_dosage,
-            sp.created_at as phase_created_at,
-            sp.updated_at as phase_updated_at,
-            (
-              SELECT il.datetime 
-              FROM injection_logs il 
-              WHERE il.user_id = u.id AND il.drug = s.drug 
-              ORDER BY il.datetime DESC 
-              LIMIT 1
-            ) as last_injection_date,
-            (
-              SELECT il.injection_site 
-              FROM injection_logs il 
-              WHERE il.user_id = u.id 
-              ORDER BY il.datetime DESC 
-              LIMIT 1
-            ) as last_injection_site
-          FROM "user" u
-          LEFT JOIN user_settings us ON us.user_id = u.id
-          JOIN injection_schedules s ON s.user_id = u.id AND s.is_active = 1
-          LEFT JOIN schedule_phases sp ON sp.schedule_id = s.id
-          WHERE (us.reminders_enabled = 1 OR us.reminders_enabled IS NULL)
-          ORDER BY u.id, sp."order" ASC
-        `
-
-        const decoded = yield* Effect.all(
-          rows.map((row) => decodeActiveScheduleReminderRow(row)),
-          { concurrency: 1 }
-        )
-        return rowsToReminderInputs(decoded)
-      },
-      mapDbError(ScheduleDatabaseError, 'query')
-    )
-
     return {
       list,
       getActive,
@@ -649,7 +454,6 @@ export const ScheduleRepoLive = Layer.effect(
       update,
       delete: del,
       getLastInjectionDate,
-      listActiveReminderInputs,
     }
   })
 )

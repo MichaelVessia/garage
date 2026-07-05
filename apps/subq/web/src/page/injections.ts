@@ -741,7 +741,7 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                   h.Class(input({ class: 'h-auto' })),
                   h.Id('injection-notes'),
                   h.Rows(2),
-                  h.Placeholder('Any side effects, observations, or reminders...'),
+                  h.Placeholder('Any side effects or observations...'),
                   h.Value(form.notes),
                   h.OnInput((value) => ChangedInjectionNotes({ value })),
                 ],

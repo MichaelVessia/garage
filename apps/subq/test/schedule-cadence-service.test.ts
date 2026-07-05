@@ -15,7 +15,6 @@ import {
   insertInjectionLog,
   insertSchedule,
   insertSchedulePhase,
-  insertSettings,
   insertUser,
   makeInitializedTestLayer,
 } from './helpers/test-db.js'
@@ -96,43 +95,6 @@ describe('ScheduleCadenceService', () => {
 
       assert.strictEqual(view.totalCompletedInjections, 1)
       assert.strictEqual(firstPhase.completedInjections, 1)
-    }).pipe(Effect.provide(TestLayer))
-  )
-
-  it.effect('loads reminder candidates through the cadence seam', () =>
-    Effect.gen(function* () {
-      const now = DateTime.makeUnsafe('2024-01-15T12:00:00Z')
-
-      yield* insertUser('eligible-user', 'eligible@example.com', 'Eligible User')
-      yield* insertSchedule(
-        'eligible-schedule',
-        'Eligible schedule',
-        'Semaglutide',
-        'weekly',
-        testDate('2024-01-01T12:00:00Z'),
-        'eligible-user'
-      )
-      yield* insertSchedulePhase('eligible-phase', 'eligible-schedule', 1, '2.5mg')
-
-      yield* insertUser('disabled-user', 'disabled@example.com', 'Disabled User')
-      yield* insertSettings('disabled-settings', 'disabled-user', 'lbs', false)
-      yield* insertSchedule(
-        'disabled-schedule',
-        'Disabled schedule',
-        'Semaglutide',
-        'weekly',
-        testDate('2024-01-01T12:00:00Z'),
-        'disabled-user'
-      )
-      yield* insertSchedulePhase('disabled-phase', 'disabled-schedule', 1, '2.5mg')
-
-      const service = yield* ScheduleCadenceService
-      const candidates = yield* service.getReminderCandidates(now)
-      const candidate = requireValue(candidates[0])
-
-      assert.lengthOf(candidates, 1)
-      assert.strictEqual(candidate.email, 'eligible@example.com')
-      assert.strictEqual(candidate.nextScheduledDose.dosage, '2.5mg')
     }).pipe(Effect.provide(TestLayer))
   )
 })

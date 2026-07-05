@@ -13,7 +13,6 @@ import {
   ChangedSettingsNewPassword,
   ClickedExportData,
   ClickedSelectImportFile,
-  ClickedSettingsReminders,
   ClickedSettingsWeightUnit,
   ConfirmedImportData,
   FailedExportData,
@@ -84,14 +83,6 @@ describe('settings page update', () => {
     expect(next.preferenceSubmitting).toBe(false)
     expect(next.preferenceError).toBe('Failed to update display preferences')
     expect(commands).toHaveLength(0)
-  })
-
-  it('toggling reminders dispatches the update command with the new value', () => {
-    const [next, commands] = updateSettingsPage(initialSettingsModel, ClickedSettingsReminders({ enabled: true }))
-    expect(next.preferenceSubmitting).toBe(true)
-    expect(commands).toHaveLength(1)
-    expect(commands[0]?.name).toBe('UpdateSettingsReminders')
-    expect(commands[0]?.args).toEqual({ enabled: true })
   })
 
   it('submitting without a current password surfaces a validation error', () => {

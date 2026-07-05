@@ -22,7 +22,6 @@ const SettingsRow = Schema.Struct({
   id: Schema.String,
   user_id: Schema.String,
   weight_unit: Schema.Literals(['lbs', 'kg'] as const),
-  reminders_enabled: Schema.Number,
   created_at: Schema.String,
   updated_at: Schema.String,
 })
@@ -31,9 +30,7 @@ const decodeSettingsRow = Schema.decodeUnknownEffect(SettingsRow)
 
 // Schema for the partial row used in upsert's existing check
 const CurrentSettingsRow = Schema.Struct({
-  id: Schema.String,
   weight_unit: Schema.String,
-  reminders_enabled: Schema.Number,
 })
 const decodeCurrentSettingsRow = Schema.decodeUnknownEffect(CurrentSettingsRow)
 
@@ -41,7 +38,6 @@ const settingsRowToDomain = (row: typeof SettingsRow.Type): UserSettings =>
   new UserSettings({
     id: row.id,
     weightUnit: row.weight_unit,
-    remindersEnabled: row.reminders_enabled === 1,
     createdAt: DateTime.toDate(DateTime.makeUnsafe(row.created_at)),
     updatedAt: DateTime.toDate(DateTime.makeUnsafe(row.updated_at)),
   })
@@ -70,7 +66,7 @@ export const SettingsRepoLive = Layer.effect(
     const get = Effect.fn('SettingsRepo.get')(
       function* (userId: string) {
         const rows = yield* sql`
-          SELECT id, user_id, weight_unit, reminders_enabled, created_at, updated_at
+          SELECT id, user_id, weight_unit, created_at, updated_at
           FROM user_settings
           WHERE user_id = ${userId}
         `
@@ -88,26 +84,23 @@ export const SettingsRepoLive = Layer.effect(
         const now = DateTime.formatIso(yield* DateTime.now)
 
         // Check if settings exist
-        const existing =
-          yield* sql`SELECT id, weight_unit, reminders_enabled FROM user_settings WHERE user_id = ${userId}`
+        const existing = yield* sql`SELECT weight_unit FROM user_settings WHERE user_id = ${userId}`
 
         if (Arr.isReadonlyArrayEmpty(existing)) {
           // Insert new settings
           const id = yield* randomUuid()
           const weightUnit = data.weightUnit ?? 'lbs'
-          const remindersEnabled = data.remindersEnabled ?? true
           yield* sql`
-            INSERT INTO user_settings (id, user_id, weight_unit, reminders_enabled, created_at, updated_at)
-            VALUES (${id}, ${userId}, ${weightUnit}, ${remindersEnabled ? 1 : 0}, ${now}, ${now})
+            INSERT INTO user_settings (id, user_id, weight_unit, created_at, updated_at)
+            VALUES (${id}, ${userId}, ${weightUnit}, ${now}, ${now})
           `
         } else {
           // Update existing - build update dynamically
           const current = yield* decodeCurrentSettingsRow(existing[0])
           const weightUnit = data.weightUnit ?? current.weight_unit
-          const remindersEnabled = data.remindersEnabled ?? current.reminders_enabled === 1
           yield* sql`
             UPDATE user_settings
-            SET weight_unit = ${weightUnit}, reminders_enabled = ${remindersEnabled ? 1 : 0}, updated_at = ${now}
+            SET weight_unit = ${weightUnit}, updated_at = ${now}
             WHERE user_id = ${userId}
           `
         }

@@ -52,8 +52,8 @@ Cloudflare resources (including D1) for the dev stage — it needs
 
 ## Notes
 
-- Reminder emails (Resend) and OTel tracing from the Fly version were
-  intentionally dropped; Cloudflare Workers observability covers logging.
+- OTel tracing from the Fly version was intentionally dropped; Cloudflare
+  Workers observability covers logging.
 - The D1 driver has no transactions, so data import
   (`src/data-export/data-export-service.ts`) is not atomic.
 - Tests run against in-memory SQLite (`bun --bun vitest run`); production uses

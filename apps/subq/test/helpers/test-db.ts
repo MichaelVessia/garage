@@ -114,7 +114,6 @@ const setupTables = Effect.gen(function* () {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       weight_unit TEXT NOT NULL DEFAULT 'lbs',
-      reminders_enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -226,13 +225,13 @@ export const insertSchedulePhase = (
     `
   })
 
-export const insertSettings = (id: string, userId: string, weightUnit: 'lbs' | 'kg', remindersEnabled = true) =>
+export const insertSettings = (id: string, userId: string, weightUnit: 'lbs' | 'kg') =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* sql`
-      INSERT INTO user_settings (id, user_id, weight_unit, reminders_enabled, created_at, updated_at)
-      VALUES (${id}, ${userId}, ${weightUnit}, ${remindersEnabled ? 1 : 0}, ${now}, ${now})
+      INSERT INTO user_settings (id, user_id, weight_unit, created_at, updated_at)
+      VALUES (${id}, ${userId}, ${weightUnit}, ${now}, ${now})
     `
   })
 

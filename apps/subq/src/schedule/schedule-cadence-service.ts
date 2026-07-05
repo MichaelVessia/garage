@@ -1,4 +1,3 @@
-import * as Arr from 'effect/Array'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
@@ -11,15 +10,6 @@ import type { InjectionScheduleId, NextScheduledDose, ScheduleView } from '#shar
 import { InjectionLogRepo } from '../injection/injection-log-repo.js'
 import { ScheduleRepo } from './schedule-repo.js'
 
-export interface ActiveScheduleReminderCandidate {
-  readonly userId: string
-  readonly email: string
-  readonly name: string
-  readonly nextScheduledDose: NextScheduledDose
-  readonly lastInjectionDate: Option.Option<DateTime.Utc>
-  readonly lastInjectionSite: Option.Option<string>
-}
-
 export class ScheduleCadenceService extends Context.Service<
   ScheduleCadenceService,
   {
@@ -30,9 +20,6 @@ export class ScheduleCadenceService extends Context.Service<
       userId: string,
       scheduleId: InjectionScheduleId
     ) => Effect.Effect<Option.Option<ScheduleView>, ScheduleDatabaseError>
-    readonly getReminderCandidates: (
-      now: DateTime.Utc
-    ) => Effect.Effect<ActiveScheduleReminderCandidate[], ScheduleDatabaseError>
   }
 >()('@garage/subq/schedule/schedule-cadence-service/ScheduleCadenceService') {}
 
@@ -72,27 +59,6 @@ export const ScheduleCadenceServiceLive = Layer.effect(
       return Option.some(scheduleView(scheduleOpt.value, injections, now))
     })
 
-    const getReminderCandidates = Effect.fn('ScheduleCadenceService.getReminderCandidates')(function* (
-      now: DateTime.Utc
-    ) {
-      const inputs = yield* scheduleRepo.listActiveReminderInputs()
-
-      return Arr.getSomes(
-        Arr.map(inputs, (input) =>
-          nextDose(input.schedule, input.lastInjectionDate, now).pipe(
-            Option.map((dose) => ({
-              userId: input.userId,
-              email: input.email,
-              name: input.name,
-              nextScheduledDose: dose,
-              lastInjectionDate: input.lastInjectionDate,
-              lastInjectionSite: input.lastInjectionSite,
-            }))
-          )
-        )
-      )
-    })
-
-    return { getNextScheduledDose, getScheduleView, getReminderCandidates }
+    return { getNextScheduledDose, getScheduleView }
   })
 )

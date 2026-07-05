@@ -19,14 +19,12 @@ export class SettingsDatabaseError extends Schema.TaggedClass<SettingsDatabaseEr
 export class UserSettings extends Schema.Class<UserSettings>('UserSettings')({
   id: Schema.String,
   weightUnit: Schema.Literals(['lbs', 'kg'] as const),
-  remindersEnabled: Schema.Boolean,
   createdAt: Schema.Date,
   updatedAt: Schema.Date,
 }) {}
 
 export class UserSettingsUpdate extends Schema.Class<UserSettingsUpdate>('UserSettingsUpdate')({
   weightUnit: Schema.optional(Schema.Literals(['lbs', 'kg'] as const)),
-  remindersEnabled: Schema.optional(Schema.Boolean),
 }) {}
 
 // ============================================
