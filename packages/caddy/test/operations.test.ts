@@ -3,12 +3,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Ref from 'effect/Ref'
 
-import { CaddyApi, CaddyConfig, config, envMissing, pkiCa, reload, routes, upstreams } from '../src/index.js'
+import { CaddyApi, config, pkiCa, reload, routes, upstreams } from '../src/index.js'
 import type { JsonObject } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(CaddyConfig, {
-  get: () => Effect.fail(envMissing('CADDY_ADMIN_URL')),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const reloads = yield* Ref.make<ReadonlyArray<JsonObject>>([])
@@ -37,14 +33,16 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs Caddy read and reload operations without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
     const nextConfig = { apps: { http: {} } }
 
-    assert.deepStrictEqual(yield* config.pipe(Effect.provide(layer)), { apps: {} })
-    assert.strictEqual((yield* routes.pipe(Effect.provide(layer))).records[0]?.server, 'srv0')
-    assert.strictEqual((yield* upstreams.pipe(Effect.provide(layer))).records[0]?.address, '192.0.2.38:8989')
-    assert.strictEqual((yield* pkiCa.pipe(Effect.provide(layer))).id, 'local')
-    assert.deepStrictEqual(yield* reload(nextConfig).pipe(Effect.provide(layer)), { reloaded: true, httpStatus: 200 })
+    assert.deepStrictEqual(yield* config.pipe(Effect.provide(fake.layer)), { apps: {} })
+    assert.strictEqual((yield* routes.pipe(Effect.provide(fake.layer))).records[0]?.server, 'srv0')
+    assert.strictEqual((yield* upstreams.pipe(Effect.provide(fake.layer))).records[0]?.address, '192.0.2.38:8989')
+    assert.strictEqual((yield* pkiCa.pipe(Effect.provide(fake.layer))).id, 'local')
+    assert.deepStrictEqual(yield* reload(nextConfig).pipe(Effect.provide(fake.layer)), {
+      reloaded: true,
+      httpStatus: 200,
+    })
     assert.deepStrictEqual(yield* Ref.get(fake.reloads), [nextConfig])
   })
 )

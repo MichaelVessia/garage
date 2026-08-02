@@ -1,7 +1,6 @@
 import { config, confirmationRequired, pkiCa, reload, routes, upstreams } from '@garage/caddy'
 import type {
   CaddyApi,
-  CaddyConfig,
   CaddyError,
   JsonObject,
   ListResult,
@@ -35,7 +34,7 @@ export type CaddyCliResult =
 
 export type CaddyCliEnvelope = SuccessEnvelope<CaddyCliResult> | ErrorEnvelope
 type CaddyCliError = CaddyError | CliUsageError
-type CaddyCliContext = CaddyApi | CaddyConfig | FileSystem.FileSystem
+type CaddyCliContext = CaddyApi | FileSystem.FileSystem
 type CaddyInvocation = CommandInvocation<CaddyCliResult, CaddyCliError, CaddyCliContext>
 
 const root = (
