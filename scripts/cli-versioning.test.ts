@@ -36,20 +36,30 @@ const commandLine = (command: ChildProcess.Command): string =>
 
 describe('affectedCliPackages', () => {
   const cliNames = ['adguard', 'sonarr']
+  const allCliPackages = ['@garage/adguard-cli', '@garage/sonarr-cli']
 
-  it('bumps a CLI when its app changes', () => {
-    expect(affectedCliPackages(['apps/adguard-cli/src/index.ts'], cliNames)).toEqual(['@garage/adguard-cli'])
+  it.each([
+    ['paired CLI app', ['apps/adguard-cli/src/index.ts'], ['@garage/adguard-cli']],
+    ['paired integration package', ['packages/sonarr/src/operations.ts'], ['@garage/sonarr-cli']],
+    ['shared CLI protocol', ['packages/cli-protocol/src/index.ts'], allCliPackages],
+    ['root package manifest', ['package.json'], allCliPackages],
+    ['Bun lockfile', ['bun.lock'], allCliPackages],
+    ['Nix Bun dependency graph', ['bun.nix'], allCliPackages],
+    ['Nix flake', ['flake.nix'], allCliPackages],
+    ['Nix flake lockfile', ['flake.lock'], allCliPackages],
+    ['shared TypeScript configuration', ['tsconfig.base.json'], allCliPackages],
+    ['repository documentation', ['README.md'], []],
+    ['workspace test', ['packages/adguard/test/operations.test.ts'], []],
+    ['shared protocol test', ['packages/cli-protocol/test/envelope.test.ts'], []],
+    ['workspace documentation', ['packages/adguard/docs/configuration.ts'], []],
+    ['unrelated package', ['packages/unknown/src/index.ts'], []],
+    ['Subq-only code', ['apps/subq/src/worker.ts'], []],
+  ])('classifies %s changes', (_pathClass, changedFiles, expectedPackages) => {
+    expect(affectedCliPackages(changedFiles, cliNames)).toEqual(expectedPackages)
   })
 
-  it('bumps a CLI when its backing package changes', () => {
-    expect(affectedCliPackages(['packages/sonarr/src/operations.ts'], cliNames)).toEqual(['@garage/sonarr-cli'])
-  })
-
-  it('bumps every CLI when the shared protocol changes', () => {
-    expect(affectedCliPackages(['packages/cli-protocol/src/index.ts'], cliNames)).toEqual([
-      '@garage/adguard-cli',
-      '@garage/sonarr-cli',
-    ])
+  it('normalizes Windows path separators', () => {
+    expect(affectedCliPackages(['apps\\adguard-cli\\src\\index.ts'], cliNames)).toEqual(['@garage/adguard-cli'])
   })
 
   it('deduplicates packages affected through multiple paths', () => {
@@ -58,8 +68,8 @@ describe('affectedCliPackages', () => {
     ).toEqual(['@garage/adguard-cli'])
   })
 
-  it('does not bump CLIs for unrelated changes', () => {
-    expect(affectedCliPackages(['README.md', 'packages/unknown/src/index.ts'], cliNames)).toEqual([])
+  it('lets global artifact inputs override otherwise unrelated changes', () => {
+    expect(affectedCliPackages(['apps/subq/src/worker.ts', 'bun.lock'], cliNames)).toEqual(allCliPackages)
   })
 })
 
@@ -70,7 +80,7 @@ describe('changesetMarkdown', () => {
 "@garage/sonarr-cli": patch
 ---
 
-Automatic CLI release for changed app or package code.
+Automatic CLI release for changed artifact inputs.
 `)
   })
 })

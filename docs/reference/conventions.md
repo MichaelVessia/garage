@@ -39,6 +39,20 @@ Unexpected defects in bootstrap or runtime may terminate non-zero. Changes to
 these fields, streams, or exit behavior are CLI behavior changes and require
 compatibility tests and a changeset.
 
+## CLI release impact
+
+Automatic CLI versioning releases the affected CLI when code in its
+`apps/<svc>-cli` workspace or paired `packages/<svc>` integration changes. A
+change under `packages/cli-protocol` releases every CLI because the protocol is
+linked into every executable. Root artifact inputs that can affect all CLI
+binaries also release every CLI: `package.json`, `bun.lock`, `bun.nix`,
+`flake.nix`, `flake.lock`, and `tsconfig.base.json`.
+
+Documentation, tests, unrelated packages, and Subq-only changes do not release a
+CLI unless one of those global artifact inputs changes in the same comparison.
+In particular, a lockfile-only dependency resolution change caused by Subq is
+conservatively treated as affecting every CLI.
+
 ## Cross-workspace imports
 
 Never import across workspaces via a relative path. Use the workspace's package

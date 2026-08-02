@@ -16,6 +16,24 @@ import { CliVersioningError } from './errors'
 const garagePackagePrefix = '@garage/'
 const cliSuffix = '-cli'
 
+const isGlobalCliArtifactInput = (file: string): boolean =>
+  file === 'package.json' ||
+  file === 'bun.lock' ||
+  file === 'bun.nix' ||
+  file === 'flake.nix' ||
+  file === 'flake.lock' ||
+  file === 'tsconfig.base.json'
+
+const normalizePathSeparators = (file: string): string => file.replaceAll('\\', '/')
+
+const isDocumentationOrTestPath = (file: string): boolean =>
+  file.startsWith('docs/') ||
+  file.includes('/docs/') ||
+  file.endsWith('.md') ||
+  file.includes('/test/') ||
+  file.includes('/tests/') ||
+  /\.(?:spec|test)\.[^/]+$/u.test(file)
+
 interface CommandResult {
   readonly exitCode: number
   readonly stdout: string
@@ -25,16 +43,23 @@ interface CommandResult {
 const cliPackageName = (cliName: string): string => `${garagePackagePrefix}${cliName}${cliSuffix}`
 
 export const affectedCliPackages = (changedFiles: readonly string[], cliNames: readonly string[]): string[] => {
-  const normalizedFiles = Arr.map(changedFiles, (changedFile) => changedFile.replaceAll('\\', '/'))
-  const protocolChanged = Arr.some(normalizedFiles, (file) => file.startsWith('packages/cli-protocol/'))
+  const normalizedFiles = Arr.map(changedFiles, normalizePathSeparators)
+  const allClisAffected = Arr.some(
+    normalizedFiles,
+    (file) =>
+      isGlobalCliArtifactInput(file) || (file.startsWith('packages/cli-protocol/') && !isDocumentationOrTestPath(file))
+  )
 
   const affectedCliNames = Arr.filter(cliNames, (cliName) => {
-    const matchesCli = Arr.some(
-      normalizedFiles,
-      (file) => file.startsWith(`apps/${cliName}${cliSuffix}/`) || file.startsWith(`packages/${cliName}/`)
-    )
+    const matchesCli = Arr.some(normalizedFiles, (file) => {
+      if (isDocumentationOrTestPath(file)) {
+        return false
+      }
 
-    return protocolChanged || matchesCli
+      return file.startsWith(`apps/${cliName}${cliSuffix}/`) || file.startsWith(`packages/${cliName}/`)
+    })
+
+    return allClisAffected || matchesCli
   })
 
   return Arr.map(affectedCliNames, cliPackageName)
@@ -43,7 +68,7 @@ export const affectedCliPackages = (changedFiles: readonly string[], cliNames: r
 export const changesetMarkdown = (packageNames: readonly string[]): string => {
   const packageLines = packageNames.map((packageName) => `"${packageName}": patch`)
 
-  return ['---', ...packageLines, '---', '', 'Automatic CLI release for changed app or package code.', ''].join('\n')
+  return ['---', ...packageLines, '---', '', 'Automatic CLI release for changed artifact inputs.', ''].join('\n')
 }
 
 const platformError = (operation: string, cause: PlatformError.PlatformError): CliVersioningError =>
