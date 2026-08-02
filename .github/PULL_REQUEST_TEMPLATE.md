@@ -19,6 +19,8 @@ Keep the diff narrow and the intent clear. Delete sections that don't apply.
 ## Validation
 
 - [ ] `bun run validate` passes locally
+- [ ] `bun run validate:release` passes for shared runtime, dependency, build,
+      Nix, or release-automation changes
 - [ ] Added or updated tests for behavior changes
 - [ ] Added a changeset (`bunx changeset`) if a CLI's behavior changed
 - [ ] Updated docs (README / CONTEXT / guardrails / workspace README) if domain

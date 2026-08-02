@@ -1,49 +1,74 @@
 name: Release CLI versions
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-cli-versions-${{ github.ref }}
+  group: release-cli-versions-master
   cancel-in-progress: false
 
 jobs:
   version:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'master' &&
+      github.event.workflow_run.actor.login != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout validated commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Confirm validated commit is current master
+        id: current
+        env:
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch origin master
+          if [ "$(git rev-parse origin/master)" = "${VALIDATED_SHA}" ]; then
+            echo "value=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Validated commit is no longer current master; a newer CI run owns release evaluation."
+            echo "value=false" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Setup Bun
+        if: steps.current.outputs.value == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install dependencies
+        if: steps.current.outputs.value == 'true'
         run: bun install --frozen-lockfile
 
       - name: Find previous CLI release
+        if: steps.current.outputs.value == 'true'
         id: base
         run: |
           BASE_REF="$(git describe --tags --abbrev=0 --match '*-cli-v*' HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
           echo "ref=${BASE_REF}" >> "${GITHUB_OUTPUT}"
 
       - name: Create automatic changeset
+        if: steps.current.outputs.value == 'true'
         run: |
           bun scripts/cli-versioning.ts write \
             --base "${{ steps.base.outputs.ref }}" \
-            --head "${{ github.sha }}" \
+            --head "${{ github.event.workflow_run.head_sha }}" \
             --package-output "${RUNNER_TEMP}/affected-cli-packages.txt"
 
       - name: Check affected packages
+        if: steps.current.outputs.value == 'true'
         id: affected
         run: |
           if [ -s "${RUNNER_TEMP}/affected-cli-packages.txt" ]; then
@@ -71,5 +96,5 @@ jobs:
 
           git commit -m "chore: version CLI packages"
           bun scripts/cli-versioning.ts tag --package-output "${RUNNER_TEMP}/affected-cli-packages.txt"
-          git push
-          git push --tags
+          git push origin HEAD:master
+          git push origin --tags
