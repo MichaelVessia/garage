@@ -90,8 +90,14 @@ import { button, navLink } from './ui.js'
 // Model
 // ============================================
 
+export const Flags = Schema.Struct({
+  timezone: Schema.String,
+})
+export type Flags = typeof Flags.Type
+
 export const Model = Schema.Struct({
   route: AppRoute,
+  timezone: Schema.String,
   user: Schema.NullOr(SessionUser),
   sessionLoaded: Schema.Boolean,
   login: LoginModel,
@@ -211,7 +217,7 @@ const enterRoute = (model: Model): UpdateReturn => {
     commands.push(...scheduleViewCommands)
   }
   if (next.route._tag === 'Stats') {
-    const [stats, statsCommands] = syncStatsFetch(next.stats, statsRangeOf(next))
+    const [stats, statsCommands] = syncStatsFetch(next.stats, statsRangeOf(next), next.timezone)
     next = evo(next, { stats: () => stats })
     commands.push(...statsCommands)
   }
@@ -222,7 +228,7 @@ const enterRoute = (model: Model): UpdateReturn => {
 // Init
 // ============================================
 
-export const init: Runtime.RoutingApplicationInit<Model, Message, void, AppResources> = (url) => [
+export const init: Runtime.RoutingApplicationInit<Model, Message, Flags, AppResources> = (flags, url) => [
   {
     login: initialLoginModel,
     injections: initialInjectionsModel,
@@ -233,6 +239,7 @@ export const init: Runtime.RoutingApplicationInit<Model, Message, void, AppResou
     settings: AsyncData.Idle(),
     settingsPage: initialSettingsModel,
     stats: initialStatsModel,
+    timezone: flags.timezone,
     user: null,
     weight: initialWeightModel,
   },
@@ -333,7 +340,7 @@ export const update = (model: Model, message: Message): UpdateReturn => {
     return [evo(model, { scheduleView: () => scheduleView }), commands]
   }
   if (isStatsMessage(message)) {
-    const [stats, commands] = updateStats(model.stats, message)
+    const [stats, commands] = updateStats(model.stats, message, model.timezone)
     return [evo(model, { stats: () => stats }), commands]
   }
   if (isSettingsMessage(message)) {

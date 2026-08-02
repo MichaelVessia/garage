@@ -188,14 +188,13 @@ const toStatsParams = (range: StatsRange, timezone?: string): StatsParams =>
 
 export const FetchStats = Command.define(
   'FetchStats',
-  { start: Schema.NullOr(Schema.String), end: Schema.NullOr(Schema.String) },
+  { start: Schema.NullOr(Schema.String), end: Schema.NullOr(Schema.String), timezone: Schema.String },
   SucceededFetchStats,
   FailedFetchStats
-)(({ end, start }) =>
+)(({ end, start, timezone }) =>
   Effect.gen(function* () {
     const api = yield* Api
     const range: StatsRange = { end: Option.fromNullishOr(end), start: Option.fromNullishOr(start) }
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
     const params = toStatsParams(range)
     const tzParams = toStatsParams(range, timezone)
     const listParams = new InjectionLogListParams({
@@ -335,11 +334,11 @@ const DeleteGoal = Command.define(
 type StatsCommands = ReadonlyArray<Command.Command<StatsMessage | typeof NavigatedStats.Type, never, Api>>
 type UpdateReturn = readonly [StatsModel, StatsCommands]
 
-const fetchStatsCommand = (range: StatsRange) =>
-  FetchStats({ end: Option.getOrNull(range.end), start: Option.getOrNull(range.start) })
+const fetchStatsCommand = (range: StatsRange, timezone: string) =>
+  FetchStats({ end: Option.getOrNull(range.end), start: Option.getOrNull(range.start), timezone })
 
 // Called by the app root when the stats route is entered or its range changes.
-export const syncStatsFetch = (model: StatsModel, range: StatsRange): UpdateReturn => {
+export const syncStatsFetch = (model: StatsModel, range: StatsRange, timezone: string): UpdateReturn => {
   const key = rangeKey(range)
   if (model.fetchedRange === key && !AsyncData.isIdle(model.data)) {
     return [model, []]
@@ -351,7 +350,7 @@ export const syncStatsFetch = (model: StatsModel, range: StatsRange): UpdateRetu
       data: () => AsyncData.Loading(),
       fetchedRange: () => key,
     }),
-    [fetchStatsCommand(range)],
+    [fetchStatsCommand(range, timezone)],
   ]
 }
 
@@ -365,7 +364,7 @@ const splitRangeKey = (key: string): StatsRange => {
 
 const isChartMessage = Schema.is(ChartMessage)
 
-export const updateStats = (model: StatsModel, message: StatsMessage): UpdateReturn => {
+export const updateStats = (model: StatsModel, message: StatsMessage, timezone: string): UpdateReturn => {
   if (isChartMessage(message)) {
     const [chart, zoom] = updateChart(model.chart, message)
     const next = evo(model, { chart: () => chart })
@@ -485,7 +484,7 @@ export const updateStats = (model: StatsModel, message: StatsMessage): UpdateRet
       },
       SucceededDeleteGoal: () => [
         evo(model, { data: () => AsyncData.Loading(), fetchedRange: () => null }),
-        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange))],
+        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange), timezone)],
       ],
       SucceededFetchStats: ({ bundle, key }) => [
         evo(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }),
@@ -493,7 +492,7 @@ export const updateStats = (model: StatsModel, message: StatsMessage): UpdateRet
       ],
       SucceededSaveGoal: () => [
         evo(model, { data: () => AsyncData.Loading(), goalForm: () => null }),
-        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange))],
+        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange), timezone)],
       ],
     })
   )
