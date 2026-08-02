@@ -18,28 +18,26 @@ import type {
   VideoRecord,
 } from './model.js'
 import { TubearchivistApi } from './services.js'
-import type { TubearchivistConfig } from './services.js'
 
 export const defaultLimit = 25
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
-export const status: Effect.Effect<StatusResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> =
-  Effect.gen(function* () {
-    const api = yield* TubearchivistApi
-    return yield* api.status()
-  }).pipe(
-    Effect.withSpan('tubearchivist.status'),
-    Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'status' })
-  )
+export const status: Effect.Effect<StatusResult, TubearchivistError, TubearchivistApi> = Effect.gen(function* () {
+  const api = yield* TubearchivistApi
+  return yield* api.status()
+}).pipe(
+  Effect.withSpan('tubearchivist.status'),
+  Effect.annotateLogs({ package: '@garage/tubearchivist', operation: 'status' })
+)
 
 export const channels: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+) => Effect.Effect<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi> = Effect.fn(
   'tubearchivist.channels'
 )(
   function* (
     options?: LimitOptions
-  ): Effect.fn.Return<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  ): Effect.fn.Return<ListResult<ChannelRecord>, TubearchivistError, TubearchivistApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
     const api = yield* TubearchivistApi
@@ -49,9 +47,7 @@ export const channels: (
 )
 
 export const channelInfo = Effect.fn('tubearchivist.channelInfo')(
-  function* (
-    options: IdOptions
-  ): Effect.fn.Return<ChannelRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  function* (options: IdOptions): Effect.fn.Return<ChannelRecord, TubearchivistError, TubearchivistApi> {
     const api = yield* TubearchivistApi
     return yield* api.channelInfo(options)
   },
@@ -59,9 +55,7 @@ export const channelInfo = Effect.fn('tubearchivist.channelInfo')(
 )
 
 export const subscribe = Effect.fn('tubearchivist.subscribe')(
-  function* (
-    options: SubscriptionOptions
-  ): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  function* (options: SubscriptionOptions): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi> {
     const api = yield* TubearchivistApi
     return yield* api.subscribe(options)
   },
@@ -72,7 +66,7 @@ export const unsubscribe = Effect.fn('tubearchivist.unsubscribe')(
   function* (options: {
     readonly target: string
     readonly confirmed: boolean
-  }): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  }): Effect.fn.Return<SubscriptionResult, TubearchivistError, TubearchivistApi> {
     if (!options.confirmed) {
       return yield* confirmationRequired('--confirm-unsubscribe')
     }
@@ -84,12 +78,8 @@ export const unsubscribe = Effect.fn('tubearchivist.unsubscribe')(
 
 export const videos: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
-  'tubearchivist.videos'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+) => Effect.Effect<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi> = Effect.fn('tubearchivist.videos')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<VideoRecord>, TubearchivistError, TubearchivistApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
     const api = yield* TubearchivistApi
@@ -99,9 +89,7 @@ export const videos: (
 )
 
 export const videoInfo = Effect.fn('tubearchivist.videoInfo')(
-  function* (
-    options: IdOptions
-  ): Effect.fn.Return<VideoRecord, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  function* (options: IdOptions): Effect.fn.Return<VideoRecord, TubearchivistError, TubearchivistApi> {
     const api = yield* TubearchivistApi
     return yield* api.videoInfo(options)
   },
@@ -110,12 +98,12 @@ export const videoInfo = Effect.fn('tubearchivist.videoInfo')(
 
 export const downloads: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+) => Effect.Effect<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi> = Effect.fn(
   'tubearchivist.downloads'
 )(
   function* (
     options?: LimitOptions
-  ): Effect.fn.Return<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  ): Effect.fn.Return<ListResult<DownloadRecord>, TubearchivistError, TubearchivistApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
     const api = yield* TubearchivistApi
@@ -126,12 +114,12 @@ export const downloads: (
 
 export const playlists: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
+) => Effect.Effect<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi> = Effect.fn(
   'tubearchivist.playlists'
 )(
   function* (
     options?: LimitOptions
-  ): Effect.fn.Return<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  ): Effect.fn.Return<ListResult<PlaylistRecord>, TubearchivistError, TubearchivistApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
     const api = yield* TubearchivistApi
@@ -142,12 +130,8 @@ export const playlists: (
 
 export const tasks: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> = Effect.fn(
-  'tubearchivist.tasks'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+) => Effect.Effect<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi> = Effect.fn('tubearchivist.tasks')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<TaskRecord>, TubearchivistError, TubearchivistApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'tubearchivist.limit': limitOptions.limit })
     const api = yield* TubearchivistApi
@@ -157,9 +141,7 @@ export const tasks: (
 )
 
 export const search = Effect.fn('tubearchivist.search')(
-  function* (
-    options: SearchOptions
-  ): Effect.fn.Return<SearchResult, TubearchivistError, TubearchivistApi | TubearchivistConfig> {
+  function* (options: SearchOptions): Effect.fn.Return<SearchResult, TubearchivistError, TubearchivistApi> {
     yield* Effect.annotateCurrentSpan({
       'tubearchivist.query_length': options.query.length,
       'tubearchivist.limit': options.limit,

@@ -5,11 +5,9 @@ import * as Ref from 'effect/Ref'
 
 import {
   TubearchivistApi,
-  TubearchivistConfig,
   channelInfo,
   channels,
   downloads,
-  envMissing,
   playlists,
   search,
   status,
@@ -20,10 +18,6 @@ import {
   videos,
 } from '../src/index.js'
 import type { LimitOptions, SearchOptions, SubscriptionOptions } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(TubearchivistConfig, {
-  get: () => Effect.fail(envMissing('TUBEARCHIVIST_URL')),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const limitOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
@@ -83,7 +77,7 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs TubeArchivist operations and requires unsubscribe confirmation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const { layer } = fake
 
     assert.strictEqual((yield* status.pipe(Effect.provide(layer))).health, 'OK')
     assert.strictEqual((yield* channels({ limit: 3 }).pipe(Effect.provide(layer))).records[0]?.id, 'UC1')

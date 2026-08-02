@@ -30,7 +30,6 @@ import type {
   SubscriptionResult,
   TaskRecord,
   TubearchivistApi,
-  TubearchivistConfig,
   TubearchivistError,
   VideoRecord,
 } from '@garage/tubearchivist'
@@ -56,7 +55,7 @@ export type TubearchivistCliResult =
 
 export type TubearchivistCliEnvelope = SuccessEnvelope<TubearchivistCliResult> | ErrorEnvelope
 type TubearchivistCliError = TubearchivistError | CliUsageError
-type TubearchivistCliContext = TubearchivistApi | TubearchivistConfig
+type TubearchivistCliContext = TubearchivistApi
 type TubearchivistInvocation = CommandInvocation<TubearchivistCliResult, TubearchivistCliError, TubearchivistCliContext>
 
 const root = (
@@ -81,13 +80,13 @@ const root = (
 
 const limitCommand = <Result extends TubearchivistCliResult>(
   { args, limitFromArgs, recover, wrap }: TubearchivistInvocation,
-  program: (limit: number) => Effect.Effect<Result, TubearchivistError, TubearchivistApi | TubearchivistConfig>
+  program: (limit: number) => Effect.Effect<Result, TubearchivistError, TubearchivistApi>
 ) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
 const idCommand = <Result extends TubearchivistCliResult>(
   { args, parseFlags, recover, usageError, wrap }: TubearchivistInvocation,
   label: string,
-  program: (id: string) => Effect.Effect<Result, TubearchivistError, TubearchivistApi | TubearchivistConfig>
+  program: (id: string) => Effect.Effect<Result, TubearchivistError, TubearchivistApi>
 ) =>
   recover(
     Effect.gen(function* () {
