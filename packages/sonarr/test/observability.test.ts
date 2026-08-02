@@ -3,10 +3,9 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Logger from 'effect/Logger'
 import * as Option from 'effect/Option'
-import * as Redacted from 'effect/Redacted'
 import * as References from 'effect/References'
 
-import { notFound, SonarrApi, SonarrConfig, status } from '../src/index.js'
+import { notFound, SonarrApi, status } from '../src/index.js'
 
 it.effect('annotates operation logs with package and operation', () =>
   Effect.gen(function* () {
@@ -15,10 +14,6 @@ it.effect('annotates operation logs with package and operation', () =>
       annotations.push({ ...options.fiber.getRef(References.CurrentLogAnnotations) })
     })
 
-    const ConfigLayer = Layer.succeed(SonarrConfig, {
-      get: () =>
-        Effect.succeed({ url: 'http://sonarr.test', apiKey: Redacted.make('key'), defaultQualityProfileId: 1 }),
-    })
     const ApiLayer = Layer.succeed(
       SonarrApi,
       SonarrApi.of({
@@ -37,7 +32,7 @@ it.effect('annotates operation logs with package and operation', () =>
       })
     )
 
-    yield* status.pipe(Effect.provide(Layer.mergeAll(ConfigLayer, ApiLayer, Logger.layer([logger]))))
+    yield* status.pipe(Effect.provide(Layer.mergeAll(ApiLayer, Logger.layer([logger]))))
 
     assert.deepStrictEqual(annotations[0], { package: '@garage/sonarr', operation: 'status' })
   })

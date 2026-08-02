@@ -252,7 +252,7 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('reads status through the SonarrApi service', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* status.pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const result = yield* status.pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, { appName: 'Sonarr', version: '4.0.0' })
   })
@@ -261,9 +261,7 @@ it.effect('reads status through the SonarrApi service', () =>
 it.effect('returns bounded search results with TVDB URLs', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* search('Linux ISO', { limit: 10 }).pipe(
-      Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer))
-    )
+    const result = yield* search('Linux ISO', { limit: 10 }).pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, {
       query: 'Linux ISO',
@@ -276,7 +274,7 @@ it.effect('returns bounded search results with TVDB URLs', () =>
 it.effect('reports whether a TVDB id already exists', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* exists(371_980).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const result = yield* exists(371_980).pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, {
       tvdbId: 371_980,
@@ -308,9 +306,7 @@ it.effect('adds a resolved series with default quality and disabled search when 
 it.effect('removes a series and preserves files by default', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* removeSeries(371_980, { deleteFiles: false }).pipe(
-      Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer))
-    )
+    const result = yield* removeSeries(371_980, { deleteFiles: false }).pipe(Effect.provide(fake.layer))
     const deleteFlags = yield* Ref.get(fake.removedDeleteFiles)
 
     assert.deepStrictEqual(result, { removed: true, tvdbId: 371_980, deleteFiles: false })
@@ -321,7 +317,7 @@ it.effect('removes a series and preserves files by default', () =>
 it.effect('bounds list operations at the requested limit', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const { layer } = fake
 
     assert.deepStrictEqual(yield* queue({ limit: 1 }).pipe(Effect.provide(layer)), {
       count: 1,
@@ -402,7 +398,7 @@ it.effect('bounds list operations at the requested limit', () =>
 it.effect('passes calendar day windows to the API', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* calendar({ days: 14 }).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const result = yield* calendar({ days: 14 }).pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, {
       days: 14,
