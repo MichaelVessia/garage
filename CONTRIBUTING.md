@@ -108,5 +108,5 @@ behavior changes so it gets a version on release.
   conventions.
 - [docs/guardrails/](docs/guardrails/README.md) — judgment the lints cannot
   check.
-- [CONTEXT.md](CONTEXT.md) — the domain language.
-- [AGENTS.md](AGENTS.md) — rules for agents working in this repo.
+- [CONTEXT-MAP.md](CONTEXT-MAP.md) — bounded-context ownership and domain routing.
+- [AGENTS.md](AGENTS.md) — the root router for agents working in this repo.

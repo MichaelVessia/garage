@@ -116,7 +116,20 @@ to a method that merely forwards to an already-spanned operation.
 Standalone CLIs and deployed apps should use equivalent tests at their actual
 boundaries rather than imitating the paired file layout.
 
-## 5. Link, validate, and release
+## 5. Document context ownership
+
+If the workspace introduces a new bounded context, add one canonical
+`CONTEXT.md`, a minimal context `AGENTS.md`, and a sibling
+`CLAUDE.md -> AGENTS.md` symlink. Register its owned paths and references in the
+root `CONTEXT-MAP.md`.
+
+For a paired integration, keep the canonical domain docs with
+`packages/<svc>` and add only a small `apps/<svc>-cli/AGENTS.md` router (plus its
+sibling symlink) at the executable edge. Do not create context docs for adapters,
+generated directories, or organizational folders that have no independent
+vocabulary or ownership.
+
+## 6. Link, validate, and release
 
 ```sh
 bun install

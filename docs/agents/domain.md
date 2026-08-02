@@ -13,7 +13,9 @@ projects.
 6. For Garage service or Layer code, read the matching guardrail under
    `docs/guardrails/`.
 
-If a referenced file does not exist, proceed silently.
+When the map records no context-specific ADRs, continue with the system-wide
+ones. Treat any other missing mapped instruction or context file as a routing
+defect and fix the map or file in the same change.
 
 ## Use each context’s vocabulary
 

@@ -1,12 +1,33 @@
 # Context Map
 
-This monorepo contains multiple independently evolving project contexts. Before
-working in an area, read the context document and ADR locations mapped below.
+This is the authoritative router for bounded contexts in `garage`. Match every changed path to the rows below, then read each row's `AGENTS.md` and `CONTEXT.md`. Referenced paths are repository-relative.
 
-| Context             | Owned paths                                             | Domain language | Architectural decisions        |
-| ------------------- | ------------------------------------------------------- | --------------- | ------------------------------ |
-| Garage CLI platform | `apps/*`, `packages/*`, `rules/*`, and `rule-tests/*` | `CONTEXT.md`    | `docs/adr/`, `docs/guardrails/` |
+## Contexts
 
-Add a row whenever an unrelated project context is introduced. Prefer a
-context-local `CONTEXT.md` and `docs/adr/` beneath that project’s owning
-directory. Reserve root `docs/adr/` for decisions spanning multiple contexts.
+| Context | Owned paths | Instructions | Domain context | Context ADRs | Relevant policy | Responsibility |
+| --- | --- | --- | --- | --- | --- | --- |
+| AdGuard Home | `packages/adguard/**`, `apps/adguard-cli/**` | `packages/adguard/AGENTS.md` | `packages/adguard/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Observe and administer AdGuard Home DNS, filtering, clients, DHCP, and global protection. |
+| AutoCaliWeb | `packages/autocaliweb/**`, `apps/autocaliweb-cli/**` | `packages/autocaliweb/AGENTS.md` | `packages/autocaliweb/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Browse an AutoCaliWeb ebook catalog through OPDS and book metadata endpoints. |
+| Caddy | `packages/caddy/**`, `apps/caddy-cli/**` | `packages/caddy/AGENTS.md` | `packages/caddy/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Inspect Caddy runtime configuration, routes, upstreams, local PKI, and confirmed config replacement. |
+| Immich | `packages/immich/**`, `apps/immich-cli/**` | `packages/immich/AGENTS.md` | `packages/immich/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Observe an Immich server and discover users, albums, assets, people, jobs, and tags. |
+| Jellyfin | `packages/jellyfin/**`, `apps/jellyfin-cli/**` | `packages/jellyfin/AGENTS.md` | `packages/jellyfin/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Inspect Jellyfin media/server state and start explicitly confirmed scheduled tasks. |
+| Jellyseerr | `packages/jellyseerr/**`, `apps/jellyseerr-cli/**` | `packages/jellyseerr/AGENTS.md` | `packages/jellyseerr/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Observe and moderate Jellyseerr media requests, media, users, and issues. |
+| Prowlarr | `packages/prowlarr/**`, `apps/prowlarr-cli/**` | `packages/prowlarr/AGENTS.md` | `packages/prowlarr/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Inspect Prowlarr indexers, discover releases, and trigger confirmed application-indexer synchronization. |
+| Radarr | `packages/radarr/**`, `apps/radarr-cli/**` | `packages/radarr/AGENTS.md` | `packages/radarr/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Manage a Radarr movie library, collections, and acquisition state. |
+| SABnzbd | `packages/sabnzbd/**`, `apps/sabnzbd-cli/**` | `packages/sabnzbd/AGENTS.md` | `packages/sabnzbd/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Observe and control the SABnzbd download queue and history. |
+| Sonarr | `packages/sonarr/**`, `apps/sonarr-cli/**` | `packages/sonarr/AGENTS.md` | `packages/sonarr/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Manage a Sonarr television-series library and episode acquisition state. |
+| Tailscale | `packages/tailscale/**`, `apps/tailscale-cli/**` | `packages/tailscale/AGENTS.md` | `packages/tailscale/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Inspect and diagnose the local Tailscale node and its tailnet without mutation. |
+| TubeArchivist | `packages/tubearchivist/**`, `apps/tubearchivist-cli/**` | `packages/tubearchivist/AGENTS.md` | `packages/tubearchivist/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Operate a TubeArchivist archive's catalog, queue, tasks, search, and channel subscriptions. |
+| CLI Protocol and Runtime | `packages/cli-protocol/**` | `packages/cli-protocol/AGENTS.md` | `packages/cli-protocol/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/reference/conventions.md`, `docs/guardrails/effect-services-and-layers.md` | Define and execute the shared agent-first CLI contract used by every integration. |
+| Subq | `apps/subq/**` | `apps/subq/AGENTS.md` | `apps/subq/CONTEXT.md` | None currently; system-wide `docs/adr/` | `apps/subq/README.md`, `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Track personal weight, injections, schedules, goals, and statistics in one deployed web application. |
+| Repository Engineering | Root repository/tooling files, `.changeset/**`, `.claude/**`, `.github/**`, `.vscode/**`, `.zed/**`, `docs/**`, `rules/**`, `rule-tests/**`, `scripts/**` | `docs/repository-engineering/AGENTS.md` | `docs/repository-engineering/CONTEXT.md` | System-wide `docs/adr/` | `CONTRIBUTING.md`, `docs/reference/conventions.md`, `docs/guardrails/` | Own the shared harness: validation, static policy, builds, Nix, CI, releases, contributor and agent documentation. |
+
+`README.md` and `VISION.md` describe the Garage CLI product family; they do not create an additional bounded context. `repos/**`, generated output, dependency directories, and untracked build residue are not first-party contexts.
+
+## Changes spanning contexts
+
+- Read every affected row before editing; one context's vocabulary and assumptions do not automatically apply to another.
+- Changes to `packages/cli-protocol` affect every integration CLI's compatibility and release surface.
+- Root dependency, lock, TypeScript, Bun, or Nix artifact changes can affect all workspaces even though Repository Engineering owns those files.
+- Cross-context decisions belong under `docs/adr/`; context-specific decisions belong near the owning context once such an ADR location is needed.
+- If a new independently owned project is added, update this map in the same change. Do not add a context for a directory that is only an adapter, delivery edge, generated output, or organizational folder.

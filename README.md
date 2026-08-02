@@ -94,7 +94,7 @@ a `packages/<svc>` library and an `apps/<svc>-cli` entrypoint.
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — setup and the validation loop.
 - [AGENTS.md](AGENTS.md) — rules for agents working in this repo.
-- [CONTEXT.md](CONTEXT.md) — the domain language.
+- [CONTEXT-MAP.md](CONTEXT-MAP.md) — routing to each bounded context and its domain language.
 - [VISION.md](VISION.md) — what this project is for.
 - [docs/](docs/reference/conventions.md) — conventions, guardrails, how-tos, and
   ADRs.

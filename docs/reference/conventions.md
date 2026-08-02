@@ -35,6 +35,36 @@ HTTP versus process or file access is an adapter choice inside an archetype,
 not repository taxonomy. Do not move existing workspaces merely to normalize
 them, and do not require the paired split for future projects.
 
+## Garage CLI platform vocabulary
+
+Use these terms consistently across paired service contexts:
+
+- **Agent-first CLI**, not wrapper, script, or tool: a deterministic executable
+  with explicit commands/flags and exactly one JSON envelope on stdout.
+- **Self-hosted service**, not backend, target, server, or integration: the
+  external system a Garage CLI operates. **Integration** names the owning
+  package/app context, not the external system.
+- **Integration package**, not core, SDK, or client library: the
+  `packages/<svc>` half that owns models, wire decoding, the adapter, errors,
+  and domain operations.
+- **CLI app**, not frontend, wrapper app, or binary: the thin
+  `apps/<svc>-cli` executable edge.
+- **Model**, not DTO, interface, or types file: an exported Effect `Schema`
+  value and its decoded type.
+- **External adapter**, not API wrapper, fetcher, or gateway: the sole module
+  that contacts an external system.
+- **Domain operation**, not handler, action, or helper: a deterministic typed
+  Effect composed by a command.
+- **CLI Protocol**, not shared, common, or utils: the owned context at
+  `packages/cli-protocol`.
+- **Tagged error**, not exception or custom error: a schema-tagged value in an
+  Effect error channel.
+- **Validation gate**, not build, check, or CI script: `bun run validate`.
+- **Workspace**, not module, folder, or component: an independently owned
+  package or app.
+- **Vendored reference**, not dependency, library, or submodule: read-only
+  third-party evidence under `repos/`.
+
 ## CLI compatibility
 
 Every CLI normally writes exactly one newline-terminated JSON envelope to
@@ -91,7 +121,8 @@ requires, what the tests prove) lives in
 
 For exact Effect v4 API behavior, read the vendored source at `repos/effect-smol/`
 (start at `LLMS.md`, then `ai-docs/`, then `packages/effect/src/`). Cite it as
-`repos/effect-smol/<path>:<line>`. Never edit or import from `repos/`.
+`repos/effect-smol/<path>:<line>`. Never edit or import from `repos/`; refresh
+the subtree only with `bun run vendor:update`.
 
 ## Paired integration responsibilities
 
@@ -111,6 +142,15 @@ observability, argv and stdio, envelope rendering, and the Bun runtime.
 Define every tagged error (`Schema.TaggedErrorClass`) in its package's
 `errors.ts`, enforced by the `tagged-error-location` ast-grep rule. Errors are
 values carried in the Effect error channel, never thrown.
+
+## Testing
+
+Add focused behavior tests for new or changed public behavior. Run tests through
+the workspace `test` scripts or `bunx vitest run <file>`; never use `bun test`,
+because `@effect/vitest`'s `it.effect` does not behave correctly under Bun's
+test runner. For integration seam ownership and the expected mix of operation,
+adapter, and wiring tests, follow the
+[Effect services guardrail](../guardrails/effect-services-and-layers.md#testing-strategy).
 
 ## Moves and deletes
 
