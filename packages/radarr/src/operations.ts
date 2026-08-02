@@ -95,7 +95,7 @@ const findCollection = (
   tmdbId: number
 ): Option.Option<CollectionRecord> => first(collections.filter((collection) => collection.tmdbId === tmdbId))
 
-export const status: Effect.Effect<SystemStatus, RadarrError, RadarrApi | RadarrConfig> = Effect.gen(function* () {
+export const status: Effect.Effect<SystemStatus, RadarrError, RadarrApi> = Effect.gen(function* () {
   const api = yield* RadarrApi
   return yield* api.status()
 }).pipe(Effect.withSpan('radarr.status'), Effect.annotateLogs({ package: '@garage/radarr', operation: 'status' }))
@@ -113,10 +113,7 @@ export const config: Effect.Effect<ConfigSummary, RadarrError, RadarrApi | Radar
 }).pipe(Effect.withSpan('radarr.config'), Effect.annotateLogs({ package: '@garage/radarr', operation: 'config' }))
 
 export const search = Effect.fn('radarr.search')(
-  function* (
-    query: string,
-    options?: LimitOptions
-  ): Effect.fn.Return<SearchResult, RadarrError, RadarrApi | RadarrConfig> {
+  function* (query: string, options?: LimitOptions): Effect.fn.Return<SearchResult, RadarrError, RadarrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'radarr.query_length': query.length, 'radarr.limit': limitOptions.limit })
     const api = yield* RadarrApi
@@ -128,7 +125,7 @@ export const search = Effect.fn('radarr.search')(
 )
 
 export const exists = Effect.fn('radarr.exists')(
-  function* (tmdbId: number): Effect.fn.Return<ExistsResult, RadarrError, RadarrApi | RadarrConfig> {
+  function* (tmdbId: number): Effect.fn.Return<ExistsResult, RadarrError, RadarrApi> {
     yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId })
     const api = yield* RadarrApi
     const movie = yield* api.getMovieByTmdbId(tmdbId)
@@ -188,7 +185,7 @@ export const addMovie = Effect.fn('radarr.addMovie')(
 )
 
 export const collectionInfo = Effect.fn('radarr.collectionInfo')(
-  function* (collectionTmdbId: number): Effect.fn.Return<CollectionInfoResult, RadarrError, RadarrApi | RadarrConfig> {
+  function* (collectionTmdbId: number): Effect.fn.Return<CollectionInfoResult, RadarrError, RadarrApi> {
     yield* Effect.annotateCurrentSpan({ 'radarr.collection_id': collectionTmdbId })
     const api = yield* RadarrApi
     const collection = yield* findCollection(yield* api.collections(), collectionTmdbId).pipe(
@@ -303,10 +300,7 @@ export const addCollection: (
 )
 
 export const removeMovie = Effect.fn('radarr.removeMovie')(
-  function* (
-    tmdbId: number,
-    options: RemoveMovieOptions
-  ): Effect.fn.Return<RemoveMovieResult, RadarrError, RadarrApi | RadarrConfig> {
+  function* (tmdbId: number, options: RemoveMovieOptions): Effect.fn.Return<RemoveMovieResult, RadarrError, RadarrApi> {
     yield* Effect.annotateCurrentSpan({ 'radarr.tmdb_id': tmdbId, 'radarr.delete_files': options.deleteFiles })
     const api = yield* RadarrApi
     const movie = yield* api.getMovieByTmdbId(tmdbId)
@@ -322,24 +316,23 @@ export const removeMovie = Effect.fn('radarr.removeMovie')(
   Effect.annotateLogs({ package: '@garage/radarr', operation: 'removeMovie' })
 )
 
-export const queue: (
-  options?: LimitOptions
-) => Effect.Effect<ListResult<QueueRecord>, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.queue')(
-  function* (options?: LimitOptions): Effect.fn.Return<ListResult<QueueRecord>, RadarrError, RadarrApi | RadarrConfig> {
-    const limitOptions = options ?? defaultLimitOptions
-    yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
-    const api = yield* RadarrApi
-    const result = yield* api.queue(limitOptions.limit)
-    const records = take(result.records, limitOptions.limit)
-    return { count: records.length, totalRecords: result.totalRecords, records }
-  },
-  Effect.annotateLogs({ package: '@garage/radarr', operation: 'queue' })
-)
+export const queue: (options?: LimitOptions) => Effect.Effect<ListResult<QueueRecord>, RadarrError, RadarrApi> =
+  Effect.fn('radarr.queue')(
+    function* (options?: LimitOptions): Effect.fn.Return<ListResult<QueueRecord>, RadarrError, RadarrApi> {
+      const limitOptions = options ?? defaultLimitOptions
+      yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
+      const api = yield* RadarrApi
+      const result = yield* api.queue(limitOptions.limit)
+      const records = take(result.records, limitOptions.limit)
+      return { count: records.length, totalRecords: result.totalRecords, records }
+    },
+    Effect.annotateLogs({ package: '@garage/radarr', operation: 'queue' })
+  )
 
-export const calendar: (
-  options?: CalendarOptions
-) => Effect.Effect<CalendarResult, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.calendar')(
-  function* (options?: CalendarOptions): Effect.fn.Return<CalendarResult, RadarrError, RadarrApi | RadarrConfig> {
+export const calendar: (options?: CalendarOptions) => Effect.Effect<CalendarResult, RadarrError, RadarrApi> = Effect.fn(
+  'radarr.calendar'
+)(
+  function* (options?: CalendarOptions): Effect.fn.Return<CalendarResult, RadarrError, RadarrApi> {
     const calendarOptions = options ?? defaultCalendarOptions
     yield* Effect.annotateCurrentSpan({ 'radarr.days': calendarOptions.days })
     const api = yield* RadarrApi
@@ -351,10 +344,8 @@ export const calendar: (
 
 export const missing: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.missing')(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi | RadarrConfig> {
+) => Effect.Effect<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi> = Effect.fn('radarr.missing')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<MovieReleaseRecord>, RadarrError, RadarrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
     const api = yield* RadarrApi
@@ -365,21 +356,18 @@ export const missing: (
   Effect.annotateLogs({ package: '@garage/radarr', operation: 'missing' })
 )
 
-export const history: (
-  options?: LimitOptions
-) => Effect.Effect<ListResult<HistoryRecord>, RadarrError, RadarrApi | RadarrConfig> = Effect.fn('radarr.history')(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<HistoryRecord>, RadarrError, RadarrApi | RadarrConfig> {
-    const limitOptions = options ?? defaultLimitOptions
-    yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
-    const api = yield* RadarrApi
-    const result = yield* api.history(limitOptions.limit)
-    const records = take(result.records, limitOptions.limit)
-    return { count: records.length, totalRecords: result.totalRecords, records }
-  },
-  Effect.annotateLogs({ package: '@garage/radarr', operation: 'history' })
-)
+export const history: (options?: LimitOptions) => Effect.Effect<ListResult<HistoryRecord>, RadarrError, RadarrApi> =
+  Effect.fn('radarr.history')(
+    function* (options?: LimitOptions): Effect.fn.Return<ListResult<HistoryRecord>, RadarrError, RadarrApi> {
+      const limitOptions = options ?? defaultLimitOptions
+      yield* Effect.annotateCurrentSpan({ 'radarr.limit': limitOptions.limit })
+      const api = yield* RadarrApi
+      const result = yield* api.history(limitOptions.limit)
+      const records = take(result.records, limitOptions.limit)
+      return { count: records.length, totalRecords: result.totalRecords, records }
+    },
+    Effect.annotateLogs({ package: '@garage/radarr', operation: 'history' })
+  )
 
 export const firstTmdbId = (results: ReadonlyArray<MovieLookupResult>): Option.Option<number> =>
   first(results).pipe(Option.map((result) => result.tmdbId))

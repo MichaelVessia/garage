@@ -262,7 +262,7 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('reads status through the RadarrApi service', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* status.pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const result = yield* status.pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, { appName: 'Radarr', version: '5.0.0', branch: 'main', runtimeVersion: '8.0.0' })
   })
@@ -271,9 +271,7 @@ it.effect('reads status through the RadarrApi service', () =>
 it.effect('returns bounded search results with TMDB URLs and collection metadata', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* search('Linux ISO', { limit: 1 }).pipe(
-      Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer))
-    )
+    const result = yield* search('Linux ISO', { limit: 1 }).pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, {
       query: 'Linux ISO',
@@ -286,7 +284,7 @@ it.effect('returns bounded search results with TMDB URLs and collection metadata
 it.effect('reports whether a TMDB id already exists', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* exists(27_205).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const result = yield* exists(27_205).pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, {
       tmdbId: 27_205,
@@ -360,9 +358,7 @@ it.effect('adds collection movies, skips existing movies, monitors the collectio
 it.effect('removes a movie and preserves files by default', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* removeMovie(27_205, { deleteFiles: false }).pipe(
-      Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer))
-    )
+    const result = yield* removeMovie(27_205, { deleteFiles: false }).pipe(Effect.provide(fake.layer))
     const deleteFlags = yield* Ref.get(fake.removedDeleteFiles)
 
     assert.deepStrictEqual(result, { removed: true, tmdbId: 27_205, deleteFiles: false })
@@ -373,7 +369,7 @@ it.effect('removes a movie and preserves files by default', () =>
 it.effect('bounds list operations at the requested limit', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
+    const { layer } = fake
 
     assert.deepStrictEqual(yield* queue({ limit: 1 }).pipe(Effect.provide(layer)), {
       count: 1,
@@ -445,7 +441,7 @@ it.effect('bounds list operations at the requested limit', () =>
 it.effect('passes calendar day windows to the API', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const result = yield* calendar({ days: 30 }).pipe(Effect.provide(Layer.mergeAll(ConfigLayer, fake.layer)))
+    const result = yield* calendar({ days: 30 }).pipe(Effect.provide(fake.layer))
 
     assert.deepStrictEqual(result, {
       days: 30,
