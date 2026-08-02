@@ -25,8 +25,9 @@ surface.
    `bun run --filter '@garage/<svc>' test` or `bunx vitest run <file>`, never
    `bun test` (`@effect/vitest`'s `it.effect` misbehaves under Bun's runner).
 5. Run checks that match the risk of the change. `bun run validate` is the
-   pre-commit/PR gate (the same set as CI). Use the tiered loop in
-   [CONTRIBUTING.md](CONTRIBUTING.md) for the inner loop.
+   fast pre-commit/PR gate; use `bun run validate:release` for shared runtime,
+   dependency, build, Nix, and release-automation changes. Use the tiered loop
+   in [CONTRIBUTING.md](CONTRIBUTING.md) for the inner loop.
 6. Update README, [CONTEXT.md](CONTEXT.md), the relevant guardrail, or a
    workspace README when public behavior, domain language, or policy changes.
 

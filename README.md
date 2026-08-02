@@ -11,7 +11,7 @@ lefthook, and Vitest.
 
 ```sh
 bun install        # install dependencies and patch Effect tooling
-bun run validate   # the full local quality gate (mirrors CI)
+bun run validate   # fast local quality gate (tests, types, lint, format)
 bun run test       # just the tests
 ```
 
@@ -58,7 +58,9 @@ unexpected runtime defects may terminate non-zero.
 - `bun run format` checks formatting.
 - `bun run ast-grep` runs structural lint rules.
 - `bun run test` runs Vitest.
-- `bun run validate` runs the full local quality gate.
+- `bun run validate` (and `validate:fast`) runs the fast local quality gate.
+- `bun run validate:release` adds all builds plus compiled CLI and Nix smoke
+  checks; run it before release-sensitive changes.
 - `bun run --filter '@garage/<svc>-cli' build` compiles a CLI to a standalone
   binary, for example:
 

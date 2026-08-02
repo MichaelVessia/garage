@@ -19,7 +19,7 @@ Versions are pinned to what CI runs, the manual installs are skipped, and
 ```sh
 direnv allow      # first time only, trusts .envrc
 bun install       # install workspace dependencies, install git hooks
-bun run validate  # full local gate (mirrors CI)
+bun run validate  # fast local gate (mirrors CI's first job)
 ```
 
 ### Without Nix
@@ -43,9 +43,14 @@ bun run validate
 
 ## The validation gate
 
-`bun run validate` is the canonical pre-PR gate. It runs, in order: typecheck,
-lint, format check, ast-grep scan, ast-grep rule tests, and vitest. It is the
-same set CI runs.
+`bun run validate` is a compatibility alias for `bun run validate:fast`, the
+canonical pre-PR gate. It runs, in order: typecheck, lint, format check,
+ast-grep scan, ast-grep rule tests, and vitest. CI runs this fast gate first.
+
+`bun run validate:release` adds all workspace builds, compiled CLI smoke tests,
+and Nix flake/build smoke tests. Run it for shared runtime, dependency, build,
+Nix, and release-automation changes. CI runs the deliverable checks only after
+the fast gate succeeds, avoiding a second validation pass.
 
 ### Focused vs. full validation
 
@@ -57,6 +62,7 @@ Don't reach for `bun run validate` after every keystroke. Use a tiered loop:
 | Running one workspace's tests       | `bun run --filter '@garage/<svc>' test`         | Only that package's vitest suite    |
 | Targeting a single test file        | `bunx vitest run <file>`                         | Tightest red-green loop             |
 | Before commit / PR (canonical gate) | `bun run validate`                               | typecheck + lint + format + ast-grep + tests |
+| Release-sensitive shared changes    | `bun run validate:release`                       | fast gate + builds + CLI/Nix smoke tests     |
 
 Use the focused commands as the inner loop while editing; promote to
 `bun run validate` once the change feels done. CI runs the full set, so the
