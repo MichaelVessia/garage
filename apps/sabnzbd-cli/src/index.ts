@@ -25,7 +25,6 @@ import type {
   HistoryResult,
   QueueResult,
   SabnzbdApi,
-  SabnzbdConfig,
   SabnzbdError,
   ServerStats,
   SystemStatus,
@@ -65,7 +64,7 @@ export type SabnzbdCliResult =
 
 export type SabnzbdCliEnvelope = SuccessEnvelope<SabnzbdCliResult> | ErrorEnvelope
 type SabnzbdCliError = SabnzbdError | CliUsageError
-type SabnzbdCliContext = SabnzbdApi | SabnzbdConfig
+type SabnzbdCliContext = SabnzbdApi
 type SabnzbdInvocation = CommandInvocation<SabnzbdCliResult, SabnzbdCliError, SabnzbdCliContext>
 
 const root = (

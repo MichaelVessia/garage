@@ -5,9 +5,7 @@ import * as Ref from 'effect/Ref'
 
 import {
   SabnzbdApi,
-  SabnzbdConfig,
   deleteQueueItem,
-  envMissing,
   history,
   pause,
   queue,
@@ -17,10 +15,6 @@ import {
   version,
 } from '../src/index.js'
 import type { DeleteOptions, LimitOptions } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(SabnzbdConfig, {
-  get: () => Effect.fail(envMissing('SABNZBD_URL')),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const queueOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
@@ -114,13 +108,11 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('returns status, version, queue, history, and server stats without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    const statusResult = yield* status.pipe(Effect.provide(layer))
-    const versionResult = yield* version.pipe(Effect.provide(layer))
-    const queueResult = yield* queue({ limit: 5 }).pipe(Effect.provide(layer))
-    const historyResult = yield* history({ limit: 25 }).pipe(Effect.provide(layer))
-    const statsResult = yield* serverStats.pipe(Effect.provide(layer))
+    const statusResult = yield* status.pipe(Effect.provide(fake.layer))
+    const versionResult = yield* version.pipe(Effect.provide(fake.layer))
+    const queueResult = yield* queue({ limit: 5 }).pipe(Effect.provide(fake.layer))
+    const historyResult = yield* history({ limit: 25 }).pipe(Effect.provide(fake.layer))
+    const statsResult = yield* serverStats.pipe(Effect.provide(fake.layer))
     const queueOptions = yield* Ref.get(fake.queueOptions)
     const historyOptions = yield* Ref.get(fake.historyOptions)
 
@@ -137,11 +129,11 @@ it.effect('returns status, version, queue, history, and server stats without pre
 it.effect('runs queue mutations through the API service without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    const pauseResult = yield* pause.pipe(Effect.provide(layer))
-    const resumeResult = yield* resume.pipe(Effect.provide(layer))
-    const deleteResult = yield* deleteQueueItem('SABnzbd_nzo_abc', { deleteFiles: true }).pipe(Effect.provide(layer))
+    const pauseResult = yield* pause.pipe(Effect.provide(fake.layer))
+    const resumeResult = yield* resume.pipe(Effect.provide(fake.layer))
+    const deleteResult = yield* deleteQueueItem('SABnzbd_nzo_abc', { deleteFiles: true }).pipe(
+      Effect.provide(fake.layer)
+    )
     const deleteCalls = yield* Ref.get(fake.deleteCalls)
 
     assert.deepStrictEqual(pauseResult, { action: 'pause', ok: true })
