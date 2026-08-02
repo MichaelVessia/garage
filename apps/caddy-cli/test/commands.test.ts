@@ -69,6 +69,18 @@ it.effect('root command returns command tree and missing env remains recoverable
     if (!ok.ok || !('health' in ok.result)) {
       assert.fail('expected root result')
     }
+    assert.deepStrictEqual(ok.result.commands, [
+      { command: 'caddy', description: 'Show this command tree and configuration health' },
+      { command: 'caddy config', description: 'Return full active Caddy config' },
+      { command: 'caddy routes', description: 'Return route matchers and reverse-proxy upstreams' },
+      { command: 'caddy upstreams', description: 'Return live reverse-proxy upstream health' },
+      { command: 'caddy pki-ca', description: 'Return local internal CA info' },
+      {
+        command: 'caddy reload <config.json> [--confirm-reload]',
+        description: 'Replace the active config via POST /load',
+        flags: [{ name: '--confirm-reload', description: 'Confirm full Caddy config replacement' }],
+      },
+    ])
     assert.deepStrictEqual(ok.result.health, { configured: true, reachable: true, routeServers: 1 })
     assert.strictEqual(missing.ok, true)
     if (!missing.ok || !('health' in missing.result)) {
@@ -94,6 +106,38 @@ it.effect('reload requires confirmation and reads config only when confirmed', (
     assert.strictEqual(allowed.ok, true)
     assert.deepStrictEqual(yield* Ref.get(fake.reads), ['next.json'])
     assert.deepStrictEqual(yield* Ref.get(fake.reloads), [{ apps: { http: { servers: {} } } }])
+  })
+)
+
+it.effect('read commands preserve envelopes and tolerate extra arguments', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeFake
+    const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
+
+    const configEnvelope = yield* executeCaddy(['config', 'ignored']).pipe(Effect.provide(layer))
+    const routesEnvelope = yield* executeCaddy(['routes']).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(configEnvelope, {
+      ok: true,
+      command: 'caddy config ignored',
+      result: { apps: {} },
+      next_actions: [],
+    })
+    assert.deepStrictEqual(routesEnvelope, {
+      ok: true,
+      command: 'caddy routes',
+      result: {
+        count: 1,
+        records: [
+          {
+            server: 'srv0',
+            listen: [':443'],
+            routes: [{ match: [{ host: ['sonarr.example.test'] }], upstreams: ['192.0.2.38:8989'] }],
+          },
+        ],
+      },
+      next_actions: [],
+    })
   })
 )
 

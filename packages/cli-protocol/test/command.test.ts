@@ -2,7 +2,7 @@ import { assert, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import { describe } from 'vitest'
 
-import { createCliRunner, createCliUsageError, successEnvelope } from '../src/index.js'
+import { compileReadCommand, createCliRunner, createCliUsageError, successEnvelope } from '../src/index.js'
 import type { CliUsageError, CommandDefinition, CommandDescription } from '../src/index.js'
 
 interface ParsedFlagsResult {
@@ -18,7 +18,13 @@ type TestResult = ParsedFlagsResult | RootResult
 
 const rootCommand = 'test-cli'
 const usageError = createCliUsageError(rootCommand)
+const readCommand = compileReadCommand<TestResult, CliUsageError, never>(rootCommand)
 const testCommands: ReadonlyArray<CommandDefinition<TestResult, CliUsageError, never>> = [
+  readCommand({
+    name: 'status',
+    description: 'Return status',
+    effect: Effect.succeed({ positionals: [], limit: 'read' }),
+  }),
   {
     name: 'parse',
     command: `${rootCommand} parse [--limit <value>] <tokens...>`,
@@ -49,6 +55,26 @@ const runTestCli = createCliRunner<TestResult, CliUsageError, never>({
 })
 
 describe('CLI commands', () => {
+  it.effect('compiles read command metadata and preserves tolerated extra arguments', () =>
+    Effect.gen(function* () {
+      const envelope = yield* runTestCli(['status', 'ignored'])
+
+      const [definition] = testCommands
+      if (definition === undefined) {
+        assert.fail('expected compiled read command')
+      }
+      assert.strictEqual(definition.name, 'status')
+      assert.strictEqual(definition.command, 'test-cli status')
+      assert.strictEqual(definition.description, 'Return status')
+      assert.deepStrictEqual(envelope, {
+        ok: true,
+        command: 'test-cli status ignored',
+        result: { positionals: [], limit: 'read' },
+        next_actions: [],
+      })
+    })
+  )
+
   it.effect('only treats double-dash tokens as flags', () =>
     Effect.gen(function* () {
       const envelope = yield* runTestCli(['parse', '--limit', '-1', '-draft'])

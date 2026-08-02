@@ -2,6 +2,7 @@ export {
   CommandDescription,
   commandDescriptions,
   commandString,
+  compileReadCommand,
   createCliRunner,
   createCliUsageError,
   defaultRootDescription,
@@ -13,6 +14,7 @@ export type {
   CreateCliRunnerOptions,
   ParseFlagsOptions,
   ParsedFlags,
+  ReadCommandDescriptor,
   RootInvocation,
 } from './command'
 export { makeConfigReaders } from './config'

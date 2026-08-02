@@ -1119,6 +1119,15 @@ refactor(caddy): pilot declarative command definitions
 Drop the experiment if it becomes a general DSL, changes tolerated input,
 worsens type inference, or pressures `reload` into a shallow abstraction.
 
+Implementation decision: **qualified keep**. The pilot removes the repeated
+name/command/description/`wrap` assembly for four no-argument read commands
+while leaving their typed Effects visible in Caddy's command table. Golden tests
+lock command order, metadata, tolerated extra arguments, and representative
+envelopes. The imperative `reload` command remains clearer beside the compiled
+reads, and tests can exercise the compiler without a new fixture style. Keep
+`compileReadCommand` limited to this shape; this result does not authorize a
+flag/positional DSL or a rollout to another CLI.
+
 ---
 
 # M9 — Workspace generator decision gate

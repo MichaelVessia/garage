@@ -61,6 +61,21 @@ export interface CommandDefinition<CliResult, Error extends CliEnvelopeError, Co
   ) => Effect.Effect<CliEnvelope<CliResult>, never, Context>
 }
 
+export interface ReadCommandDescriptor<CliResult, Error extends CliEnvelopeError, Context> {
+  readonly name: string
+  readonly description: string
+  readonly effect: Effect.Effect<CliResult, Error, Context>
+}
+
+export const compileReadCommand =
+  <CliResult, Error extends CliEnvelopeError, Context>(rootCommand: string) =>
+  (descriptor: ReadCommandDescriptor<CliResult, Error, Context>): CommandDefinition<CliResult, Error, Context> => ({
+    name: descriptor.name,
+    command: `${rootCommand} ${descriptor.name}`,
+    description: descriptor.description,
+    handle: ({ wrap }) => wrap(descriptor.effect),
+  })
+
 export interface RootInvocation<Error extends CliEnvelopeError> {
   readonly command: string
   readonly commandTree: ReadonlyArray<CommandDescription>

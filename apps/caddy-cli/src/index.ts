@@ -9,7 +9,7 @@ import type {
   RouteSummary,
   UpstreamRecord,
 } from '@garage/caddy'
-import { createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
+import { compileReadCommand, createCliRunner, createCliUsageError, makeRoot } from '@garage/cli-protocol'
 import type {
   CliUsageError,
   CommandDefinition,
@@ -75,31 +75,21 @@ const reloadCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError,
     })
   )
 
+const readCommand = compileReadCommand<CaddyCliResult, CaddyCliError, CaddyCliContext>(rootCommand)
+
 const commandDefinitions: ReadonlyArray<CommandDefinition<CaddyCliResult, CaddyCliError, CaddyCliContext>> = [
-  {
-    name: 'config',
-    command: `${rootCommand} config`,
-    description: 'Return full active Caddy config',
-    handle: ({ wrap }) => wrap(config),
-  },
-  {
+  readCommand({ name: 'config', description: 'Return full active Caddy config', effect: config }),
+  readCommand({
     name: 'routes',
-    command: `${rootCommand} routes`,
     description: 'Return route matchers and reverse-proxy upstreams',
-    handle: ({ wrap }) => wrap(routes),
-  },
-  {
+    effect: routes,
+  }),
+  readCommand({
     name: 'upstreams',
-    command: `${rootCommand} upstreams`,
     description: 'Return live reverse-proxy upstream health',
-    handle: ({ wrap }) => wrap(upstreams),
-  },
-  {
-    name: 'pki-ca',
-    command: `${rootCommand} pki-ca`,
-    description: 'Return local internal CA info',
-    handle: ({ wrap }) => wrap(pkiCa),
-  },
+    effect: upstreams,
+  }),
+  readCommand({ name: 'pki-ca', description: 'Return local internal CA info', effect: pkiCa }),
   {
     name: 'reload',
     command: `${rootCommand} reload <config.json> [${confirmReloadFlag}]`,
