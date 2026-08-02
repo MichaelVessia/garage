@@ -7,6 +7,7 @@ import * as Layer from 'effect/Layer'
 import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
+import * as Str from 'effect/String'
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 import { executeAdguard } from '../apps/adguard-cli/src/index.js'
@@ -109,12 +110,15 @@ interface CliRunResult {
 
 const hostPath = globalThis.process.env.PATH ?? ''
 
-const runCliMain = Effect.fn('live-cli-missing-env.runCliMain')(function* (entrypoint: string) {
+const runCliMain = Effect.fn('live-cli-missing-env.runCliMain')(function* (
+  entrypoint: string,
+  args: ReadonlyArray<string> = []
+) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
   return yield* Effect.scoped(
     Effect.gen(function* () {
       const handle = yield* spawner.spawn(
-        ChildProcess.make('bun', [entrypoint], { env: { PATH: hostPath }, extendEnv: false })
+        ChildProcess.make('bun', [entrypoint, ...args], { env: { PATH: hostPath }, extendEnv: false })
       )
       const result = yield* Effect.all(
         {
@@ -134,13 +138,23 @@ const runCliMain = Effect.fn('live-cli-missing-env.runCliMain')(function* (entry
   )
 })
 
+const decodeSingleStdoutEnvelope = (result: CliRunResult): CliEnvelope<unknown> => {
+  assert.strictEqual(result.exitCode, 0, result.stderr)
+  assert.strictEqual(result.stderr, '')
+  assert.match(result.stdout, /^\{.*\}\n$/u)
+  assert.strictEqual(
+    result.stdout.split('\n').filter(Str.isNonEmpty).length,
+    1,
+    'expected exactly one non-empty stdout line'
+  )
+  const parsed: unknown = JSON.parse(result.stdout)
+  return Schema.decodeUnknownSync(CliEnvelope(Schema.Unknown))(parsed)
+}
+
 const assertMainRendersMissingEnvRoot = Effect.fn('live-cli-missing-env.assertMainRendersMissingEnvRoot')(function* (
   entrypoint: string
 ) {
-  const result = yield* runCliMain(entrypoint)
-  assert.strictEqual(result.exitCode, 0, result.stderr)
-  const parsed: unknown = JSON.parse(result.stdout)
-  const envelope = Schema.decodeUnknownSync(CliEnvelope(Schema.Unknown))(parsed)
+  const envelope = decodeSingleStdoutEnvelope(yield* runCliMain(entrypoint))
   assertMissingEnvRoot(envelope)
 })
 
@@ -170,6 +184,22 @@ it.effect('HTTP CLI root commands render missing-env envelopes with real live la
 // Eleven sequential spawns can exceed vitest's default 5s timeout when the full
 // `validate` run saturates the machine, so this subprocess test gets a generous
 // budget.
+it.effect('CLI entrypoints preserve JSON error envelopes and zero exit status for usage errors', () =>
+  Effect.gen(function* () {
+    const envelope = decodeSingleStdoutEnvelope(yield* runCliMain('apps/adguard-cli/src/main.ts', ['unknown-command']))
+    assert.deepStrictEqual(envelope, {
+      ok: false,
+      command: 'adguard unknown-command',
+      error: {
+        code: 'ADGUARD_CLI_USAGE',
+        message: 'Unknown command unknown-command',
+      },
+      fix: 'Run adguard to inspect available commands and required arguments.',
+      next_actions: [{ command: 'adguard', description: 'Show available commands' }],
+    })
+  }).pipe(Effect.provide(BunServices.layer))
+)
+
 it.effect(
   'HTTP CLI entrypoints render missing-env envelopes instead of throwing',
   () =>
