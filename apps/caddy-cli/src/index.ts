@@ -19,10 +19,11 @@ import type {
   SuccessEnvelope,
 } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
+import type * as FileSystem from 'effect/FileSystem'
 
 import { confirmReloadFlag, envNextAction, rootCommand, showCommandsAction } from './command-tree.js'
 import type { RootResult } from './command-tree.js'
-import { CaddyConfigFile } from './config-file.js'
+import { readCaddyConfigFile } from './config-file.js'
 
 export type CaddyCliResult =
   | RootResult
@@ -34,7 +35,7 @@ export type CaddyCliResult =
 
 export type CaddyCliEnvelope = SuccessEnvelope<CaddyCliResult> | ErrorEnvelope
 type CaddyCliError = CaddyError | CliUsageError
-type CaddyCliContext = CaddyApi | CaddyConfig | CaddyConfigFile
+type CaddyCliContext = CaddyApi | CaddyConfig | FileSystem.FileSystem
 type CaddyInvocation = CommandInvocation<CaddyCliResult, CaddyCliError, CaddyCliContext>
 
 const root = (
@@ -70,8 +71,7 @@ const reloadCommand = ({ args, errorToEnvelope, parseFlags, recover, usageError,
           },
         ])
       }
-      const files = yield* CaddyConfigFile
-      const nextConfig = yield* files.read(path)
+      const nextConfig = yield* readCaddyConfigFile(path)
       return yield* wrap(reload(nextConfig))
     })
   )

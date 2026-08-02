@@ -4,13 +4,10 @@ import { runCliMain } from '@garage/cli-protocol'
 import * as Layer from 'effect/Layer'
 
 import packageJson from '../package.json' with { type: 'json' }
-import { CaddyConfigFileLive } from './config-file.js'
 import { executeCaddy } from './index.js'
 
-const ConfigFileLive = CaddyConfigFileLive.pipe(Layer.provide(BunFileSystem.layer))
-
 const Live = Layer.mergeAll(
-  ConfigFileLive,
+  BunFileSystem.layer,
   CaddyApiLive.pipe(Layer.provideMerge(CaddyConfigLive), Layer.provide(BunHttpClient.layer))
 )
 

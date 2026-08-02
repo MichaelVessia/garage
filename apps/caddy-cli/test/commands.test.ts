@@ -2,10 +2,10 @@ import { assert, it } from '@effect/vitest'
 import { CaddyApi, CaddyConfig, envMissing } from '@garage/caddy'
 import type { JsonObject } from '@garage/caddy'
 import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
 import * as Layer from 'effect/Layer'
 import * as Ref from 'effect/Ref'
 
-import { CaddyConfigFile } from '../src/config-file.js'
 import { executeCaddy } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(CaddyConfig, {
@@ -50,11 +50,11 @@ const makeFake = Effect.gen(function* () {
       })
     })
   )
-  const files = CaddyConfigFile.of({
-    read: (path) =>
-      Ref.update(reads, (records) => [...records, path]).pipe(Effect.as({ apps: { http: { servers: {} } } })),
+  const fileSystemLayer = FileSystem.layerNoop({
+    readFileString: (path) =>
+      Ref.update(reads, (records) => [...records, path]).pipe(Effect.as('{"apps":{"http":{"servers":{}}}}')),
   })
-  return { layer: Layer.mergeAll(apiLayer, Layer.succeed(CaddyConfigFile, files)), reloads, reads }
+  return { layer: Layer.mergeAll(apiLayer, fileSystemLayer), reloads, reads }
 })
 
 it.effect('root command returns command tree and missing env remains recoverable', () =>
@@ -84,9 +84,13 @@ it.effect('reload requires confirmation and reads config only when confirmed', (
     const layer = fake.layer.pipe(Layer.provideMerge(ConfigLayer))
 
     const blocked = yield* executeCaddy(['reload', 'next.json']).pipe(Effect.provide(layer))
-    const allowed = yield* executeCaddy(['reload', 'next.json', '--confirm-reload']).pipe(Effect.provide(layer))
 
     assert.strictEqual(blocked.ok, false)
+    assert.deepStrictEqual(yield* Ref.get(fake.reads), [])
+    assert.deepStrictEqual(yield* Ref.get(fake.reloads), [])
+
+    const allowed = yield* executeCaddy(['reload', 'next.json', '--confirm-reload']).pipe(Effect.provide(layer))
+
     assert.strictEqual(allowed.ok, true)
     assert.deepStrictEqual(yield* Ref.get(fake.reads), ['next.json'])
     assert.deepStrictEqual(yield* Ref.get(fake.reloads), [{ apps: { http: { servers: {} } } }])

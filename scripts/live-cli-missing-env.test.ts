@@ -3,6 +3,7 @@ import * as BunServices from '@effect/platform-bun/BunServices'
 import { assert, it } from '@effect/vitest'
 import * as ConfigProvider from 'effect/ConfigProvider'
 import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
 import * as Layer from 'effect/Layer'
 import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
@@ -12,7 +13,6 @@ import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 import { executeAdguard } from '../apps/adguard-cli/src/index.js'
 import { executeAutocaliweb } from '../apps/autocaliweb-cli/src/index.js'
-import { CaddyConfigFile } from '../apps/caddy-cli/src/config-file.js'
 import { executeCaddy } from '../apps/caddy-cli/src/index.js'
 import { executeImmich } from '../apps/immich-cli/src/index.js'
 import { executeJellyfin } from '../apps/jellyfin-cli/src/index.js'
@@ -24,7 +24,7 @@ import { executeSonarr } from '../apps/sonarr-cli/src/index.js'
 import { executeTubearchivist } from '../apps/tubearchivist-cli/src/index.js'
 import { AdguardApiLive, AdguardConfigLive } from '../packages/adguard/src/index.js'
 import { AutocaliwebApiLive, AutocaliwebConfigLive } from '../packages/autocaliweb/src/index.js'
-import { CaddyApiLive, CaddyConfigLive, decodeError as caddyDecodeError } from '../packages/caddy/src/index.js'
+import { CaddyApiLive, CaddyConfigLive } from '../packages/caddy/src/index.js'
 import { CliEnvelope, cliObservabilityLayer } from '../packages/cli-protocol/src/index.js'
 import { ImmichApiLive, ImmichConfigLive } from '../packages/immich/src/index.js'
 import { JellyfinApiLive, JellyfinConfigLive } from '../packages/jellyfin/src/index.js'
@@ -55,7 +55,7 @@ const AutocaliwebLive = AutocaliwebApiLive.pipe(
   Layer.provideMerge(ObservabilityLive)
 )
 const CaddyLive = Layer.mergeAll(
-  Layer.succeed(CaddyConfigFile, { read: () => Effect.fail(caddyDecodeError('unused test config reader')) }),
+  FileSystem.layerNoop({}),
   CaddyApiLive.pipe(Layer.provideMerge(Layer.mergeAll(CaddyConfigLive, BunHttpClient.layer)))
 ).pipe(Layer.provideMerge(ObservabilityLive))
 const ImmichLive = ImmichApiLive.pipe(
