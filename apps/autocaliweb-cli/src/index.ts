@@ -12,7 +12,6 @@ import {
 } from '@garage/autocaliweb'
 import type {
   AutocaliwebApi,
-  AutocaliwebConfig,
   AutocaliwebError,
   BookInfoRecord,
   BookRecord,
@@ -46,7 +45,7 @@ export type AutocaliwebCliResult =
 
 export type AutocaliwebCliEnvelope = SuccessEnvelope<AutocaliwebCliResult> | ErrorEnvelope
 type AutocaliwebCliError = AutocaliwebError | CliUsageError
-type AutocaliwebCliContext = AutocaliwebApi | AutocaliwebConfig
+type AutocaliwebCliContext = AutocaliwebApi
 type AutocaliwebInvocation = CommandInvocation<AutocaliwebCliResult, AutocaliwebCliError, AutocaliwebCliContext>
 
 const root = (
@@ -132,21 +131,39 @@ const commandDefinitions: ReadonlyArray<
     name: 'books',
     command: `${rootCommand} books [${limitFlag} <n>]`,
     description: 'Return a bounded alphabetical book list',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
+    flags: [
+      {
+        name: `${limitFlag} <n>`,
+        description: 'Maximum books to return',
+        default: defaultLimit,
+      },
+    ],
     handle: (invocation) => limitCommand(invocation, (limit) => books({ limit })),
   },
   {
     name: 'recent',
     command: `${rootCommand} recent [${limitFlag} <n>]`,
     description: 'Return recently added books',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
+    flags: [
+      {
+        name: `${limitFlag} <n>`,
+        description: 'Maximum books to return',
+        default: defaultLimit,
+      },
+    ],
     handle: (invocation) => limitCommand(invocation, (limit) => recent({ limit })),
   },
   {
     name: 'search',
     command: `${rootCommand} search <query> [${limitFlag} <n>]`,
     description: 'Search books through OPDS',
-    flags: [{ name: `${limitFlag} <n>`, description: 'Maximum books to return', default: defaultLimit }],
+    flags: [
+      {
+        name: `${limitFlag} <n>`,
+        description: 'Maximum books to return',
+        default: defaultLimit,
+      },
+    ],
     handle: searchCommand,
   },
   {
