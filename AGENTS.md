@@ -99,6 +99,23 @@ may skip tests; still run the formatter.
   (`feat(radarr): ...`, `fix(cli-protocol): ...`).
 - Add a changeset (`bunx changeset`) when a CLI's behavior changes.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues; external pull requests are not a triage
+surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five canonical labels without overrides. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a multi-context monorepo; use `CONTEXT-MAP.md` to locate the relevant
+domain documentation. See `docs/agents/domain.md`.
+
 ## Quick reference
 
 - Keep Effect code pure until an application boundary exists; prefer exported

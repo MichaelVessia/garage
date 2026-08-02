@@ -1,18 +1,34 @@
 # Domain guidance for agents
 
-Before naming things, writing docs, or designing a change, load the domain
-language and the decisions that shape this repo.
+This is a multi-context monorepo containing potentially unrelated personal
+projects.
 
-- Read [CONTEXT.md](../../CONTEXT.md) for the vocabulary. Use those terms in
-  names, comments, commits, and docs; avoid the listed alternatives. If a change
-  introduces a new concept, add it to CONTEXT.md in the same pull request.
-- Read [docs/adr/](../adr/) for decisions already made. If a change contradicts
-  an ADR, either follow the ADR or supersede it with a new one; do not silently
-  diverge.
-- Read the guardrail that matches the change in
-  [docs/guardrails/](../guardrails/README.md) before touching service or layer
-  code.
+## Before exploring
 
-If you find the code and CONTEXT.md disagree, treat it as a bug in one of them
-and flag it rather than guessing. The vocabulary is only useful while it stays
-true.
+1. Read `CONTEXT-MAP.md` at the repository root.
+2. Identify the context containing the code being changed.
+3. Read that context’s `CONTEXT.md`.
+4. Read relevant system-wide ADRs under `docs/adr/`.
+5. Read context-specific ADRs listed by `CONTEXT-MAP.md`.
+6. For Garage service or Layer code, read the matching guardrail under
+   `docs/guardrails/`.
+
+If a referenced file does not exist, proceed silently.
+
+## Use each context’s vocabulary
+
+Use terms defined by the relevant context in names, comments, commits, tests,
+issues, and documentation. Avoid synonyms that its glossary explicitly rejects.
+
+If a change spans contexts, read every affected context. Do not import one
+context’s vocabulary or assumptions into an unrelated project.
+
+If code and its context documentation disagree, flag the mismatch rather than
+guessing. Add genuinely new domain concepts to the owning context’s
+`CONTEXT.md`.
+
+## Architectural decisions
+
+Read ADRs affecting the area before changing its architecture. If a proposal
+contradicts an ADR, identify the conflict explicitly and either follow or
+supersede the decision; never silently diverge.
