@@ -56,6 +56,8 @@ export class WeightLogRepo extends Context.Service<
   {
     readonly list: (params: WeightLogListParams, userId: string) => Effect.Effect<WeightLog[], WeightLogDatabaseError>
     readonly findById: (id: string, userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
+    /** Complete weight history for a user in ascending datetime order. */
+    readonly listChronological: (userId: string) => Effect.Effect<WeightLog[], WeightLogDatabaseError>
     /** Most recently logged weight entry for a user. */
     readonly mostRecent: (userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
     /** Weight entry whose date is nearest to the given date (ties broken arbitrarily). */
@@ -96,6 +98,19 @@ export const WeightLogRepoLive = Layer.effect(
           ORDER BY datetime DESC
           LIMIT ${params.limit}
           OFFSET ${params.offset}
+        `
+        return yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+      },
+      mapDbError(WeightLogDatabaseError, 'query')
+    )
+
+    const listChronological = Effect.fn('WeightLogRepo.listChronological')(
+      function* (userId: string) {
+        const rows = yield* sql`
+          SELECT id, datetime, weight, notes, created_at, updated_at
+          FROM weight_logs
+          WHERE user_id = ${userId}
+          ORDER BY datetime ASC
         `
         return yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
       },
@@ -231,6 +246,7 @@ export const WeightLogRepoLive = Layer.effect(
 
     return {
       list,
+      listChronological,
       findById,
       mostRecent,
       nearestToDate,

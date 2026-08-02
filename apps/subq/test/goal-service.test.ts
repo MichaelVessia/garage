@@ -51,9 +51,10 @@ describe('GoalService', () => {
         startingDate: testDate('2024-01-01T00:00:00Z'),
         targetDate: DateTime.toDate(DateTime.makeUnsafe(nowMillis + 365 * MS_PER_DAY)),
       })
+      yield* insertWeightLog('w3', testDate('2024-01-15T00:00:00Z'), 190, userId)
+      yield* insertWeightLog('w-other', testDate('2024-01-20T00:00:00Z'), 500, 'other-user')
       yield* insertWeightLog('w1', testDate('2024-01-01T00:00:00Z'), 200, userId)
       yield* insertWeightLog('w2', testDate('2024-01-08T00:00:00Z'), 195, userId)
-      yield* insertWeightLog('w3', testDate('2024-01-15T00:00:00Z'), 190, userId)
 
       const service = yield* GoalService
       const earliestProjection = nowMillis + 14 * MS_PER_DAY - 1000

@@ -149,6 +149,27 @@ describe('WeightLogRepo', () => {
     })
   })
 
+  describe('listChronological', () => {
+    it.layer(TestLayer)((it) => {
+      it.effect('returns the complete user history in ascending datetime order', () =>
+        Effect.gen(function* () {
+          yield* insertWeightLog('wl-latest', testDate('2024-03-01T00:00:00Z'), 180, 'user-123')
+          yield* insertWeightLog('wl-earliest', testDate('2024-01-01T00:00:00Z'), 200, 'user-123')
+          yield* insertWeightLog('wl-other', testDate('2023-01-01T00:00:00Z'), 500, 'user-456')
+          yield* insertWeightLog('wl-middle', testDate('2024-02-01T00:00:00Z'), 190, 'user-123')
+
+          const repo = yield* WeightLogRepo
+          const history = yield* repo.listChronological('user-123')
+
+          assert.deepStrictEqual(
+            history.map((entry) => entry.id),
+            ['wl-earliest', 'wl-middle', 'wl-latest']
+          )
+        })
+      )
+    })
+  })
+
   describe('nearestToDate', () => {
     it.layer(TestLayer)((it) => {
       it.effect('returns none for an empty table', () =>
