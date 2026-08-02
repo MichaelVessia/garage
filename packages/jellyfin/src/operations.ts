@@ -16,30 +16,21 @@ import type {
   UserRecord,
 } from './model.js'
 import { JellyfinApi } from './services.js'
-import type { JellyfinConfig } from './services.js'
 
 export const defaultLimit = 10
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
-export const status: Effect.Effect<SystemStatus, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.gen(
-  function* () {
-    const api = yield* JellyfinApi
-    return yield* api.status()
-  }
-).pipe(Effect.withSpan('jellyfin.status'), Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'status' }))
+export const status: Effect.Effect<SystemStatus, JellyfinError, JellyfinApi> = Effect.gen(function* () {
+  const api = yield* JellyfinApi
+  return yield* api.status()
+}).pipe(Effect.withSpan('jellyfin.status'), Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'status' }))
 
-export const users: Effect.Effect<ListResult<UserRecord>, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.gen(
-  function* () {
-    const api = yield* JellyfinApi
-    return yield* api.users()
-  }
-).pipe(Effect.withSpan('jellyfin.users'), Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'users' }))
+export const users: Effect.Effect<ListResult<UserRecord>, JellyfinError, JellyfinApi> = Effect.gen(function* () {
+  const api = yield* JellyfinApi
+  return yield* api.users()
+}).pipe(Effect.withSpan('jellyfin.users'), Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'users' }))
 
-export const libraries: Effect.Effect<
-  ListResult<LibraryRecord>,
-  JellyfinError,
-  JellyfinApi | JellyfinConfig
-> = Effect.gen(function* () {
+export const libraries: Effect.Effect<ListResult<LibraryRecord>, JellyfinError, JellyfinApi> = Effect.gen(function* () {
   const api = yield* JellyfinApi
   return yield* api.libraries()
 }).pipe(
@@ -47,11 +38,7 @@ export const libraries: Effect.Effect<
   Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'libraries' })
 )
 
-export const sessions: Effect.Effect<
-  ListResult<SessionRecord>,
-  JellyfinError,
-  JellyfinApi | JellyfinConfig
-> = Effect.gen(function* () {
+export const sessions: Effect.Effect<ListResult<SessionRecord>, JellyfinError, JellyfinApi> = Effect.gen(function* () {
   const api = yield* JellyfinApi
   return yield* api.sessions()
 }).pipe(
@@ -59,39 +46,33 @@ export const sessions: Effect.Effect<
   Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'sessions' })
 )
 
-export const nowPlaying: Effect.Effect<
-  ListResult<NowPlayingRecord>,
-  JellyfinError,
-  JellyfinApi | JellyfinConfig
-> = Effect.gen(function* () {
-  const sessionList = yield* sessions
-  const records = sessionList.records.flatMap((session) =>
-    session.nowPlaying === undefined
-      ? []
-      : [
-          {
-            user: session.user,
-            device: session.device,
-            client: session.client,
-            item: session.nowPlaying,
-            playMethod: session.playMethod,
-          },
-        ]
-  )
-  return { count: records.length, records }
-}).pipe(
+export const nowPlaying: Effect.Effect<ListResult<NowPlayingRecord>, JellyfinError, JellyfinApi> = Effect.gen(
+  function* () {
+    const sessionList = yield* sessions
+    const records = sessionList.records.flatMap((session) =>
+      session.nowPlaying === undefined
+        ? []
+        : [
+            {
+              user: session.user,
+              device: session.device,
+              client: session.client,
+              item: session.nowPlaying,
+              playMethod: session.playMethod,
+            },
+          ]
+    )
+    return { count: records.length, records }
+  }
+).pipe(
   Effect.withSpan('jellyfin.nowPlaying'),
   Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'nowPlaying' })
 )
 
 export const recentlyAdded: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<ItemRecord>, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.fn(
-  'jellyfin.recentlyAdded'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<ItemRecord>, JellyfinError, JellyfinApi | JellyfinConfig> {
+) => Effect.Effect<ListResult<ItemRecord>, JellyfinError, JellyfinApi> = Effect.fn('jellyfin.recentlyAdded')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<ItemRecord>, JellyfinError, JellyfinApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'jellyfin.limit': limitOptions.limit })
     const api = yield* JellyfinApi
@@ -101,9 +82,7 @@ export const recentlyAdded: (
 )
 
 export const itemSearch = Effect.fn('jellyfin.itemSearch')(
-  function* (
-    options: SearchOptions
-  ): Effect.fn.Return<ListResult<ItemRecord>, JellyfinError, JellyfinApi | JellyfinConfig> {
+  function* (options: SearchOptions): Effect.fn.Return<ListResult<ItemRecord>, JellyfinError, JellyfinApi> {
     yield* Effect.annotateCurrentSpan({
       'jellyfin.query_length': options.query.length,
       'jellyfin.limit': options.limit,
@@ -114,30 +93,26 @@ export const itemSearch = Effect.fn('jellyfin.itemSearch')(
   Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'itemSearch' })
 )
 
-export const libraryStats: Effect.Effect<LibraryStats, JellyfinError, JellyfinApi | JellyfinConfig> = Effect.gen(
-  function* () {
-    const api = yield* JellyfinApi
-    return yield* api.libraryStats()
-  }
-).pipe(
+export const libraryStats: Effect.Effect<LibraryStats, JellyfinError, JellyfinApi> = Effect.gen(function* () {
+  const api = yield* JellyfinApi
+  return yield* api.libraryStats()
+}).pipe(
   Effect.withSpan('jellyfin.libraryStats'),
   Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'libraryStats' })
 )
 
-export const scheduledTasks: Effect.Effect<
-  ListResult<ScheduledTaskRecord>,
-  JellyfinError,
-  JellyfinApi | JellyfinConfig
-> = Effect.gen(function* () {
-  const api = yield* JellyfinApi
-  return yield* api.scheduledTasks()
-}).pipe(
+export const scheduledTasks: Effect.Effect<ListResult<ScheduledTaskRecord>, JellyfinError, JellyfinApi> = Effect.gen(
+  function* () {
+    const api = yield* JellyfinApi
+    return yield* api.scheduledTasks()
+  }
+).pipe(
   Effect.withSpan('jellyfin.scheduledTasks'),
   Effect.annotateLogs({ package: '@garage/jellyfin', operation: 'scheduledTasks' })
 )
 
 export const runTask = Effect.fn('jellyfin.runTask')(
-  function* (taskId: string): Effect.fn.Return<RunTaskResult, JellyfinError, JellyfinApi | JellyfinConfig> {
+  function* (taskId: string): Effect.fn.Return<RunTaskResult, JellyfinError, JellyfinApi> {
     yield* Effect.annotateCurrentSpan({ 'jellyfin.task_id': taskId })
     const api = yield* JellyfinApi
     return yield* api.runTask(taskId)

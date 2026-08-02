@@ -23,7 +23,6 @@ import {
 import type {
   ItemRecord,
   JellyfinApi,
-  JellyfinConfig,
   JellyfinError,
   LibraryRecord,
   LibraryStats,
@@ -55,7 +54,7 @@ export type JellyfinCliResult =
 
 export type JellyfinCliEnvelope = SuccessEnvelope<JellyfinCliResult> | ErrorEnvelope
 type JellyfinCliError = JellyfinError | CliUsageError
-type JellyfinCliContext = JellyfinApi | JellyfinConfig
+type JellyfinCliContext = JellyfinApi
 type JellyfinInvocation = CommandInvocation<JellyfinCliResult, JellyfinCliError, JellyfinCliContext>
 
 const root = (
@@ -76,7 +75,7 @@ const root = (
 
 const limitCommand = <Result extends JellyfinCliResult>(
   { args, limitFromArgs, recover, wrap }: JellyfinInvocation,
-  program: (limit: number) => Effect.Effect<Result, JellyfinError, JellyfinApi | JellyfinConfig>
+  program: (limit: number) => Effect.Effect<Result, JellyfinError, JellyfinApi>
 ) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
 const itemSearchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: JellyfinInvocation) =>

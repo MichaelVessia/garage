@@ -5,8 +5,6 @@ import * as Ref from 'effect/Ref'
 
 import {
   JellyfinApi,
-  JellyfinConfig,
-  envMissing,
   itemSearch,
   libraries,
   libraryStats,
@@ -19,10 +17,6 @@ import {
   users,
 } from '../src/index.js'
 import type { LimitOptions, SearchOptions } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(JellyfinConfig, {
-  get: () => Effect.fail(envMissing('JELLYFIN_URL')),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const recentOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
@@ -71,18 +65,17 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs Jellyfin read and mutation operations without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
 
-    assert.strictEqual((yield* status.pipe(Effect.provide(layer))).version, '10.10.7')
-    assert.strictEqual((yield* users.pipe(Effect.provide(layer))).records[0]?.name, 'Test User')
-    assert.strictEqual((yield* libraries.pipe(Effect.provide(layer))).records[0]?.name, 'Movies')
-    assert.strictEqual((yield* sessions.pipe(Effect.provide(layer))).count, 2)
-    assert.strictEqual((yield* nowPlaying.pipe(Effect.provide(layer))).records[0]?.item, 'Linux ISO')
-    assert.strictEqual((yield* recentlyAdded({ limit: 5 }).pipe(Effect.provide(layer))).count, 1)
-    assert.strictEqual((yield* itemSearch({ query: 'Linux', limit: 4 }).pipe(Effect.provide(layer))).count, 1)
-    assert.strictEqual((yield* libraryStats.pipe(Effect.provide(layer))).MovieCount, 100)
-    assert.strictEqual((yield* scheduledTasks.pipe(Effect.provide(layer))).records[0]?.state, 'Idle')
-    assert.deepStrictEqual(yield* runTask('task1').pipe(Effect.provide(layer)), {
+    assert.strictEqual((yield* status.pipe(Effect.provide(fake.layer))).version, '10.10.7')
+    assert.strictEqual((yield* users.pipe(Effect.provide(fake.layer))).records[0]?.name, 'Test User')
+    assert.strictEqual((yield* libraries.pipe(Effect.provide(fake.layer))).records[0]?.name, 'Movies')
+    assert.strictEqual((yield* sessions.pipe(Effect.provide(fake.layer))).count, 2)
+    assert.strictEqual((yield* nowPlaying.pipe(Effect.provide(fake.layer))).records[0]?.item, 'Linux ISO')
+    assert.strictEqual((yield* recentlyAdded({ limit: 5 }).pipe(Effect.provide(fake.layer))).count, 1)
+    assert.strictEqual((yield* itemSearch({ query: 'Linux', limit: 4 }).pipe(Effect.provide(fake.layer))).count, 1)
+    assert.strictEqual((yield* libraryStats.pipe(Effect.provide(fake.layer))).MovieCount, 100)
+    assert.strictEqual((yield* scheduledTasks.pipe(Effect.provide(fake.layer))).records[0]?.state, 'Idle')
+    assert.deepStrictEqual(yield* runTask('task1').pipe(Effect.provide(fake.layer)), {
       started: true,
       taskId: 'task1',
       httpStatus: 204,
