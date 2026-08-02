@@ -1,5 +1,11 @@
 # @garage/jellyfin-cli
 
+## 0.0.12
+
+### Patch Changes
+
+- Automatic CLI release for changed artifact inputs.
+
 ## 0.0.11
 
 ### Patch Changes
