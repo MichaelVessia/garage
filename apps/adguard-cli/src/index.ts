@@ -19,7 +19,6 @@ import {
 import type {
   ActiveClient,
   AdguardApi,
-  AdguardConfig,
   AdguardError,
   ClientsResult,
   DhcpStatus,
@@ -64,7 +63,7 @@ export type AdguardCliResult =
 
 export type AdguardCliEnvelope = SuccessEnvelope<AdguardCliResult> | ErrorEnvelope
 type AdguardCliError = AdguardError | CliUsageError
-type AdguardCliContext = AdguardApi | AdguardConfig
+type AdguardCliContext = AdguardApi
 type AdguardInvocation = CommandInvocation<AdguardCliResult, AdguardCliError, AdguardCliContext>
 
 const root = (
@@ -90,7 +89,7 @@ const root = (
 const limitCommand = <Result extends AdguardCliResult>(
   { args, limitFromArgs, recover, wrap }: AdguardInvocation,
   fallback: number,
-  program: (limit: number) => Effect.Effect<Result, AdguardError, AdguardApi | AdguardConfig>
+  program: (limit: number) => Effect.Effect<Result, AdguardError, AdguardApi>
 ) => recover(limitFromArgs(args, limitFlag, fallback).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
 const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: AdguardInvocation) =>

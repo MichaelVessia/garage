@@ -1,12 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 
 import {
   AdguardApi,
-  AdguardConfig,
   clients,
   clientsActive,
   defaultLimit,
@@ -23,11 +21,6 @@ import {
   version,
 } from '../src/index.js'
 import type { ClientLookupOptions, LimitOptions, ProtectionToggleOptions, SearchOptions } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(AdguardConfig, {
-  get: () =>
-    Effect.succeed({ url: 'http://adguard.example.test', username: 'admin', password: Redacted.make('secret') }),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const queryLogOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
@@ -94,27 +87,31 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs AdGuard read and mutation operations', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    assert.strictEqual((yield* status.pipe(Effect.provide(layer))).protectionEnabled, true)
-    assert.strictEqual((yield* version.pipe(Effect.provide(layer))).version, 'v0.107.67')
-    assert.strictEqual((yield* stats.pipe(Effect.provide(layer))).numDnsQueries, 100)
-    assert.strictEqual((yield* statsInfo.pipe(Effect.provide(layer))).interval, 1)
-    assert.strictEqual((yield* queryLog({ limit: 5 }).pipe(Effect.provide(layer))).records[0]?.question, 'example.com')
+    assert.strictEqual((yield* status.pipe(Effect.provide(fake.layer))).protectionEnabled, true)
+    assert.strictEqual((yield* version.pipe(Effect.provide(fake.layer))).version, 'v0.107.67')
+    assert.strictEqual((yield* stats.pipe(Effect.provide(fake.layer))).numDnsQueries, 100)
+    assert.strictEqual((yield* statsInfo.pipe(Effect.provide(fake.layer))).interval, 1)
     assert.strictEqual(
-      (yield* queryLogSearch({ query: 'ads', limit: 7 }).pipe(Effect.provide(layer))).records[0]?.question,
+      (yield* queryLog({ limit: 5 }).pipe(Effect.provide(fake.layer))).records[0]?.question,
+      'example.com'
+    )
+    assert.strictEqual(
+      (yield* queryLogSearch({ query: 'ads', limit: 7 }).pipe(Effect.provide(fake.layer))).records[0]?.question,
       'ads'
     )
-    assert.strictEqual((yield* clients.pipe(Effect.provide(layer))).configured[0]?.name, 'Test Client')
+    assert.strictEqual((yield* clients.pipe(Effect.provide(fake.layer))).configured[0]?.name, 'Test Client')
     assert.strictEqual(
-      (yield* clientsActive({ ip: '192.0.2.2' }).pipe(Effect.provide(layer))).records[0]?.name,
+      (yield* clientsActive({ ip: '192.0.2.2' }).pipe(Effect.provide(fake.layer))).records[0]?.name,
       'Test Client'
     )
-    assert.strictEqual((yield* filters.pipe(Effect.provide(layer))).userRulesCount, 2)
-    assert.strictEqual((yield* rules.pipe(Effect.provide(layer))).records[0], '@@||example.com^')
-    assert.strictEqual((yield* dnsConfig.pipe(Effect.provide(layer))).upstream_mode, 'parallel')
-    assert.strictEqual((yield* dhcpStatus.pipe(Effect.provide(layer))).enabled, false)
-    assert.strictEqual((yield* protectionToggle({ state: 'off' }).pipe(Effect.provide(layer))).protectionEnabled, false)
+    assert.strictEqual((yield* filters.pipe(Effect.provide(fake.layer))).userRulesCount, 2)
+    assert.strictEqual((yield* rules.pipe(Effect.provide(fake.layer))).records[0], '@@||example.com^')
+    assert.strictEqual((yield* dnsConfig.pipe(Effect.provide(fake.layer))).upstream_mode, 'parallel')
+    assert.strictEqual((yield* dhcpStatus.pipe(Effect.provide(fake.layer))).enabled, false)
+    assert.strictEqual(
+      (yield* protectionToggle({ state: 'off' }).pipe(Effect.provide(fake.layer))).protectionEnabled,
+      false
+    )
     assert.deepStrictEqual(yield* Ref.get(fake.queryLogOptions), [{ limit: 5 }])
     assert.deepStrictEqual(yield* Ref.get(fake.searchOptions), [{ query: 'ads', limit: 7 }])
     assert.deepStrictEqual(yield* Ref.get(fake.clientLookups), [{ ip: '192.0.2.2' }])
