@@ -246,10 +246,31 @@ describe('StatsService', () => {
           yield* sql`DROP TABLE weight_logs`
 
           const stats = yield* StatsService
-          const error = yield* stats.getWeightStats({}, 'user-123').pipe(Effect.flip)
+          const result = yield* stats.getWeightStats({}, 'user-123').pipe(Effect.result)
 
-          assert.instanceOf(error, StatsDatabaseError)
-          assert.strictEqual(error.operation, 'query')
+          assert.strictEqual(result._tag, 'Failure')
+          if (result._tag === 'Failure') {
+            assert.instanceOf(result.failure, StatsDatabaseError)
+            assert.strictEqual(result.failure.operation, 'query')
+          }
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('returns injection SQL failures in the StatsDatabaseError channel', () =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`DROP TABLE injection_logs`
+
+          const stats = yield* StatsService
+          const result = yield* stats.getInjectionByDayOfWeek({}, 'user-123').pipe(Effect.result)
+
+          assert.strictEqual(result._tag, 'Failure')
+          if (result._tag === 'Failure') {
+            assert.instanceOf(result.failure, StatsDatabaseError)
+            assert.strictEqual(result.failure.operation, 'query')
+          }
         })
       )
     })
@@ -262,10 +283,13 @@ describe('StatsService', () => {
           yield* sql`UPDATE injection_logs SET datetime = 'not-a-date' WHERE id = 'invalid-date'`
 
           const stats = yield* StatsService
-          const error = yield* stats.getInjectionByDayOfWeek({}, 'user-123').pipe(Effect.flip)
+          const result = yield* stats.getInjectionByDayOfWeek({}, 'user-123').pipe(Effect.result)
 
-          assert.instanceOf(error, StatsDatabaseError)
-          assert.strictEqual(error.operation, 'query')
+          assert.strictEqual(result._tag, 'Failure')
+          if (result._tag === 'Failure') {
+            assert.instanceOf(result.failure, StatsDatabaseError)
+            assert.strictEqual(result.failure.operation, 'query')
+          }
         })
       )
     })

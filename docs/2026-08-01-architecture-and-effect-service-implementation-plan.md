@@ -202,7 +202,7 @@ Implementation:
 Validation:
 
 ```sh
-bunx vitest run apps/subq/test/data-export-service.test.ts
+bun --bun vitest run apps/subq/test/data-export-service.test.ts
 bun run --filter '@garage/subq' typecheck
 ```
 
@@ -248,7 +248,7 @@ Implementation:
 Validation:
 
 ```sh
-bunx vitest run apps/subq/test/stats-service.test.ts
+bun --bun vitest run apps/subq/test/stats-service.test.ts
 bun run --filter '@garage/subq' typecheck
 ```
 
@@ -296,7 +296,7 @@ Implementation:
 Validation:
 
 ```sh
-bunx vitest run \
+bun --bun vitest run \
   apps/subq/test/weight-log-repo.test.ts \
   apps/subq/test/goal-service.test.ts
 bun run --filter '@garage/subq' typecheck
@@ -364,7 +364,7 @@ Keep `AppResources` as `Api | HttpClient.HttpClient`. Do not unseal web RPC
 Validation:
 
 ```sh
-bunx vitest run apps/subq/web/test/better-auth-http.test.ts
+bun --bun vitest run apps/subq/web/test/better-auth-http.test.ts
 bun run --filter '@garage/subq' typecheck
 ```
 
@@ -404,7 +404,7 @@ Red tests:
 Validation:
 
 ```sh
-bunx vitest run \
+bun --bun vitest run \
   apps/subq/web/test/main.story.test.ts \
   apps/subq/web/test/stats.story.test.ts
 bun run --filter '@garage/subq' typecheck
@@ -443,7 +443,7 @@ Guarantee cleanup with Effect finalization on success and click failure.
 Validation:
 
 ```sh
-bunx vitest run \
+bun --bun vitest run \
   apps/subq/web/test/browser-download.test.ts \
   apps/subq/web/test/settings.story.test.ts
 bun run --filter '@garage/subq' typecheck
