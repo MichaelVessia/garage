@@ -1,12 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 
 import {
   ImmichApi,
-  ImmichConfig,
   albumInfo,
   albums,
   jobs,
@@ -23,10 +21,6 @@ import {
   users,
 } from '../src/index.js'
 import type { AlbumInfoOptions, LimitOptions, SearchOptions } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(ImmichConfig, {
-  get: () => Effect.succeed({ url: 'http://immich.example.test', apiKey: Redacted.make('secret') }),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const albumOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
@@ -95,22 +89,20 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs Immich read operations', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    assert.strictEqual((yield* status.pipe(Effect.provide(layer))).version, '2.5.6')
-    assert.strictEqual((yield* stats.pipe(Effect.provide(layer))).photos, 10)
-    assert.strictEqual((yield* libraryStats.pipe(Effect.provide(layer))).videos, 2)
-    assert.strictEqual((yield* storage.pipe(Effect.provide(layer))).diskUsagePercentage, 40)
-    assert.strictEqual((yield* users.pipe(Effect.provide(layer))).records[0]?.name, 'Test User')
-    assert.strictEqual((yield* me.pipe(Effect.provide(layer))).isAdmin, true)
-    assert.strictEqual((yield* albums({ limit: 3 }).pipe(Effect.provide(layer))).records[0]?.albumName, 'Family')
-    assert.strictEqual((yield* albumInfo({ id: 'a1', limit: 2 }).pipe(Effect.provide(layer))).assets.count, 1)
-    assert.strictEqual((yield* search({ query: 'beach', limit: 4 }).pipe(Effect.provide(layer))).mode, 'smart')
-    assert.strictEqual((yield* recent({ limit: 5 }).pipe(Effect.provide(layer))).records[0]?.id, 'asset2')
-    assert.strictEqual((yield* people({ limit: 6 }).pipe(Effect.provide(layer))).records[0]?.id, 'p1')
-    assert.strictEqual((yield* personInfo('p1').pipe(Effect.provide(layer))).name, 'Person')
-    assert.strictEqual((yield* jobs.pipe(Effect.provide(layer))).records[0]?.queue, 'smartSearch')
-    assert.strictEqual((yield* tags.pipe(Effect.provide(layer))).records[0]?.name, 'vacation')
+    assert.strictEqual((yield* status.pipe(Effect.provide(fake.layer))).version, '2.5.6')
+    assert.strictEqual((yield* stats.pipe(Effect.provide(fake.layer))).photos, 10)
+    assert.strictEqual((yield* libraryStats.pipe(Effect.provide(fake.layer))).videos, 2)
+    assert.strictEqual((yield* storage.pipe(Effect.provide(fake.layer))).diskUsagePercentage, 40)
+    assert.strictEqual((yield* users.pipe(Effect.provide(fake.layer))).records[0]?.name, 'Test User')
+    assert.strictEqual((yield* me.pipe(Effect.provide(fake.layer))).isAdmin, true)
+    assert.strictEqual((yield* albums({ limit: 3 }).pipe(Effect.provide(fake.layer))).records[0]?.albumName, 'Family')
+    assert.strictEqual((yield* albumInfo({ id: 'a1', limit: 2 }).pipe(Effect.provide(fake.layer))).assets.count, 1)
+    assert.strictEqual((yield* search({ query: 'beach', limit: 4 }).pipe(Effect.provide(fake.layer))).mode, 'smart')
+    assert.strictEqual((yield* recent({ limit: 5 }).pipe(Effect.provide(fake.layer))).records[0]?.id, 'asset2')
+    assert.strictEqual((yield* people({ limit: 6 }).pipe(Effect.provide(fake.layer))).records[0]?.id, 'p1')
+    assert.strictEqual((yield* personInfo('p1').pipe(Effect.provide(fake.layer))).name, 'Person')
+    assert.strictEqual((yield* jobs.pipe(Effect.provide(fake.layer))).records[0]?.queue, 'smartSearch')
+    assert.strictEqual((yield* tags.pipe(Effect.provide(fake.layer))).records[0]?.name, 'vacation')
     assert.deepStrictEqual(yield* Ref.get(fake.albumOptions), [{ limit: 3 }])
     assert.deepStrictEqual(yield* Ref.get(fake.albumInfoOptions), [{ id: 'a1', limit: 2 }])
     assert.deepStrictEqual(yield* Ref.get(fake.searchOptions), [{ query: 'beach', limit: 4 }])

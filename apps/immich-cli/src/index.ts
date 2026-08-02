@@ -28,7 +28,6 @@ import type {
   AlbumSummary,
   CurrentUser,
   ImmichApi,
-  ImmichConfig,
   ImmichError,
   JobRecord,
   ListResult,
@@ -64,7 +63,7 @@ export type ImmichCliResult =
 
 export type ImmichCliEnvelope = SuccessEnvelope<ImmichCliResult> | ErrorEnvelope
 type ImmichCliError = ImmichError | CliUsageError
-type ImmichCliContext = ImmichApi | ImmichConfig
+type ImmichCliContext = ImmichApi
 type ImmichInvocation = CommandInvocation<ImmichCliResult, ImmichCliError, ImmichCliContext>
 
 const root = (
@@ -85,7 +84,7 @@ const root = (
 
 const limitCommand = <Result extends ImmichCliResult>(
   { args, limitFromArgs, recover, wrap }: ImmichInvocation,
-  program: (limit: number) => Effect.Effect<Result, ImmichError, ImmichApi | ImmichConfig>
+  program: (limit: number) => Effect.Effect<Result, ImmichError, ImmichApi>
 ) => recover(limitFromArgs(args, limitFlag, defaultLimit).pipe(Effect.flatMap((limit) => wrap(program(limit)))))
 
 const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageError, wrap }: ImmichInvocation) =>
@@ -119,7 +118,7 @@ const albumInfoCommand = ({ args, parseFlags, parsePositiveInteger, recover, usa
 const singleIdCommand = <Result extends ImmichCliResult>(
   { args, parseFlags, recover, usageError, wrap }: ImmichInvocation,
   label: string,
-  program: (id: string) => Effect.Effect<Result, ImmichError, ImmichApi | ImmichConfig>
+  program: (id: string) => Effect.Effect<Result, ImmichError, ImmichApi>
 ) =>
   recover(
     Effect.gen(function* () {
