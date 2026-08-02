@@ -1,6 +1,8 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import { TestClock } from 'effect/testing'
+import { SqlClient } from 'effect/unstable/sql'
 
 import {
   DataExport,
@@ -65,6 +67,43 @@ describe('DataExportService', () => {
             result.data.weightLogs.map((w): string => w.id),
             'wl-3'
           )
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('exports only the requested user goals', () =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          const createdAt = '2024-01-01T00:00:00.000Z'
+          yield* sql`
+            INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at)
+            VALUES ('goal-owned', 'user-123', 170, 200, '2024-01-01T00:00:00.000Z', NULL, NULL, 1, NULL, ${createdAt}, ${createdAt})
+          `
+          yield* sql`
+            INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at)
+            VALUES ('goal-other', 'user-456', 150, 180, '2024-01-01T00:00:00.000Z', NULL, NULL, 1, NULL, ${createdAt}, ${createdAt})
+          `
+
+          const service = yield* DataExportService
+          const result = yield* service.exportData('user-123')
+
+          assert.deepStrictEqual(
+            result.data.goals.map((goal) => goal.id),
+            ['goal-owned']
+          )
+        })
+      )
+
+      it.effect('uses the Effect clock for the export timestamp', () =>
+        Effect.gen(function* () {
+          const now = testDate('2024-06-15T12:34:56Z')
+          yield* TestClock.setTime(now.getTime())
+
+          const service = yield* DataExportService
+          const result = yield* service.exportData('user-123')
+
+          assert.strictEqual(DateTime.toEpochMillis(result.exportedAt), now.getTime())
         })
       )
     })

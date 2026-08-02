@@ -95,7 +95,7 @@ export const DataExportServiceLive = Layer.effect(
 
         // Fetch all goals
         const goalRows = yield* sql`
-          SELECT id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at
+          SELECT id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals WHERE user_id = ${userId}
           ORDER BY created_at DESC
         `
@@ -112,9 +112,10 @@ export const DataExportServiceLive = Layer.effect(
             )
           : null
 
+        const exportedAt = yield* DateTime.now
         return new DataExport({
           version: '2.0.0',
-          exportedAt: DateTime.nowUnsafe(),
+          exportedAt,
           data: {
             weightLogs,
             injectionLogs,
