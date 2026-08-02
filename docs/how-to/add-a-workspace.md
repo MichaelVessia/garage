@@ -38,7 +38,7 @@ old planning document. At the time of writing, integration packages use:
 {
   "dependencies": {
     "@garage/cli-protocol": "workspace:*",
-    "effect": "^4.0.0-beta.93"
+    "effect": "4.0.0-beta.93"
   }
 }
 ```
@@ -74,10 +74,15 @@ dependency. Current dependency forms are:
     "@effect/platform-bun": "4.0.0-beta.93",
     "@garage/cli-protocol": "workspace:*",
     "@garage/<svc>": "workspace:*",
-    "effect": "^4.0.0-beta.93"
+    "effect": "4.0.0-beta.93"
   }
 }
 ```
+
+Use the exact Effect beta shown in current manifests; never introduce a caret
+or tilde range. Upgrade the beta across all first-party manifests and generated
+Bun/Nix dependency data using the procedure in
+[the conventions reference](../reference/conventions.md#dependencies).
 
 Keep commands thin. App `main.ts` selects and composes domain, configuration,
 and platform layers, then calls `runCliMain`. Do not duplicate observability,

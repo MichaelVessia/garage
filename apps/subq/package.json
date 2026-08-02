@@ -29,7 +29,7 @@
     "@effect/sql-d1": "4.0.0-beta.93",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.44.7",
-    "effect": "^4.0.0-beta.93",
+    "effect": "4.0.0-beta.93",
     "foldkit": "^0.122.1"
   },
   "devDependencies": {

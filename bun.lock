@@ -12,11 +12,11 @@
         "@effect/language-service": "^0.85.1",
         "@effect/platform-bun": "4.0.0-beta.93",
         "@effect/tsgo": "^0.7.2",
-        "@effect/vitest": "^4.0.0-beta.93",
+        "@effect/vitest": "4.0.0-beta.93",
         "@mpsuesser/oxlint-plugin-effect": "^0.3.0",
         "@types/bun": "1.3.14",
         "@typescript/native-preview": "^7.0.0-dev.20260516.1",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
         "lefthook": "^2.1.6",
         "oxfmt": "^0.48.0",
         "oxlint": "^1.63.0",
@@ -28,7 +28,7 @@
     },
     "apps/adguard-cli": {
       "name": "@garage/adguard-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "adguard": "dist/adguard",
       },
@@ -36,12 +36,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/adguard": "workspace:*",
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/autocaliweb-cli": {
       "name": "@garage/autocaliweb-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "autocaliweb": "dist/autocaliweb",
       },
@@ -49,12 +49,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/autocaliweb": "workspace:*",
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/caddy-cli": {
       "name": "@garage/caddy-cli",
-      "version": "0.0.6",
+      "version": "0.0.11",
       "bin": {
         "caddy": "dist/caddy",
       },
@@ -62,12 +62,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/caddy": "workspace:*",
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/immich-cli": {
       "name": "@garage/immich-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "immich": "dist/immich",
       },
@@ -75,12 +75,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/immich": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/jellyfin-cli": {
       "name": "@garage/jellyfin-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "jellyfin": "dist/jellyfin",
       },
@@ -88,12 +88,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/jellyfin": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/jellyseerr-cli": {
       "name": "@garage/jellyseerr-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "jellyseerr": "dist/jellyseerr",
       },
@@ -101,12 +101,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/jellyseerr": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/prowlarr-cli": {
       "name": "@garage/prowlarr-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "prowlarr": "dist/prowlarr",
       },
@@ -114,12 +114,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/prowlarr": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/radarr-cli": {
       "name": "@garage/radarr-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "radarr": "dist/radarr",
       },
@@ -127,12 +127,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/radarr": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/sabnzbd-cli": {
       "name": "@garage/sabnzbd-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "sabnzbd": "dist/sabnzbd",
       },
@@ -140,12 +140,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/sabnzbd": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/sonarr-cli": {
       "name": "@garage/sonarr-cli",
-      "version": "0.0.7",
+      "version": "0.0.11",
       "bin": {
         "sonarr": "dist/sonarr",
       },
@@ -153,7 +153,7 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/sonarr": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/subq": {
@@ -165,7 +165,7 @@
         "@effect/sql-d1": "4.0.0-beta.93",
         "better-auth": "^1.6.23",
         "drizzle-orm": "^0.44.7",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
         "foldkit": "^0.122.1",
       },
       "devDependencies": {
@@ -184,7 +184,7 @@
     },
     "apps/tailscale-cli": {
       "name": "@garage/tailscale-cli",
-      "version": "0.0.6",
+      "version": "0.0.10",
       "bin": {
         "tailscale": "dist/tailscale",
       },
@@ -192,12 +192,12 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/tailscale": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "apps/tubearchivist-cli": {
       "name": "@garage/tubearchivist-cli",
-      "version": "0.0.7",
+      "version": "0.0.12",
       "bin": {
         "tubearchivist": "dist/tubearchivist",
       },
@@ -205,7 +205,7 @@
         "@effect/platform-bun": "4.0.0-beta.93",
         "@garage/cli-protocol": "workspace:*",
         "@garage/tubearchivist": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/adguard": {
@@ -213,7 +213,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/autocaliweb": {
@@ -222,7 +222,7 @@
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
         "@xmldom/xmldom": "^0.9.10",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/caddy": {
@@ -230,7 +230,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/cli-protocol": {
@@ -238,7 +238,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-bun": "4.0.0-beta.93",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/immich": {
@@ -246,7 +246,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/jellyfin": {
@@ -254,7 +254,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/jellyseerr": {
@@ -262,7 +262,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/prowlarr": {
@@ -270,7 +270,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/radarr": {
@@ -278,7 +278,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/sabnzbd": {
@@ -286,7 +286,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/sonarr": {
@@ -294,7 +294,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/tailscale": {
@@ -302,7 +302,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
     "packages/tubearchivist": {
@@ -310,7 +310,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@garage/cli-protocol": "workspace:*",
-        "effect": "^4.0.0-beta.93",
+        "effect": "4.0.0-beta.93",
       },
     },
   },
