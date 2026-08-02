@@ -19,7 +19,6 @@ import type {
   TvSearchOptions,
 } from './model.js'
 import { ProwlarrApi } from './services.js'
-import type { ProwlarrConfig } from './services.js'
 
 export const defaultLimit = 10
 export const defaultHistoryLimit = 50
@@ -73,37 +72,26 @@ const movieSearchQuery = (options: MovieSearchOptions): string => {
   return chunks.join(' ')
 }
 
-export const status: Effect.Effect<SystemStatus, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.gen(
-  function* () {
-    const api = yield* ProwlarrApi
-    return yield* api.status()
-  }
-).pipe(Effect.withSpan('prowlarr.status'), Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'status' }))
+export const status: Effect.Effect<SystemStatus, ProwlarrError, ProwlarrApi> = Effect.gen(function* () {
+  const api = yield* ProwlarrApi
+  return yield* api.status()
+}).pipe(Effect.withSpan('prowlarr.status'), Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'status' }))
 
-export const health: (
-  options?: LimitOptions
-) => Effect.Effect<ListResult<HealthRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.fn(
-  'prowlarr.health'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<HealthRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
-    const limitOptions = options ?? defaultLimitOptions
-    yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
-    const api = yield* ProwlarrApi
-    return toListResult(yield* api.health(), limitOptions.limit)
-  },
-  Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'health' })
-)
+export const health: (options?: LimitOptions) => Effect.Effect<ListResult<HealthRecord>, ProwlarrError, ProwlarrApi> =
+  Effect.fn('prowlarr.health')(
+    function* (options?: LimitOptions): Effect.fn.Return<ListResult<HealthRecord>, ProwlarrError, ProwlarrApi> {
+      const limitOptions = options ?? defaultLimitOptions
+      yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
+      const api = yield* ProwlarrApi
+      return toListResult(yield* api.health(), limitOptions.limit)
+    },
+    Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'health' })
+  )
 
 export const indexers: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<IndexerRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.fn(
-  'prowlarr.indexers'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<IndexerRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+) => Effect.Effect<ListResult<IndexerRecord>, ProwlarrError, ProwlarrApi> = Effect.fn('prowlarr.indexers')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<IndexerRecord>, ProwlarrError, ProwlarrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
     const api = yield* ProwlarrApi
@@ -114,12 +102,8 @@ export const indexers: (
 
 export const indexerStats: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<IndexerStatsRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.fn(
-  'prowlarr.indexerStats'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<IndexerStatsRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+) => Effect.Effect<ListResult<IndexerStatsRecord>, ProwlarrError, ProwlarrApi> = Effect.fn('prowlarr.indexerStats')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<IndexerStatsRecord>, ProwlarrError, ProwlarrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
     const api = yield* ProwlarrApi
@@ -131,11 +115,8 @@ export const indexerStats: (
 export const search: (
   query: string,
   options?: SearchOptions
-) => Effect.Effect<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.fn('prowlarr.search')(
-  function* (
-    query: string,
-    options?: SearchOptions
-  ): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+) => Effect.Effect<SearchResult, ProwlarrError, ProwlarrApi> = Effect.fn('prowlarr.search')(
+  function* (query: string, options?: SearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi> {
     const searchOptions = options ?? defaultSearchOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.query_length': query.length, 'prowlarr.limit': searchOptions.limit })
     const api = yield* ProwlarrApi
@@ -147,7 +128,7 @@ export const search: (
 )
 
 export const tvSearch = Effect.fn('prowlarr.tvSearch')(
-  function* (options: TvSearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+  function* (options: TvSearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi> {
     yield* Effect.annotateCurrentSpan({ 'prowlarr.type': 'tvsearch', 'prowlarr.limit': options.limit })
     const api = yield* ProwlarrApi
     const query = tvSearchQuery(options)
@@ -158,7 +139,7 @@ export const tvSearch = Effect.fn('prowlarr.tvSearch')(
 )
 
 export const movieSearch = Effect.fn('prowlarr.movieSearch')(
-  function* (options: MovieSearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+  function* (options: MovieSearchOptions): Effect.fn.Return<SearchResult, ProwlarrError, ProwlarrApi> {
     yield* Effect.annotateCurrentSpan({ 'prowlarr.type': 'movie', 'prowlarr.limit': options.limit })
     const api = yield* ProwlarrApi
     const query = movieSearchQuery(options)
@@ -169,7 +150,7 @@ export const movieSearch = Effect.fn('prowlarr.movieSearch')(
 )
 
 export const testIndexer = Effect.fn('prowlarr.testIndexer')(
-  function* (indexerId: number): Effect.fn.Return<IndexerTestResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+  function* (indexerId: number): Effect.fn.Return<IndexerTestResult, ProwlarrError, ProwlarrApi> {
     yield* Effect.annotateCurrentSpan({ 'prowlarr.indexer_id': indexerId })
     const api = yield* ProwlarrApi
     return yield* api.testIndexer(indexerId)
@@ -179,12 +160,8 @@ export const testIndexer = Effect.fn('prowlarr.testIndexer')(
 
 export const applications: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<ApplicationRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.fn(
-  'prowlarr.applications'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<ApplicationRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
+) => Effect.Effect<ListResult<ApplicationRecord>, ProwlarrError, ProwlarrApi> = Effect.fn('prowlarr.applications')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<ApplicationRecord>, ProwlarrError, ProwlarrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'prowlarr.limit': limitOptions.limit })
     const api = yield* ProwlarrApi
@@ -193,23 +170,18 @@ export const applications: (
   Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'applications' })
 )
 
-export const sync: Effect.Effect<CommandResult, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.gen(function* () {
+export const sync: Effect.Effect<CommandResult, ProwlarrError, ProwlarrApi> = Effect.gen(function* () {
   const api = yield* ProwlarrApi
   return yield* api.sync()
 }).pipe(Effect.withSpan('prowlarr.sync'), Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'sync' }))
 
-export const history: (
-  options?: LimitOptions
-) => Effect.Effect<ListResult<HistoryRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> = Effect.fn(
-  'prowlarr.history'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<HistoryRecord>, ProwlarrError, ProwlarrApi | ProwlarrConfig> {
-    const limitOptions = options ?? defaultHistoryOptions
-    yield* Effect.annotateCurrentSpan({ 'prowlarr.history_limit': limitOptions.limit })
-    const api = yield* ProwlarrApi
-    return yield* api.history(limitOptions.limit)
-  },
-  Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'history' })
-)
+export const history: (options?: LimitOptions) => Effect.Effect<ListResult<HistoryRecord>, ProwlarrError, ProwlarrApi> =
+  Effect.fn('prowlarr.history')(
+    function* (options?: LimitOptions): Effect.fn.Return<ListResult<HistoryRecord>, ProwlarrError, ProwlarrApi> {
+      const limitOptions = options ?? defaultHistoryOptions
+      yield* Effect.annotateCurrentSpan({ 'prowlarr.history_limit': limitOptions.limit })
+      const api = yield* ProwlarrApi
+      return yield* api.history(limitOptions.limit)
+    },
+    Effect.annotateLogs({ package: '@garage/prowlarr', operation: 'history' })
+  )

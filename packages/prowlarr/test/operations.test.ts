@@ -5,9 +5,7 @@ import * as Ref from 'effect/Ref'
 
 import {
   ProwlarrApi,
-  ProwlarrConfig,
   applications,
-  envMissing,
   health,
   history,
   indexerStats,
@@ -20,10 +18,6 @@ import {
   tvSearch,
 } from '../src/index.js'
 import type { ReleaseRecord, SearchOptions } from '../src/index.js'
-
-const ConfigLayer = Layer.succeed(ProwlarrConfig, {
-  get: () => Effect.fail(envMissing('PROWLARR_URL')),
-})
 
 const firstReleaseRecord: ReleaseRecord = {
   guid: 'release-1',
@@ -162,12 +156,10 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('returns status and bounded list results without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    const statusResult = yield* status.pipe(Effect.provide(layer))
-    const healthResult = yield* health({ limit: 1 }).pipe(Effect.provide(layer))
-    const indexersResult = yield* indexers({ limit: 1 }).pipe(Effect.provide(layer))
-    const statsResult = yield* indexerStats({ limit: 1 }).pipe(Effect.provide(layer))
+    const statusResult = yield* status.pipe(Effect.provide(fake.layer))
+    const healthResult = yield* health({ limit: 1 }).pipe(Effect.provide(fake.layer))
+    const indexersResult = yield* indexers({ limit: 1 }).pipe(Effect.provide(fake.layer))
+    const statsResult = yield* indexerStats({ limit: 1 }).pipe(Effect.provide(fake.layer))
 
     assert.strictEqual(statusResult.version, '1.30.2')
     assert.deepStrictEqual(healthResult, {
@@ -186,16 +178,18 @@ it.effect('returns status and bounded list results without preflight config read
 it.effect('builds search query variants and bounds release results without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
     const searchResult = yield* search('Linux ISO', {
       limit: 1,
       protocol: 'torrent',
       category: 2000,
       type: 'search',
-    }).pipe(Effect.provide(layer))
-    const tvResult = yield* tvSearch({ tvdbId: 81_189, season: 1, episode: 2, limit: 1 }).pipe(Effect.provide(layer))
-    const movieResult = yield* movieSearch({ imdbId: 'tt0111161', tmdbId: 278, limit: 1 }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(fake.layer))
+    const tvResult = yield* tvSearch({ tvdbId: 81_189, season: 1, episode: 2, limit: 1 }).pipe(
+      Effect.provide(fake.layer)
+    )
+    const movieResult = yield* movieSearch({ imdbId: 'tt0111161', tmdbId: 278, limit: 1 }).pipe(
+      Effect.provide(fake.layer)
+    )
     const searches = yield* Ref.get(fake.searches)
 
     assert.deepStrictEqual(searchResult, {
@@ -221,12 +215,10 @@ it.effect('builds search query variants and bounds release results without prefl
 it.effect('runs indexer tests, application sync, apps, and history operations without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    const testResult = yield* testIndexer(7).pipe(Effect.provide(layer))
-    const appsResult = yield* applications({ limit: 1 }).pipe(Effect.provide(layer))
-    const syncResult = yield* sync.pipe(Effect.provide(layer))
-    const historyResult = yield* history({ limit: 25 }).pipe(Effect.provide(layer))
+    const testResult = yield* testIndexer(7).pipe(Effect.provide(fake.layer))
+    const appsResult = yield* applications({ limit: 1 }).pipe(Effect.provide(fake.layer))
+    const syncResult = yield* sync.pipe(Effect.provide(fake.layer))
+    const historyResult = yield* history({ limit: 25 }).pipe(Effect.provide(fake.layer))
     const historyLimits = yield* Ref.get(fake.historyLimits)
     const syncCount = yield* Ref.get(fake.syncCount)
 

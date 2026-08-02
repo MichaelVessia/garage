@@ -34,7 +34,6 @@ import type {
   IndexerTestResult,
   ListResult,
   ProwlarrApi,
-  ProwlarrConfig,
   ProwlarrError,
   SearchProtocol,
   SearchResult,
@@ -85,7 +84,7 @@ export type ProwlarrCliResult =
 
 export type ProwlarrCliEnvelope = SuccessEnvelope<ProwlarrCliResult> | ErrorEnvelope
 type ProwlarrCliError = ProwlarrError | CliUsageError
-type ProwlarrCliContext = ProwlarrApi | ProwlarrConfig
+type ProwlarrCliContext = ProwlarrApi
 type ProwlarrInvocation = CommandInvocation<ProwlarrCliResult, ProwlarrCliError, ProwlarrCliContext>
 
 const root = (
@@ -140,7 +139,7 @@ const limitCommand = <Result extends ProwlarrCliResult>(
   defaultValue: number,
   description: string,
   template: string,
-  program: (limit: number) => Effect.Effect<Result, ProwlarrError, ProwlarrApi | ProwlarrConfig>,
+  program: (limit: number) => Effect.Effect<Result, ProwlarrError, ProwlarrApi>,
   positionalAllowed = false
 ) =>
   recover(
