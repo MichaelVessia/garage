@@ -1,26 +1,13 @@
 import * as Effect from 'effect/Effect'
-import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 import { Command } from 'foldkit'
 import { m } from 'foldkit/message'
 
+import { changePassword, fetchSession, SessionUser, signIn, signOut, signUp } from './adapter/better-auth-http.js'
+import type { BetterAuthHttpError } from './errors.js'
 import { toCommandResult } from './lib/command.js'
 
-// ============================================
-// Session
-// ============================================
-
-export const SessionUser = Schema.Struct({
-  id: Schema.String,
-  email: Schema.String,
-  name: Schema.String,
-})
-export type SessionUser = typeof SessionUser.Type
-
-const SessionResponse = Schema.Struct({
-  user: SessionUser,
-})
+export { SessionUser }
 
 // ============================================
 // Messages
@@ -50,45 +37,22 @@ export const AuthMessage = Schema.Union([
 export type AuthMessage = typeof AuthMessage.Type
 
 // ============================================
-// HTTP helpers (better-auth REST endpoints)
-// ============================================
-
-const errorMessage =
-  (fallback: string) =>
-  (body: unknown): string => {
-    if (P.isObject(body) && 'message' in body && P.isString(body.message)) {
-      return body.message
-    }
-    return fallback
-  }
-
-const postJson = Effect.fn('auth.postJson')(function* (url: string, body: unknown) {
-  const client = yield* HttpClient.HttpClient
-  const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
-  return yield* client.execute(request)
-})
-
-// ============================================
 // Commands
 // ============================================
+
+const failedSignIn = (error: BetterAuthHttpError) => Effect.succeed(FailedSignIn({ message: error.message }))
+const failedSignUp = (error: BetterAuthHttpError) => Effect.succeed(FailedSignUp({ message: error.message }))
+const failedChangePassword = (error: BetterAuthHttpError) =>
+  Effect.succeed(FailedChangePassword({ message: error.message }))
 
 export const FetchSession = Command.define(
   'FetchSession',
   SucceededFetchSession
 )(
-  Effect.gen(function* () {
-    const client = yield* HttpClient.HttpClient
-    const response = yield* client.get('/api/auth/get-session')
-    const body = yield* response.json
-    if (body === null) {
-      return SucceededFetchSession({ user: null })
-    }
-    const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
-    return SucceededFetchSession({ user: session.user })
-  }).pipe(
+  fetchSession().pipe(
     Effect.matchCause({
       onFailure: () => SucceededFetchSession({ user: null }),
-      onSuccess: (message) => message,
+      onSuccess: (user) => SucceededFetchSession({ user }),
     })
   )
 )
@@ -99,15 +63,11 @@ export const SignIn = Command.define(
   SucceededSignIn,
   FailedSignIn
 )(({ email, password }) =>
-  Effect.gen(function* () {
-    const response = yield* postJson('/api/auth/sign-in/email', { email, password })
-    const body = yield* response.json
-    if (response.status >= 400) {
-      return FailedSignIn({ message: errorMessage('Sign in failed')(body) })
-    }
-    const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
-    return SucceededSignIn({ user: session.user })
-  }).pipe(toCommandResult(FailedSignIn, 'Sign in failed'))
+  signIn(email, password).pipe(
+    Effect.map((user) => SucceededSignIn({ user })),
+    Effect.catchTag('BetterAuthHttpError', failedSignIn),
+    toCommandResult(FailedSignIn, 'Sign in failed')
+  )
 )
 
 export const SignUp = Command.define(
@@ -116,22 +76,18 @@ export const SignUp = Command.define(
   SucceededSignUp,
   FailedSignUp
 )(({ email, name, password }) =>
-  Effect.gen(function* () {
-    const response = yield* postJson('/api/auth/sign-up/email', { email, name, password })
-    const body = yield* response.json
-    if (response.status >= 400) {
-      return FailedSignUp({ message: errorMessage('Sign up failed')(body) })
-    }
-    const session = yield* Schema.decodeUnknownEffect(SessionResponse)(body)
-    return SucceededSignUp({ user: session.user })
-  }).pipe(toCommandResult(FailedSignUp, 'Sign up failed'))
+  signUp(email, name, password).pipe(
+    Effect.map((user) => SucceededSignUp({ user })),
+    Effect.catchTag('BetterAuthHttpError', failedSignUp),
+    toCommandResult(FailedSignUp, 'Sign up failed')
+  )
 )
 
 export const SignOut = Command.define(
   'SignOut',
   SucceededSignOut
 )(
-  postJson('/api/auth/sign-out', {}).pipe(
+  signOut().pipe(
     Effect.matchCause({
       onFailure: () => SucceededSignOut(),
       onSuccess: () => SucceededSignOut(),
@@ -145,16 +101,9 @@ export const ChangePassword = Command.define(
   SucceededChangePassword,
   FailedChangePassword
 )(({ currentPassword, newPassword }) =>
-  Effect.gen(function* () {
-    const response = yield* postJson('/api/auth/change-password', {
-      currentPassword,
-      newPassword,
-      revokeOtherSessions: true,
-    })
-    if (response.status >= 400) {
-      const body = yield* response.json
-      return FailedChangePassword({ message: errorMessage('Password change failed')(body) })
-    }
-    return SucceededChangePassword()
-  }).pipe(toCommandResult(FailedChangePassword, 'Password change failed'))
+  changePassword(currentPassword, newPassword).pipe(
+    Effect.map(() => SucceededChangePassword()),
+    Effect.catchTag('BetterAuthHttpError', failedChangePassword),
+    toCommandResult(FailedChangePassword, 'Password change failed')
+  )
 )
