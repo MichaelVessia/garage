@@ -1,5 +1,11 @@
 # @garage/tubearchivist-cli
 
+## 0.0.11
+
+### Patch Changes
+
+- Automatic CLI release for changed app or package code.
+
 ## 0.0.10
 
 ### Patch Changes
