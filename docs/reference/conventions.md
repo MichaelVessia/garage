@@ -7,8 +7,37 @@ routing and [CONTRIBUTING.md](../../CONTRIBUTING.md) for contributor setup.
 
 - Shared devDependencies live in the repo-root `package.json`; Bun hoists them.
 - Runtime dependencies live in the workspace where they are used.
-- The Effect version is pinned to an exact beta. Betas break between releases,
-  so the pin moves only as a deliberate update.
+- Effect dependencies currently target `^4.0.0-beta.93`; platform packages that
+  must match it use `4.0.0-beta.93`. Copy the current root and neighboring
+  workspace manifests rather than preserving an old beta in documentation.
+
+## Workspace archetypes
+
+Choose the smallest truthful ownership shape:
+
+- **Paired integration package + CLI** — a reusable typed domain and external
+  adapter under `packages/<svc>`, plus a thin executable under
+  `apps/<svc>-cli`. Existing service integrations use this shape.
+- **Standalone/local CLI** — one app for local behavior that does not earn a
+  separate reusable domain package.
+- **Shared/library package** — reusable code without an executable.
+- **Deployed application/worker/web app** — an independently deployed system,
+  such as Subq, with its own internal boundaries.
+
+HTTP versus process or file access is an adapter choice inside an archetype,
+not repository taxonomy. Do not move existing workspaces merely to normalize
+them, and do not require the paired split for future projects.
+
+## CLI compatibility
+
+Every CLI normally writes exactly one newline-terminated JSON envelope to
+stdout and nothing to stderr. Success contains `ok: true`, `command`, `result`,
+and `next_actions`. Represented failure contains `ok: false`, `command`,
+`error: { code, message }`, `fix`, and `next_actions`. Represented failures,
+including unknown-command usage errors, return status 0 just like successes.
+Unexpected defects in bootstrap or runtime may terminate non-zero. Changes to
+these fields, streams, or exit behavior are CLI behavior changes and require
+compatibility tests and a changeset.
 
 ## Cross-workspace imports
 
@@ -43,11 +72,24 @@ For exact Effect v4 API behavior, read the vendored source at `repos/effect-smol
 (start at `LLMS.md`, then `ai-docs/`, then `packages/effect/src/`). Cite it as
 `repos/effect-smol/<path>:<line>`. Never edit or import from `repos/`.
 
+## Paired integration responsibilities
+
+Typical integration package files are `model.ts` for public domain values,
+`api-schema.ts` for upstream wire codecs, `errors.ts` for tagged errors,
+`services.ts` for service interfaces and configuration/policy services, an
+adapter such as `http.ts` or `process.ts`, `operations.ts` for domain Effects,
+and `index.ts` for the public barrel. These are responsibilities, not a demand
+that every workspace contain every filename.
+
+The app's `main.ts` owns selection and composition of domain, configuration,
+and platform layers. Shared `runCliMain` owns executable bootstrap,
+observability, argv and stdio, envelope rendering, and the Bun runtime.
+
 ## Errors
 
-Define every tagged error (`Data.TaggedError` / `Schema.ErrorClass`) in its
-package's `errors.ts`, enforced by the `tagged-error-location` ast-grep rule.
-Errors are values carried in the Effect error channel, never thrown.
+Define every tagged error (`Schema.TaggedErrorClass`) in its package's
+`errors.ts`, enforced by the `tagged-error-location` ast-grep rule. Errors are
+values carried in the Effect error channel, never thrown.
 
 ## Moves and deletes
 

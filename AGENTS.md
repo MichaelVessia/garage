@@ -5,9 +5,12 @@ self-hosted services (AdGuard Home, Caddy, Immich, Jellyfin, the *arr stack, and
 more). Each service has a package (`packages/<svc>`) with the typed domain and a
 CLI app (`apps/<svc>-cli`) that exposes it.
 
-Users rely on the CLI command contract: human output by default and the
-`{ command, result }` / `{ command, error }` JSON envelope for machine
-consumers. Treat that envelope and exit-code behavior as a compatibility
+Users rely on the CLI command contract: every invocation writes exactly one
+JSON envelope line to stdout. Success envelopes contain
+`{ ok: true, command, result, next_actions }`; represented failures contain
+`{ ok: false, command, error: { code, message }, fix, next_actions }`. Both
+return exit status 0 and leave stderr empty, including usage errors; unexpected
+runtime defects may fail the process. Treat this behavior as a compatibility
 surface.
 
 ## Operating loop
@@ -29,13 +32,21 @@ surface.
 
 ## Repository map
 
-- `packages/<svc>` — one service's typed domain: `model.ts` (Schema structs),
-  `errors.ts` (tagged errors), `http.ts` (the HTTP adapter, sole owner of
-  network access), `services.ts` (domain operations), `index.ts` (public
-  barrel).
-- `apps/<svc>-cli` — the thin CLI over a service package; the composition root.
-- `packages/cli-protocol` — the shared JSON envelope and command metadata every
-  CLI emits.
+Workspaces use one of four archetypes: a paired integration package + CLI, a
+standalone/local CLI, a shared/library package, or a deployed
+application/worker/web app. The existing integrations remain paired, but new
+work does not require a two-workspace split when another archetype is truthful.
+
+- `packages/<svc>` — a paired integration's typed domain. Common files are
+  `model.ts` (public domain shapes), `api-schema.ts` (wire decoding),
+  `errors.ts` (tagged errors), an adapter such as `http.ts` or `process.ts`,
+  `services.ts` (service interfaces and configuration/policy services),
+  `operations.ts` (domain operations), and `index.ts` (public barrel).
+- `apps/<svc>-cli` — the thin CLI over a service package. `main.ts` selects and
+  composes domain, config, and platform layers, then delegates executable
+  bootstrap to `runCliMain`.
+- `packages/cli-protocol` — the shared JSON envelope, command metadata, HTTP
+  helpers, and executable bootstrap every CLI uses.
 - `rules/` and `rule-tests/` — repo-specific ast-grep structural lint and its
   fixtures.
 - `repos/` — vendored read-only reference (`effect-smol`). Never edit, never
@@ -91,6 +102,10 @@ may skip tests; still run the formatter.
 
 - Keep Effect code pure until an application boundary exists; prefer exported
   `Effect` values over runtime helpers in packages.
+- Test operations with local complete API fakes and live adapters with canned
+  infrastructure clients; add `layerMemory` only when it models real semantics.
+- Put spans on domain operations. Do not add duplicate spans to methods that
+  merely forward to an already-spanned operation.
 - No `any`, non-null assertions, or type assertions. Decode unknown input with
   `Schema.decodeUnknown`.
 - Add behavior tests for new public API.

@@ -1,9 +1,8 @@
 # Garage
 
-Agent-first command-line tools for self-hosted services. Each service gets one
-CLI that exposes deterministic, scriptable operations over its HTTP API, with
-human-readable output by default and a `{ command, result }` JSON envelope for
-machine consumers.
+Agent-first command-line tools for self-hosted services. Each integration CLI
+exposes deterministic, scriptable operations through a stable, always-JSON
+protocol.
 
 Built on Effect v4 with Bun, Nix, TypeScript strictness, oxlint/oxfmt, ast-grep,
 lefthook, and Vitest.
@@ -21,23 +20,36 @@ With Nix + direnv, `direnv allow` drops you into the pinned toolchain first. See
 
 ## The pieces
 
-- `apps/<svc>-cli` — the thin CLI for one service; the composition root that
-  renders typed results.
-- `packages/<svc>` — that service's typed domain: config, the API service, the
-  HTTP adapter, tagged errors, and domain operations.
-- `packages/cli-protocol` — the shared JSON envelope and command metadata every
-  CLI emits.
+Garage has four workspace archetypes: paired integration package + CLI,
+standalone/local CLI, shared/library package, and deployed
+application/worker/web app. Existing service integrations use the paired
+layout; it is not mandatory for future work.
+
+- `apps/<svc>-cli` — the thin CLI for one integration. Its `main.ts` selects and
+  composes domain, config, and platform layers.
+- `packages/<svc>` — that integration's typed domain: public models, wire
+  schemas, service interfaces and configuration, tagged errors, adapter, and
+  operations.
+- `packages/cli-protocol` — the shared envelope, command metadata, HTTP helpers,
+  and `runCliMain` executable bootstrap every CLI uses.
 - `rules` / `rule-tests` — ast-grep structural lint rules and their fixtures.
 - `repos/effect-smol` — vendored, read-only Effect v4 source used as reference.
 
 ## How it fits together
 
-A CLI app is a thin surface over its service package. The package owns the
-network access (one HTTP adapter per service, with a test layer) and the
-deterministic domain logic; the app wires commands to domain operations and
-turns typed results into text or the JSON envelope. Cross-workspace imports use
-package names (`@garage/<pkg>`). See
+A paired CLI app is a thin surface over its integration package. The package
+owns its external adapter—usually HTTP, but process execution is equally valid—and
+the deterministic domain logic. The app wires commands to operations;
+`runCliMain` owns observability, argv/stdout, JSON rendering, and the Bun
+runtime. Cross-workspace imports use package names (`@garage/<pkg>`). See
 [docs/guardrails/effect-services-and-layers.md](docs/guardrails/effect-services-and-layers.md).
+
+Every normal invocation writes one JSON line to stdout and leaves stderr empty.
+Success is `{ "ok": true, "command": ..., "result": ...,
+"next_actions": [...] }`; represented failure is `{ "ok": false, "command":
+..., "error": { "code": ..., "message": ... }, "fix": ...,
+"next_actions": [...] }`. Both return exit status 0, including usage errors;
+unexpected runtime defects may terminate non-zero.
 
 ## Commands
 

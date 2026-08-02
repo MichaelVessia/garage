@@ -8,9 +8,12 @@ avoid the listed alternatives so the vocabulary stays consistent.
 
 **Agent-first CLI**:
 A command-line tool designed so an agent (or a human, or a script) can drive it
-deterministically: explicit subcommands and flags, human-readable output by
-default, and a `{ command, result }` / `{ command, error }` JSON envelope for
-machine consumers. Each self-hosted service has exactly one.
+deterministically: explicit subcommands and flags and exactly one JSON envelope
+line on stdout. A success envelope has `ok`, `command`, `result`, and
+`next_actions`; an error envelope has `ok`, `command`, `error` (`code` and
+`message`), `fix`, and `next_actions`. Represented success and failure both exit
+0 and leave stderr empty; unexpected runtime defects may exit non-zero. Each
+self-hosted service has exactly one.
 _Avoid_: wrapper, script, tool.
 
 **Self-hosted service**:
@@ -19,10 +22,11 @@ AutoCaliWeb, Caddy, Immich, Jellyfin, Jellyseerr, Prowlarr, Radarr, SABnzbd,
 Sonarr, Tailscale, TubeArchivist.
 _Avoid_: backend, server, target, integration.
 
-**Service package** (`packages/<svc>`):
-The library for one service. It owns the typed domain: configuration, the API
-service interface, the HTTP adapter that talks to the running service, the
-tagged errors, and the domain operations. It does not print or parse argv.
+**Integration package** (`packages/<svc>`; historically **service package**):
+The library half of a paired integration. It owns public models, wire schemas,
+configuration and API service interfaces, the external adapter, tagged errors,
+and domain operations. It does not print or parse argv. HTTP and process
+execution are adapter variants, not different repository archetypes.
 _Avoid_: core, sdk, client lib.
 
 **CLI app** (`apps/<svc>-cli`):
@@ -36,10 +40,11 @@ The `Schema` structs that mirror a service's API payloads. Struct keys are the
 upstream wire keys; the decoded value is the typed domain shape.
 _Avoid_: types file, dto, interface.
 
-**HTTP adapter** (`packages/<svc>/src/http.ts`):
-The one module that owns network access to a service. It is the only place that
-touches the live `HttpClient` for that service and the single seam a test layer
-substitutes.
+**External adapter**:
+The module that owns contact with an external system. Most paired integrations
+use an **HTTP adapter** (`http.ts`), the only module that touches live
+`HttpClient`; Tailscale instead uses a process adapter. Adapters expose an
+unsealed live layer so canned infrastructure can test real mapping logic.
 _Avoid_: api wrapper, fetcher, gateway.
 
 **Domain operation**:
@@ -49,13 +54,12 @@ these; rendering happens at the edge.
 _Avoid_: handler, action, helper.
 
 **CLI protocol** (`packages/cli-protocol`):
-The deep shared package behind every CLI: the JSON envelope
-(`{ command, result }` / `{ command, error }`) and command-description
-metadata, plus the shared machinery — `runCliMain` (entrypoint),
-`makeJsonClient` (HTTP request/decode/error pipeline), `makeConfigReaders`,
-`makeRoot` (health failure branch), the service error field shapes, common
-schemas (`JsonObject`, `ListResultSchema`), and `makeRecordingHttpClient`
-under the `./testing` subpath.
+The deep shared package behind every CLI: complete success/error envelope
+schemas and command-description metadata, plus `runCliMain` (observability,
+argv/stdio, JSON rendering, and Bun runtime), `makeJsonClient` (HTTP
+request/decode/error pipeline), `makeConfigReaders`, `makeRoot`, service error
+field shapes, common schemas (`JsonObject`, `ListResultSchema`), and
+`makeRecordingHttpClient` under the `./testing` subpath.
 _Avoid_: shared, common, utils.
 
 **Tagged error** (`packages/<svc>/src/errors.ts`):
@@ -70,7 +74,11 @@ vitest) that mirrors CI. The pre-PR definition of done.
 _Avoid_: build, check, ci script.
 
 **Workspace**:
-An independently owned package or app under `packages/*` or `apps/*`.
+An independently owned package or app under `packages/*` or `apps/*`. Choose
+one of four archetypes: **paired integration package + CLI**,
+**standalone/local CLI**, **shared/library package**, or **deployed
+application/worker/web app**. The paired split is optional for future projects;
+existing workspaces stay where they are.
 _Avoid_: module, folder, component.
 
 **Vendored reference** (`repos/`):
@@ -81,18 +89,18 @@ _Avoid_: dependency, lib, submodule.
 
 ## Relationships
 
-- A **CLI app** depends on exactly one **service package** and renders its
-  typed results; it never reaches the network directly.
-- Every **service package** exposes its public API through its `index.ts`
+- A paired **CLI app** depends on one **integration package** and renders its
+  typed results; it never contacts the external service directly.
+- Every **integration package** exposes its public API through its `index.ts`
   barrel; cross-workspace imports use the package name (`@garage/<pkg>`), never
   a relative path.
-- Every **HTTP adapter** is the single owner of network access to its service
-  and ships a test layer so domain operations run under test without a live
-  service.
-- Every CLI emits the **CLI protocol** envelope, so machine consumers parse one
-  shape regardless of which service they drove.
-- **Domain operations** return typed results and **tagged errors**; the **CLI
-  app** is the only place that turns them into text or exit codes.
+- Every external system has one owning **external adapter**. Operations are
+  tested with local complete API fakes; live adapters are tested with canned
+  infrastructure.
+- Every CLI emits the **CLI protocol** envelope, so consumers parse one shape
+  regardless of which service they drove.
+- **Domain operations** return typed results and **tagged errors**. App
+  `main.ts` composes layers; `runCliMain` owns executable behavior.
 
 ## Flagged ambiguities
 

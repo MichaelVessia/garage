@@ -34,7 +34,8 @@ bun run validate
 
 ## Stack
 
-- TypeScript, Bun, Effect 4.x across the repo.
+- TypeScript, Bun, Effect `^4.0.0-beta.93` across the repo (matching platform
+  packages use `4.0.0-beta.93`; always copy current manifests).
 - Tests: `vitest` (plus `@effect/vitest` for Effect matchers and `it.effect`).
 - Lint: `oxlint` (with the Effect plugin). Format: `oxfmt`. Structural lint:
   `ast-grep`. Configs live at the repo root and are inherited by every
@@ -60,6 +61,23 @@ Don't reach for `bun run validate` after every keystroke. Use a tiered loop:
 Use the focused commands as the inner loop while editing; promote to
 `bun run validate` once the change feels done. CI runs the full set, so the
 pre-PR gate is non-negotiable.
+
+## Choosing a workspace shape
+
+New work starts by choosing an archetype: paired integration package + CLI,
+standalone/local CLI, shared/library package, or deployed
+application/worker/web app. HTTP, process, and file access are adapter choices,
+not workspace types. Existing integrations remain paired; new work only splits
+when separate reusable ownership is useful. See
+[the workspace how-to](docs/how-to/add-a-workspace.md).
+
+## CLI contract
+
+A normal CLI invocation emits exactly one newline-terminated JSON envelope on
+stdout and leaves stderr empty. Both success and represented failure—including
+usage errors—exit 0. See
+[the conventions reference](docs/reference/conventions.md#cli-compatibility) for
+the complete fields. Unexpected runtime defects may exit non-zero.
 
 ## Building a CLI
 

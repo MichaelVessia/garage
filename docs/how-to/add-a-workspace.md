@@ -1,117 +1,132 @@
-# How to add a service workspace
+# How to add a workspace
 
-A new service is two workspaces: a package (`packages/<svc>`) with the typed
-domain, and a CLI app (`apps/<svc>-cli`) that exposes it. CI discovers
-workspaces through `bun run --filter '*'`, so there is no central registry to
-edit.
+Start with ownership, not a directory template. CI discovers `packages/*` and
+`apps/*` through `bun run --filter '*'`; there is no central workspace registry.
+Existing workspaces stay in place—this guide does not require retroactive moves
+or README creation.
 
-## 1. Create the service package
+## 1. Choose an archetype
+
+| Archetype | Choose it when | Typical location |
+| --- | --- | --- |
+| Paired integration package + CLI | A typed domain and external adapter are reusable independently of the executable | `packages/<svc>` + `apps/<svc>-cli` |
+| Standalone/local CLI | The executable owns local behavior and no separate reusable package is earned | `apps/<name>-cli` |
+| Shared/library package | Code is reused by workspaces but has no executable | `packages/<name>` |
+| Deployed application/worker/web app | The workspace is independently deployed and owns its internal boundaries | `apps/<name>` |
+
+HTTP, process execution, filesystem access, and browser APIs are adapter
+variants, not archetypes. For example, most paired integrations use HTTP,
+Tailscale uses a process adapter, TubeArchivist additionally has a persistent
+session-cache adapter, and Subq is a deployed application.
+
+Use the paired instructions below only when that split is truthful. Otherwise,
+copy the closest workspace of the selected archetype and retain only the
+responsibilities the new project needs.
+
+## 2. Create a paired integration package
 
 ```sh
 mkdir -p packages/<svc>/src packages/<svc>/test
 ```
 
-`packages/<svc>/package.json`:
+Copy `package.json`, `tsconfig.json`, `tsconfig.build.json`, and
+`vitest.config.ts` from a current neighboring integration such as
+`packages/radarr`, then change its name. Do not copy dependency versions from an
+old planning document. At the time of writing, integration packages use:
 
 ```json
 {
-  "name": "@garage/<svc>",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": {
-    "clean": "rm -rf dist",
-    "build": "bun run clean && tsgo -p tsconfig.build.json",
-    "typecheck": "tsgo --noEmit",
-    "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/",
-    "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/",
-    "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
-    "format:fix": "oxfmt --config ../../oxfmt.config.mjs src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": { "effect": "^4.0.0-beta.64" }
+  "dependencies": {
+    "@garage/cli-protocol": "workspace:*",
+    "effect": "^4.0.0-beta.93"
+  }
 }
 ```
 
-`packages/<svc>/tsconfig.json` extends the root base:
+Use these responsibilities as needed:
 
-```json
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": "." },
-  "include": ["src", "test"]
-}
-```
+- `model.ts` — public decoded domain shapes.
+- `api-schema.ts` — `Schema` codecs matching upstream wire payloads.
+- `errors.ts` — every `Schema.TaggedErrorClass` owned by the package.
+- `services.ts` — API interfaces and genuine configuration or policy services;
+  not domain operations.
+- `http.ts`, `process.ts`, or another adapter — the sole owner of external I/O.
+  Export its live layer without sealing platform infrastructure.
+- `operations.ts` — domain Effects requiring the narrow API/config/policy
+  services they actually consume.
+- `index.ts` — the public barrel imported by other workspaces.
 
-Add a `tsconfig.build.json` and a `vitest.config.ts` mirroring an existing
-service (copy from a neighbor like `packages/radarr`). Then build out `src`:
+Cross-workspace imports always use `@garage/<pkg>`, never relative paths.
 
-- `model.ts` — `Schema` structs mirroring the service's API payloads.
-- `errors.ts` — the package's tagged errors (every `Data.TaggedError` lives
-  here; the `tagged-error-location` rule enforces this).
-- `http.ts` — the HTTP adapter: the single owner of network access, exposing a
-  service interface and a test layer.
-- `services.ts` — domain operations composing the adapter.
-- `index.ts` — the public barrel; this is the only surface other workspaces
-  import.
-
-## 2. Create the CLI app
+## 3. Create the paired CLI app
 
 ```sh
 mkdir -p apps/<svc>-cli/src apps/<svc>-cli/test
 ```
 
-`apps/<svc>-cli/package.json` adds the `bin`, the compile build, and the
-workspace dependencies:
+Copy the manifests and configs from the matching current CLI (for example
+`apps/radarr-cli`) and change the package name, binary, output path, and service
+dependency. Current dependency forms are:
 
 ```json
 {
-  "name": "@garage/<svc>-cli",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "bin": { "<svc>": "dist/<svc>" },
-  "exports": { ".": "./src/index.ts" },
-  "scripts": {
-    "clean": "rm -rf dist",
-    "build": "bun run clean && bun build src/main.ts --compile --outfile dist/<svc>",
-    "typecheck": "tsgo --noEmit",
-    "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/",
-    "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/",
-    "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
-    "format:fix": "oxfmt --config ../../oxfmt.config.mjs src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0-beta.64",
+    "@effect/platform-bun": "4.0.0-beta.93",
     "@garage/cli-protocol": "workspace:*",
     "@garage/<svc>": "workspace:*",
-    "effect": "^4.0.0-beta.64"
+    "effect": "^4.0.0-beta.93"
   }
 }
 ```
 
-The app's `src/main.ts` is the composition root: it provides the platform layers
-(`FetchHttpClient.layer`, `BunServices.layer`) and runs the command program.
-Commands stay thin and render the `@garage/cli-protocol` envelope. See the
-[Effect services guardrail](../guardrails/effect-services-and-layers.md).
+Keep commands thin. App `main.ts` selects and composes domain, configuration,
+and platform layers, then calls `runCliMain`. Do not duplicate observability,
+argv/stdio handling, JSON rendering, or `BunRuntime`: `runCliMain` owns that
+shared executable bootstrap.
 
-## 3. Wire it up
+The public CLI contract is always one JSON envelope line on stdout. Success has
+`ok`, `command`, `result`, and `next_actions`; represented failure has `ok`,
+`command`, `error` (`code` and `message`), `fix`, and `next_actions`. Both exit
+0 and leave stderr empty, including usage errors. Unexpected runtime defects
+may terminate non-zero.
+
+## 4. Test the seams
+
+For a paired integration, add all three forms of focused coverage:
+
+1. Operation tests provide a local, complete API fake. Do not publish a broad
+   test layer solely for these tests.
+2. Live adapter tests provide canned infrastructure to the unsealed live layer.
+   For HTTP, use `makeRecordingHttpClient` from
+   `@garage/cli-protocol/testing`; for process execution, provide a canned
+   `ChildProcessSpawner`.
+3. A representative wiring test drives a command through the live adapter and
+   asserts the complete envelope and external request/invocation.
+
+Add a reusable memory layer only when it models real semantics (for example a
+session cache), not as a default testing convention. Put stable spans on domain
+operations and annotate useful non-secret inputs. Do not add a duplicate span
+to a method that merely forwards to an already-spanned operation.
+
+Standalone CLIs and deployed apps should use equivalent tests at their actual
+boundaries rather than imitating the paired file layout.
+
+## 5. Link, validate, and release
 
 ```sh
-bun install                 # link the new workspaces
-bun run validate            # the new code must pass the full gate
+bun install
+bun run --filter '@garage/<workspace>' typecheck
+bun run --filter '@garage/<workspace>' test
+bun run validate
 ```
 
-Add a changeset so the CLI gets a version on release:
+If a CLI is added or its behavior changes, create a changeset:
 
 ```sh
 bunx changeset
 ```
 
-Add a one-line entry for the new build command and layout to the root
-[README.md](../../README.md), and a `README.md` in each new workspace describing
-what the service is and how to point the CLI at it.
+Update shared documentation only when public behavior, vocabulary, or
+repository policy changes. A workspace README may be useful, but this guide
+does not impose one or require retroactive documentation across existing
+workspaces.
