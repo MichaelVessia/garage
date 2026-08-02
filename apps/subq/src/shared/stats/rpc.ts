@@ -8,6 +8,7 @@ import {
   InjectionDayOfWeekStats,
   InjectionFrequencyStats,
   InjectionSiteStats,
+  StatsDatabaseError,
   StatsParams,
   WeightStats,
   WeightTrendStats,
@@ -21,29 +22,36 @@ export const StatsRpcs = RpcGroup.make(
   Rpc.make('GetWeightStats', {
     payload: StatsParams,
     success: Schema.NullOr(WeightStats),
+    error: StatsDatabaseError,
   }),
   Rpc.make('GetWeightTrend', {
     payload: StatsParams,
     success: WeightTrendStats,
+    error: StatsDatabaseError,
   }),
   Rpc.make('GetInjectionSiteStats', {
     payload: StatsParams,
     success: InjectionSiteStats,
+    error: StatsDatabaseError,
   }),
   Rpc.make('GetDosageHistory', {
     payload: StatsParams,
     success: DosageHistoryStats,
+    error: StatsDatabaseError,
   }),
   Rpc.make('GetInjectionFrequency', {
     payload: StatsParams,
     success: Schema.NullOr(InjectionFrequencyStats),
+    error: StatsDatabaseError,
   }),
   Rpc.make('GetDrugBreakdown', {
     payload: StatsParams,
     success: DrugBreakdownStats,
+    error: StatsDatabaseError,
   }),
   Rpc.make('GetInjectionByDayOfWeek', {
     payload: StatsParams,
     success: InjectionDayOfWeekStats,
+    error: StatsDatabaseError,
   })
 ).middleware(AuthRpcMiddleware)

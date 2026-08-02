@@ -1,6 +1,9 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import { SqlClient } from 'effect/unstable/sql'
+
+import { StatsDatabaseError } from '#shared'
 
 import { StatsService, StatsServiceLive } from '../src/stats/stats-service.js'
 import { testDate } from './helpers/dates.js'
@@ -230,6 +233,39 @@ describe('StatsService', () => {
           const nyResult = yield* stats.getInjectionByDayOfWeek({ timezone: 'America/New_York' }, 'user-123')
           const nyWednesday = nyResult.days.find((d) => d.dayOfWeek === 3)
           assert.strictEqual(requireValue(nyWednesday).count, 2)
+        })
+      )
+    })
+  })
+
+  describe('typed failures', () => {
+    it.layer(TestLayer)((it) => {
+      it.effect('returns SQL failures in the StatsDatabaseError channel', () =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`DROP TABLE weight_logs`
+
+          const stats = yield* StatsService
+          const error = yield* stats.getWeightStats({}, 'user-123').pipe(Effect.flip)
+
+          assert.instanceOf(error, StatsDatabaseError)
+          assert.strictEqual(error.operation, 'query')
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('returns row decode failures in the StatsDatabaseError channel', () =>
+        Effect.gen(function* () {
+          yield* insertInjectionLog('invalid-date', testDate('2024-01-01T10:00:00Z'), 'Test', '200mg', 'user-123')
+          const sql = yield* SqlClient.SqlClient
+          yield* sql`UPDATE injection_logs SET datetime = 'not-a-date' WHERE id = 'invalid-date'`
+
+          const stats = yield* StatsService
+          const error = yield* stats.getInjectionByDayOfWeek({}, 'user-123').pipe(Effect.flip)
+
+          assert.instanceOf(error, StatsDatabaseError)
+          assert.strictEqual(error.operation, 'query')
         })
       )
     })

@@ -1,6 +1,6 @@
 import * as Schema from 'effect/Schema'
 
-import { Count, DayOfWeek, DaysBetween, Dosage, DosageValue, DrugName } from '../common/domain.js'
+import { Count, DayOfWeek, DaysBetween, DbOperation, Dosage, DosageValue, DrugName } from '../common/domain.js'
 import { InjectionSite, InjectionsPerWeek } from '../injection/domain.js'
 import { Weight, WeightRateOfChange } from '../weight/domain.js'
 
@@ -140,6 +140,6 @@ export class InjectionDayOfWeekStats extends Schema.Class<InjectionDayOfWeekStat
 // ============================================
 
 export class StatsDatabaseError extends Schema.TaggedClass<StatsDatabaseError>()('StatsDatabaseError', {
-  operation: Schema.String,
+  operation: DbOperation,
   cause: Schema.Defect(),
 }) {}
