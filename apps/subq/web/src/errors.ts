@@ -7,3 +7,8 @@ export class MissingRoot extends Schema.TaggedErrorClass<MissingRoot>()('Missing
 export class BetterAuthHttpError extends Schema.TaggedErrorClass<BetterAuthHttpError>()('BetterAuthHttpError', {
   message: Schema.String,
 }) {}
+
+// Returned when browser file download mechanics fail.
+export class BrowserDownloadError extends Schema.TaggedErrorClass<BrowserDownloadError>()('BrowserDownloadError', {
+  message: Schema.String,
+}) {}

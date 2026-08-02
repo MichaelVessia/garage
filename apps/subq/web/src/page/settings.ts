@@ -13,6 +13,7 @@ import { evo } from 'foldkit/struct'
 import { DataExport, DataImportResult, UserSettingsUpdate } from '#shared'
 import type { WeightUnit } from '#shared'
 
+import { downloadTextFile } from '../adapter/browser-download.js'
 import { Api } from '../api.js'
 import { ChangePassword } from '../auth.js'
 import type { FailedChangePassword, SucceededChangePassword } from '../auth.js'
@@ -148,17 +149,7 @@ const ExportData = Command.define(
     const json = yield* Schema.encodeEffect(DataExportJson)(data)
     const now = yield* DateTime.now
     const filename = `subq-export-${DateTime.formatIso(now).slice(0, 10)}.json`
-    yield* Effect.sync(() => {
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const anchor = globalThis.document.createElement('a')
-      anchor.href = url
-      anchor.download = filename
-      globalThis.document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(url)
-    })
+    yield* downloadTextFile({ contents: json, filename, mediaType: 'application/json' })
     return SucceededExportData()
   }).pipe(toCommandResult(FailedExportData, 'Failed to export data. Please try again.'))
 )
