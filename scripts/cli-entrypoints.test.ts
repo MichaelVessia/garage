@@ -34,7 +34,7 @@ describe('CLI entrypoints', () => {
 
       assert.isTrue(Arr.isReadonlyArrayNonEmpty(entrypoints))
 
-      const runtimeSource = yield* fs.readFileString('packages/cli-protocol/src/index.ts')
+      const runtimeSource = yield* fs.readFileString('packages/cli-protocol/src/runtime.ts')
       assert.include(
         runtimeSource,
         'BunRuntime.runMain(program)',
