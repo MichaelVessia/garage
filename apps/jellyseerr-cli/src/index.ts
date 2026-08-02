@@ -26,7 +26,6 @@ import type {
   DeleteRequestResult,
   IssueRecord,
   JellyseerrApi,
-  JellyseerrConfig,
   JellyseerrError,
   ListResult,
   MediaSummary,
@@ -81,7 +80,7 @@ export type JellyseerrCliResult =
 
 export type JellyseerrCliEnvelope = SuccessEnvelope<JellyseerrCliResult> | ErrorEnvelope
 type JellyseerrCliError = JellyseerrError | CliUsageError
-type JellyseerrCliContext = JellyseerrApi | JellyseerrConfig
+type JellyseerrCliContext = JellyseerrApi
 type JellyseerrInvocation = CommandInvocation<JellyseerrCliResult, JellyseerrCliError, JellyseerrCliContext>
 
 const root = (
@@ -136,7 +135,7 @@ const mediaStatusCommand = ({ args, parsePositiveInteger, recover, wrap }: Jelly
 
 const limitCommand = <Result extends JellyseerrCliResult>(
   { args, parseFlags, parsePositiveInteger, recover, wrap }: JellyseerrInvocation,
-  program: (limit: number) => Effect.Effect<Result, JellyseerrError, JellyseerrApi | JellyseerrConfig>
+  program: (limit: number) => Effect.Effect<Result, JellyseerrError, JellyseerrApi>
 ) =>
   recover(
     parseFlags(args, { valueFlags: [limitFlag] }).pipe(
@@ -165,9 +164,7 @@ const confirmedRequestCommand = (
   flag: string,
   action: string,
   template: string,
-  program: (
-    requestId: number
-  ) => Effect.Effect<RequestRecord | DeleteRequestResult, JellyseerrError, JellyseerrApi | JellyseerrConfig>
+  program: (requestId: number) => Effect.Effect<RequestRecord | DeleteRequestResult, JellyseerrError, JellyseerrApi>
 ) =>
   recover(
     Effect.gen(function* () {

@@ -16,31 +16,26 @@ import type {
   UserRecord,
 } from './model.js'
 import { JellyseerrApi } from './services.js'
-import type { JellyseerrConfig } from './services.js'
 
 export const defaultLimit = 10
 
 const defaultRequestOptions: RequestListOptions = { limit: defaultLimit, filter: 'pending' }
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
-export const status: Effect.Effect<SystemStatus, JellyseerrError, JellyseerrApi | JellyseerrConfig> = Effect.gen(
-  function* () {
-    const api = yield* JellyseerrApi
-    return yield* api.status()
-  }
-).pipe(
+export const status: Effect.Effect<SystemStatus, JellyseerrError, JellyseerrApi> = Effect.gen(function* () {
+  const api = yield* JellyseerrApi
+  return yield* api.status()
+}).pipe(
   Effect.withSpan('jellyseerr.status'),
   Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'status' })
 )
 
 export const requests: (
   options?: RequestListOptions
-) => Effect.Effect<ListResult<RequestRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> = Effect.fn(
-  'jellyseerr.requests'
-)(
+) => Effect.Effect<ListResult<RequestRecord>, JellyseerrError, JellyseerrApi> = Effect.fn('jellyseerr.requests')(
   function* (
     options?: RequestListOptions
-  ): Effect.fn.Return<ListResult<RequestRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+  ): Effect.fn.Return<ListResult<RequestRecord>, JellyseerrError, JellyseerrApi> {
     const requestOptions = options ?? defaultRequestOptions
     yield* Effect.annotateCurrentSpan({
       'jellyseerr.limit': requestOptions.limit,
@@ -52,19 +47,16 @@ export const requests: (
   Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'requests' })
 )
 
-export const requestCounts: Effect.Effect<RequestCounts, JellyseerrError, JellyseerrApi | JellyseerrConfig> =
-  Effect.gen(function* () {
-    const api = yield* JellyseerrApi
-    return yield* api.requestCounts()
-  }).pipe(
-    Effect.withSpan('jellyseerr.requestCounts'),
-    Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'requestCounts' })
-  )
+export const requestCounts: Effect.Effect<RequestCounts, JellyseerrError, JellyseerrApi> = Effect.gen(function* () {
+  const api = yield* JellyseerrApi
+  return yield* api.requestCounts()
+}).pipe(
+  Effect.withSpan('jellyseerr.requestCounts'),
+  Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'requestCounts' })
+)
 
 export const search = Effect.fn('jellyseerr.search')(
-  function* (
-    options: SearchOptions
-  ): Effect.fn.Return<ListResult<SearchRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+  function* (options: SearchOptions): Effect.fn.Return<ListResult<SearchRecord>, JellyseerrError, JellyseerrApi> {
     yield* Effect.annotateCurrentSpan({
       'jellyseerr.query_length': options.query.length,
       'jellyseerr.limit': options.limit,
@@ -76,7 +68,7 @@ export const search = Effect.fn('jellyseerr.search')(
 )
 
 export const mediaStatus = Effect.fn('jellyseerr.mediaStatus')(
-  function* (mediaId: number): Effect.fn.Return<MediaSummary, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+  function* (mediaId: number): Effect.fn.Return<MediaSummary, JellyseerrError, JellyseerrApi> {
     yield* Effect.annotateCurrentSpan({ 'jellyseerr.media_id': mediaId })
     const api = yield* JellyseerrApi
     return yield* api.mediaStatus(mediaId)
@@ -86,12 +78,8 @@ export const mediaStatus = Effect.fn('jellyseerr.mediaStatus')(
 
 export const recentlyAdded: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<MediaSummary>, JellyseerrError, JellyseerrApi | JellyseerrConfig> = Effect.fn(
-  'jellyseerr.recentlyAdded'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<MediaSummary>, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+) => Effect.Effect<ListResult<MediaSummary>, JellyseerrError, JellyseerrApi> = Effect.fn('jellyseerr.recentlyAdded')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<MediaSummary>, JellyseerrError, JellyseerrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': limitOptions.limit })
     const api = yield* JellyseerrApi
@@ -101,7 +89,7 @@ export const recentlyAdded: (
 )
 
 export const approve = Effect.fn('jellyseerr.approve')(
-  function* (requestId: number): Effect.fn.Return<RequestRecord, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+  function* (requestId: number): Effect.fn.Return<RequestRecord, JellyseerrError, JellyseerrApi> {
     yield* Effect.annotateCurrentSpan({ 'jellyseerr.request_id': requestId })
     const api = yield* JellyseerrApi
     return yield* api.approve(requestId)
@@ -110,7 +98,7 @@ export const approve = Effect.fn('jellyseerr.approve')(
 )
 
 export const decline = Effect.fn('jellyseerr.decline')(
-  function* (requestId: number): Effect.fn.Return<RequestRecord, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+  function* (requestId: number): Effect.fn.Return<RequestRecord, JellyseerrError, JellyseerrApi> {
     yield* Effect.annotateCurrentSpan({ 'jellyseerr.request_id': requestId })
     const api = yield* JellyseerrApi
     return yield* api.decline(requestId)
@@ -119,9 +107,7 @@ export const decline = Effect.fn('jellyseerr.decline')(
 )
 
 export const deleteRequest = Effect.fn('jellyseerr.deleteRequest')(
-  function* (
-    requestId: number
-  ): Effect.fn.Return<DeleteRequestResult, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+  function* (requestId: number): Effect.fn.Return<DeleteRequestResult, JellyseerrError, JellyseerrApi> {
     yield* Effect.annotateCurrentSpan({ 'jellyseerr.request_id': requestId })
     const api = yield* JellyseerrApi
     return yield* api.deleteRequest(requestId)
@@ -129,30 +115,21 @@ export const deleteRequest = Effect.fn('jellyseerr.deleteRequest')(
   Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'deleteRequest' })
 )
 
-export const users: (
-  options?: LimitOptions
-) => Effect.Effect<ListResult<UserRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> = Effect.fn(
-  'jellyseerr.users'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<UserRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
-    const limitOptions = options ?? defaultLimitOptions
-    yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': limitOptions.limit })
-    const api = yield* JellyseerrApi
-    return yield* api.users(limitOptions)
-  },
-  Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'users' })
-)
+export const users: (options?: LimitOptions) => Effect.Effect<ListResult<UserRecord>, JellyseerrError, JellyseerrApi> =
+  Effect.fn('jellyseerr.users')(
+    function* (options?: LimitOptions): Effect.fn.Return<ListResult<UserRecord>, JellyseerrError, JellyseerrApi> {
+      const limitOptions = options ?? defaultLimitOptions
+      yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': limitOptions.limit })
+      const api = yield* JellyseerrApi
+      return yield* api.users(limitOptions)
+    },
+    Effect.annotateLogs({ package: '@garage/jellyseerr', operation: 'users' })
+  )
 
 export const issues: (
   options?: LimitOptions
-) => Effect.Effect<ListResult<IssueRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> = Effect.fn(
-  'jellyseerr.issues'
-)(
-  function* (
-    options?: LimitOptions
-  ): Effect.fn.Return<ListResult<IssueRecord>, JellyseerrError, JellyseerrApi | JellyseerrConfig> {
+) => Effect.Effect<ListResult<IssueRecord>, JellyseerrError, JellyseerrApi> = Effect.fn('jellyseerr.issues')(
+  function* (options?: LimitOptions): Effect.fn.Return<ListResult<IssueRecord>, JellyseerrError, JellyseerrApi> {
     const limitOptions = options ?? defaultLimitOptions
     yield* Effect.annotateCurrentSpan({ 'jellyseerr.limit': limitOptions.limit })
     const api = yield* JellyseerrApi

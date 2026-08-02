@@ -5,11 +5,9 @@ import * as Ref from 'effect/Ref'
 
 import {
   JellyseerrApi,
-  JellyseerrConfig,
   approve,
   decline,
   deleteRequest,
-  envMissing,
   issues,
   mediaStatus,
   recentlyAdded,
@@ -30,10 +28,6 @@ const request = {
   requestedBy: 'fixture-user',
   media,
 }
-
-const ConfigLayer = Layer.succeed(JellyseerrConfig, {
-  get: () => Effect.fail(envMissing('JELLYSEERR_URL')),
-})
 
 const makeApiLayer = Effect.gen(function* () {
   const requestOptions = yield* Ref.make<ReadonlyArray<RequestListOptions>>([])
@@ -84,16 +78,14 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs public read operations with bounded options without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    const statusResult = yield* status.pipe(Effect.provide(layer))
-    const requestsResult = yield* requests({ limit: 5, filter: 'all' }).pipe(Effect.provide(layer))
-    const countsResult = yield* requestCounts.pipe(Effect.provide(layer))
-    const searchResult = yield* search({ query: 'Linux ISO', limit: 4 }).pipe(Effect.provide(layer))
-    const mediaResult = yield* mediaStatus(7).pipe(Effect.provide(layer))
-    const recentResult = yield* recentlyAdded({ limit: 6 }).pipe(Effect.provide(layer))
-    const usersResult = yield* users({ limit: 7 }).pipe(Effect.provide(layer))
-    const issuesResult = yield* issues({ limit: 8 }).pipe(Effect.provide(layer))
+    const statusResult = yield* status.pipe(Effect.provide(fake.layer))
+    const requestsResult = yield* requests({ limit: 5, filter: 'all' }).pipe(Effect.provide(fake.layer))
+    const countsResult = yield* requestCounts.pipe(Effect.provide(fake.layer))
+    const searchResult = yield* search({ query: 'Linux ISO', limit: 4 }).pipe(Effect.provide(fake.layer))
+    const mediaResult = yield* mediaStatus(7).pipe(Effect.provide(fake.layer))
+    const recentResult = yield* recentlyAdded({ limit: 6 }).pipe(Effect.provide(fake.layer))
+    const usersResult = yield* users({ limit: 7 }).pipe(Effect.provide(fake.layer))
+    const issuesResult = yield* issues({ limit: 8 }).pipe(Effect.provide(fake.layer))
 
     assert.strictEqual(statusResult.version, '2.0.0')
     assert.strictEqual(requestsResult.totalRecords, 3)
@@ -109,11 +101,9 @@ it.effect('runs public read operations with bounded options without preflight co
 it.effect('runs request mutations through the API service without preflight config reads', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const layer = Layer.mergeAll(ConfigLayer, fake.layer)
-
-    const approved = yield* approve(42).pipe(Effect.provide(layer))
-    const declined = yield* decline(42).pipe(Effect.provide(layer))
-    const deleted = yield* deleteRequest(42).pipe(Effect.provide(layer))
+    const approved = yield* approve(42).pipe(Effect.provide(fake.layer))
+    const declined = yield* decline(42).pipe(Effect.provide(fake.layer))
+    const deleted = yield* deleteRequest(42).pipe(Effect.provide(fake.layer))
 
     assert.strictEqual(approved.status, 2)
     assert.strictEqual(declined.status, 3)
