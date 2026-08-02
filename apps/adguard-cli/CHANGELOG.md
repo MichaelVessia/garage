@@ -1,5 +1,11 @@
 # @garage/adguard-cli
 
+## 0.0.14
+
+### Patch Changes
+
+- Automatic CLI release for changed artifact inputs.
+
 ## 0.0.13
 
 ### Patch Changes
