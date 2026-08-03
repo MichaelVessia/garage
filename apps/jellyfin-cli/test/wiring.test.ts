@@ -65,3 +65,139 @@ it.effect('executes status through the live API layer', () =>
     )
   })
 )
+
+it.effect('renders an invalid configured media user as an actionable represented failure', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeRecordingHttpClient((_method, url) =>
+      url.pathname === '/Users'
+        ? {
+            status: 200,
+            body: [{ Id: 'admin', Name: 'Administrator', Policy: { IsAdministrator: true, IsDisabled: false } }],
+          }
+        : { status: 200, body: { Items: [] } }
+    )
+    const config = Layer.succeed(JellyfinConfig, {
+      get: () =>
+        Effect.succeed({
+          url: 'http://jellyfin.example.test/',
+          apiKey: Redacted.make('recording-secret'),
+          userId: 'missing',
+        }),
+    })
+    const layer = JellyfinApiLive.pipe(Layer.provide(Layer.mergeAll(config, fake.layer)))
+
+    const envelope = yield* executeJellyfin(['item-search', 'Linux']).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(envelope, {
+      ok: false,
+      command: 'jellyfin item-search Linux',
+      error: {
+        code: 'JELLYFIN_USER_ID_INVALID',
+        message: 'Configured Jellyfin user missing was not found',
+      },
+      fix: 'Set JELLYFIN_USER_ID to the ID of an enabled Jellyfin user. Run jellyfin users to inspect user IDs and policy state.',
+      next_actions: [
+        {
+          command: 'jellyfin users',
+          description: 'List users and choose an enabled user ID for JELLYFIN_USER_ID',
+        },
+      ],
+    })
+    assert.deepStrictEqual(
+      (yield* Ref.get(fake.requests)).map((request) => new URL(request.url).pathname),
+      ['/Users']
+    )
+  })
+)
+
+it.effect('renders zero enabled administrators as an actionable represented failure', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeRecordingHttpClient((_method, url) =>
+      url.pathname === '/Users'
+        ? {
+            status: 200,
+            body: [
+              { Id: 'viewer', Name: 'Viewer', Policy: { IsAdministrator: false, IsDisabled: false } },
+              { Id: 'disabled-admin', Policy: { IsAdministrator: true, IsDisabled: true } },
+            ],
+          }
+        : { status: 200, body: [] }
+    )
+    const config = Layer.succeed(JellyfinConfig, {
+      get: () =>
+        Effect.succeed({
+          url: 'http://jellyfin.example.test/',
+          apiKey: Redacted.make('recording-secret'),
+        }),
+    })
+    const layer = JellyfinApiLive.pipe(Layer.provide(Layer.mergeAll(config, fake.layer)))
+
+    const envelope = yield* executeJellyfin(['recently-added']).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(envelope, {
+      ok: false,
+      command: 'jellyfin recently-added',
+      error: {
+        code: 'JELLYFIN_NO_ENABLED_ADMINISTRATOR',
+        message: 'No enabled Jellyfin administrator is available for media visibility',
+      },
+      fix: 'Set JELLYFIN_USER_ID to an enabled Jellyfin user ID, or enable exactly one Jellyfin administrator.',
+      next_actions: [
+        {
+          command: 'jellyfin users',
+          description: 'List users and choose an enabled user ID for JELLYFIN_USER_ID',
+        },
+      ],
+    })
+    assert.deepStrictEqual(
+      (yield* Ref.get(fake.requests)).map((request) => new URL(request.url).pathname),
+      ['/Users']
+    )
+  })
+)
+
+it.effect('renders ambiguous media visibility as an actionable represented failure', () =>
+  Effect.gen(function* () {
+    const fake = yield* makeRecordingHttpClient((_method, url) =>
+      url.pathname === '/Users'
+        ? {
+            status: 200,
+            body: [
+              { Id: 'admin-2', Name: 'Administrator 2', Policy: { IsAdministrator: true, IsDisabled: false } },
+              { Id: 'admin-1', Name: 'Administrator 1', Policy: { IsAdministrator: true, IsDisabled: false } },
+            ],
+          }
+        : { status: 200, body: [] }
+    )
+    const config = Layer.succeed(JellyfinConfig, {
+      get: () =>
+        Effect.succeed({
+          url: 'http://jellyfin.example.test/',
+          apiKey: Redacted.make('recording-secret'),
+        }),
+    })
+    const layer = JellyfinApiLive.pipe(Layer.provide(Layer.mergeAll(config, fake.layer)))
+
+    const envelope = yield* executeJellyfin(['recently-added']).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(envelope, {
+      ok: false,
+      command: 'jellyfin recently-added',
+      error: {
+        code: 'JELLYFIN_AMBIGUOUS_ADMINISTRATOR',
+        message: 'Multiple enabled Jellyfin administrators are available for media visibility',
+      },
+      fix: 'Set JELLYFIN_USER_ID to the enabled Jellyfin user whose media visibility should be used.',
+      next_actions: [
+        {
+          command: 'jellyfin users',
+          description: 'List users and choose an enabled user ID for JELLYFIN_USER_ID',
+        },
+      ],
+    })
+    assert.deepStrictEqual(
+      (yield* Ref.get(fake.requests)).map((request) => new URL(request.url).pathname),
+      ['/Users']
+    )
+  })
+)

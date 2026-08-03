@@ -10,7 +10,7 @@ This context owns `packages/jellyfin` and `apps/jellyfin-cli` as one Jellyfin in
 
 ## Local constraints
 
-- Keep Jellyfin API decoding, enabled-user selection, and task execution in the package.
+- Keep Jellyfin API decoding, deterministic media visibility user selection, and task execution in the package.
 - Keep command parsing, next actions, and live composition in the CLI app.
 - Never start a scheduled task without preserving the explicit `--confirm-run-task` gate.
 - Preserve the shared CLI envelope, stdout/stderr, represented-failure, and exit-status contract.

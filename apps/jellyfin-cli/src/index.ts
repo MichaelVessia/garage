@@ -4,6 +4,7 @@ import type {
   CommandDefinition,
   CommandInvocation,
   ErrorEnvelope,
+  NextAction,
   SuccessEnvelope,
 } from '@garage/cli-protocol'
 import {
@@ -37,7 +38,14 @@ import type {
 import * as Effect from 'effect/Effect'
 import * as Str from 'effect/String'
 
-import { confirmRunTaskFlag, envNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
+import {
+  confirmRunTaskFlag,
+  envNextAction,
+  limitFlag,
+  mediaUserNextAction,
+  rootCommand,
+  showCommandsAction,
+} from './command-tree.js'
 import type { RootResult } from './command-tree.js'
 
 export type JellyfinCliResult =
@@ -56,6 +64,13 @@ export type JellyfinCliEnvelope = SuccessEnvelope<JellyfinCliResult> | ErrorEnve
 type JellyfinCliError = JellyfinError | CliUsageError
 type JellyfinCliContext = JellyfinApi
 type JellyfinInvocation = CommandInvocation<JellyfinCliResult, JellyfinCliError, JellyfinCliContext>
+
+const nextActionsFor = (error: JellyfinCliError): ReadonlyArray<NextAction> =>
+  error.code === 'JELLYFIN_USER_ID_INVALID' ||
+  error.code === 'JELLYFIN_NO_ENABLED_ADMINISTRATOR' ||
+  error.code === 'JELLYFIN_AMBIGUOUS_ADMINISTRATOR'
+    ? [mediaUserNextAction]
+    : [showCommandsAction]
 
 const root = (
   command: string,
@@ -147,14 +162,14 @@ const commandDefinitions: ReadonlyArray<CommandDefinition<JellyfinCliResult, Jel
   {
     name: 'recently-added',
     command: `${rootCommand} recently-added [${limitFlag} <n>]`,
-    description: 'Return recently added items',
+    description: 'Return recently added items visible to JELLYFIN_USER_ID or the sole enabled administrator',
     flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: (invocation) => limitCommand(invocation, (limit) => recentlyAdded({ limit })),
   },
   {
     name: 'item-search',
     command: `${rootCommand} item-search <query> [${limitFlag} <n>]`,
-    description: 'Search movies, series, and episodes',
+    description: 'Search movies, series, and episodes visible to JELLYFIN_USER_ID or the sole enabled administrator',
     flags: [{ name: `${limitFlag} <n>`, description: 'Maximum records to return', default: defaultLimit }],
     handle: itemSearchCommand,
   },
@@ -183,7 +198,7 @@ const execute = createCliRunner<JellyfinCliResult, JellyfinCliError, JellyfinCli
   rootCommand,
   commands: commandDefinitions,
   usageError: createCliUsageError(rootCommand),
-  fallbackNextActions: () => [showCommandsAction],
+  fallbackNextActions: nextActionsFor,
   root: ({ command, commandTree }) => root(command, commandTree),
 })
 

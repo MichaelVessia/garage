@@ -3,6 +3,7 @@ import { JellyfinApi, JellyfinConfig, envMissing } from '@garage/jellyfin'
 import type { LimitOptions, SearchOptions } from '@garage/jellyfin'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 
@@ -69,10 +70,21 @@ it.effect('root command returns command tree and missing env remains recoverable
     )
 
     assert.strictEqual(ok.ok, true)
-    if (!ok.ok || !('health' in ok.result)) {
+    if (!ok.ok || !('name' in ok.result) || ok.result.name !== 'jellyfin') {
       assert.fail('expected root result')
     }
     assert.deepStrictEqual(ok.result.health, { configured: true, version: '10.10.7', serverName: 'Jellyfin' })
+    if (P.isNumber(ok.result.commands)) {
+      assert.fail('expected root command descriptions')
+    }
+    assert.strictEqual(
+      ok.result.commands.find((command) => command.command.startsWith('jellyfin recently-added'))?.description,
+      'Return recently added items visible to JELLYFIN_USER_ID or the sole enabled administrator'
+    )
+    assert.strictEqual(
+      ok.result.commands.find((command) => command.command.startsWith('jellyfin item-search'))?.description,
+      'Search movies, series, and episodes visible to JELLYFIN_USER_ID or the sole enabled administrator'
+    )
     assert.strictEqual(missing.ok, true)
     if (!missing.ok || !('health' in missing.result)) {
       assert.fail('expected root result')

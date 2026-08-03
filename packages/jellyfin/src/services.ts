@@ -1,7 +1,10 @@
 import { makeConfigReaders } from '@garage/cli-protocol'
+import * as Config from 'effect/Config'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
+import * as Str from 'effect/String'
 
 import { envMissing } from './errors.js'
 import type { JellyfinError } from './errors.js'
@@ -46,7 +49,15 @@ const loadConfig = Effect.fn('JellyfinConfig.get')(
   function* () {
     const url = yield* readRequiredString('JELLYFIN_URL')
     const apiKey = yield* readRequiredSecret('JELLYFIN_API_KEY')
-    return { url, apiKey }
+    const userId = yield* Config.option(Config.string('JELLYFIN_USER_ID')).pipe(
+      Effect.map(Option.map(Str.trim)),
+      Effect.map(Option.filter(Str.isNonEmpty)),
+      Effect.mapError(() => envMissing('JELLYFIN_USER_ID'))
+    )
+    return Option.match(userId, {
+      onNone: () => ({ url, apiKey }),
+      onSome: (configuredUserId) => ({ url, apiKey, userId: configuredUserId }),
+    })
   },
   Effect.annotateLogs({ package: '@garage/jellyfin', service: 'JellyfinConfig', method: 'get' })
 )

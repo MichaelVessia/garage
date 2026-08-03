@@ -1,17 +1,18 @@
 export {
+  JellyfinAmbiguousAdministratorError,
+  JellyfinConfiguredUserError,
   JellyfinConfirmationRequiredError,
   JellyfinDecodeError,
   JellyfinEnvMissingError,
   JellyfinError,
   JellyfinHttpError,
-  JellyfinNotFoundError,
+  JellyfinNoEnabledAdministratorError,
   JellyfinUnreachableError,
   confirmationRequired,
   decodeError,
   envFix,
   envMissing,
   httpError,
-  notFound,
   unreachable,
 } from './errors.js'
 export type { JellyfinErrorCode } from './errors.js'

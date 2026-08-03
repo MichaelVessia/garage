@@ -25,7 +25,13 @@ export const confirmRunTaskFlag = '--confirm-run-task'
 
 export const envNextAction: NextAction = {
   command: rootCommand,
-  description: 'Open a fresh shell after JELLYFIN_URL and JELLYFIN_API_KEY are exported',
+  description:
+    'Open a fresh shell after JELLYFIN_URL and JELLYFIN_API_KEY are exported; set JELLYFIN_USER_ID when there is not exactly one enabled administrator',
+}
+
+export const mediaUserNextAction: NextAction = {
+  command: `${rootCommand} users`,
+  description: 'List users and choose an enabled user ID for JELLYFIN_USER_ID',
 }
 
 export const showCommandsAction: NextAction = { command: rootCommand, description: 'Show available commands' }

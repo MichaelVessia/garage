@@ -33,11 +33,35 @@ export class JellyfinDecodeError extends Schema.TaggedErrorClass<JellyfinDecodeE
   decodeErrorFields('JELLYFIN_DECODE_ERROR')
 ) {}
 
-export class JellyfinNotFoundError extends Schema.TaggedErrorClass<JellyfinNotFoundError>()('JellyfinNotFoundError', {
-  code: Schema.Literal('JELLYFIN_NOT_FOUND'),
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
+export class JellyfinConfiguredUserError extends Schema.TaggedErrorClass<JellyfinConfiguredUserError>()(
+  'JellyfinConfiguredUserError',
+  {
+    code: Schema.Literal('JELLYFIN_USER_ID_INVALID'),
+    message: Schema.String,
+    fix: Schema.String,
+    reason: Schema.Literals(['missing', 'disabled']),
+    userId: Schema.String,
+  }
+) {}
+
+export class JellyfinNoEnabledAdministratorError extends Schema.TaggedErrorClass<JellyfinNoEnabledAdministratorError>()(
+  'JellyfinNoEnabledAdministratorError',
+  {
+    code: Schema.Literal('JELLYFIN_NO_ENABLED_ADMINISTRATOR'),
+    message: Schema.String,
+    fix: Schema.String,
+  }
+) {}
+
+export class JellyfinAmbiguousAdministratorError extends Schema.TaggedErrorClass<JellyfinAmbiguousAdministratorError>()(
+  'JellyfinAmbiguousAdministratorError',
+  {
+    code: Schema.Literal('JELLYFIN_AMBIGUOUS_ADMINISTRATOR'),
+    message: Schema.String,
+    fix: Schema.String,
+    enabledAdministratorCount: Schema.Number,
+  }
+) {}
 
 export class JellyfinConfirmationRequiredError extends Schema.TaggedErrorClass<JellyfinConfirmationRequiredError>()(
   'JellyfinConfirmationRequiredError',
@@ -53,7 +77,9 @@ export const JellyfinError = Schema.Union([
   JellyfinUnreachableError,
   JellyfinHttpError,
   JellyfinDecodeError,
-  JellyfinNotFoundError,
+  JellyfinConfiguredUserError,
+  JellyfinNoEnabledAdministratorError,
+  JellyfinAmbiguousAdministratorError,
   JellyfinConfirmationRequiredError,
 ])
 export type JellyfinError = typeof JellyfinError.Type
@@ -80,11 +106,40 @@ export const decodeError = makeDecodeError(
   'Update the Jellyfin schemas to match the API response shape.'
 )
 
-export const notFound = (message: string): JellyfinNotFoundError =>
-  new JellyfinNotFoundError({
-    code: 'JELLYFIN_NOT_FOUND',
-    message,
-    fix: 'Verify Jellyfin has at least one enabled user.',
+const configuredUserFix =
+  'Set JELLYFIN_USER_ID to the ID of an enabled Jellyfin user. Run jellyfin users to inspect user IDs and policy state.'
+
+export const missingConfiguredUser = (userId: string): JellyfinConfiguredUserError =>
+  new JellyfinConfiguredUserError({
+    code: 'JELLYFIN_USER_ID_INVALID',
+    message: `Configured Jellyfin user ${userId} was not found`,
+    fix: configuredUserFix,
+    reason: 'missing',
+    userId,
+  })
+
+export const disabledConfiguredUser = (userId: string): JellyfinConfiguredUserError =>
+  new JellyfinConfiguredUserError({
+    code: 'JELLYFIN_USER_ID_INVALID',
+    message: `Configured Jellyfin user ${userId} is disabled`,
+    fix: configuredUserFix,
+    reason: 'disabled',
+    userId,
+  })
+
+export const noEnabledAdministrator = (): JellyfinNoEnabledAdministratorError =>
+  new JellyfinNoEnabledAdministratorError({
+    code: 'JELLYFIN_NO_ENABLED_ADMINISTRATOR',
+    message: 'No enabled Jellyfin administrator is available for media visibility',
+    fix: 'Set JELLYFIN_USER_ID to an enabled Jellyfin user ID, or enable exactly one Jellyfin administrator.',
+  })
+
+export const ambiguousAdministrator = (enabledAdministratorCount: number): JellyfinAmbiguousAdministratorError =>
+  new JellyfinAmbiguousAdministratorError({
+    code: 'JELLYFIN_AMBIGUOUS_ADMINISTRATOR',
+    message: 'Multiple enabled Jellyfin administrators are available for media visibility',
+    fix: 'Set JELLYFIN_USER_ID to the enabled Jellyfin user whose media visibility should be used.',
+    enabledAdministratorCount,
   })
 
 export const confirmationRequired = (): JellyfinConfirmationRequiredError =>
