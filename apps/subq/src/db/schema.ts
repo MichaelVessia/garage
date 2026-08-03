@@ -82,6 +82,7 @@ export const injectionSchedules = sqliteTable(
       enum: ['daily', 'every_3_days', 'weekly', 'every_2_weeks', 'monthly'],
     }).notNull(),
     startDate: text('start_date').notNull(),
+    calendarDateMigrated: integer('calendar_date_migrated', { mode: 'boolean' }).notNull().default(false),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     notes: text('notes'),
     userId: text('user_id'),
@@ -167,6 +168,7 @@ export const userGoals = sqliteTable(
     startingWeight: real('starting_weight').notNull(),
     startingDate: text('starting_date').notNull(),
     targetDate: text('target_date'),
+    calendarDateMigrated: integer('calendar_date_migrated', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     completedAt: text('completed_at'),
@@ -185,6 +187,12 @@ export const userSettings = sqliteTable(
     weightUnit: text('weight_unit', { enum: ['lbs', 'kg'] })
       .notNull()
       .default('lbs'),
+    // Nullable only for the one-time safe legacy bootstrap. Application reads
+    // initialize it before exposing settings or local-day behavior.
+    timezone: text('timezone'),
+    timezoneMigrationState: text('timezone_migration_state', { enum: ['pending', 'complete'] })
+      .notNull()
+      .default('pending'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

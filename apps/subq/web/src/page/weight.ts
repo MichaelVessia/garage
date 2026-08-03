@@ -11,6 +11,7 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
 import {
+  IanaTimezone,
   Limit,
   Notes,
   Offset,
@@ -44,6 +45,7 @@ const WeightForm = Schema.Struct({
   editingId: Schema.NullOr(WeightLogId),
   datetime: Schema.String,
   maxDatetime: Schema.String,
+  originalDatetime: Schema.NullOr(Schema.DateTimeUtc),
   weight: Schema.String,
   notes: Schema.String,
   submitting: Schema.Boolean,
@@ -147,17 +149,17 @@ export const FetchWeightLogs = Command.define(
 // Opening the form needs "now" for the datetime default and max.
 export const OpenWeightForm = Command.define(
   'OpenWeightForm',
-  { log: Schema.NullOr(WeightLog) },
+  { log: Schema.NullOr(WeightLog), timezone: IanaTimezone },
   OpenedWeightForm
-)(({ log }) =>
-  DateTime.now.pipe(Effect.map((now) => OpenedWeightForm({ log, nowLocal: utcToLocalDatetimeString(now) })))
+)(({ log, timezone }) =>
+  DateTime.now.pipe(Effect.map((now) => OpenedWeightForm({ log, nowLocal: utcToLocalDatetimeString(now, timezone) })))
 )
 
 export const SaveWeight = Command.define(
   'SaveWeight',
   {
     editingId: Schema.NullOr(WeightLogId),
-    datetime: Schema.String,
+    datetime: Schema.DateTimeUtc,
     weightLbs: Schema.Number,
     notes: Schema.String,
   },
@@ -167,7 +169,7 @@ export const SaveWeight = Command.define(
   Effect.gen(function* () {
     const api = yield* Api
     const fields = {
-      datetime: fromLocalDatetimeString(datetime),
+      datetime,
       notes: notes === '' ? Option.none<Notes>() : Option.some(Notes.make(notes)),
       weight: Weight.make(weightLbs),
     }
@@ -209,7 +211,7 @@ type UpdateReturn = readonly [WeightModel, ReadonlyArray<Command.Command<WeightC
 export const fetchWeightLogsIfIdle = (model: WeightModel): UpdateReturn =>
   AsyncData.isIdle(model.logs) ? [evo(model, { logs: () => AsyncData.Loading() }), [FetchWeightLogs()]] : [model, []]
 
-export const updateWeight = (model: WeightModel, message: WeightMessage): UpdateReturn =>
+export const updateWeight = (model: WeightModel, message: WeightMessage, timezone: IanaTimezone): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
@@ -217,9 +219,9 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
       ChangedWeightDatetime: ({ value }) => [withForm(model, () => ({ datetime: value })), []],
       ChangedWeightNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
       ChangedWeightValue: ({ value }) => [withForm(model, () => ({ weight: value })), []],
-      ClickedAddWeight: () => [model, [OpenWeightForm({ log: null })]],
+      ClickedAddWeight: () => [model, [OpenWeightForm({ log: null, timezone })]],
       ClickedCancelWeightForm: () => [evo(model, { form: () => null }), []],
-      ClickedEditWeight: ({ log }) => [model, [OpenWeightForm({ log })]],
+      ClickedEditWeight: ({ log }) => [model, [OpenWeightForm({ log, timezone })]],
       ClickedWeightPage: ({ delta }) => [evo(model, { page: (page) => page + delta }), []],
       ClickedWeightSort: ({ column }) => [
         evo(model, {
@@ -244,15 +246,17 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
                   error: null,
                   maxDatetime: nowLocal,
                   notes: '',
+                  originalDatetime: null,
                   submitting: false,
                   weight: '',
                 }
               : {
-                  datetime: utcToLocalDatetimeString(log.datetime),
+                  datetime: utcToLocalDatetimeString(log.datetime, timezone),
                   editingId: log.id,
                   error: null,
                   maxDatetime: nowLocal,
                   notes: log.notes ?? '',
+                  originalDatetime: log.datetime,
                   submitting: false,
                   weight: String(log.weight),
                 },
@@ -265,6 +269,14 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
         if (model.form === null) {
           return [model, []]
         }
+        const datetime =
+          model.form.originalDatetime !== null &&
+          model.form.datetime === utcToLocalDatetimeString(model.form.originalDatetime, timezone)
+            ? Option.some(model.form.originalDatetime)
+            : fromLocalDatetimeString(model.form.datetime, timezone)
+        if (Option.isNone(datetime)) {
+          return [withForm(model, () => ({ error: 'Date & time is invalid in your timezone' })), []]
+        }
         const parsed = Number.parseFloat(model.form.weight)
         if (Number.isNaN(parsed) || parsed <= 0 || parsed > 1000) {
           return [withForm(model, () => ({ error: 'Enter a valid weight' })), []]
@@ -273,7 +285,7 @@ export const updateWeight = (model: WeightModel, message: WeightMessage): Update
           withForm(model, () => ({ error: null, submitting: true })),
           [
             SaveWeight({
-              datetime: model.form.datetime,
+              datetime: datetime.value,
               editingId: model.form.editingId,
               notes: model.form.notes,
               weightLbs: toStorageLbs(unit, parsed),
@@ -434,7 +446,7 @@ const viewDeleteConfirm = () =>
     ]
   )
 
-const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: WeightUnit) => {
+const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: WeightUnit, timezone: IanaTimezone) => {
   const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
   const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const page = Math.min(model.page, pageCount - 1)
@@ -487,7 +499,7 @@ const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: Wei
                     log.id,
                     [h.Class('border-b transition-colors hover:bg-muted/50')],
                     [
-                      h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime)]),
+                      h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
                       h.td([h.Class('p-3 font-mono font-medium')], [formatWeight(unit, log.weight)]),
                       h.td(
                         [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
@@ -550,7 +562,7 @@ const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: Wei
   )
 }
 
-export const viewWeight = (model: WeightModel, unit: WeightUnit) =>
+export const viewWeight = (model: WeightModel, unit: WeightUnit, timezone: IanaTimezone) =>
   h.div(
     [],
     [
@@ -568,11 +580,11 @@ export const viewWeight = (model: WeightModel, unit: WeightUnit) =>
           h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
         onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
         onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-        onRefreshing: (data) => viewTable(model, data, unit),
-        onStale: ({ data }) => viewTable(model, data, unit),
+        onRefreshing: (data) => viewTable(model, data, unit, timezone),
+        onStale: ({ data }) => viewTable(model, data, unit, timezone),
         onSuccess: (data) =>
           Arr.isReadonlyArrayNonEmpty(data)
-            ? viewTable(model, data, unit)
+            ? viewTable(model, data, unit, timezone)
             : h.div(
                 [h.Class('text-center py-12 text-muted-foreground')],
                 ['No entries yet. Add your first weight log.']

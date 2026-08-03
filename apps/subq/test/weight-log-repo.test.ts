@@ -3,13 +3,14 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
-import { Limit, Notes, Offset, Weight, WeightLogId } from '#shared'
+import { CalendarDate, IanaTimezone, Limit, Notes, Offset, Weight, WeightLogId } from '#shared'
 
 import { WeightLogRepo, WeightLogRepoLive } from '../src/weight/weight-log-repo.js'
 import { testDate } from './helpers/dates.js'
 import { insertWeightLog, makeInitializedTestLayer } from './helpers/test-db.js'
 
 const TestLayer = makeInitializedTestLayer(WeightLogRepoLive)
+const timezone = IanaTimezone.make('UTC')
 
 const requireValue = <T>(value: T | null | undefined): T => {
   if (value === null || value === undefined) {
@@ -175,7 +176,7 @@ describe('WeightLogRepo', () => {
       it.effect('returns none for an empty table', () =>
         Effect.gen(function* () {
           const repo = yield* WeightLogRepo
-          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+          const found = yield* repo.nearestToDate('user-123', CalendarDate.make('2024-01-15'), timezone)
           assert.isTrue(Option.isNone(found))
         })
       )
@@ -189,7 +190,7 @@ describe('WeightLogRepo', () => {
 
           const repo = yield* WeightLogRepo
           // Closer to 2024-01-01 (4 days away) than to 2024-01-20 (15 days away)
-          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-05T00:00:00Z'))
+          const found = yield* repo.nearestToDate('user-123', CalendarDate.make('2024-01-05'), timezone)
           assert.isTrue(Option.isSome(found))
           if (Option.isSome(found)) {
             assert.strictEqual(found.value.id, 'wl-before')
@@ -206,7 +207,7 @@ describe('WeightLogRepo', () => {
 
           const repo = yield* WeightLogRepo
           // Closer to 2024-01-20 (2 days away) than to 2024-01-01 (17 days away)
-          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-18T00:00:00Z'))
+          const found = yield* repo.nearestToDate('user-123', CalendarDate.make('2024-01-18'), timezone)
           assert.isTrue(Option.isSome(found))
           if (Option.isSome(found)) {
             assert.strictEqual(found.value.id, 'wl-after')
@@ -222,7 +223,7 @@ describe('WeightLogRepo', () => {
           yield* insertWeightLog('wl-far', testDate('2024-06-01T00:00:00Z'), 170, 'user-123')
 
           const repo = yield* WeightLogRepo
-          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+          const found = yield* repo.nearestToDate('user-123', CalendarDate.make('2024-01-15'), timezone)
           assert.isTrue(Option.isSome(found))
           if (Option.isSome(found)) {
             assert.strictEqual(found.value.id, 'wl-exact')
@@ -237,7 +238,7 @@ describe('WeightLogRepo', () => {
           yield* insertWeightLog('wl-1', testDate('2024-01-15T00:00:00Z'), 180, 'user-456')
 
           const repo = yield* WeightLogRepo
-          const found = yield* repo.nearestToDate('user-123', DateTime.makeUnsafe('2024-01-15T00:00:00Z'))
+          const found = yield* repo.nearestToDate('user-123', CalendarDate.make('2024-01-15'), timezone)
           assert.isTrue(Option.isNone(found))
         })
       )

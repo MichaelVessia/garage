@@ -10,7 +10,13 @@ import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
-import { DataExport, DataImportResult, UserSettingsUpdate } from '#shared'
+import {
+  DataExport,
+  DataExportTemporalMigrationRequired,
+  DataImportResult,
+  IanaTimezone,
+  UserSettingsUpdate,
+} from '#shared'
 import type { WeightUnit } from '#shared'
 
 import { downloadTextFile } from '../adapter/browser-download.js'
@@ -39,6 +45,7 @@ type PasswordForm = typeof PasswordForm.Type
 export const SettingsModel = Schema.Struct({
   preferenceSubmitting: Schema.Boolean,
   preferenceError: Schema.NullOr(Schema.String),
+  timezoneInput: Schema.String,
   password: PasswordForm,
   exportStatus: Schema.Literals(['idle', 'exporting']),
   importStatus: Schema.Literals(['idle', 'reading', 'importing']),
@@ -64,6 +71,7 @@ export const initialSettingsModel: SettingsModel = {
   },
   preferenceError: null,
   preferenceSubmitting: false,
+  timezoneInput: '',
 }
 
 // ============================================
@@ -73,6 +81,8 @@ export const initialSettingsModel: SettingsModel = {
 export const ClickedSettingsWeightUnit = m('ClickedSettingsWeightUnit', {
   unit: Schema.Literals(['lbs', 'kg']),
 })
+export const ChangedSettingsTimezone = m('ChangedSettingsTimezone', { value: Schema.String })
+export const SubmittedSettingsTimezone = m('SubmittedSettingsTimezone')
 export const SucceededUpdateSettingsPreference = m('SucceededUpdateSettingsPreference')
 export const FailedUpdateSettingsPreference = m('FailedUpdateSettingsPreference', {
   message: Schema.String,
@@ -99,6 +109,8 @@ export const FailedImportData = m('FailedImportData', { message: Schema.String }
 
 export const SettingsPageMessage = Schema.Union([
   ClickedSettingsWeightUnit,
+  ChangedSettingsTimezone,
+  SubmittedSettingsTimezone,
   SucceededUpdateSettingsPreference,
   FailedUpdateSettingsPreference,
   ChangedSettingsCurrentPassword,
@@ -138,20 +150,47 @@ const UpdateWeightUnit = Command.define(
   }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update display preferences'))
 )
 
+const UpdateTimezone = Command.define(
+  'UpdateSettingsTimezone',
+  { timezone: IanaTimezone },
+  SucceededUpdateSettingsPreference,
+  FailedUpdateSettingsPreference
+)(({ timezone }) =>
+  Effect.gen(function* () {
+    const api = yield* Api
+    yield* api.UserSettingsUpdate(new UserSettingsUpdate({ timezone }))
+    return SucceededUpdateSettingsPreference()
+  }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update timezone'))
+)
+
 const ExportData = Command.define(
   'ExportData',
   SucceededExportData,
   FailedExportData
 )(
   Effect.gen(function* () {
-    const api = yield* Api
-    const data = yield* api.UserDataExport()
-    const json = yield* Schema.encodeEffect(DataExportJson)(data)
-    const now = yield* DateTime.now
-    const filename = `subq-export-${DateTime.formatIso(now).slice(0, 10)}.json`
-    yield* downloadTextFile({ contents: json, filename, mediaType: 'application/json' })
-    return SucceededExportData()
-  }).pipe(toCommandResult(FailedExportData, 'Failed to export data. Please try again.'))
+    const result = yield* Effect.gen(function* () {
+      const api = yield* Api
+      const data = yield* api.UserDataExport()
+      const json = yield* Schema.encodeEffect(DataExportJson)(data)
+      const now = yield* DateTime.now
+      const filename = `subq-export-${DateTime.formatIso(now).slice(0, 10)}.json`
+      yield* downloadTextFile({ contents: json, filename, mediaType: 'application/json' })
+      return SucceededExportData()
+    }).pipe(Effect.result)
+
+    return Match.value(result).pipe(
+      Match.tagsExhaustive({
+        Failure: ({ failure }) =>
+          FailedExportData({
+            message: Schema.is(DataExportTemporalMigrationRequired)(failure)
+              ? failure.message
+              : 'Failed to export data. Please try again.',
+          }),
+        Success: ({ success }) => success,
+      })
+    )
+  })
 )
 
 const SelectImportFile = Command.define(
@@ -182,7 +221,7 @@ const ReadImportFile = Command.define(
   Effect.tryPromise(() => file.text()).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(DataExportJson)),
     Effect.map((data) => PreparedImportData({ data })),
-    toCommandResult(FailedImportData, 'Invalid export file. Only Subq 3.0.0-alpha.1 exports are supported.')
+    toCommandResult(FailedImportData, 'Invalid export file. Only Subq 3.0.0-alpha.2 exports are supported.')
   )
 )
 
@@ -251,12 +290,22 @@ const importSummary = (data: DataExport): string => {
 const importResultMessage = (result: DataImportResult): string =>
   `Successfully imported: ${result.weightLogs} weight logs, ${result.injectionLogs} injection logs, ${result.schedules} schedules, ${result.goals} goals`
 
-export const updateSettingsPage = (model: SettingsModel, message: SettingsPageMessage): UpdateReturn =>
+export const updateSettingsPage = (
+  model: SettingsModel,
+  message: SettingsPageMessage,
+  currentTimezone: IanaTimezone,
+  detectedTimezone: IanaTimezone,
+  settingsRequestGeneration: number
+): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
       CancelledImportData: () => [evo(model, { importConfirm: () => null, importStatus: () => 'idle' }), []],
       CancelledSelectImportFile: () => [evo(model, { importStatus: () => 'idle' }), []],
+      ChangedSettingsTimezone: ({ value }) => [
+        evo(model, { preferenceError: () => null, timezoneInput: () => value }),
+        [],
+      ],
       ChangedSettingsConfirmPassword: ({ value }) => [
         evo(model, {
           password: (form) => evo(form, { confirmPassword: () => value, success: () => false }),
@@ -331,6 +380,17 @@ export const updateSettingsPage = (model: SettingsModel, message: SettingsPageMe
         [],
       ],
       SelectedImportFile: ({ file }) => [model, [ReadImportFile({ file })]],
+      SubmittedSettingsTimezone: () => {
+        const candidate = model.timezoneInput === '' ? currentTimezone : model.timezoneInput
+        const timezone = Schema.decodeUnknownOption(IanaTimezone)(candidate)
+        return Option.match(timezone, {
+          onNone: (): UpdateReturn => [evo(model, { preferenceError: () => 'Enter a valid IANA timezone' }), []],
+          onSome: (validTimezone): UpdateReturn => [
+            evo(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
+            [UpdateTimezone({ timezone: validTimezone })],
+          ],
+        })
+      },
       SubmittedSettingsPassword: () => {
         if (model.password.currentPassword === '') {
           return [evo(model, { password: passwordError('Current password is required') }), []]
@@ -371,11 +431,16 @@ export const updateSettingsPage = (model: SettingsModel, message: SettingsPageMe
           importConfirm: () => null,
           importStatus: () => 'idle',
         }),
-        [FetchSettings()],
+        [
+          FetchSettings({
+            detectedTimezone: result.settingsUpdated ? currentTimezone : detectedTimezone,
+            requestGeneration: settingsRequestGeneration,
+          }),
+        ],
       ],
       SucceededUpdateSettingsPreference: () => [
-        evo(model, { preferenceError: () => null, preferenceSubmitting: () => false }),
-        [FetchSettings()],
+        evo(model, { preferenceError: () => null, preferenceSubmitting: () => false, timezoneInput: () => '' }),
+        [FetchSettings({ detectedTimezone: currentTimezone, requestGeneration: settingsRequestGeneration })],
       ],
     })
   )
@@ -408,7 +473,7 @@ const unitButton = (current: WeightUnit, unit: WeightUnit, label: string, submit
     [label]
   )
 
-const viewDisplayPreferences = (model: SettingsModel, settings: SettingsData) =>
+const viewDisplayPreferences = (model: SettingsModel, settings: SettingsData, timezone: IanaTimezone) =>
   viewCard('Display Preferences', [
     h.div(
       [h.Class('space-y-4')],
@@ -426,6 +491,32 @@ const viewDisplayPreferences = (model: SettingsModel, settings: SettingsData) =>
               [
                 unitButton(weightUnitOf(settings), 'lbs', 'Pounds (lbs)', model.preferenceSubmitting),
                 unitButton(weightUnitOf(settings), 'kg', 'Kilograms (kg)', model.preferenceSubmitting),
+              ]
+            ),
+          ]
+        ),
+        h.form(
+          [h.Class('border-t pt-4 space-y-3'), h.OnSubmit(SubmittedSettingsTimezone())],
+          [
+            h.label([h.For('settings-timezone'), h.Class('block text-sm font-medium')], ['Timezone']),
+            h.p(
+              [h.Class('text-sm text-muted-foreground')],
+              ['Used to project event timestamps onto local calendar days. Planned dates never change.']
+            ),
+            h.div(
+              [h.Class('flex flex-col gap-3 sm:flex-row')],
+              [
+                h.input([
+                  h.Class(input()),
+                  h.Id('settings-timezone'),
+                  h.Type('text'),
+                  h.Value(model.timezoneInput === '' ? timezone : model.timezoneInput),
+                  h.OnInput((value) => ChangedSettingsTimezone({ value })),
+                ]),
+                h.button(
+                  [h.Class(button()), h.Type('submit'), h.Disabled(model.preferenceSubmitting)],
+                  [model.preferenceSubmitting ? 'Saving...' : 'Save Timezone']
+                ),
               ]
             ),
           ]
@@ -579,12 +670,12 @@ const viewImportConfirm = (data: DataExport) =>
     ]
   )
 
-export const viewSettings = (model: SettingsModel, settings: SettingsData) =>
+export const viewSettings = (model: SettingsModel, settings: SettingsData, timezone: IanaTimezone) =>
   h.div(
     [],
     [
       h.h2([h.Class('text-xl font-semibold tracking-tight mb-6')], ['Settings']),
-      viewDisplayPreferences(model, settings),
+      viewDisplayPreferences(model, settings, timezone),
       viewPasswordForm(model.password),
       viewDataManagement(model),
       model.importConfirm === null ? h.empty : viewImportConfirm(model.importConfirm),

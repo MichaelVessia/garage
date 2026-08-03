@@ -3,14 +3,16 @@ import * as Schema from 'effect/Schema'
 import * as Route from 'foldkit/route'
 import { literal, r, root, slash, string } from 'foldkit/route'
 
+import { CalendarDate } from '#shared'
+
 // ============================================
 // Route definitions
 // ============================================
 
 export const LoginRoute = r('Login', {})
 export const StatsRoute = r('Stats', {
-  start: Schema.OptionFromOptional(Schema.String),
-  end: Schema.OptionFromOptional(Schema.String),
+  start: Schema.OptionFromOptional(CalendarDate),
+  end: Schema.OptionFromOptional(CalendarDate),
 })
 export const WeightRoute = r('Weight', {})
 export const InjectionRoute = r('Injection', {})
@@ -40,8 +42,8 @@ export const statsRouter = pipe(
   literal('stats'),
   Route.query(
     Schema.Struct({
-      start: Schema.OptionFromOptional(Schema.String),
-      end: Schema.OptionFromOptional(Schema.String),
+      start: Schema.OptionFromOptional(CalendarDate),
+      end: Schema.OptionFromOptional(CalendarDate),
     })
   ),
   Route.mapTo(StatsRoute)
@@ -56,8 +58,8 @@ export const rootRouter = pipe(
   root,
   Route.query(
     Schema.Struct({
-      start: Schema.OptionFromOptional(Schema.String),
-      end: Schema.OptionFromOptional(Schema.String),
+      start: Schema.OptionFromOptional(CalendarDate),
+      end: Schema.OptionFromOptional(CalendarDate),
     })
   ),
   Route.mapTo(StatsRoute)

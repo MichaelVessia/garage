@@ -8,8 +8,17 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
 
-import { Notes, Weight, WeightLog, WeightLogDatabaseError, WeightLogId, WeightLogNotFoundError } from '#shared'
-import type { WeightLogCreate, WeightLogListParams, WeightLogUpdate } from '#shared'
+import {
+  calendarDaysBetween,
+  Notes,
+  projectInstantToCalendarDate,
+  Weight,
+  WeightLog,
+  WeightLogDatabaseError,
+  WeightLogId,
+  WeightLogNotFoundError,
+} from '#shared'
+import type { CalendarDate, IanaTimezone, WeightLogCreate, WeightLogListParams, WeightLogUpdate } from '#shared'
 
 import { mapDbError } from '../shared/common/db-error.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
@@ -60,10 +69,11 @@ export class WeightLogRepo extends Context.Service<
     readonly listChronological: (userId: string) => Effect.Effect<WeightLog[], WeightLogDatabaseError>
     /** Most recently logged weight entry for a user. */
     readonly mostRecent: (userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
-    /** Weight entry whose date is nearest to the given date (ties broken arbitrarily). */
+    /** Weight entry whose projected local date is nearest to the planned date. */
     readonly nearestToDate: (
       userId: string,
-      date: DateTime.Utc
+      date: CalendarDate,
+      timezone: IanaTimezone
     ) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
     readonly create: (data: WeightLogCreate, userId: string) => Effect.Effect<WeightLog, WeightLogDatabaseError>
     readonly update: (
@@ -152,21 +162,26 @@ export const WeightLogRepoLive = Layer.effect(
     )
 
     const nearestToDate = Effect.fn('WeightLogRepo.nearestToDate')(
-      function* (userId: string, date: DateTime.Utc) {
-        const dateStr = DateTime.formatIso(date).slice(0, 10)
-        // Nearest by absolute day distance; ties broken by SQLite's default row order.
+      function* (userId: string, date: CalendarDate, timezone: IanaTimezone) {
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE user_id = ${userId}
-          ORDER BY ABS(julianday(date(datetime)) - julianday(${dateStr}))
-          LIMIT 1
+          ORDER BY datetime ASC
         `
-        if (Arr.isReadonlyArrayEmpty(rows)) {
-          return Option.none()
-        }
-        const decoded = yield* decodeAndTransform(rows[0])
-        return Option.some(decoded)
+        const entries = yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+        return Arr.reduce(
+          entries,
+          Option.none<{ readonly distance: number; readonly entry: WeightLog }>(),
+          (best, entry) => {
+            const entryDate = projectInstantToCalendarDate(entry.datetime, timezone)
+            const candidate = { distance: Math.abs(calendarDaysBetween(date, entryDate)), entry }
+            return Option.match(best, {
+              onNone: () => Option.some(candidate),
+              onSome: (previous) => Option.some(candidate.distance < previous.distance ? candidate : previous),
+            })
+          }
+        ).pipe(Option.map(({ entry }) => entry))
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )

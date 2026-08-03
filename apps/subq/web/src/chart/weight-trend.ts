@@ -8,7 +8,7 @@ import { html } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
-import type { TrendLine } from '#shared'
+import type { IanaTimezone, TrendLine } from '#shared'
 
 import { epochToDate } from '../lib/datetime.js'
 
@@ -39,7 +39,8 @@ export interface SchedulePeriod {
   readonly scheduleName: string
   readonly drug: string
   readonly startDate: Date
-  readonly endDate: Option.Option<Date>
+  readonly endDateExclusive: Option.Option<Date>
+  readonly endDateInclusive: Option.Option<Date>
 }
 
 // ============================================
@@ -351,15 +352,27 @@ export interface WeightTrendProps {
   readonly zoomRange: Option.Option<{ readonly start: Date; readonly end: Date }>
   readonly displayWeight: (lbs: number) => number
   readonly unitLabel: string
+  readonly timezone: IanaTimezone
 }
 
 const h = html<ChartMessage>()
 
-const formatDate = d3.timeFormat('%b %d, %Y')
-const formatTick = d3.timeFormat('%b %d')
-
 export const viewWeightTrend = (props: WeightTrendProps) => {
-  const { displayWeight, injectionData, schedulePeriods, state, trendLine, unitLabel, weightData, zoomRange } = props
+  const {
+    displayWeight,
+    injectionData,
+    schedulePeriods,
+    state,
+    timezone,
+    trendLine,
+    unitLabel,
+    weightData,
+    zoomRange,
+  } = props
+  const formatDate = (date: Date): string =>
+    new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: timezone }).format(date)
+  const formatTick = (date: Date): string =>
+    new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', timeZone: timezone }).format(date)
   const allSorted = bySortedDate(weightData)
   const sorted = Option.match(zoomRange, {
     onNone: () => allSorted,
@@ -379,7 +392,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
     return h.empty
   }
 
-  const xScale = d3.scaleTime().domain([minDate, maxDate]).range([0, width])
+  const xScale = d3.scaleUtc().domain([minDate, maxDate]).range([0, width])
   const { maxRow, pills } = computePills(sorted, injectionData, zoomRange, xScale)
   const yPaddingBottom = (maxWeight - minWeight) * 0.1 || 5
   const pillSpace = (maxRow + 1) * (PILL.HEIGHT + PILL.VERTICAL_GAP) + 20
@@ -473,7 +486,10 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
   const domainStartMs = minDate.getTime()
   const domainEndMs = maxDate.getTime()
   const bands = schedulePeriods.flatMap((schedule) => {
-    const endMs = Option.match(schedule.endDate, { onNone: () => domainEndMs, onSome: (date) => date.getTime() })
+    const endMs = Option.match(schedule.endDateExclusive, {
+      onNone: () => domainEndMs,
+      onSome: (date) => date.getTime(),
+    })
     const startMs = schedule.startDate.getTime()
     if (endMs < domainStartMs || startMs > domainEndMs) {
       return []
@@ -483,6 +499,10 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
     if (x2 - x1 < 2) {
       return []
     }
+    const displayedRange = `${formatDate(schedule.startDate)} — ${Option.match(schedule.endDateInclusive, {
+      onNone: () => 'ongoing',
+      onSome: (date) => formatDate(date),
+    })}`
     return [
       h.rect(
         [
@@ -492,14 +512,10 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
           h.Height(String(height)),
           h.Fill('currentColor'),
           h.Opacity('0.04'),
+          h.AriaLabel(`${schedule.scheduleName} (${schedule.drug}), ${displayedRange}`),
           h.OnMouseEnter(
             HoveredChartTooltip({
-              lines: [
-                `${formatDate(schedule.startDate)} — ${Option.match(schedule.endDate, {
-                  onNone: () => 'ongoing',
-                  onSome: (date) => formatDate(date),
-                })}`,
-              ],
+              lines: [displayedRange],
               title: `${schedule.scheduleName} (${schedule.drug})`,
               x: margin.left + (x1 + x2) / 2,
               y: margin.top + 24,

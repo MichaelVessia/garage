@@ -3,13 +3,14 @@ import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
 import { DbOperation } from '../common/domain.js'
+import { SettingsTimezoneNotInitialized } from '../settings/errors.js'
 import {
   InjectionSchedule,
   InjectionScheduleCreate,
   InjectionScheduleDelete,
   InjectionScheduleId,
   InjectionScheduleUpdate,
-  NextScheduledDose,
+  NextScheduledDoseResult,
   ScheduleView,
 } from './domain.js'
 
@@ -52,7 +53,7 @@ export const ScheduleRpcs = RpcGroup.make(
   Rpc.make('ScheduleUpdate', {
     payload: InjectionScheduleUpdate,
     success: InjectionSchedule,
-    error: Schema.Union([ScheduleNotFoundError, ScheduleDatabaseError]),
+    error: Schema.Union([ScheduleNotFoundError, ScheduleDatabaseError, SettingsTimezoneNotInitialized]),
   }),
   Rpc.make('ScheduleDelete', {
     payload: InjectionScheduleDelete,
@@ -60,7 +61,7 @@ export const ScheduleRpcs = RpcGroup.make(
     error: ScheduleDatabaseError,
   }),
   Rpc.make('ScheduleGetNextDose', {
-    success: Schema.NullOr(NextScheduledDose),
+    success: NextScheduledDoseResult,
     error: ScheduleDatabaseError,
   }),
   Rpc.make('ScheduleGetView', {

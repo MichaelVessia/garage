@@ -5,11 +5,13 @@ import * as P from 'effect/Predicate'
 import * as AsyncData from 'foldkit/asyncData'
 
 import {
+  CalendarDate,
   DoseMg,
   InjectionLog,
   InjectionLogId,
   InjectionSchedule,
   InjectionScheduleId,
+  IanaTimezone,
   MedicationCompound,
   PhaseDurationDays,
   PhaseOrder,
@@ -81,7 +83,7 @@ const schedule = new InjectionSchedule({
       updatedAt: timestamp,
     },
   ],
-  startDate: timestamp,
+  startDate: CalendarDate.make('2026-01-01'),
   supplier: Supplier.make('Clinic'),
   updatedAt: timestamp,
 })
@@ -113,6 +115,7 @@ describe('canonical medication views', () => {
         injectionSite: '',
         maxDatetime: '2026-01-09T12:00',
         notes: '',
+        originalDatetime: null,
         scheduleId,
         submitting: false,
         supplier: 'Pharmacy',
@@ -122,7 +125,7 @@ describe('canonical medication views', () => {
       sites: AsyncData.succeed([]),
     }
 
-    const view = viewInjections(model)
+    const view = viewInjections(model, IanaTimezone.make('UTC'))
     const medication = findById(view, 'injection-drug')
     const dose = findById(view, 'injection-dose-mg')
     const supplier = findById(view, 'injection-supplier')

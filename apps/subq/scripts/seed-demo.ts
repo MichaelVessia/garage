@@ -22,7 +22,7 @@ import * as Schema from 'effect/Schema'
 import { Cookies, FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/unstable/http'
 import { RpcClient, RpcSerialization } from 'effect/unstable/rpc'
 
-import { AppRpcs, DataExport, DEMO_USER } from '#shared'
+import { AppRpcs, DataExport, DEMO_USER, IanaTimezone, projectInstantToCalendarDate } from '#shared'
 
 import { randomUuid } from '../src/shared/common/random-uuid.js'
 import { SeedError } from './errors.js'
@@ -33,6 +33,7 @@ import { SeedError } from './errors.js'
 
 const SITES = ['left abdomen', 'right abdomen', 'left thigh', 'right thigh']
 const TITRATION_DOSES = [2.5, 5, 7.5, 10, 15]
+const DEMO_TIMEZONE = IanaTimezone.make('America/New_York')
 
 const siteForWeek = (week: number): string => SITES[(week - 1) % SITES.length] ?? 'left abdomen'
 
@@ -330,7 +331,7 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       notes: 'Completed 20-week titration',
       phases: yield* makePhases(semaScheduleId, now, titrationPhaseSpecs),
       supplier: null,
-      startDate,
+      startDate: projectInstantToCalendarDate(startDate, DEMO_TIMEZONE),
       updatedAt: now,
     },
     {
@@ -343,7 +344,7 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       notes: 'Completed - switched to Retatrutide',
       phases: yield* makePhases(tirzScheduleId, now, titrationPhaseSpecs),
       supplier: null,
-      startDate: tirzStartDate,
+      startDate: projectInstantToCalendarDate(tirzStartDate, DEMO_TIMEZONE),
       updatedAt: now,
     },
     {
@@ -362,7 +363,7 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
         { doseMg: 12, durationDays: Option.none<number>(), order: 5 },
       ]),
       supplier: 'Compounding Pharmacy',
-      startDate: retatStartDate,
+      startDate: projectInstantToCalendarDate(retatStartDate, DEMO_TIMEZONE),
       updatedAt: now,
     },
   ]
@@ -386,9 +387,9 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       id: yield* randomUuid(),
       isActive: true,
       notes: 'Long-term goal - doctor says 125 is ideal for my height',
-      startingDate: goalStartDate,
+      startingDate: projectInstantToCalendarDate(goalStartDate, DEMO_TIMEZONE),
       startingWeight: 200,
-      targetDate: goalTargetDate,
+      targetDate: projectInstantToCalendarDate(goalTargetDate, DEMO_TIMEZONE),
       updatedAt: now,
     },
   ]
@@ -398,11 +399,11 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       goals,
       injectionLogs,
       schedules,
-      settings: { weightUnit: 'lbs' },
+      settings: { timezone: DEMO_TIMEZONE, weightUnit: 'lbs' },
       weightLogs,
     },
     exportedAt: now,
-    version: '3.0.0-alpha.1',
+    version: '3.0.0-alpha.2',
   }
 })
 

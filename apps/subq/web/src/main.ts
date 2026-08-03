@@ -13,6 +13,8 @@ import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 import { Url, toString as urlToString } from 'foldkit/url'
 
+import { IanaTimezone } from '#shared'
+
 import type { Api } from './api.js'
 import { AuthMessage, FetchSession, SessionUser, SignOut } from './auth.js'
 import {
@@ -20,6 +22,7 @@ import {
   FetchSettings,
   SettingsData,
   SucceededFetchSettings,
+  timezoneOf,
   weightUnitOf,
 } from './data/settings.js'
 import {
@@ -91,18 +94,19 @@ import { button, navLink } from './ui.js'
 // ============================================
 
 export const Flags = Schema.Struct({
-  timezone: Schema.String,
+  timezone: IanaTimezone,
 })
 export type Flags = typeof Flags.Type
 
 export const Model = Schema.Struct({
   route: AppRoute,
-  timezone: Schema.String,
+  detectedTimezone: IanaTimezone,
   user: Schema.NullOr(SessionUser),
   sessionLoaded: Schema.Boolean,
   login: LoginModel,
   settings: SettingsData,
   settingsPage: SettingsModel,
+  settingsRequestGeneration: Schema.Number,
   weight: WeightModel,
   injections: InjectionsModel,
   schedule: ScheduleModel,
@@ -119,8 +123,9 @@ export const ClickedLink = m('ClickedLink', { request: UrlRequest })
 export const ChangedUrl = m('ChangedUrl', { url: Url })
 export const NavigationDone = m('NavigationDone')
 export const ClickedSignOut = m('ClickedSignOut')
+export const ClickedRetrySettings = m('ClickedRetrySettings')
 
-export const SettingsMessage = Schema.Union([SucceededFetchSettings, FailedFetchSettings])
+export const SettingsMessage = Schema.Union([SucceededFetchSettings, FailedFetchSettings, ClickedRetrySettings])
 export type SettingsMessage = typeof SettingsMessage.Type
 
 export const Message = Schema.Union([
@@ -183,6 +188,21 @@ const statsRangeOf = (model: Model): StatsRange =>
     ? { end: model.route.end, start: model.route.start }
     : { end: Option.none(), start: Option.none() }
 
+const resetStats = (model: StatsModel): StatsModel => ({
+  ...initialStatsModel,
+  requestGeneration: model.requestGeneration,
+})
+
+const resetSchedule = (model: ScheduleModel): ScheduleModel => ({
+  ...initialScheduleModel,
+  nextDoseRequestKey: model.nextDoseRequestKey,
+})
+
+const recordSettingsRequest = (model: Model, commands: ReadonlyArray<{ readonly name: string }>): Model =>
+  commands.some(({ name }) => name === FetchSettings.name)
+    ? evo(model, { settingsRequestGeneration: (generation) => generation + 1 })
+    : model
+
 // Applies session redirects and kicks off the data fetches the current
 // route needs (only when idle, so navigation is cheap).
 const enterRoute = (model: Model): UpdateReturn => {
@@ -192,10 +212,18 @@ const enterRoute = (model: Model): UpdateReturn => {
   }
   const commands: Array<Commands[number]> = []
   let next = model
-  if (AsyncData.isIdle(next.settings)) {
-    next = evo(next, { settings: () => AsyncData.Loading() })
-    commands.push(FetchSettings())
+  if (Option.isNone(AsyncData.getData(next.settings))) {
+    if (AsyncData.isIdle(next.settings)) {
+      const requestGeneration = next.settingsRequestGeneration + 1
+      next = evo(next, {
+        settings: () => AsyncData.Loading(),
+        settingsRequestGeneration: () => requestGeneration,
+      })
+      commands.push(FetchSettings({ detectedTimezone: next.detectedTimezone, requestGeneration }))
+    }
+    return [next, commands]
   }
+  const timezone = timezoneOf(next.settings, next.detectedTimezone)
   if (next.route._tag === 'Weight') {
     const [weight, weightCommands] = fetchWeightLogsIfIdle(next.weight)
     next = evo(next, { weight: () => weight })
@@ -207,7 +235,10 @@ const enterRoute = (model: Model): UpdateReturn => {
     commands.push(...injectionCommands)
   }
   if (next.route._tag === 'Schedule') {
-    const [schedule, scheduleCommands] = fetchScheduleIfIdle(next.schedule)
+    const [schedule, scheduleCommands] = fetchScheduleIfIdle(
+      next.schedule,
+      timezoneOf(next.settings, next.detectedTimezone)
+    )
     next = evo(next, { schedule: () => schedule })
     commands.push(...scheduleCommands)
   }
@@ -217,7 +248,7 @@ const enterRoute = (model: Model): UpdateReturn => {
     commands.push(...scheduleViewCommands)
   }
   if (next.route._tag === 'Stats') {
-    const [stats, statsCommands] = syncStatsFetch(next.stats, statsRangeOf(next), next.timezone)
+    const [stats, statsCommands] = syncStatsFetch(next.stats, statsRangeOf(next), timezone)
     next = evo(next, { stats: () => stats })
     commands.push(...statsCommands)
   }
@@ -230,6 +261,7 @@ const enterRoute = (model: Model): UpdateReturn => {
 
 export const init: Runtime.RoutingApplicationInit<Model, Message, Flags, AppResources> = (flags, url) => [
   {
+    detectedTimezone: flags.timezone,
     login: initialLoginModel,
     injections: initialInjectionsModel,
     route: urlToAppRoute(url),
@@ -238,8 +270,8 @@ export const init: Runtime.RoutingApplicationInit<Model, Message, Flags, AppReso
     sessionLoaded: false,
     settings: AsyncData.Idle(),
     settingsPage: initialSettingsModel,
+    settingsRequestGeneration: 0,
     stats: initialStatsModel,
-    timezone: flags.timezone,
     user: null,
     weight: initialWeightModel,
   },
@@ -307,19 +339,26 @@ export const update = (model: Model, message: Message): UpdateReturn => {
     return [evo(model, { login: () => login }), commands]
   }
   if (isWeightMessage(message)) {
-    const [weight, commands] = updateWeight(model.weight, message)
+    const [weight, commands] = updateWeight(model.weight, message, timezoneOf(model.settings, model.detectedTimezone))
     return [evo(model, { weight: () => weight }), commands]
   }
   if (isSettingsPageMessage(message)) {
-    const [settingsPage, commands] = updateSettingsPage(model.settingsPage, message)
-    const next = evo(model, { settingsPage: () => settingsPage })
+    const [settingsPage, commands] = updateSettingsPage(
+      model.settingsPage,
+      message,
+      timezoneOf(model.settings, model.detectedTimezone),
+      model.detectedTimezone,
+      model.settingsRequestGeneration + 1
+    )
+    const next = recordSettingsRequest(evo(model, { settingsPage: () => settingsPage }), commands)
     return Match.value(message).pipe(
       Match.withReturnType<UpdateReturn>(),
       Match.tag('SucceededImportData', () => [
         evo(next, {
           injections: () => initialInjectionsModel,
-          schedule: () => initialScheduleModel,
+          schedule: (schedule) => resetSchedule(schedule),
           scheduleView: () => initialScheduleViewModel,
+          stats: (stats) => resetStats(stats),
           weight: () => initialWeightModel,
         }),
         commands,
@@ -328,27 +367,71 @@ export const update = (model: Model, message: Message): UpdateReturn => {
     )
   }
   if (isInjectionsMessage(message)) {
-    const [injections, commands] = updateInjections(model.injections, message)
+    const [injections, commands] = updateInjections(
+      model.injections,
+      message,
+      timezoneOf(model.settings, model.detectedTimezone)
+    )
     return [evo(model, { injections: () => injections }), commands]
   }
   if (isScheduleMessage(message)) {
-    const [schedule, commands] = updateSchedule(model.schedule, message)
-    return [evo(model, { schedule: () => schedule }), commands]
+    const [schedule, commands] = updateSchedule(
+      model.schedule,
+      message,
+      timezoneOf(model.settings, model.detectedTimezone),
+      model.settingsRequestGeneration + 1
+    )
+    const next = recordSettingsRequest(evo(model, { schedule: () => schedule }), commands)
+    return [next, commands]
   }
   if (isScheduleViewMessage(message)) {
     const [scheduleView, commands] = updateScheduleView(model.scheduleView, message)
     return [evo(model, { scheduleView: () => scheduleView }), commands]
   }
   if (isStatsMessage(message)) {
-    const [stats, commands] = updateStats(model.stats, message, model.timezone)
-    return [evo(model, { stats: () => stats }), commands]
+    const [stats, commands] = updateStats(
+      model.stats,
+      message,
+      timezoneOf(model.settings, model.detectedTimezone),
+      model.settingsRequestGeneration + 1
+    )
+    const next = recordSettingsRequest(evo(model, { stats: () => stats }), commands)
+    return [next, commands]
   }
   if (isSettingsMessage(message)) {
     return Match.value(message).pipe(
       Match.withReturnType<UpdateReturn>(),
       Match.tagsExhaustive({
-        FailedFetchSettings: ({ message: error }) => [evo(model, { settings: () => AsyncData.Failure({ error }) }), []],
-        SucceededFetchSettings: ({ settings }) => [evo(model, { settings: () => AsyncData.succeed(settings) }), []],
+        ClickedRetrySettings: () => {
+          const requestGeneration = model.settingsRequestGeneration + 1
+          return [
+            evo(model, {
+              settings: () => AsyncData.Loading(),
+              settingsRequestGeneration: () => requestGeneration,
+            }),
+            [FetchSettings({ detectedTimezone: model.detectedTimezone, requestGeneration })],
+          ]
+        },
+        FailedFetchSettings: ({ message: error, requestGeneration }) =>
+          requestGeneration === model.settingsRequestGeneration
+            ? [evo(model, { settings: () => AsyncData.Failure({ error }) }), []]
+            : [model, []],
+        SucceededFetchSettings: ({ requestGeneration, settings }) => {
+          if (requestGeneration !== model.settingsRequestGeneration) {
+            return [model, []]
+          }
+          const previous = AsyncData.getData(model.settings)
+          const timezoneChanged = Option.isSome(previous) && previous.value.timezone !== settings.timezone
+          const next = evo(model, {
+            injections: (injections) => (timezoneChanged ? evo(injections, { form: () => null }) : injections),
+            schedule: (schedule) => (timezoneChanged ? evo(schedule, { nextDose: () => AsyncData.Idle() }) : schedule),
+            scheduleView: () => (timezoneChanged ? initialScheduleViewModel : model.scheduleView),
+            settings: () => AsyncData.succeed(settings),
+            stats: (stats) => (timezoneChanged ? resetStats(stats) : stats),
+            weight: (weight) => (timezoneChanged ? evo(weight, { form: () => null }) : weight),
+          })
+          return enterRoute(next)
+        },
       })
     )
   }
@@ -437,19 +520,37 @@ const viewShell = (model: Model, email: string, content: Html) =>
 
 const viewPlaceholder = (title: string) => h.div([h.Class('text-muted-foreground')], [`${title} — coming soon`])
 
-const viewPage = (model: Model) =>
-  Match.value(model.route).pipe(
+const viewSettingsFailure = (error: string) =>
+  h.div(
+    [h.Class('mx-auto max-w-2xl rounded-md border border-destructive/40 p-6')],
+    [
+      h.h2([h.Class('text-lg font-semibold text-destructive')], ['Timezone setup needs attention']),
+      h.p([h.Class('mt-3 break-words text-sm')], [error]),
+      h.p(
+        [h.Class('mt-3 text-sm text-muted-foreground')],
+        [
+          'Some earlier records may already have been converted. Correct the identified problem and retry; migration retries are idempotent and completed conversions are not applied again.',
+        ]
+      ),
+      h.button([h.Class(button({ class: 'mt-4' })), h.OnClick(ClickedRetrySettings())], ['Retry timezone setup']),
+    ]
+  )
+
+const viewPage = (model: Model) => {
+  const timezone = timezoneOf(model.settings, model.detectedTimezone)
+  return Match.value(model.route).pipe(
     Match.tagsExhaustive({
-      Injection: () => viewInjections(model.injections),
+      Injection: () => viewInjections(model.injections, timezone),
       Login: () => viewPlaceholder('Login'),
       NotFound: () => h.div([h.Class('text-muted-foreground')], ['Page not found']),
       Schedule: () => viewSchedule(model.schedule),
-      ScheduleView: () => viewScheduleView(model.scheduleView),
-      Settings: () => viewSettings(model.settingsPage, model.settings),
-      Stats: () => viewStats(model.stats, weightUnitOf(model.settings), statsRangeOf(model)),
-      Weight: () => viewWeight(model.weight, weightUnitOf(model.settings)),
+      ScheduleView: () => viewScheduleView(model.scheduleView, timezone),
+      Settings: () => viewSettings(model.settingsPage, model.settings, timezone),
+      Stats: () => viewStats(model.stats, weightUnitOf(model.settings), statsRangeOf(model), timezone),
+      Weight: () => viewWeight(model.weight, weightUnitOf(model.settings), timezone),
     })
   )
+}
 
 export const view = (model: Model) => {
   if (!model.sessionLoaded) {
@@ -458,5 +559,10 @@ export const view = (model: Model) => {
   if (model.user === null || model.route._tag === 'Login') {
     return { body: viewLogin(model.login), title: 'SubQ — Sign In' }
   }
-  return { body: viewShell(model, model.user.email, viewPage(model)), title: 'SubQ' }
+  const settingsError = AsyncData.getError(model.settings)
+  const page = Option.match(settingsError, {
+    onNone: () => viewPage(model),
+    onSome: viewSettingsFailure,
+  })
+  return { body: viewShell(model, model.user.email, page), title: 'SubQ' }
 }

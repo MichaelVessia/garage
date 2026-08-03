@@ -8,11 +8,11 @@ Subq is a multi-user health-tracking web application for body weight, medication
 
 - **Weight log**: one timestamped body-weight measurement; persistence is always pounds.
 - **Injection log**: one actual injection of a supported GLP compound with numeric milligram dose, optional supplier, site, time, notes, and optional schedule assignment.
-- **Injection schedule**: a user's regimen for one supported GLP compound, optional supplier, cadence, and ordered dose phases.
+- **Injection schedule**: a user's regimen for one supported GLP compound, optional supplier, cadence, local calendar start date, and ordered dose phases.
 - **Phase**: one titration or maintenance step; an absent duration means indefinite maintenance.
 - **Active schedule**: a schedule marked active and selected for next-dose calculations; normal repository writes maintain one per user, but imported data can preserve multiple active records.
 - **Next scheduled dose**: a derived date and dosage based on cadence, active phase, and injection history.
-- **Goal**: a weight target with a starting point and optional deadline.
+- **Goal**: a weight target with a local calendar starting date and optional local calendar deadline.
 - **Trajectory**: linear regression over weight measurements.
 - **Pace status**: `ahead`, `on_track`, `behind`, or `not_losing` relative to a goal.
 - **Data export**: a versioned snapshot of one user's health-domain data; authentication records are excluded.
@@ -22,6 +22,7 @@ Subq is a multi-user health-tracking web application for body weight, medication
 - Create, read, update, delete, and summarize weight and injection logs.
 - Model schedules, ordered phases, active-phase progress, cadence, next dose, and injection assignment/site rotation.
 - Model weight goals, starting-weight resolution, progress, trajectory, and projection.
+- Persist one validated IANA timezone per user and apply it to local-day schedule, goal, statistics, chart, and rendering behavior.
 - Compute weight/injection statistics and timezone-aware weekday distributions.
 - Authenticate users and isolate every repository/RPC operation by user identity.
 - Export and replace one user's health-domain dataset through validated import.
@@ -37,11 +38,14 @@ Subq is a multi-user health-tracking web application for body weight, medication
 
 ## Important entities and value objects
 
-Entities are `WeightLog`, `InjectionLog`, `InjectionSchedule`, `SchedulePhase`, `UserGoal`, `UserSettings`, and Better Auth user/session/account records. Important values include positive `Weight`, closed `MedicationCompound`, positive finite `DoseMg`, optional `Supplier`, `InjectionSite`, `Frequency`, `WeightUnit`, `NextScheduledDose`, `GoalProgress`, statistics projections, and versioned `DataExport`.
+Entities are `WeightLog`, `InjectionLog`, `InjectionSchedule`, `SchedulePhase`, `UserGoal`, `UserSettings`, and Better Auth user/session/account records. Important values include positive `Weight`, closed `MedicationCompound`, positive finite `DoseMg`, optional `Supplier`, validated `IanaTimezone`, date-only `CalendarDate`, `InjectionSite`, `Frequency`, `WeightUnit`, `NextScheduledDose`, `GoalProgress`, statistics projections, and versioned `DataExport`.
 
 ## Invariants and compatibility contracts
 
 - Weight rows are stored in pounds; kilograms are input/display conversion only.
+- Injection, weight, completion, and audit datetimes are UTC instants; schedule starts and goal starting/target values are date-only `CalendarDate` values.
+- Persisted user timezone is authoritative for local-day behavior; browser timezone is only an initialization candidate.
+- Temporal migration records durable timezone claims and per-row provenance so retries and concurrent callers cannot double-convert or overwrite migrated dates.
 - Normal repository create/activate behavior maintains at most one active schedule and one active goal per user; import preserves the snapshot's active flags and can bypass that convention.
 - Every domain read/write is scoped by authenticated user ID; cross-user access must fail or return no record.
 - Phase duration is positive when present; absence means indefinite maintenance.
@@ -49,6 +53,7 @@ Entities are `WeightLog`, `InjectionLog`, `InjectionSchedule`, `SchedulePhase`, 
 - Import validates schedule references, replaces only the current user's data, and may leave partial state on failure; rerun is recovery.
 - Goal starting weight resolves explicit value, then nearest weight to the starting date, then most recent weight, otherwise `NoWeightDataError`.
 - Shared Effect schemas define RPC payloads, successes, and typed failures for both worker and browser.
+- Interim v3 exports use exactly `3.0.0-alpha.2` and carry canonical medication fields, date-only planned values, UTC event/audit instants, and persisted timezone settings.
 
 ## Boundaries and dependencies
 

@@ -1,5 +1,6 @@
 import * as Schema from 'effect/Schema'
 
+import { CalendarDate, IanaTimezone } from '../calendar/domain.js'
 import { DoseMg, MedicationCompound, Notes, Supplier } from '../common/domain.js'
 
 // ============================================
@@ -77,7 +78,7 @@ export class InjectionSchedule extends Schema.Class<InjectionSchedule>('Injectio
   drug: MedicationCompound,
   supplier: Schema.NullOr(Supplier),
   frequency: Frequency,
-  startDate: Schema.DateTimeUtc,
+  startDate: CalendarDate,
   isActive: Schema.Boolean,
   notes: Schema.NullOr(Notes),
   phases: Schema.Array(SchedulePhase),
@@ -93,7 +94,7 @@ export class InjectionScheduleCreate extends Schema.Class<InjectionScheduleCreat
   drug: MedicationCompound,
   supplier: Schema.OptionFromOptional(Supplier),
   frequency: Frequency,
-  startDate: Schema.DateTimeUtc,
+  startDate: CalendarDate,
   notes: Schema.OptionFromOptional(Notes),
   phases: Schema.Array(SchedulePhaseCreate),
 }) {}
@@ -107,7 +108,7 @@ export class InjectionScheduleUpdate extends Schema.Class<InjectionScheduleUpdat
   drug: Schema.optional(MedicationCompound),
   supplier: Supplier.pipe(Schema.NullOr, Schema.optional),
   frequency: Schema.optional(Frequency),
-  startDate: Schema.optional(Schema.DateTimeUtc),
+  startDate: Schema.optional(CalendarDate),
   isActive: Schema.optional(Schema.Boolean),
   notes: Notes.pipe(Schema.NullOr, Schema.optional),
   phases: SchedulePhaseCreate.pipe(Schema.Array, Schema.optional),
@@ -132,11 +133,16 @@ export class NextScheduledDose extends Schema.Class<NextScheduledDose>('NextSche
   scheduleName: ScheduleName,
   drug: MedicationCompound,
   doseMg: DoseMg,
-  suggestedDate: Schema.DateTimeUtc,
+  suggestedDate: CalendarDate,
   currentPhase: PhaseOrder,
   totalPhases: Schema.Number,
   daysUntilDue: Schema.Number,
   isOverdue: Schema.Boolean,
+}) {}
+
+export class NextScheduledDoseResult extends Schema.Class<NextScheduledDoseResult>('NextScheduledDoseResult')({
+  nextDose: Schema.NullOr(NextScheduledDose),
+  timezone: IanaTimezone,
 }) {}
 
 // ============================================
@@ -162,8 +168,8 @@ export class SchedulePhaseView extends Schema.Class<SchedulePhaseView>('Schedule
   order: PhaseOrder,
   durationDays: Schema.NullOr(PhaseDurationDays),
   doseMg: DoseMg,
-  startDate: Schema.DateTimeUtc,
-  endDate: Schema.NullOr(Schema.DateTimeUtc),
+  startDate: CalendarDate,
+  endDate: Schema.NullOr(CalendarDate),
   status: Schema.Literals(['completed', 'current', 'upcoming'] as const),
   expectedInjections: Schema.NullOr(Schema.Number),
   completedInjections: Schema.Number,
@@ -180,8 +186,8 @@ export class ScheduleView extends Schema.Class<ScheduleView>('ScheduleView')({
   drug: MedicationCompound,
   supplier: Schema.NullOr(Supplier),
   frequency: Frequency,
-  startDate: Schema.DateTimeUtc,
-  endDate: Schema.NullOr(Schema.DateTimeUtc),
+  startDate: CalendarDate,
+  endDate: Schema.NullOr(CalendarDate),
   isActive: Schema.Boolean,
   notes: Schema.NullOr(Notes),
   totalExpectedInjections: Schema.NullOr(Schema.Number),

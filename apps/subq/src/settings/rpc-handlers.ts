@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
 import { authedRpc, SettingsRpcs } from '#shared'
-import type { UserSettingsUpdate } from '#shared'
+import type { UserSettingsInitialize, UserSettingsUpdate } from '#shared'
 
 import { SettingsRepo } from './settings-repo.js'
 
@@ -10,26 +10,15 @@ export const SettingsRpcHandlersLive = SettingsRpcs.toLayer(
   Effect.gen(function* () {
     const settingsRepo = yield* SettingsRepo
 
-    const UserSettingsGet = authedRpc('rpc.settings.get', (user) =>
+    const UserSettingsGet = authedRpc('rpc.settings.get', (user, data: UserSettingsInitialize) =>
       Effect.gen(function* () {
         yield* Effect.logDebug('UserSettingsGet called').pipe(
           Effect.annotateLogs({ rpc: 'UserSettingsGet', userId: user.id })
         )
 
-        // Get existing settings or create default
-        const existing = yield* settingsRepo.get(user.id)
-        if (Option.isSome(existing)) {
-          yield* Effect.logDebug('UserSettingsGet found existing').pipe(
-            Effect.annotateLogs({ rpc: 'UserSettingsGet', weightUnit: existing.value.weightUnit })
-          )
-          return existing.value
-        }
-
-        // Create default settings
-        yield* Effect.logDebug('UserSettingsGet creating default settings')
-        const result = yield* settingsRepo.upsert(user.id, { weightUnit: 'lbs' })
+        const result = yield* settingsRepo.initializeTimezone(user.id, data.detectedTimezone)
         yield* Effect.logDebug('UserSettingsGet completed').pipe(
-          Effect.annotateLogs({ rpc: 'UserSettingsGet', weightUnit: result.weightUnit })
+          Effect.annotateLogs({ rpc: 'UserSettingsGet', timezone: result.timezone, weightUnit: result.weightUnit })
         )
         return result
       })
@@ -41,12 +30,17 @@ export const SettingsRpcHandlersLive = SettingsRpcs.toLayer(
           Effect.annotateLogs({
             rpc: 'UserSettingsUpdate',
             userId: user.id,
+            timezone: data.timezone,
             weightUnit: data.weightUnit,
           })
         )
+        const current = yield* settingsRepo.get(user.id)
+        if (Option.isNone(current) && data.timezone !== undefined) {
+          yield* settingsRepo.initializeTimezone(user.id, data.timezone)
+        }
         const result = yield* settingsRepo.upsert(user.id, data)
         yield* Effect.logInfo('UserSettingsUpdate completed').pipe(
-          Effect.annotateLogs({ rpc: 'UserSettingsUpdate', weightUnit: result.weightUnit })
+          Effect.annotateLogs({ rpc: 'UserSettingsUpdate', timezone: result.timezone, weightUnit: result.weightUnit })
         )
         return result
       })

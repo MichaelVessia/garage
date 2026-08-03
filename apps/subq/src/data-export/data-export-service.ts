@@ -7,7 +7,14 @@ import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import type { DataImportResult, InjectionSchedule } from '#shared'
-import { DataExport, DataExportError, DataImportError, ExportedSettings } from '#shared'
+import {
+  DataExport,
+  DataExportError,
+  DataExportTemporalMigrationRequired,
+  DataImportError,
+  ExportedSettings,
+  IanaTimezone,
+} from '#shared'
 
 import { goalRowToDomain, GoalRow } from '../goals/goal-repo.js'
 import { InjectionLogRow, rowToDomain as injectionLogRowToDomain } from '../injection/injection-log-repo.js'
@@ -24,7 +31,9 @@ import type { DataImportPlan } from './data-import-plan.js'
 export class DataExportService extends Context.Service<
   DataExportService,
   {
-    readonly exportData: (userId: string) => Effect.Effect<DataExport, DataExportError>
+    readonly exportData: (
+      userId: string
+    ) => Effect.Effect<DataExport, DataExportError | DataExportTemporalMigrationRequired>
     readonly importData: (userId: string, data: DataExport) => Effect.Effect<DataImportResult, DataImportError>
   }
 >()('@garage/subq/data-export/data-export-service/DataExportService') {}
@@ -35,6 +44,14 @@ export class DataExportService extends Context.Service<
 
 const SettingsRow = Schema.Struct({
   weight_unit: Schema.Literals(['lbs', 'kg'] as const),
+  timezone: IanaTimezone,
+})
+
+const ExportTemporalStateRow = Schema.Struct({
+  migration_state: Schema.NullOr(Schema.String),
+  timezone: Schema.NullOr(IanaTimezone),
+  pending_goals: Schema.Number,
+  pending_schedules: Schema.Number,
 })
 
 // ============================================
@@ -63,6 +80,29 @@ export const DataExportServiceLive = Layer.effect(
 
     const exportData = Effect.fn('DataExportService.exportData')(
       function* (userId: string) {
+        const stateRows = yield* sql`
+          SELECT
+            (SELECT timezone_migration_state FROM user_settings WHERE user_id = ${userId}) AS migration_state,
+            (SELECT timezone FROM user_settings WHERE user_id = ${userId}) AS timezone,
+            (SELECT COUNT(*) FROM user_goals WHERE user_id = ${userId} AND calendar_date_migrated = 0) AS pending_goals,
+            (SELECT COUNT(*) FROM injection_schedules WHERE user_id = ${userId} AND calendar_date_migrated = 0) AS pending_schedules
+        `
+        const state = yield* Schema.decodeUnknownEffect(ExportTemporalStateRow)(stateRows[0])
+        if (
+          state.migration_state !== 'complete' ||
+          state.timezone === null ||
+          state.pending_goals > 0 ||
+          state.pending_schedules > 0
+        ) {
+          return yield* new DataExportTemporalMigrationRequired({
+            message:
+              'Complete timezone setup and temporal migration before exporting. Correct any reported legacy date and retry timezone setup.',
+            pendingGoals: state.pending_goals,
+            pendingSchedules: state.pending_schedules,
+            userId,
+          })
+        }
+
         // Fetch all weight logs
         const weightLogRows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
@@ -85,7 +125,8 @@ export const DataExportServiceLive = Layer.effect(
 
         // Fetch all schedules with phases
         const scheduleRows = yield* sql`
-          SELECT id, name, drug, supplier, frequency, start_date, is_active, notes, created_at, updated_at
+          SELECT id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+                 is_active, notes, created_at, updated_at
           FROM injection_schedules WHERE user_id = ${userId}
           ORDER BY start_date DESC
         `
@@ -95,7 +136,8 @@ export const DataExportServiceLive = Layer.effect(
 
         // Fetch all goals
         const goalRows = yield* sql`
-          SELECT id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at
+          SELECT id, user_id, goal_weight, starting_weight, starting_date, target_date,
+                 calendar_date_migrated, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals WHERE user_id = ${userId}
           ORDER BY created_at DESC
         `
@@ -104,17 +146,17 @@ export const DataExportServiceLive = Layer.effect(
 
         // Fetch settings
         const settingsRows = yield* sql`
-          SELECT weight_unit FROM user_settings WHERE user_id = ${userId}
+          SELECT weight_unit, timezone FROM user_settings WHERE user_id = ${userId}
         `
         const settings = Arr.isReadonlyArrayNonEmpty(settingsRows)
           ? yield* Schema.decodeUnknownEffect(SettingsRow)(Arr.headNonEmpty(settingsRows)).pipe(
-              Effect.map((r) => new ExportedSettings({ weightUnit: r.weight_unit }))
+              Effect.map((r) => new ExportedSettings({ timezone: r.timezone, weightUnit: r.weight_unit }))
             )
           : null
 
         const exportedAt = yield* DateTime.now
         return new DataExport({
-          version: '3.0.0-alpha.1',
+          version: '3.0.0-alpha.2',
           exportedAt,
           data: {
             weightLogs,
@@ -125,7 +167,11 @@ export const DataExportServiceLive = Layer.effect(
           },
         })
       },
-      Effect.mapError((cause) => DataExportError.make({ message: 'Failed to export data', cause }))
+      Effect.mapError((cause) =>
+        Schema.is(DataExportTemporalMigrationRequired)(cause)
+          ? cause
+          : DataExportError.make({ message: 'Failed to export data', cause })
+      )
     )
 
     // Insert one schedule and its phases sequentially so phases follow their parent.
@@ -134,8 +180,11 @@ export const DataExportServiceLive = Layer.effect(
       schedule: InjectionSchedule
     ) {
       yield* sql`
-        INSERT INTO injection_schedules (id, name, drug, supplier, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
-        VALUES (${schedule.id}, ${schedule.name}, ${schedule.drug}, ${schedule.supplier}, ${schedule.frequency}, ${DateTime.formatIso(schedule.startDate)}, ${schedule.isActive ? 1 : 0}, ${schedule.notes}, ${userId}, ${DateTime.formatIso(schedule.createdAt)}, ${DateTime.formatIso(schedule.updatedAt)})
+        INSERT INTO injection_schedules (
+          id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+          is_active, notes, user_id, created_at, updated_at
+        )
+        VALUES (${schedule.id}, ${schedule.name}, ${schedule.drug}, ${schedule.supplier}, ${schedule.frequency}, ${schedule.startDate}, 1, ${schedule.isActive ? 1 : 0}, ${schedule.notes}, ${userId}, ${DateTime.formatIso(schedule.createdAt)}, ${DateTime.formatIso(schedule.updatedAt)})
       `
 
       yield* Effect.forEach(
@@ -194,11 +243,13 @@ export const DataExportServiceLive = Layer.effect(
       yield* Effect.forEach(
         snapshot.data.goals,
         (goal) => {
-          const targetDate = goal.targetDate !== null ? DateTime.formatIso(goal.targetDate) : null
           const completedAt = goal.completedAt !== null ? DateTime.formatIso(goal.completedAt) : null
           return sql`
-            INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at)
-            VALUES (${goal.id}, ${userId}, ${goal.goalWeight}, ${goal.startingWeight}, ${DateTime.formatIso(goal.startingDate).split('T')[0]}, ${targetDate}, ${goal.notes}, ${goal.isActive ? 1 : 0}, ${completedAt}, ${DateTime.formatIso(goal.createdAt)}, ${DateTime.formatIso(goal.updatedAt)})
+            INSERT INTO user_goals (
+              id, user_id, goal_weight, starting_weight, starting_date, target_date,
+              calendar_date_migrated, notes, is_active, completed_at, created_at, updated_at
+            )
+            VALUES (${goal.id}, ${userId}, ${goal.goalWeight}, ${goal.startingWeight}, ${goal.startingDate}, ${goal.targetDate}, 1, ${goal.notes}, ${goal.isActive ? 1 : 0}, ${completedAt}, ${DateTime.formatIso(goal.createdAt)}, ${DateTime.formatIso(goal.updatedAt)})
           `
         },
         { concurrency: 1 }
@@ -209,8 +260,8 @@ export const DataExportServiceLive = Layer.effect(
         const id = yield* randomUuid()
         const now = DateTime.formatIso(yield* DateTime.now)
         yield* sql`
-          INSERT INTO user_settings (id, user_id, weight_unit, created_at, updated_at)
-          VALUES (${id}, ${userId}, ${snapshot.data.settings.weightUnit}, ${now}, ${now})
+          INSERT INTO user_settings (id, user_id, weight_unit, timezone, timezone_migration_state, created_at, updated_at)
+          VALUES (${id}, ${userId}, ${snapshot.data.settings.weightUnit}, ${snapshot.data.settings.timezone}, 'complete', ${now}, ${now})
         `
       }
     })

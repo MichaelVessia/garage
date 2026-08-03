@@ -1,13 +1,18 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
+import { SqlClient } from 'effect/unstable/sql'
 
 import {
+  CalendarDate,
   DoseMg,
   MedicationCompound,
   Supplier,
   InjectionScheduleId,
+  IanaTimezone,
   Notes,
   PhaseDurationDays,
   PhaseOrder,
@@ -15,10 +20,18 @@ import {
 } from '#shared'
 
 import { ScheduleRepo, ScheduleRepoLive } from '../src/schedule/schedule-repo.js'
+import { SettingsRepo, SettingsRepoLive } from '../src/settings/settings-repo.js'
 import { testDate } from './helpers/dates.js'
-import { insertInjectionLog, insertSchedule, insertSchedulePhase, makeInitializedTestLayer } from './helpers/test-db.js'
+import {
+  insertInjectionLog,
+  insertSchedule,
+  insertSchedulePhase,
+  insertSettings,
+  makeInitializedTestLayer,
+} from './helpers/test-db.js'
 
 const TestLayer = makeInitializedTestLayer(ScheduleRepoLive)
+const MigrationTestLayer = makeInitializedTestLayer(Layer.merge(ScheduleRepoLive, SettingsRepoLive))
 
 const requireValue = <T>(value: T | null | undefined): T => {
   if (value === null || value === undefined) {
@@ -39,7 +52,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.some(Supplier.make('Empower')),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.some(Notes.make('Start low')),
               phases: [
                 {
@@ -70,6 +83,13 @@ describe('ScheduleRepo', () => {
           assert.strictEqual(created.phases.length, 3)
           assert.strictEqual(requireValue(created.phases[0]).doseMg, 100)
           assert.isNull(requireValue(created.phases[2]).durationDays)
+
+          const sql = yield* SqlClient.SqlClient
+          const rows = yield* sql`SELECT calendar_date_migrated FROM injection_schedules WHERE id = ${created.id}`
+          const markers = yield* Schema.decodeUnknownEffect(
+            Schema.Array(Schema.Struct({ calendar_date_migrated: Schema.Number }))
+          )(rows)
+          assert.strictEqual(markers[0]?.calendar_date_migrated, 1)
         })
       )
     })
@@ -84,7 +104,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -105,7 +125,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Tirzepatide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-02-01'),
+              startDate: CalendarDate.make('2024-02-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -151,7 +171,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -217,7 +237,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'daily',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -269,7 +289,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.some(Supplier.make('Clinic')),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -310,7 +330,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -361,7 +381,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -380,7 +400,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Tirzepatide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-02-01'),
+              startDate: CalendarDate.make('2024-02-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -400,6 +420,142 @@ describe('ScheduleRepo', () => {
 
           assert.strictEqual(Option.isSome(firstAfter) && firstAfter.value.isActive, true)
           assert.strictEqual(Option.isSome(secondAfter) && secondAfter.value.isActive, false)
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('rejects start-date writes for marker-0 schedules before timezone migration completes', () =>
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient
+          const audit = '2026-01-01T00:00:00.000Z'
+          yield* sql`
+            INSERT INTO injection_schedules (
+              id, name, drug, frequency, start_date, calendar_date_migrated,
+              is_active, user_id, created_at, updated_at
+            ) VALUES ('schedule-legacy', 'Legacy', 'Semaglutide', 'weekly', '2026-01-01', 0,
+                      1, 'user-123', ${audit}, ${audit})
+          `
+
+          const repo = yield* ScheduleRepo
+          const result = yield* repo
+            .update(
+              {
+                id: InjectionScheduleId.make('schedule-legacy'),
+                startDate: CalendarDate.make('2026-02-01'),
+              },
+              'user-123'
+            )
+            .pipe(Effect.result)
+          const rows = yield* sql`
+            SELECT start_date, calendar_date_migrated
+            FROM injection_schedules WHERE id = 'schedule-legacy'
+          `
+          const state = yield* Schema.decodeUnknownEffect(
+            Schema.Array(Schema.Struct({ calendar_date_migrated: Schema.Number, start_date: Schema.String }))
+          )(rows)
+
+          assert.strictEqual(result._tag, 'Failure')
+          if (result._tag === 'Failure') {
+            assert.strictEqual(result.failure._tag, 'SettingsTimezoneNotInitialized')
+          }
+          assert.deepStrictEqual(state, [{ calendar_date_migrated: 0, start_date: '2026-01-01' }])
+        })
+      )
+
+      it.effect('keeps marker-1 provenance when updating an initialized schedule start date', () =>
+        Effect.gen(function* () {
+          yield* insertSettings('settings-1', 'user-123', 'lbs', 'UTC')
+          yield* insertSchedule(
+            'schedule-modern',
+            'Modern',
+            'Semaglutide',
+            'weekly',
+            testDate('2026-01-01'),
+            'user-123'
+          )
+
+          const repo = yield* ScheduleRepo
+          const updated = yield* repo.update(
+            {
+              id: InjectionScheduleId.make('schedule-modern'),
+              startDate: CalendarDate.make('2026-02-01'),
+            },
+            'user-123'
+          )
+          const sql = yield* SqlClient.SqlClient
+          const rows = yield* sql`
+            SELECT start_date, calendar_date_migrated
+            FROM injection_schedules WHERE id = 'schedule-modern'
+          `
+          const state = yield* Schema.decodeUnknownEffect(
+            Schema.Array(Schema.Struct({ calendar_date_migrated: Schema.Number, start_date: Schema.String }))
+          )(rows)
+
+          assert.strictEqual(updated.startDate, '2026-02-01')
+          assert.deepStrictEqual(state, [{ calendar_date_migrated: 1, start_date: '2026-02-01' }])
+        })
+      )
+    })
+
+    it.layer(MigrationTestLayer)((it) => {
+      it.effect('does not let concurrent timezone migration overwrite a schedule start-date update', () =>
+        Effect.gen(function* () {
+          const userId = 'user-concurrent-schedule-update'
+          const sql = yield* SqlClient.SqlClient
+          const audit = '2026-01-01T00:00:00.000Z'
+          yield* insertSettings('settings-concurrent', userId, 'lbs')
+          yield* Effect.forEach(
+            Array.from({ length: 30 }, (_, index) => index),
+            (index) => sql`
+              INSERT INTO injection_schedules (
+                id, name, drug, frequency, start_date, calendar_date_migrated,
+                is_active, user_id, created_at, updated_at
+              ) VALUES (${`filler-${index}`}, ${`Filler ${index}`}, 'Semaglutide', 'weekly',
+                        '2026-01-01', 0, 0, ${userId}, ${audit}, ${audit})
+            `,
+            { concurrency: 1, discard: true }
+          )
+          yield* sql`
+            INSERT INTO injection_schedules (
+              id, name, drug, frequency, start_date, calendar_date_migrated,
+              is_active, user_id, created_at, updated_at
+            ) VALUES ('schedule-concurrent-update', 'Concurrent', 'Semaglutide', 'weekly',
+                      '2026-01-01', 0, 1, ${userId}, ${audit}, ${audit})
+          `
+
+          const scheduleRepo = yield* ScheduleRepo
+          const settingsRepo = yield* SettingsRepo
+          const [, updateResult] = yield* Effect.all(
+            [
+              settingsRepo.initializeTimezone(userId, IanaTimezone.make('Pacific/Auckland')),
+              scheduleRepo
+                .update(
+                  {
+                    id: InjectionScheduleId.make('schedule-concurrent-update'),
+                    startDate: CalendarDate.make('2026-03-01'),
+                  },
+                  userId
+                )
+                .pipe(Effect.result),
+            ],
+            { concurrency: 'unbounded' }
+          )
+          const rows = yield* sql`
+            SELECT start_date, calendar_date_migrated
+            FROM injection_schedules WHERE id = 'schedule-concurrent-update'
+          `
+          const state = yield* Schema.decodeUnknownEffect(
+            Schema.Array(Schema.Struct({ calendar_date_migrated: Schema.Number, start_date: Schema.String }))
+          )(rows)
+
+          assert.strictEqual(state[0]?.calendar_date_migrated, 1)
+          if (updateResult._tag === 'Success') {
+            assert.strictEqual(state[0]?.start_date, '2026-03-01')
+          } else {
+            assert.strictEqual(updateResult.failure._tag, 'SettingsTimezoneNotInitialized')
+            assert.strictEqual(state[0]?.start_date, '2026-01-02')
+          }
         })
       )
     })
@@ -462,7 +618,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -565,7 +721,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Semaglutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-01-01'),
+              startDate: CalendarDate.make('2024-01-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -584,7 +740,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Tirzepatide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-03-01'),
+              startDate: CalendarDate.make('2024-03-01'),
               notes: Option.none(),
               phases: [
                 {
@@ -603,7 +759,7 @@ describe('ScheduleRepo', () => {
               drug: MedicationCompound.make('Retatrutide'),
               supplier: Option.none(),
               frequency: 'weekly',
-              startDate: DateTime.makeUnsafe('2024-02-01'),
+              startDate: CalendarDate.make('2024-02-01'),
               notes: Option.none(),
               phases: [
                 {

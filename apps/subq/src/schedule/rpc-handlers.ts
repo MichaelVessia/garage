@@ -103,7 +103,8 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
           Effect.annotateLogs({ rpc: 'ScheduleGetNextDose', userId: user.id })
         )
 
-        const doseOpt = yield* scheduleCadence.getNextScheduledDose(user.id)
+        const result = yield* scheduleCadence.getNextScheduledDose(user.id)
+        const doseOpt = Option.fromNullOr(result.nextDose)
 
         yield* Option.match(doseOpt, {
           onNone: () =>
@@ -120,7 +121,7 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
             ),
         })
 
-        return Option.getOrNull(doseOpt)
+        return result
       })
     )
 

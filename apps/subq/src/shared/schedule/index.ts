@@ -12,6 +12,7 @@ export {
   InjectionScheduleUpdate,
   InjectionScheduleDelete,
   NextScheduledDose,
+  NextScheduledDoseResult,
   PhaseInjectionSummary,
   SchedulePhaseView,
   ScheduleView,

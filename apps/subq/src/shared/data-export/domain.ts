@@ -1,5 +1,6 @@
 import * as Schema from 'effect/Schema'
 
+import { IanaTimezone } from '../calendar/domain.js'
 import { UserGoal } from '../goals/domain.js'
 import { InjectionLog } from '../injection/domain.js'
 import { InjectionSchedule } from '../schedule/domain.js'
@@ -13,7 +14,7 @@ import { WeightLog } from '../weight/domain.js'
  * Schema version for data exports.
  * Increment when making breaking changes to the export format.
  */
-export const DataExportVersion = Schema.Literal('3.0.0-alpha.1')
+export const DataExportVersion = Schema.Literal('3.0.0-alpha.2')
 export type DataExportVersion = typeof DataExportVersion.Type
 
 // ============================================
@@ -26,6 +27,7 @@ export type DataExportVersion = typeof DataExportVersion.Type
  */
 export class ExportedSettings extends Schema.Class<ExportedSettings>('ExportedSettings')({
   weightUnit: Schema.Literals(['lbs', 'kg'] as const),
+  timezone: IanaTimezone,
 }) {}
 
 // ============================================

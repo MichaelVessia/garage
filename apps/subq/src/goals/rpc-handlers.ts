@@ -105,12 +105,13 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
         yield* Effect.logDebug('GoalGetProgress called').pipe(
           Effect.annotateLogs({ rpc: 'GoalGetProgress', userId: user.id })
         )
-        const result = yield* goalService.getGoalProgress(user.id).pipe(Effect.map(Option.getOrNull))
+        const result = yield* goalService.getGoalProgress(user.id)
         yield* Effect.logDebug('GoalGetProgress completed').pipe(
           Effect.annotateLogs({
             rpc: 'GoalGetProgress',
-            found: result !== null,
-            percentComplete: result?.percentComplete ?? 'none',
+            found: result.goal !== null,
+            percentComplete: result.goal?.percentComplete ?? 'none',
+            timezone: result.timezone,
           })
         )
         return result

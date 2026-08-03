@@ -7,6 +7,7 @@ export {
   UserGoalUpdate,
   UserGoalDelete,
   GoalProgress,
+  GoalProgressResult,
 } from './domain.js'
 export {
   calculateGoalProgressProjectedDate,

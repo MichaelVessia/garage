@@ -16,15 +16,15 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
           Effect.annotateLogs({
             rpc: 'GetWeightStats',
             userId: user.id,
-            startDate: params.startDate?.toISOString() ?? 'none',
-            endDate: params.endDate?.toISOString() ?? 'none',
+            startDate: params.startDate ?? 'none',
+            endDate: params.endDate ?? 'none',
           })
         )
         const result = yield* service.getWeightStats(params, user.id)
         yield* Effect.logDebug('GetWeightStats completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetWeightStats', hasData: Option.isSome(result) })
+          Effect.annotateLogs({ rpc: 'GetWeightStats', hasData: Option.isSome(result.data), timezone: result.timezone })
         )
-        return Option.getOrNull(result)
+        return { data: Option.getOrNull(result.data), timezone: result.timezone }
       })
     )
 
@@ -35,7 +35,7 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         )
         const result = yield* service.getWeightTrend(params, user.id)
         yield* Effect.logDebug('GetWeightTrend completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetWeightTrend', points: result?.points.length ?? 0 })
+          Effect.annotateLogs({ rpc: 'GetWeightTrend', points: result.data.points.length, timezone: result.timezone })
         )
         return result
       })
@@ -50,7 +50,8 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         yield* Effect.logDebug('GetInjectionSiteStats completed').pipe(
           Effect.annotateLogs({
             rpc: 'GetInjectionSiteStats',
-            sitesCount: result?.sites.length ?? 0,
+            sitesCount: result.data.sites.length,
+            timezone: result.timezone,
           })
         )
         return result
@@ -64,7 +65,7 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         )
         const result = yield* service.getDoseHistory(params, user.id)
         yield* Effect.logDebug('GetDoseHistory completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetDoseHistory', points: result?.points.length ?? 0 })
+          Effect.annotateLogs({ rpc: 'GetDoseHistory', points: result.data.points.length, timezone: result.timezone })
         )
         return result
       })
@@ -77,9 +78,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         )
         const result = yield* service.getInjectionFrequency(params, user.id)
         yield* Effect.logDebug('GetInjectionFrequency completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetInjectionFrequency', hasData: Option.isSome(result) })
+          Effect.annotateLogs({
+            rpc: 'GetInjectionFrequency',
+            hasData: Option.isSome(result.data),
+            timezone: result.timezone,
+          })
         )
-        return Option.getOrNull(result)
+        return { data: Option.getOrNull(result.data), timezone: result.timezone }
       })
     )
 
@@ -90,7 +95,11 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         )
         const result = yield* service.getDrugBreakdown(params, user.id)
         yield* Effect.logDebug('GetDrugBreakdown completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetDrugBreakdown', drugsCount: result?.drugs.length ?? 0 })
+          Effect.annotateLogs({
+            rpc: 'GetDrugBreakdown',
+            drugsCount: result.data.drugs.length,
+            timezone: result.timezone,
+          })
         )
         return result
       })
@@ -103,7 +112,11 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         )
         const result = yield* service.getInjectionByDayOfWeek(params, user.id)
         yield* Effect.logDebug('GetInjectionByDayOfWeek completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetInjectionByDayOfWeek', hasData: result !== null })
+          Effect.annotateLogs({
+            rpc: 'GetInjectionByDayOfWeek',
+            hasData: result.data.totalInjections > 0,
+            timezone: result.timezone,
+          })
         )
         return result
       })

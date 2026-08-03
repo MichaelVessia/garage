@@ -1,4 +1,15 @@
 export {
+  CalendarDate,
+  IanaTimezone,
+  addCalendarDays,
+  addCalendarMonths,
+  calendarDateStartUtc,
+  calendarDaysBetween,
+  formatInstantForDateTimeInput,
+  parseDateTimeInputInTimezone,
+  projectInstantToCalendarDate,
+} from './calendar/index.js'
+export {
   UserId,
   Limit,
   Offset,
@@ -82,6 +93,7 @@ export {
   InjectionScheduleUpdate,
   InjectionScheduleDelete,
   NextScheduledDose,
+  NextScheduledDoseResult,
   PhaseInjectionSummary,
   SchedulePhaseView,
   ScheduleView,
@@ -134,6 +146,7 @@ export {
   UserGoalUpdate,
   UserGoalDelete,
   GoalProgress,
+  GoalProgressResult,
   calculateGoalProgressProjectedDate,
   calculateGoalProgressPaceStatus,
   buildGoalProgress,
@@ -146,7 +159,10 @@ export type { BuildGoalProgressParams, GoalProgressPaceStatusParams } from './go
 export {
   DEFAULT_WEIGHT_UNIT,
   SettingsDatabaseError,
+  SettingsTemporalMigrationError,
+  SettingsTimezoneNotInitialized,
   UserSettings,
+  UserSettingsInitialize,
   UserSettingsUpdate,
   SettingsRpcs,
 } from './settings/index.js'
@@ -157,6 +173,7 @@ export {
   DataExport,
   DataImportResult,
   DataExportError,
+  DataExportTemporalMigrationRequired,
   DataImportError,
   DataExportRpcs,
 } from './data-export/index.js'

@@ -1,5 +1,4 @@
 import { assert, describe, it } from '@effect/vitest'
-import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
@@ -10,16 +9,18 @@ import { InjectionScheduleId } from '#shared'
 import { InjectionLogRepoLive } from '../src/injection/injection-log-repo.js'
 import { ScheduleCadenceService, ScheduleCadenceServiceLive } from '../src/schedule/schedule-cadence-service.js'
 import { ScheduleRepoLive } from '../src/schedule/schedule-repo.js'
+import { SettingsRepoLive } from '../src/settings/settings-repo.js'
 import { testDate } from './helpers/dates.js'
 import {
   insertInjectionLog,
   insertSchedule,
   insertSchedulePhase,
+  insertSettings,
   insertUser,
   makeInitializedTestLayer,
 } from './helpers/test-db.js'
 
-const RepoLayer = Layer.mergeAll(ScheduleRepoLive, InjectionLogRepoLive)
+const RepoLayer = Layer.mergeAll(ScheduleRepoLive, InjectionLogRepoLive, SettingsRepoLive)
 const TestLayer = makeInitializedTestLayer(ScheduleCadenceServiceLive.pipe(Layer.provide(RepoLayer)))
 
 const requireValue = <T>(value: T | null | undefined): T => {
@@ -36,6 +37,7 @@ describe('ScheduleCadenceService', () => {
       const userId = 'user-1'
 
       yield* insertUser(userId)
+      yield* insertSettings('settings-1', userId, 'lbs', 'America/New_York')
       yield* insertSchedule(
         'schedule-1',
         'Semaglutide schedule',
@@ -48,9 +50,11 @@ describe('ScheduleCadenceService', () => {
       yield* insertInjectionLog('injection-1', testDate('2024-01-10T12:00:00Z'), 'Semaglutide', 200, userId)
 
       const service = yield* ScheduleCadenceService
-      const dose = Option.getOrThrow(yield* service.getNextScheduledDose(userId))
+      const result = yield* service.getNextScheduledDose(userId)
+      const dose = requireValue(result.nextDose)
 
-      assert.strictEqual(DateTime.formatIso(dose.suggestedDate), '2024-01-17T12:00:00.000Z')
+      assert.strictEqual(result.timezone, 'America/New_York')
+      assert.strictEqual(dose.suggestedDate, '2024-01-17')
       assert.strictEqual(dose.daysUntilDue, 2)
       assert.strictEqual(dose.doseMg, 200)
     }).pipe(Effect.provide(TestLayer))
@@ -63,6 +67,7 @@ describe('ScheduleCadenceService', () => {
       const scheduleId = InjectionScheduleId.make('schedule-1')
 
       yield* insertUser(userId)
+      yield* insertSettings('settings-2', userId, 'lbs', 'America/New_York')
       yield* insertSchedule(
         scheduleId,
         'Semaglutide schedule',

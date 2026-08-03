@@ -1,5 +1,6 @@
 import * as Schema from 'effect/Schema'
 
+import { CalendarDate, IanaTimezone } from '../calendar/domain.js'
 import { Notes } from '../common/domain.js'
 import { Weight } from '../weight/domain.js'
 
@@ -35,8 +36,8 @@ export class UserGoal extends Schema.Class<UserGoal>('UserGoal')({
   id: GoalId,
   goalWeight: Weight,
   startingWeight: Weight,
-  startingDate: Schema.DateTimeUtc,
-  targetDate: Schema.NullOr(Schema.DateTimeUtc),
+  startingDate: CalendarDate,
+  targetDate: Schema.NullOr(CalendarDate),
   notes: Schema.NullOr(Notes),
   isActive: Schema.Boolean,
   completedAt: Schema.NullOr(Schema.DateTimeUtc),
@@ -56,8 +57,8 @@ export class UserGoal extends Schema.Class<UserGoal>('UserGoal')({
 export class UserGoalCreate extends Schema.Class<UserGoalCreate>('UserGoalCreate')({
   goalWeight: Weight,
   startingWeight: Schema.optional(Weight),
-  startingDate: Schema.OptionFromOptional(Schema.DateTimeUtc),
-  targetDate: Schema.OptionFromOptional(Schema.DateTimeUtc),
+  startingDate: Schema.OptionFromOptional(CalendarDate),
+  targetDate: Schema.OptionFromOptional(CalendarDate),
   notes: Schema.OptionFromOptional(Notes),
 }) {}
 
@@ -68,8 +69,8 @@ export class UserGoalUpdate extends Schema.Class<UserGoalUpdate>('UserGoalUpdate
   id: GoalId,
   goalWeight: Schema.optional(Weight),
   startingWeight: Schema.optional(Weight),
-  startingDate: Schema.optional(Schema.DateTimeUtc),
-  targetDate: Schema.DateTimeUtc.pipe(Schema.NullOr, Schema.optional),
+  startingDate: Schema.optional(CalendarDate),
+  targetDate: CalendarDate.pipe(Schema.NullOr, Schema.optional),
   notes: Notes.pipe(Schema.NullOr, Schema.optional),
   isActive: Schema.optional(Schema.Boolean),
 }) {}
@@ -94,8 +95,13 @@ export class GoalProgress extends Schema.Class<GoalProgress>('GoalProgress')({
   lbsLost: Schema.Number,
   lbsRemaining: Schema.Number,
   percentComplete: PercentComplete,
-  projectedDate: Schema.NullOr(Schema.DateTimeUtc),
+  projectedDate: Schema.NullOr(CalendarDate),
   paceStatus: PaceStatus,
   daysOnPlan: Schema.Number,
   avgLbsPerWeek: Schema.Number,
+}) {}
+
+export class GoalProgressResult extends Schema.Class<GoalProgressResult>('GoalProgressResult')({
+  goal: Schema.NullOr(GoalProgress),
+  timezone: IanaTimezone,
 }) {}

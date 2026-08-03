@@ -12,6 +12,7 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
 import {
+  CalendarDate,
   DoseMg,
   MedicationCompound,
   Frequency,
@@ -20,6 +21,7 @@ import {
   InjectionScheduleDelete,
   InjectionScheduleId,
   InjectionScheduleUpdate,
+  IanaTimezone,
   NextScheduledDose,
   Notes,
   PhaseDurationDays,
@@ -32,8 +34,10 @@ import {
 } from '#shared'
 
 import { Api } from '../api.js'
+import { FetchSettings } from '../data/settings.js'
+import type { FailedFetchSettings, SucceededFetchSettings } from '../data/settings.js'
 import { toCommandResult } from '../lib/command.js'
-import { formatDate, formatShortDate, fromLocalDateString, utcToLocalDateString } from '../lib/datetime.js'
+import { formatDate, formatShortDate, utcToLocalDateString } from '../lib/datetime.js'
 import { withForm } from '../lib/form.js'
 import { FREQUENCIES, frequencyFromString, frequencyLabel } from '../lib/frequency.js'
 import { viewDatalist } from '../lib/view.js'
@@ -75,6 +79,7 @@ type ScheduleForm = typeof ScheduleForm.Type
 export const ScheduleModel = Schema.Struct({
   schedules: SchedulesData,
   nextDose: NextDoseData,
+  nextDoseRequestKey: Schema.Number,
   form: Schema.NullOr(ScheduleForm),
   pendingDeleteId: Schema.NullOr(InjectionScheduleId),
 })
@@ -83,6 +88,7 @@ export type ScheduleModel = typeof ScheduleModel.Type
 export const initialScheduleModel: ScheduleModel = {
   form: null,
   nextDose: AsyncData.Idle(),
+  nextDoseRequestKey: 0,
   pendingDeleteId: null,
   schedules: AsyncData.Idle(),
 }
@@ -97,8 +103,15 @@ export const SucceededFetchSchedules = m('SucceededFetchSchedules', {
 export const FailedFetchSchedules = m('FailedFetchSchedules', { message: Schema.String })
 export const SucceededFetchNextDose = m('SucceededFetchNextDose', {
   nextDose: Schema.NullOr(NextScheduledDose),
+  requestKey: Schema.Number,
+  requestedTimezone: IanaTimezone,
+  timezone: IanaTimezone,
 })
-export const FailedFetchNextDose = m('FailedFetchNextDose', { message: Schema.String })
+export const FailedFetchNextDose = m('FailedFetchNextDose', {
+  message: Schema.String,
+  requestKey: Schema.Number,
+  requestedTimezone: IanaTimezone,
+})
 export const OpenedScheduleForm = m('OpenedScheduleForm', {
   todayLocal: Schema.String,
   schedule: Schema.NullOr(InjectionSchedule),
@@ -190,22 +203,35 @@ export const FetchSchedules = Command.define(
 
 export const FetchNextDose = Command.define(
   'FetchNextDose',
+  { requestKey: Schema.Number, requestedTimezone: IanaTimezone },
   SucceededFetchNextDose,
   FailedFetchNextDose
-)(
+)(({ requestKey, requestedTimezone }) =>
   Effect.gen(function* () {
     const api = yield* Api
-    const nextDose = yield* api.ScheduleGetNextDose()
-    return SucceededFetchNextDose({ nextDose })
-  }).pipe(toCommandResult(FailedFetchNextDose, 'Failed to load next dose'))
+    const result = yield* api.ScheduleGetNextDose()
+    return SucceededFetchNextDose({
+      nextDose: result.nextDose,
+      requestKey,
+      requestedTimezone,
+      timezone: result.timezone,
+    })
+  }).pipe(
+    Effect.tapError((cause) => Effect.logDebug('FetchNextDose failed', { error: cause })),
+    Effect.orElseSucceed(() =>
+      FailedFetchNextDose({ message: 'Failed to load next dose', requestKey, requestedTimezone })
+    )
+  )
 )
 
 const OpenScheduleForm = Command.define(
   'OpenScheduleForm',
-  { schedule: Schema.NullOr(InjectionSchedule) },
+  { schedule: Schema.NullOr(InjectionSchedule), timezone: IanaTimezone },
   OpenedScheduleForm
-)(({ schedule }) =>
-  DateTime.now.pipe(Effect.map((now) => OpenedScheduleForm({ schedule, todayLocal: utcToLocalDateString(now) })))
+)(({ schedule, timezone }) =>
+  DateTime.now.pipe(
+    Effect.map((now) => OpenedScheduleForm({ schedule, todayLocal: utcToLocalDateString(now, timezone) }))
+  )
 )
 
 const SaveSchedule = Command.define(
@@ -216,7 +242,7 @@ const SaveSchedule = Command.define(
     drug: Schema.String,
     supplier: Schema.String,
     frequency: Frequency,
-    startDate: Schema.String,
+    startDate: CalendarDate,
     notes: Schema.String,
     phases: Schema.Array(SchedulePhaseForm),
   },
@@ -252,7 +278,7 @@ const SaveSchedule = Command.define(
             notes: notes.trim() === '' ? Option.none<Notes>() : Option.some(Notes.make(notes.trim())),
             phases: phaseCreates,
             supplier: supplier.trim() === '' ? Option.none<Supplier>() : Option.some(Supplier.make(supplier.trim())),
-            startDate: fromLocalDateString(startDate),
+            startDate,
           })
         )
       : api.ScheduleUpdate(
@@ -264,7 +290,7 @@ const SaveSchedule = Command.define(
             notes: notes.trim() === '' ? null : Notes.make(notes.trim()),
             phases: phaseCreates,
             supplier: supplier.trim() === '' ? null : Supplier.make(supplier.trim()),
-            startDate: fromLocalDateString(startDate),
+            startDate,
           })
         )
     return SucceededSaveSchedule()
@@ -302,6 +328,8 @@ const ActivateSchedule = Command.define(
 // ============================================
 
 type ScheduleCommandMessage =
+  | typeof SucceededFetchSettings.Type
+  | typeof FailedFetchSettings.Type
   | typeof SucceededFetchSchedules.Type
   | typeof FailedFetchSchedules.Type
   | typeof SucceededFetchNextDose.Type
@@ -316,7 +344,15 @@ type ScheduleCommandMessage =
 
 type UpdateReturn = readonly [ScheduleModel, ReadonlyArray<Command.Command<ScheduleCommandMessage, never, Api>>]
 
-export const fetchScheduleIfIdle = (model: ScheduleModel): UpdateReturn => {
+const fetchNextDose = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn => {
+  const requestKey = model.nextDoseRequestKey + 1
+  return [
+    evo(model, { nextDose: () => AsyncData.Loading(), nextDoseRequestKey: () => requestKey }),
+    [FetchNextDose({ requestKey, requestedTimezone: timezone })],
+  ]
+}
+
+export const fetchScheduleIfIdle = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn => {
   const commands: Array<Command.Command<ScheduleCommandMessage, never, Api>> = []
   let next = model
   if (AsyncData.isIdle(next.schedules)) {
@@ -324,8 +360,9 @@ export const fetchScheduleIfIdle = (model: ScheduleModel): UpdateReturn => {
     commands.push(FetchSchedules())
   }
   if (AsyncData.isIdle(next.nextDose)) {
-    next = evo(next, { nextDose: () => AsyncData.Loading() })
-    commands.push(FetchNextDose())
+    const [nextWithDose, nextDoseCommands] = fetchNextDose(next, timezone)
+    next = nextWithDose
+    commands.push(...nextDoseCommands)
   }
   return [next, commands]
 }
@@ -384,12 +421,20 @@ const validateScheduleForm = (form: ScheduleForm): Option.Option<string> => {
   return Arr.findFirst(form.phases, (phase, index) => validatePhase(phase, index, form.phases.length))
 }
 
-const refreshSchedules = (model: ScheduleModel): UpdateReturn => [
-  evo(model, { nextDose: () => AsyncData.Loading(), schedules: () => AsyncData.Loading() }),
-  [FetchSchedules(), FetchNextDose()],
-]
+const refreshSchedules = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn => {
+  const [withNextDose, nextDoseCommands] = fetchNextDose(model, timezone)
+  return [evo(withNextDose, { schedules: () => AsyncData.Loading() }), [FetchSchedules(), ...nextDoseCommands]]
+}
 
-export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): UpdateReturn =>
+const ignoreStaleNextDose = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn =>
+  AsyncData.isIdle(model.nextDose) ? fetchNextDose(model, timezone) : [model, []]
+
+export const updateSchedule = (
+  model: ScheduleModel,
+  message: ScheduleMessage,
+  timezone: IanaTimezone,
+  settingsRequestGeneration: number
+): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
@@ -424,14 +469,17 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
       ],
       ChangedScheduleStartDate: ({ value }) => [withForm(model, () => ({ startDate: value })), []],
       ClickedActivateSchedule: ({ schedule }) => [model, [ActivateSchedule({ id: schedule.id })]],
-      ClickedAddSchedule: () => [model, [OpenScheduleForm({ schedule: null })]],
+      ClickedAddSchedule: () => [model, [OpenScheduleForm({ schedule: null, timezone })]],
       ClickedCancelScheduleForm: () => [evo(model, { form: () => null }), []],
-      ClickedEditSchedule: ({ schedule }) => [model, [OpenScheduleForm({ schedule })]],
+      ClickedEditSchedule: ({ schedule }) => [model, [OpenScheduleForm({ schedule, timezone })]],
       ConfirmedDeleteSchedule: () =>
         model.pendingDeleteId === null ? [model, []] : [model, [DeleteSchedule({ id: model.pendingDeleteId })]],
       FailedActivateSchedule: () => [model, []],
       FailedDeleteSchedule: () => [evo(model, { pendingDeleteId: () => null }), []],
-      FailedFetchNextDose: ({ message: error }) => [evo(model, { nextDose: () => AsyncData.Failure({ error }) }), []],
+      FailedFetchNextDose: ({ message: error, requestKey, requestedTimezone }) =>
+        requestKey !== model.nextDoseRequestKey || requestedTimezone !== timezone
+          ? ignoreStaleNextDose(model, timezone)
+          : [evo(model, { nextDose: () => AsyncData.Failure({ error }) }), []],
       FailedFetchSchedules: ({ message: error }) => [evo(model, { schedules: () => AsyncData.Failure({ error }) }), []],
       FailedSaveSchedule: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
       OpenedScheduleForm: ({ schedule, todayLocal }) => [
@@ -466,7 +514,7 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
                       order: phase.order,
                     }))
                   ),
-                  startDate: utcToLocalDateString(schedule.startDate),
+                  startDate: schedule.startDate,
                   submitting: false,
                 },
           pendingDeleteId: () => null,
@@ -490,6 +538,10 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
         if (Option.isSome(validationError)) {
           return [withForm(model, () => ({ error: validationError.value, submitting: false })), []]
         }
+        const startDate = Schema.decodeUnknownOption(CalendarDate)(model.form.startDate)
+        if (Option.isNone(startDate)) {
+          return [withForm(model, () => ({ error: 'Enter a valid start date', submitting: false })), []]
+        }
         return [
           withForm(model, () => ({ error: null, submitting: true })),
           [
@@ -501,19 +553,28 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
               name: model.form.name,
               notes: model.form.notes,
               phases: model.form.phases,
-              startDate: model.form.startDate,
+              startDate: startDate.value,
             }),
           ],
         ]
       },
-      SucceededActivateSchedule: () => refreshSchedules(model),
-      SucceededDeleteSchedule: () => refreshSchedules(evo(model, { pendingDeleteId: () => null })),
-      SucceededFetchNextDose: ({ nextDose }) => [
-        evo(model, { nextDose: () => AsyncData.succeed(Option.fromNullOr(nextDose)) }),
-        [],
-      ],
+      SucceededActivateSchedule: () => refreshSchedules(model, timezone),
+      SucceededDeleteSchedule: () => refreshSchedules(evo(model, { pendingDeleteId: () => null }), timezone),
+      SucceededFetchNextDose: ({ nextDose, requestKey, requestedTimezone, timezone: responseTimezone }) => {
+        const currentRequest = requestKey === model.nextDoseRequestKey && requestedTimezone === timezone
+        if (!currentRequest) {
+          return ignoreStaleNextDose(model, timezone)
+        }
+        if (responseTimezone !== timezone) {
+          return [
+            evo(model, { nextDose: () => AsyncData.Idle() }),
+            [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
+          ]
+        }
+        return [evo(model, { nextDose: () => AsyncData.succeed(Option.fromNullOr(nextDose)) }), []]
+      },
       SucceededFetchSchedules: ({ schedules }) => [evo(model, { schedules: () => AsyncData.succeed(schedules) }), []],
-      SucceededSaveSchedule: () => refreshSchedules(evo(model, { form: () => null })),
+      SucceededSaveSchedule: () => refreshSchedules(evo(model, { form: () => null }), timezone),
       ToggledSchedulePhaseIndefinite: ({ checked, index }) => [
         withForm(model, (form) => ({
           phases: updatePhase(form.phases, index, (phase) =>

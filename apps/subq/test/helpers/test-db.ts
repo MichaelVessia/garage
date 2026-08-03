@@ -55,6 +55,7 @@ const setupTables = Effect.gen(function* () {
       supplier TEXT,
       frequency TEXT NOT NULL,
       start_date TEXT NOT NULL,
+      calendar_date_migrated INTEGER NOT NULL DEFAULT 0 CHECK (calendar_date_migrated IN (0, 1)),
       is_active INTEGER NOT NULL DEFAULT 1,
       notes TEXT,
       user_id TEXT,
@@ -102,6 +103,7 @@ const setupTables = Effect.gen(function* () {
       starting_weight REAL NOT NULL,
       starting_date TEXT NOT NULL,
       target_date TEXT,
+      calendar_date_migrated INTEGER NOT NULL DEFAULT 0 CHECK (calendar_date_migrated IN (0, 1)),
       notes TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
       completed_at TEXT,
@@ -114,8 +116,10 @@ const setupTables = Effect.gen(function* () {
   yield* sql`
     CREATE TABLE IF NOT EXISTS user_settings (
       id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
+      user_id TEXT NOT NULL UNIQUE,
       weight_unit TEXT NOT NULL DEFAULT 'lbs',
+      timezone TEXT,
+      timezone_migration_state TEXT NOT NULL DEFAULT 'pending' CHECK (timezone_migration_state IN ('pending', 'complete')),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -206,8 +210,11 @@ export const insertSchedule = (
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* sql`
-      INSERT INTO injection_schedules (id, name, drug, supplier, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
-      VALUES (${id}, ${name}, ${drug}, ${options.supplier ?? null}, ${frequency}, ${startDate.toISOString()}, ${options.isActive !== false ? 1 : 0}, ${options.notes ?? null}, ${userId}, ${now}, ${now})
+      INSERT INTO injection_schedules (
+        id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+        is_active, notes, user_id, created_at, updated_at
+      )
+      VALUES (${id}, ${name}, ${drug}, ${options.supplier ?? null}, ${frequency}, ${DateTime.formatIsoDateUtc(DateTime.fromDateUnsafe(startDate))}, 1, ${options.isActive !== false ? 1 : 0}, ${options.notes ?? null}, ${userId}, ${now}, ${now})
     `
   })
 
@@ -227,13 +234,14 @@ export const insertSchedulePhase = (
     `
   })
 
-export const insertSettings = (id: string, userId: string, weightUnit: 'lbs' | 'kg') =>
+export const insertSettings = (id: string, userId: string, weightUnit: 'lbs' | 'kg', timezone: string | null = null) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
+    const migrationState = timezone === null ? 'pending' : 'complete'
     yield* sql`
-      INSERT INTO user_settings (id, user_id, weight_unit, created_at, updated_at)
-      VALUES (${id}, ${userId}, ${weightUnit}, ${now}, ${now})
+      INSERT INTO user_settings (id, user_id, weight_unit, timezone, timezone_migration_state, created_at, updated_at)
+      VALUES (${id}, ${userId}, ${weightUnit}, ${timezone}, ${migrationState}, ${now}, ${now})
     `
   })
 

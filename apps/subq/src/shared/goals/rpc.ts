@@ -3,7 +3,8 @@ import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
 import { DbOperation } from '../common/domain.js'
-import { GoalId, GoalProgress, UserGoal, UserGoalCreate, UserGoalDelete, UserGoalUpdate } from './domain.js'
+import { SettingsTimezoneNotInitialized } from '../settings/errors.js'
+import { GoalId, GoalProgressResult, UserGoal, UserGoalCreate, UserGoalDelete, UserGoalUpdate } from './domain.js'
 
 // ============================================
 // Goals Errors
@@ -46,7 +47,7 @@ export const GoalRpcs = RpcGroup.make(
   Rpc.make('GoalUpdate', {
     payload: UserGoalUpdate,
     success: UserGoal,
-    error: Schema.Union([GoalNotFoundError, GoalDatabaseError]),
+    error: Schema.Union([GoalNotFoundError, GoalDatabaseError, SettingsTimezoneNotInitialized]),
   }),
   Rpc.make('GoalDelete', {
     payload: UserGoalDelete,
@@ -54,7 +55,7 @@ export const GoalRpcs = RpcGroup.make(
     error: GoalDatabaseError,
   }),
   Rpc.make('GoalGetProgress', {
-    success: Schema.NullOr(GoalProgress),
+    success: GoalProgressResult,
     error: GoalDatabaseError,
   })
 ).middleware(AuthRpcMiddleware)

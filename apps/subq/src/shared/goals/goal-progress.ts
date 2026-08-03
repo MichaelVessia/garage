@@ -1,14 +1,15 @@
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 
+import { calendarDaysBetween, projectInstantToCalendarDate } from '../calendar/domain.js'
+import type { CalendarDate, IanaTimezone } from '../calendar/domain.js'
 import { Weight } from '../weight/domain.js'
 import { calculateWeightTrajectory, projectWeightTrajectoryDate } from '../weight/trajectory.js'
 import type { WeightTrajectoryPoint } from '../weight/trajectory.js'
 import { GoalProgress, PercentComplete } from './domain.js'
 import type { PaceStatus, UserGoal } from './domain.js'
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
-const MS_PER_WEEK = 7 * MS_PER_DAY
+const DAYS_PER_WEEK = 7
 const DEFAULT_MAX_PROJECTION_DAYS = 5 * 365
 
 export interface BuildGoalProgressParams {
@@ -16,6 +17,7 @@ export interface BuildGoalProgressParams {
   readonly currentWeight: number
   readonly weightHistory: readonly WeightTrajectoryPoint[]
   readonly now: Date
+  readonly timezone: IanaTimezone
   readonly maxProjectionDays?: number
 }
 
@@ -23,7 +25,7 @@ export interface GoalProgressPaceStatusParams {
   readonly goal: UserGoal
   readonly currentWeight: number
   readonly rateOfChange: number
-  readonly now: Date
+  readonly today: CalendarDate
 }
 
 export const calculateGoalProgressProjectedDate = ({
@@ -31,10 +33,13 @@ export const calculateGoalProgressProjectedDate = ({
   currentWeight,
   rateOfChange,
   now,
+  timezone,
   maxProjectionDays = DEFAULT_MAX_PROJECTION_DAYS,
-}: GoalProgressPaceStatusParams & {
+}: Omit<GoalProgressPaceStatusParams, 'today'> & {
+  readonly now: Date
+  readonly timezone: IanaTimezone
   readonly maxProjectionDays?: number
-}): Option.Option<DateTime.Utc> => {
+}): Option.Option<CalendarDate> => {
   const projectedDate = projectWeightTrajectoryDate({
     currentWeight,
     targetWeight: goal.goalWeight,
@@ -43,14 +48,14 @@ export const calculateGoalProgressProjectedDate = ({
     maxProjectionDays,
   })
 
-  return Option.map(projectedDate, (date) => DateTime.makeUnsafe(date.toISOString()))
+  return Option.map(projectedDate, (date) => projectInstantToCalendarDate(DateTime.makeUnsafe(date), timezone))
 }
 
 export const calculateGoalProgressPaceStatus = ({
   goal,
   currentWeight,
   rateOfChange,
-  now,
+  today,
 }: GoalProgressPaceStatusParams): PaceStatus => {
   const remainingLbs = currentWeight - goal.goalWeight
   if (remainingLbs <= 0) {
@@ -65,12 +70,12 @@ export const calculateGoalProgressPaceStatus = ({
     return 'on_track'
   }
 
-  const msRemaining = DateTime.toEpochMillis(goal.targetDate) - now.getTime()
-  if (msRemaining <= 0) {
+  const daysRemaining = calendarDaysBetween(today, goal.targetDate)
+  if (daysRemaining <= 0) {
     return 'behind'
   }
 
-  const weeksRemaining = msRemaining / MS_PER_WEEK
+  const weeksRemaining = daysRemaining / DAYS_PER_WEEK
   const requiredRate = remainingLbs / weeksRemaining
   const actualRate = Math.abs(rateOfChange)
   const tolerance = 0.1
@@ -89,6 +94,7 @@ export const buildGoalProgress = ({
   currentWeight,
   weightHistory,
   now,
+  timezone,
   maxProjectionDays,
 }: BuildGoalProgressParams): GoalProgress => {
   const trajectory = calculateWeightTrajectory(weightHistory)
@@ -104,16 +110,19 @@ export const buildGoalProgress = ({
           currentWeight,
           rateOfChange,
           now,
+          timezone,
         })
       : calculateGoalProgressProjectedDate({
           goal,
           currentWeight,
           rateOfChange,
           now,
+          timezone,
           maxProjectionDays,
         })
-  const paceStatus = calculateGoalProgressPaceStatus({ goal, currentWeight, rateOfChange, now })
-  const daysOnPlan = Math.floor((now.getTime() - DateTime.toEpochMillis(goal.startingDate)) / MS_PER_DAY)
+  const today = projectInstantToCalendarDate(DateTime.makeUnsafe(now), timezone)
+  const paceStatus = calculateGoalProgressPaceStatus({ goal, currentWeight, rateOfChange, today })
+  const daysOnPlan = calendarDaysBetween(goal.startingDate, today)
   const avgLbsPerWeek = rateOfChange < 0 ? Math.abs(rateOfChange) : 0
 
   return new GoalProgress({

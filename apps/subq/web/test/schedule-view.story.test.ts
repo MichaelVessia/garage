@@ -6,6 +6,7 @@ import * as AsyncData from 'foldkit/asyncData'
 import * as Story from 'foldkit/story'
 
 import {
+  CalendarDate,
   DoseMg,
   MedicationCompound,
   InjectionScheduleId,
@@ -42,17 +43,17 @@ const sampleView = new ScheduleView({
       completedInjections: 2,
       doseMg: DoseMg.make(0.25),
       durationDays: PhaseDurationDays.make(28),
-      endDate: DateTime.makeUnsafe('2026-01-29T00:00:00Z'),
+      endDate: CalendarDate.make('2026-01-29'),
       expectedInjections: 4,
       id: SchedulePhaseId.make('phase-1'),
       injections: [],
       order: PhaseOrder.make(1),
-      startDate: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
+      startDate: CalendarDate.make('2026-01-01'),
       status: 'current',
     },
   ],
   supplier: null,
-  startDate: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
+  startDate: CalendarDate.make('2026-01-01'),
   totalCompletedInjections: 2,
   totalExpectedInjections: null,
   updatedAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),

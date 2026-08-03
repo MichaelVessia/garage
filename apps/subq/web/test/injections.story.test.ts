@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
+import * as Schema from 'effect/Schema'
 import * as AsyncData from 'foldkit/asyncData'
 import * as Story from 'foldkit/story'
 
 import {
+  CalendarDate,
   DoseMg,
   MedicationCompound,
   Supplier,
@@ -13,6 +15,7 @@ import {
   InjectionSchedule,
   InjectionScheduleId,
   InjectionSite,
+  IanaTimezone,
   Notes,
   PhaseDurationDays,
   PhaseOrder,
@@ -25,6 +28,7 @@ import {
   CancelledDeleteInjection,
   ChangedInjectionDoseMg,
   ChangedInjectionDrug,
+  ChangedInjectionNotes,
   ChangedInjectionSchedule,
   ChangedInjectionSupplier,
   ClickedAddInjection,
@@ -52,6 +56,7 @@ import {
 import type { InjectionsMessage, InjectionsModel } from '../src/page/injections.js'
 
 const { Command } = Story
+const timezone = IanaTimezone.make('America/New_York')
 
 const sampleLog = new InjectionLog({
   createdAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
@@ -99,11 +104,25 @@ const sampleSchedule = new InjectionSchedule({
     },
   ],
   supplier: null,
-  startDate: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
+  startDate: CalendarDate.make('2026-06-01'),
   updatedAt: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
 })
 
-const update = (model: InjectionsModel, message: InjectionsMessage) => updateInjections(model, message)
+const injectionAt = (id: string, datetime: string): InjectionLog =>
+  new InjectionLog({
+    createdAt: sampleLog.createdAt,
+    datetime: DateTime.makeUnsafe(datetime),
+    doseMg: sampleLog.doseMg,
+    drug: sampleLog.drug,
+    id: InjectionLogId.make(id),
+    injectionSite: sampleLog.injectionSite,
+    notes: sampleLog.notes,
+    scheduleId: sampleLog.scheduleId,
+    supplier: sampleLog.supplier,
+    updatedAt: sampleLog.updatedAt,
+  })
+
+const update = (model: InjectionsModel, message: InjectionsMessage) => updateInjections(model, message, timezone)
 
 describe('injections page update', () => {
   it('opens the add form via a command that supplies "now"', () => {
@@ -136,7 +155,7 @@ describe('injections page update', () => {
       ]),
       Story.model((model: InjectionsModel) => {
         expect(model.form?.editingId).toBe(sampleLog.id)
-        expect(model.form?.datetime).toBe(utcToLocalDatetimeString(sampleLog.datetime))
+        expect(model.form?.datetime).toBe(utcToLocalDatetimeString(sampleLog.datetime, timezone))
         expect(model.form?.maxDatetime).toBe('2026-07-04T09:00')
         expect(model.form?.drug).toBe(sampleLog.drug)
         expect(model.form?.doseMg).toBe(String(sampleLog.doseMg))
@@ -166,6 +185,43 @@ describe('injections page update', () => {
     )
   })
 
+  it('preserves sub-minute UTC precision for a note-only edit', () => {
+    const preciseLog = injectionAt('inj-precise', '2026-07-01T08:00:45.123Z')
+    const [opened] = update(
+      initialInjectionsModel,
+      OpenedInjectionForm({ log: preciseLog, nowLocal: '2026-07-04T09:00' })
+    )
+    const [noted] = update(opened, ChangedInjectionNotes({ value: 'updated note' }))
+    const [, commands] = update(noted, SubmittedInjectionForm())
+    const datetime = commands.find((command) => command.name === 'SaveInjection')?.args?.datetime
+
+    expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
+    if (Schema.is(Schema.DateTimeUtc)(datetime)) {
+      expect(DateTime.formatIso(datetime)).toBe('2026-07-01T08:00:45.123Z')
+    }
+  })
+
+  it('preserves the exact identity of both DST-overlap instants on note-only edits', () => {
+    const overlapInstants = ['2026-11-01T05:30:17.123Z', '2026-11-01T06:30:48.456Z'] as const
+    expect(overlapInstants.map((instant) => utcToLocalDatetimeString(DateTime.makeUnsafe(instant), timezone))).toEqual([
+      '2026-11-01T01:30',
+      '2026-11-01T01:30',
+    ])
+
+    for (const [index, instant] of overlapInstants.entries()) {
+      const log = injectionAt(`inj-overlap-${index}`, instant)
+      const [opened] = update(initialInjectionsModel, OpenedInjectionForm({ log, nowLocal: '2026-11-02T09:00' }))
+      const [noted] = update(opened, ChangedInjectionNotes({ value: `overlap ${index}` }))
+      const [, commands] = update(noted, SubmittedInjectionForm())
+      const datetime = commands.find((command) => command.name === 'SaveInjection')?.args?.datetime
+
+      expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
+      if (Schema.is(Schema.DateTimeUtc)(datetime)) {
+        expect(DateTime.formatIso(datetime)).toBe(instant)
+      }
+    }
+  })
+
   it('submitting without an open form is a no-op', () => {
     Story.story(
       update,
@@ -185,6 +241,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -214,6 +271,7 @@ describe('injections page update', () => {
         drug: 'A',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -243,6 +301,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -272,6 +331,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -303,6 +363,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -324,7 +385,7 @@ describe('injections page update', () => {
         const [command] = simulation.commands
         expect(command?.name).toBe('SaveInjection')
         expect(command?.args).toEqual({
-          datetime: '2026-07-04T09:00',
+          datetime: DateTime.makeUnsafe('2026-07-04T13:00:00Z'),
           doseMg: '5',
           drug: 'Semaglutide',
           editingId: null,
@@ -357,6 +418,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -388,6 +450,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -499,13 +562,14 @@ describe('injections page update', () => {
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
+        originalDatetime: null,
         scheduleId: '',
         supplier: '',
         submitting: false,
       },
     }
 
-    const [updated] = updateInjections(withForm, ChangedInjectionSupplier({ value: 'Clinic' }))
+    const [updated] = updateInjections(withForm, ChangedInjectionSupplier({ value: 'Clinic' }), timezone)
 
     expect(updated.form?.supplier).toBe('Clinic')
   })
@@ -520,6 +584,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -551,6 +616,7 @@ describe('injections page update', () => {
         drug: 'Semaglutide',
         editingId: null,
         error: null,
+        originalDatetime: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
@@ -559,11 +625,11 @@ describe('injections page update', () => {
         submitting: false,
       },
     }
-    const [afterDoseMg] = updateInjections(confirmed, ChangedInjectionDoseMg({ value: '10' }))
+    const [afterDoseMg] = updateInjections(confirmed, ChangedInjectionDoseMg({ value: '10' }), timezone)
     expect(afterDoseMg.form?.confirmedOffSchedule).toBe(false)
     expect(afterDoseMg.form?.doseMg).toBe('10')
 
-    const [afterSchedule] = updateInjections(confirmed, ChangedInjectionSchedule({ value: 'sched-2' }))
+    const [afterSchedule] = update(confirmed, ChangedInjectionSchedule({ value: 'sched-2' }))
     expect(afterSchedule.form?.confirmedOffSchedule).toBe(false)
     expect(afterSchedule.form?.scheduleId).toBe('sched-2')
   })
@@ -571,11 +637,12 @@ describe('injections page update', () => {
   it('site and schedule lookups populate on success and record failures', () => {
     const [withSites] = updateInjections(
       initialInjectionsModel,
-      FailedFetchInjectionSites({ message: 'Failed to load site suggestions' })
+      FailedFetchInjectionSites({ message: 'Failed to load site suggestions' }),
+      timezone
     )
     expect(withSites.sites).toEqual(AsyncData.Failure({ error: 'Failed to load site suggestions' }))
 
-    const [withSchedules] = updateInjections(
+    const [withSchedules] = update(
       initialInjectionsModel,
       SucceededFetchInjectionSchedules({ schedules: [sampleSchedule] })
     )

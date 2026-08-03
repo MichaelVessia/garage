@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 import { Runtime } from 'foldkit'
 
 import { ApiLive, FetchWithCredentials } from './api.js'
@@ -16,7 +17,10 @@ if (container === null) {
 const application = Runtime.makeApplication({
   Flags,
   Model,
-  flags: Effect.sync(() => ({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })),
+  flags: Effect.sync(() => ({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(Flags)),
+    Effect.orDie
+  ),
   init,
   update,
   view,

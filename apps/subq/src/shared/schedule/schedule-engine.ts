@@ -1,13 +1,12 @@
 import * as Arr from 'effect/Array'
-import * as DateTime from 'effect/DateTime'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 
+import { addCalendarDays, calendarDaysBetween, projectInstantToCalendarDate } from '../calendar/domain.js'
+import type { CalendarDate, IanaTimezone } from '../calendar/domain.js'
 import type { InjectionLog } from '../injection/domain.js'
 import { NextScheduledDose, PhaseInjectionSummary, PhaseOrder, SchedulePhaseView, ScheduleView } from './domain.js'
 import type { InjectionSchedule, SchedulePhase } from './domain.js'
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 export interface CurrentPhase {
   readonly phaseIndex: number
@@ -15,16 +14,16 @@ export interface CurrentPhase {
 }
 
 export interface NextDoseTiming {
-  readonly suggestedDate: DateTime.Utc
+  readonly suggestedDate: CalendarDate
   readonly daysUntilDue: number
   readonly isOverdue: boolean
 }
 
 export interface NextDoseTimingInput {
-  readonly startDate: DateTime.Utc
+  readonly startDate: CalendarDate
   readonly frequency: string
-  readonly lastInjectionDate: Option.Option<DateTime.Utc>
-  readonly now: DateTime.Utc
+  readonly lastInjectionDate: Option.Option<CalendarDate>
+  readonly today: CalendarDate
 }
 
 type PhaseStatus = 'completed' | 'current' | 'upcoming'
@@ -39,26 +38,17 @@ export const frequencyToDays = (frequency: string): number =>
     Match.orElse(() => 7)
   )
 
-const addDays = (date: DateTime.Utc, days: number): DateTime.Utc =>
-  DateTime.makeUnsafe(DateTime.toEpochMillis(date) + days * MS_PER_DAY)
-
-const daysBetweenFloor = (start: DateTime.Utc, end: DateTime.Utc): number =>
-  Math.floor((DateTime.toEpochMillis(end) - DateTime.toEpochMillis(start)) / MS_PER_DAY)
-
-const daysUntilRounded = (date: DateTime.Utc, now: DateTime.Utc): number =>
-  Math.round((DateTime.toEpochMillis(date) - DateTime.toEpochMillis(now)) / MS_PER_DAY)
-
 export const nextDoseTiming = ({
   startDate,
   frequency,
   lastInjectionDate,
-  now,
+  today,
 }: NextDoseTimingInput): NextDoseTiming => {
   const suggestedDate = Option.match(lastInjectionDate, {
-    onNone: () => (DateTime.isGreaterThan(now, startDate) ? now : startDate),
-    onSome: (lastDate) => addDays(lastDate, frequencyToDays(frequency)),
+    onNone: () => (today > startDate ? today : startDate),
+    onSome: (lastDate) => addCalendarDays(lastDate, frequencyToDays(frequency)),
   })
-  const daysUntilDue = daysUntilRounded(suggestedDate, now)
+  const daysUntilDue = calendarDaysBetween(today, suggestedDate)
 
   return {
     suggestedDate,
@@ -71,8 +61,8 @@ interface PhaseWindow extends CurrentPhase {
   readonly daysBeforePhase: number
 }
 
-export const currentPhase = (schedule: InjectionSchedule, now: DateTime.Utc): Option.Option<CurrentPhase> => {
-  const daysSinceStart = daysBetweenFloor(schedule.startDate, now)
+export const currentPhase = (schedule: InjectionSchedule, today: CalendarDate): Option.Option<CurrentPhase> => {
+  const daysSinceStart = calendarDaysBetween(schedule.startDate, today)
   const [, phaseWindows] = Arr.mapAccum(
     schedule.phases,
     0,
@@ -94,17 +84,17 @@ export const currentPhase = (schedule: InjectionSchedule, now: DateTime.Utc): Op
 
 export const nextDose = (
   schedule: InjectionSchedule,
-  lastInjectionDate: Option.Option<DateTime.Utc>,
-  now: DateTime.Utc
+  lastInjectionDate: Option.Option<CalendarDate>,
+  today: CalendarDate
 ): Option.Option<NextScheduledDose> => {
-  const activePhase = currentPhase(schedule, now)
+  const activePhase = currentPhase(schedule, today)
 
   return Option.map(activePhase, (active) => {
     const timing = nextDoseTiming({
       startDate: schedule.startDate,
       frequency: schedule.frequency,
       lastInjectionDate,
-      now,
+      today,
     })
 
     return new NextScheduledDose({
@@ -122,47 +112,49 @@ export const nextDose = (
 }
 
 const phaseStatus = (
-  phaseStartDate: DateTime.Utc,
-  phaseEndDate: Option.Option<DateTime.Utc>,
-  now: DateTime.Utc
+  phaseStartDate: CalendarDate,
+  phaseEndDate: Option.Option<CalendarDate>,
+  today: CalendarDate
 ): PhaseStatus =>
   Option.match(phaseEndDate, {
-    onNone: () => (DateTime.isGreaterThanOrEqualTo(now, phaseStartDate) ? 'current' : 'upcoming'),
+    onNone: () => (today >= phaseStartDate ? 'current' : 'upcoming'),
     onSome: (endDate) => {
-      if (DateTime.isGreaterThan(now, endDate)) {
+      if (today > endDate) {
         return 'completed'
       }
 
-      return DateTime.isGreaterThanOrEqualTo(now, phaseStartDate) ? 'current' : 'upcoming'
+      return today >= phaseStartDate ? 'current' : 'upcoming'
     },
   })
 
 const phaseContainsInjection = (
-  phaseStartDate: DateTime.Utc,
-  phaseEndDate: Option.Option<DateTime.Utc>,
-  injection: InjectionLog
-): boolean =>
-  Option.match(phaseEndDate, {
-    onNone: () => DateTime.isGreaterThanOrEqualTo(injection.datetime, phaseStartDate),
-    onSome: (endDate) =>
-      DateTime.isGreaterThanOrEqualTo(injection.datetime, phaseStartDate) &&
-      DateTime.isLessThanOrEqualTo(injection.datetime, endDate),
+  phaseStartDate: CalendarDate,
+  phaseEndDate: Option.Option<CalendarDate>,
+  injection: InjectionLog,
+  timezone: IanaTimezone
+): boolean => {
+  const injectionDate = projectInstantToCalendarDate(injection.datetime, timezone)
+  return Option.match(phaseEndDate, {
+    onNone: () => injectionDate >= phaseStartDate,
+    onSome: (endDate) => injectionDate >= phaseStartDate && injectionDate <= endDate,
   })
+}
 
 export const scheduleView = (
   schedule: InjectionSchedule,
   injections: readonly InjectionLog[],
-  now: DateTime.Utc
+  today: CalendarDate,
+  timezone: IanaTimezone
 ): ScheduleView => {
   const intervalDays = frequencyToDays(schedule.frequency)
   const [, phases] = Arr.mapAccum(schedule.phases, 0, (cumulativeDays, phase): readonly [number, SchedulePhaseView] => {
-    const phaseStartDate = addDays(schedule.startDate, cumulativeDays)
+    const phaseStartDate = addCalendarDays(schedule.startDate, cumulativeDays)
     const phaseEndDate =
       phase.durationDays === null
-        ? Option.none<DateTime.Utc>()
-        : Option.some(addDays(phaseStartDate, phase.durationDays - 1))
+        ? Option.none<CalendarDate>()
+        : Option.some(addCalendarDays(phaseStartDate, phase.durationDays - 1))
     const phaseInjections = injections.filter((injection) =>
-      phaseContainsInjection(phaseStartDate, phaseEndDate, injection)
+      phaseContainsInjection(phaseStartDate, phaseEndDate, injection, timezone)
     )
 
     const phaseView = new SchedulePhaseView({
@@ -172,7 +164,7 @@ export const scheduleView = (
       doseMg: phase.doseMg,
       startDate: phaseStartDate,
       endDate: Option.getOrNull(phaseEndDate),
-      status: phaseStatus(phaseStartDate, phaseEndDate, now),
+      status: phaseStatus(phaseStartDate, phaseEndDate, today),
       expectedInjections: phase.durationDays === null ? null : Math.ceil(phase.durationDays / intervalDays),
       completedInjections: phaseInjections.length,
       injections: phaseInjections.map(
@@ -191,7 +183,7 @@ export const scheduleView = (
 
   const hasIndefinitePhase = schedule.phases.some((phase) => phase.durationDays === null)
   const totalDurationDays = schedule.phases.reduce((sum, phase) => sum + (phase.durationDays ?? 0), 0)
-  const endDate = hasIndefinitePhase ? null : addDays(schedule.startDate, totalDurationDays - 1)
+  const endDate = hasIndefinitePhase ? null : addCalendarDays(schedule.startDate, totalDurationDays - 1)
   const totalExpectedInjections = hasIndefinitePhase
     ? null
     : phases.reduce((sum, phase) => sum + (phase.expectedInjections ?? 0), 0)

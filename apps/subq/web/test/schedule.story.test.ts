@@ -6,10 +6,12 @@ import * as AsyncData from 'foldkit/asyncData'
 import * as Story from 'foldkit/story'
 
 import {
+  CalendarDate,
   DoseMg,
   MedicationCompound,
   InjectionSchedule,
   InjectionScheduleId,
+  IanaTimezone,
   Notes,
   PhaseDurationDays,
   PhaseOrder,
@@ -18,7 +20,6 @@ import {
   Supplier,
 } from '#shared'
 
-import { utcToLocalDateString } from '../src/lib/datetime.js'
 import {
   AddedSchedulePhase,
   CancelledDeleteSchedule,
@@ -59,8 +60,17 @@ import {
 import type { ScheduleModel, ScheduleMessage } from '../src/page/schedule.js'
 
 const { Command } = Story
+const timezone = IanaTimezone.make('Pacific/Auckland')
 
-const update = (model: ScheduleModel, message: ScheduleMessage) => updateSchedule(model, message)
+const update = (model: ScheduleModel, message: ScheduleMessage) => updateSchedule(model, message, timezone, 1)
+
+const succeededNextDose = (requestKey = 1) =>
+  SucceededFetchNextDose({
+    nextDose: null,
+    requestKey,
+    requestedTimezone: timezone,
+    timezone,
+  })
 
 const sampleSchedule = new InjectionSchedule({
   createdAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
@@ -91,7 +101,7 @@ const sampleSchedule = new InjectionSchedule({
     },
   ],
   supplier: Supplier.make('Pharmacy'),
-  startDate: DateTime.makeUnsafe('2026-01-15T00:00:00Z'),
+  startDate: CalendarDate.make('2026-01-15'),
   updatedAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
 })
 
@@ -144,13 +154,22 @@ describe('schedule page update', () => {
           expect(model.form?.supplier).toBe('Pharmacy')
           expect(model.form?.name).toBe('Titration')
           expect(model.form?.notes).toBe('taper slowly')
-          expect(model.form?.startDate).toBe(utcToLocalDateString(sampleSchedule.startDate))
+          expect(model.form?.startDate).toBe('2026-01-15')
           expect(model.form?.phases).toEqual([
             { doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 },
             { doseMg: '0.5', durationDays: '', isIndefinite: true, order: 2 },
           ])
         })
       )
+    })
+
+    it('keeps a planned date stable for clients in different timezones', () => {
+      const opened = OpenedScheduleForm({ schedule: sampleSchedule, todayLocal: CalendarDate.make('2026-07-03') })
+      const [newYork] = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('America/New_York'), 1)
+      const [auckland] = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('Pacific/Auckland'), 1)
+
+      expect(newYork.form?.startDate).toBe('2026-01-15')
+      expect(auckland.form?.startDate).toBe('2026-01-15')
     })
 
     it('cancelling the form closes it without side effects', () => {
@@ -442,7 +461,7 @@ describe('schedule page update', () => {
         Command.resolveAll(
           [{ name: 'SaveSchedule' }, SucceededSaveSchedule()],
           [FetchSchedules, SucceededFetchSchedules({ schedules: [sampleSchedule] })],
-          [FetchNextDose, SucceededFetchNextDose({ nextDose: null })]
+          [FetchNextDose, succeededNextDose()]
         ),
         Story.model((model: ScheduleModel) => {
           expect(model.form).toBeNull()
@@ -514,7 +533,7 @@ describe('schedule page update', () => {
         Command.resolveAll(
           [{ name: 'DeleteSchedule' }, SucceededDeleteSchedule()],
           [FetchSchedules, SucceededFetchSchedules({ schedules: [] })],
-          [FetchNextDose, SucceededFetchNextDose({ nextDose: null })]
+          [FetchNextDose, succeededNextDose()]
         ),
         Story.model((model: ScheduleModel) => {
           expect(model.pendingDeleteId).toBeNull()
@@ -549,7 +568,7 @@ describe('schedule page update', () => {
         Command.resolveAll(
           [{ name: 'ActivateSchedule' }, SucceededActivateSchedule()],
           [FetchSchedules, SucceededFetchSchedules({ schedules: [sampleSchedule] })],
-          [FetchNextDose, SucceededFetchNextDose({ nextDose: null })]
+          [FetchNextDose, succeededNextDose()]
         ),
         Story.model((model: ScheduleModel) => {
           expect(model.schedules._tag).toBe('Success')
@@ -580,7 +599,13 @@ describe('schedule page update', () => {
         Story.with(initialScheduleModel),
         Story.message(FailedFetchSchedules({ message: 'Failed to load schedules' })),
         Command.expectNone(),
-        Story.message(FailedFetchNextDose({ message: 'Failed to load next dose' })),
+        Story.message(
+          FailedFetchNextDose({
+            message: 'Failed to load next dose',
+            requestKey: 0,
+            requestedTimezone: timezone,
+          })
+        ),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
           expect(model.schedules).toEqual(AsyncData.Failure({ error: 'Failed to load schedules' }))
@@ -592,10 +617,41 @@ describe('schedule page update', () => {
 
   describe('fetchScheduleIfIdle', () => {
     it('dispatches both fetches when everything is idle', () => {
-      const [loading, commands] = fetchScheduleIfIdle(initialScheduleModel)
+      const [loading, commands] = fetchScheduleIfIdle(initialScheduleModel, timezone)
       expect(AsyncData.isLoading(loading.schedules)).toBe(true)
       expect(AsyncData.isLoading(loading.nextDose)).toBe(true)
       expect(commands.map((command) => command.name)).toEqual(['FetchSchedules', 'FetchNextDose'])
+      expect(commands[1]?.args).toEqual({ requestKey: 1, requestedTimezone: timezone })
+    })
+
+    it('rejects old-zone success and failure responses after reset and refetches when needed', () => {
+      const oldTimezone = IanaTimezone.make('America/New_York')
+      const [oldLoading] = fetchScheduleIfIdle(initialScheduleModel, oldTimezone)
+      const reset = { ...oldLoading, nextDose: AsyncData.Idle() }
+      const [currentLoading] = fetchScheduleIfIdle(reset, timezone)
+
+      const [afterOldSuccess, successCommands] = update(
+        currentLoading,
+        SucceededFetchNextDose({
+          nextDose: null,
+          requestKey: 1,
+          requestedTimezone: oldTimezone,
+          timezone: oldTimezone,
+        })
+      )
+      expect(AsyncData.isLoading(afterOldSuccess.nextDose)).toBe(true)
+      expect(successCommands).toHaveLength(0)
+
+      const [afterOldFailure, failureCommands] = update(
+        reset,
+        FailedFetchNextDose({
+          message: 'old request failed',
+          requestKey: 1,
+          requestedTimezone: oldTimezone,
+        })
+      )
+      expect(AsyncData.isLoading(afterOldFailure.nextDose)).toBe(true)
+      expect(failureCommands[0]?.args).toEqual({ requestKey: 2, requestedTimezone: timezone })
     })
 
     it('skips slices that are already loaded', () => {
@@ -604,7 +660,7 @@ describe('schedule page update', () => {
         nextDose: AsyncData.succeed(Option.none()),
         schedules: AsyncData.succeed([sampleSchedule]),
       }
-      const [same, commands] = fetchScheduleIfIdle(alreadyLoaded)
+      const [same, commands] = fetchScheduleIfIdle(alreadyLoaded, timezone)
       expect(same).toBe(alreadyLoaded)
       expect(commands).toHaveLength(0)
     })

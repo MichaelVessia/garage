@@ -1,5 +1,6 @@
 import * as Schema from 'effect/Schema'
 
+import { CalendarDate } from '../calendar/domain.js'
 import { Count, DayOfWeek, DaysBetween, DbOperation, DoseMg, MedicationCompound } from '../common/domain.js'
 import { InjectionSite, InjectionsPerWeek } from '../injection/domain.js'
 import { Weight, WeightRateOfChange } from '../weight/domain.js'
@@ -9,10 +10,8 @@ import { Weight, WeightRateOfChange } from '../weight/domain.js'
 // ============================================
 
 export class StatsParams extends Schema.Class<StatsParams>('StatsParams')({
-  startDate: Schema.optional(Schema.Date),
-  endDate: Schema.optional(Schema.Date),
-  /** IANA timezone identifier (e.g., "America/New_York") for day-of-week calculations */
-  timezone: Schema.optional(Schema.String),
+  startDate: Schema.optional(CalendarDate),
+  endDate: Schema.optional(CalendarDate),
 }) {}
 
 // ============================================

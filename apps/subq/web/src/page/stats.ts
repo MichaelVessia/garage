@@ -14,6 +14,10 @@ import { pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 
 import {
+  addCalendarDays,
+  addCalendarMonths,
+  calendarDateStartUtc,
+  CalendarDate,
   DoseHistoryStats,
   GoalId,
   DrugBreakdownStats,
@@ -23,6 +27,7 @@ import {
   InjectionLog,
   InjectionLogListParams,
   InjectionSchedule,
+  IanaTimezone,
   InjectionSiteStats,
   Limit,
   Notes,
@@ -48,8 +53,9 @@ import {
   updateChart,
   viewWeightTrend,
 } from '../chart/weight-trend.js'
-import { displayWeight, formatWeight } from '../data/settings.js'
-import { epochToDate, fromLocalDatetimeString, toLocalDatetimeString, utcToLocalDateString } from '../lib/datetime.js'
+import { FetchSettings, displayWeight, formatWeight } from '../data/settings.js'
+import type { FailedFetchSettings, SucceededFetchSettings } from '../data/settings.js'
+import { dateToCalendarDate, epochToDate, formatDate, utcToLocalDateString } from '../lib/datetime.js'
 import { statsRouter } from '../route.js'
 import { button, card, input } from '../ui.js'
 
@@ -84,8 +90,10 @@ type GoalForm = typeof GoalForm.Type
 
 export const StatsModel = Schema.Struct({
   data: AsyncData.Schema(StatsBundle, Schema.String).schema,
-  // range key ("startIso|endIso") the current `data` was fetched for
+  // range key ("startIso|endIso") and timezone for the current request
   fetchedRange: Schema.NullOr(Schema.String),
+  fetchedTimezone: Schema.NullOr(IanaTimezone),
+  requestGeneration: Schema.Number,
   chart: ChartState,
   goalForm: Schema.NullOr(GoalForm),
   goalDeleteConfirm: Schema.Boolean,
@@ -100,27 +108,47 @@ export const initialStatsModel: StatsModel = {
   customStart: '',
   data: AsyncData.Idle(),
   fetchedRange: null,
+  fetchedTimezone: null,
   goalDeleteConfirm: false,
   goalForm: null,
+  requestGeneration: 0,
 }
 
 export interface StatsRange {
-  readonly start: Option.Option<string>
-  readonly end: Option.Option<string>
+  readonly start: Option.Option<CalendarDate>
+  readonly end: Option.Option<CalendarDate>
 }
 
 export const rangeKey = (range: StatsRange): string =>
   `${Option.getOrElse(range.start, () => '')}|${Option.getOrElse(range.end, () => '')}`
+
+export const distinctStatsResultTimezones = (
+  results: ReadonlyArray<{ readonly timezone: IanaTimezone }>
+): ReadonlyArray<IanaTimezone> => Arr.dedupe(results.map(({ timezone }) => timezone))
 
 // ============================================
 // Messages
 // ============================================
 
 export const SucceededFetchStats = m('SucceededFetchStats', {
-  key: Schema.String,
   bundle: StatsBundle,
+  key: Schema.String,
+  requestedTimezone: IanaTimezone,
+  requestGeneration: Schema.Number,
+  timezone: IanaTimezone,
 })
-export const FailedFetchStats = m('FailedFetchStats', { message: Schema.String })
+export const RejectedFetchStats = m('RejectedFetchStats', {
+  key: Schema.String,
+  requestedTimezone: IanaTimezone,
+  requestGeneration: Schema.Number,
+  timezones: Schema.Array(IanaTimezone),
+})
+export const FailedFetchStats = m('FailedFetchStats', {
+  key: Schema.String,
+  requestedTimezone: IanaTimezone,
+  requestGeneration: Schema.Number,
+  message: Schema.String,
+})
 export const ClickedStatsPreset = m('ClickedStatsPreset', {
   preset: Schema.Literals(['1m', '3m', '6m', '1y', 'all']),
 })
@@ -128,7 +156,7 @@ export const ChangedCustomStart = m('ChangedCustomStart', { value: Schema.String
 export const ChangedCustomEnd = m('ChangedCustomEnd', { value: Schema.String })
 export const CommittedCustomRange = m('CommittedCustomRange')
 export const ClickedSetGoal = m('ClickedSetGoal')
-export const OpenedGoalForm = m('OpenedGoalForm', { todayLocal: Schema.String })
+export const OpenedGoalForm = m('OpenedGoalForm', { todayLocal: CalendarDate })
 export const ClickedEditGoal = m('ClickedEditGoal')
 export const ClickedCancelGoalForm = m('ClickedCancelGoalForm')
 export const ChangedGoalWeight = m('ChangedGoalWeight', { value: Schema.String })
@@ -144,8 +172,11 @@ export const ConfirmedDeleteGoal = m('ConfirmedDeleteGoal', { goalId: GoalId })
 export const SucceededDeleteGoal = m('SucceededDeleteGoal')
 export const NavigatedStats = m('NavigatedStats')
 
+const FetchStatsResult = Schema.Union([SucceededFetchStats, RejectedFetchStats])
+
 export const StatsMessage = Schema.Union([
   SucceededFetchStats,
+  RejectedFetchStats,
   FailedFetchStats,
   ClickedStatsPreset,
   ChangedCustomStart,
@@ -175,40 +206,42 @@ export type StatsMessage = typeof StatsMessage.Type
 // Commands
 // ============================================
 
-const toStatsParams = (range: StatsRange, timezone?: string): StatsParams =>
+const toStatsParams = (range: StatsRange): StatsParams =>
   new StatsParams({
-    endDate: Option.getOrUndefined(
-      Option.map(range.end, (end) => fromLocalDatetimeString(`${end}T23:59`).pipe(DateTime.toDate))
-    ),
-    startDate: Option.getOrUndefined(
-      Option.map(range.start, (start) => fromLocalDatetimeString(`${start}T00:00`).pipe(DateTime.toDate))
-    ),
-    ...(timezone === undefined ? {} : { timezone }),
+    endDate: Option.getOrUndefined(range.end),
+    startDate: Option.getOrUndefined(range.start),
   })
 
 export const FetchStats = Command.define(
   'FetchStats',
-  { start: Schema.NullOr(Schema.String), end: Schema.NullOr(Schema.String), timezone: Schema.String },
-  SucceededFetchStats,
+  {
+    start: Schema.NullOr(CalendarDate),
+    end: Schema.NullOr(CalendarDate),
+    requestGeneration: Schema.Number,
+    timezone: IanaTimezone,
+  },
+  FetchStatsResult,
   FailedFetchStats
-)(({ end, start, timezone }) =>
+)(({ end, requestGeneration, start, timezone }) =>
   Effect.gen(function* () {
     const api = yield* Api
     const range: StatsRange = { end: Option.fromNullishOr(end), start: Option.fromNullishOr(start) }
     const params = toStatsParams(range)
-    const tzParams = toStatsParams(range, timezone)
     const listParams = new InjectionLogListParams({
-      endDate: end === null ? undefined : fromLocalDatetimeString(`${end}T23:59`),
+      endDate:
+        end === null
+          ? undefined
+          : DateTime.makeUnsafe(DateTime.toEpochMillis(calendarDateStartUtc(addCalendarDays(end, 1), timezone)) - 1),
       limit: Limit.make(10_000),
       offset: Offset.make(0),
-      startDate: start === null ? undefined : fromLocalDatetimeString(`${start}T00:00`),
+      startDate: start === null ? undefined : calendarDateStartUtc(start, timezone),
     })
-    const bundle = yield* Effect.all(
+    const responses = yield* Effect.all(
       {
-        dayOfWeek: api.GetInjectionByDayOfWeek(tzParams),
+        dayOfWeek: api.GetInjectionByDayOfWeek(params),
         doseHistory: api.GetDoseHistory(params),
         drugBreakdown: api.GetDrugBreakdown(params),
-        frequency: api.GetInjectionFrequency(tzParams),
+        frequency: api.GetInjectionFrequency(params),
         goal: api.GoalGetProgress(),
         injections: api.InjectionLogList(listParams),
         schedules: api.ScheduleList(),
@@ -218,41 +251,89 @@ export const FetchStats = Command.define(
       },
       { concurrency: 'unbounded' }
     )
-    return SucceededFetchStats({ bundle, key: rangeKey(range) })
+    const timezones = distinctStatsResultTimezones([
+      responses.dayOfWeek,
+      responses.doseHistory,
+      responses.drugBreakdown,
+      responses.frequency,
+      responses.goal,
+      responses.siteStats,
+      responses.weightStats,
+      responses.weightTrend,
+    ])
+    const responseTimezone = responses.dayOfWeek.timezone
+    if (timezones.length !== 1 || responseTimezone !== timezone) {
+      return RejectedFetchStats({
+        key: rangeKey(range),
+        requestedTimezone: timezone,
+        requestGeneration,
+        timezones,
+      })
+    }
+    const bundle: StatsBundle = {
+      dayOfWeek: responses.dayOfWeek.data,
+      doseHistory: responses.doseHistory.data,
+      drugBreakdown: responses.drugBreakdown.data,
+      frequency: responses.frequency.data,
+      goal: responses.goal.goal,
+      injections: responses.injections,
+      schedules: responses.schedules,
+      siteStats: responses.siteStats.data,
+      weightStats: responses.weightStats.data,
+      weightTrend: responses.weightTrend.data,
+    }
+    return SucceededFetchStats({
+      bundle,
+      key: rangeKey(range),
+      requestedTimezone: timezone,
+      requestGeneration,
+      timezone: responseTimezone,
+    })
   }).pipe(
     Effect.tapError((cause) => Effect.logDebug('FetchStats failed', { error: cause })),
-    Effect.orElseSucceed(() => FailedFetchStats({ message: 'Failed to load stats' }))
+    Effect.orElseSucceed(() =>
+      FailedFetchStats({
+        key: rangeKey({ end: Option.fromNullishOr(end), start: Option.fromNullishOr(start) }),
+        message: 'Failed to load stats',
+        requestedTimezone: timezone,
+        requestGeneration,
+      })
+    )
   )
 )
+
+const presetStartDate = (end: CalendarDate, preset: '1m' | '3m' | '6m' | '1y' | 'all'): CalendarDate => {
+  if (preset === '1m') {
+    return addCalendarMonths(end, -1)
+  }
+  if (preset === '3m') {
+    return addCalendarMonths(end, -3)
+  }
+  if (preset === '6m') {
+    return addCalendarMonths(end, -6)
+  }
+  if (preset === '1y') {
+    return addCalendarMonths(end, -12)
+  }
+  return end
+}
 
 // Preset click → compute range from "now" → push URL (route change refetches)
 const ApplyPreset = Command.define(
   'ApplyPreset',
-  { preset: Schema.Literals(['1m', '3m', '6m', '1y', 'all']) },
+  { preset: Schema.Literals(['1m', '3m', '6m', '1y', 'all']), timezone: IanaTimezone },
   NavigatedStats
-)(({ preset }) =>
+)(({ preset, timezone }) =>
   Effect.gen(function* () {
     const now = yield* DateTime.now
-    const end = DateTime.toDate(now)
-    const start = DateTime.toDate(now)
-    if (preset === '1m') {
-      start.setMonth(start.getMonth() - 1)
-    }
-    if (preset === '3m') {
-      start.setMonth(start.getMonth() - 3)
-    }
-    if (preset === '6m') {
-      start.setMonth(start.getMonth() - 6)
-    }
-    if (preset === '1y') {
-      start.setFullYear(start.getFullYear() - 1)
-    }
+    const end = utcToLocalDateString(now, timezone)
+    const start = presetStartDate(end, preset)
     const href =
       preset === 'all'
         ? statsRouter({ end: Option.none(), start: Option.none() })
         : statsRouter({
-            end: Option.some(toLocalDatetimeString(end).slice(0, 10)),
-            start: Option.some(toLocalDatetimeString(start).slice(0, 10)),
+            end: Option.some(end),
+            start: Option.some(start),
           })
     yield* pushUrl(href)
     return NavigatedStats()
@@ -261,7 +342,7 @@ const ApplyPreset = Command.define(
 
 const NavigateStatsRange = Command.define(
   'NavigateStatsRange',
-  { start: Schema.String, end: Schema.String },
+  { start: CalendarDate, end: CalendarDate },
   NavigatedStats
 )(({ end, start }) =>
   pushUrl(statsRouter({ end: Option.some(end), start: Option.some(start) })).pipe(Effect.as(NavigatedStats()))
@@ -269,16 +350,19 @@ const NavigateStatsRange = Command.define(
 
 const OpenGoalForm = Command.define(
   'OpenGoalForm',
+  { timezone: IanaTimezone },
   OpenedGoalForm
-)(DateTime.now.pipe(Effect.map((now) => OpenedGoalForm({ todayLocal: utcToLocalDateString(now) }))))
+)(({ timezone }) =>
+  DateTime.now.pipe(Effect.map((now) => OpenedGoalForm({ todayLocal: utcToLocalDateString(now, timezone) })))
+)
 
 const SaveGoal = Command.define(
   'SaveGoal',
   {
     editingId: Schema.NullOr(GoalId),
     goalWeightLbs: Schema.Number,
-    startDate: Schema.String,
-    targetDate: Schema.String,
+    startDate: Schema.NullOr(CalendarDate),
+    targetDate: Schema.NullOr(CalendarDate),
     notes: Schema.String,
   },
   SucceededSaveGoal,
@@ -291,8 +375,8 @@ const SaveGoal = Command.define(
           new UserGoalCreate({
             goalWeight: Weight.make(goalWeightLbs),
             notes: notes === '' ? Option.none() : Option.some(Notes.make(notes)),
-            startingDate: startDate === '' ? Option.none() : Option.some(fromLocalDatetimeString(`${startDate}T00:00`)),
-            targetDate: targetDate === '' ? Option.none() : Option.some(fromLocalDatetimeString(`${targetDate}T00:00`)),
+            startingDate: Option.fromNullOr(startDate),
+            targetDate: Option.fromNullOr(targetDate),
           })
         )
       : api.GoalUpdate(
@@ -300,8 +384,8 @@ const SaveGoal = Command.define(
             goalWeight: Weight.make(goalWeightLbs),
             id: editingId,
             notes: notes === '' ? null : Notes.make(notes),
-            startingDate: startDate === '' ? undefined : fromLocalDatetimeString(`${startDate}T00:00`),
-            targetDate: targetDate === '' ? null : fromLocalDatetimeString(`${targetDate}T00:00`),
+            startingDate: startDate ?? undefined,
+            targetDate,
           })
         )
     return SucceededSaveGoal()
@@ -331,48 +415,94 @@ const DeleteGoal = Command.define(
 // Update
 // ============================================
 
-type StatsCommands = ReadonlyArray<Command.Command<StatsMessage | typeof NavigatedStats.Type, never, Api>>
+type StatsCommandMessage =
+  | StatsMessage
+  | typeof NavigatedStats.Type
+  | typeof SucceededFetchSettings.Type
+  | typeof FailedFetchSettings.Type
+
+type StatsCommands = ReadonlyArray<Command.Command<StatsCommandMessage, never, Api>>
 type UpdateReturn = readonly [StatsModel, StatsCommands]
 
-const fetchStatsCommand = (range: StatsRange, timezone: string) =>
-  FetchStats({ end: Option.getOrNull(range.end), start: Option.getOrNull(range.start), timezone })
+const fetchStatsCommand = (range: StatsRange, timezone: IanaTimezone, requestGeneration: number) =>
+  FetchStats({
+    end: Option.getOrNull(range.end),
+    requestGeneration,
+    start: Option.getOrNull(range.start),
+    timezone,
+  })
 
-// Called by the app root when the stats route is entered or its range changes.
-export const syncStatsFetch = (model: StatsModel, range: StatsRange, timezone: string): UpdateReturn => {
-  const key = rangeKey(range)
-  if (model.fetchedRange === key && !AsyncData.isIdle(model.data)) {
-    return [model, []]
-  }
+const startStatsFetch = (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn => {
+  const requestGeneration = model.requestGeneration + 1
   return [
     evo(model, {
       customEnd: () => Option.getOrElse(range.end, () => ''),
       customStart: () => Option.getOrElse(range.start, () => ''),
       data: () => AsyncData.Loading(),
-      fetchedRange: () => key,
+      fetchedRange: () => rangeKey(range),
+      fetchedTimezone: () => timezone,
+      requestGeneration: () => requestGeneration,
     }),
-    [fetchStatsCommand(range, timezone)],
+    [fetchStatsCommand(range, timezone, requestGeneration)],
   ]
+}
+
+// Called by the app root when the stats route is entered or its range changes.
+export const syncStatsFetch = (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn => {
+  const key = rangeKey(range)
+  return model.fetchedRange === key && model.fetchedTimezone === timezone && !AsyncData.isIdle(model.data)
+    ? [model, []]
+    : startStatsFetch(model, range, timezone)
 }
 
 const splitRangeKey = (key: string): StatsRange => {
   const [start, end] = key.split('|')
   return {
-    end: end === undefined || end === '' ? Option.none() : Option.some(end),
-    start: start === undefined || start === '' ? Option.none() : Option.some(start),
+    end: end === undefined || end === '' ? Option.none() : Option.some(CalendarDate.make(end)),
+    start: start === undefined || start === '' ? Option.none() : Option.some(CalendarDate.make(start)),
   }
 }
 
 const isChartMessage = Schema.is(ChartMessage)
 
-export const updateStats = (model: StatsModel, message: StatsMessage, timezone: string): UpdateReturn => {
+const parseOptionalCalendarDate = (value: string): Option.Option<Option.Option<CalendarDate>> =>
+  value === ''
+    ? Option.some(Option.none())
+    : Schema.decodeUnknownOption(CalendarDate)(value).pipe(Option.map(Option.some))
+
+const prepareStatsTimezoneReconciliation = (model: StatsModel): StatsModel =>
+  evo(model, {
+    data: () => AsyncData.Idle(),
+    fetchedRange: () => null,
+    fetchedTimezone: () => null,
+  })
+
+const isCurrentStatsResponse = (
+  model: StatsModel,
+  key: string,
+  requestedTimezone: IanaTimezone,
+  requestGeneration: number,
+  timezone: IanaTimezone
+): boolean =>
+  key === model.fetchedRange &&
+  requestedTimezone === model.fetchedTimezone &&
+  requestedTimezone === timezone &&
+  requestGeneration === model.requestGeneration
+
+export const updateStats = (
+  model: StatsModel,
+  message: StatsMessage,
+  timezone: IanaTimezone,
+  settingsRequestGeneration: number
+): UpdateReturn => {
   if (isChartMessage(message)) {
     const [chart, zoom] = updateChart(model.chart, message)
     const next = evo(model, { chart: () => chart })
     return Option.match(zoom, {
       onNone: (): UpdateReturn => [next, []],
       onSome: (committed) => {
-        const start = toLocalDatetimeString(epochToDate(committed.startMs)).slice(0, 10)
-        const end = toLocalDatetimeString(epochToDate(committed.endMs)).slice(0, 10)
+        const start = dateToCalendarDate(epochToDate(committed.startMs), timezone)
+        const end = dateToCalendarDate(epochToDate(committed.endMs), timezone)
         return [next, [NavigateStatsRange({ end, start })]]
       },
     })
@@ -413,24 +543,31 @@ export const updateStats = (model: StatsModel, message: StatsMessage, timezone: 
               error: null,
               goalWeight: String(goal.goal.goalWeight),
               notes: goal.goal.notes ?? '',
-              startDate: DateTime.formatIso(goal.goal.startingDate).slice(0, 10),
+              startDate: goal.goal.startingDate,
               submitting: false,
-              targetDate: goal.goal.targetDate === null ? '' : DateTime.formatIso(goal.goal.targetDate).slice(0, 10),
+              targetDate: goal.goal.targetDate ?? '',
             }),
           }),
           [],
         ]
       },
-      ClickedSetGoal: () => [model, [OpenGoalForm()]],
-      ClickedStatsPreset: ({ preset }) => [model, [ApplyPreset({ preset })]],
+      ClickedSetGoal: () => [model, [OpenGoalForm({ timezone })]],
+      ClickedStatsPreset: ({ preset }) => [model, [ApplyPreset({ preset, timezone })]],
       CommittedCustomRange: () => {
         if (model.customStart === '' || model.customEnd === '' || model.customStart >= model.customEnd) {
           return [model, []]
         }
-        return [model, [NavigateStatsRange({ end: model.customEnd, start: model.customStart })]]
+        const start = Schema.decodeUnknownOption(CalendarDate)(model.customStart)
+        const end = Schema.decodeUnknownOption(CalendarDate)(model.customEnd)
+        return Option.isSome(start) && Option.isSome(end)
+          ? [model, [NavigateStatsRange({ end: end.value, start: start.value })]]
+          : [model, []]
       },
       ConfirmedDeleteGoal: ({ goalId }) => [evo(model, { goalDeleteConfirm: () => false }), [DeleteGoal({ goalId })]],
-      FailedFetchStats: ({ message: error }) => [evo(model, { data: () => AsyncData.Failure({ error }) }), []],
+      FailedFetchStats: ({ key, message: error, requestedTimezone, requestGeneration }) =>
+        isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)
+          ? [evo(model, { data: () => AsyncData.Failure({ error }) }), []]
+          : [model, []],
       NavigatedStats: () => [model, []],
       FailedSaveGoal: ({ message: error }) => [
         evo(model, {
@@ -452,6 +589,13 @@ export const updateStats = (model: StatsModel, message: StatsMessage, timezone: 
         }),
         [],
       ],
+      RejectedFetchStats: ({ key, requestedTimezone, requestGeneration }) =>
+        isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)
+          ? [
+              prepareStatsTimezoneReconciliation(model),
+              [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
+            ]
+          : [model, []],
       RequestedDeleteGoal: () => [evo(model, { goalDeleteConfirm: () => true }), []],
       SubmittedGoalForm: ({ unit }) => {
         if (model.goalForm === null) {
@@ -466,6 +610,16 @@ export const updateStats = (model: StatsModel, message: StatsMessage, timezone: 
             [],
           ]
         }
+        const startDate = parseOptionalCalendarDate(model.goalForm.startDate)
+        const targetDate = parseOptionalCalendarDate(model.goalForm.targetDate)
+        if (Option.isNone(startDate) || Option.isNone(targetDate)) {
+          return [
+            evo(model, {
+              goalForm: (form) => (form === null ? null : evo(form, { error: () => 'Enter valid goal dates' })),
+            }),
+            [],
+          ]
+        }
         const lbs = unit === 'kg' ? parsed * 2.204_622_6 : parsed
         return [
           evo(model, {
@@ -476,24 +630,31 @@ export const updateStats = (model: StatsModel, message: StatsMessage, timezone: 
               editingId: model.goalForm.editingId,
               goalWeightLbs: lbs,
               notes: model.goalForm.notes,
-              startDate: model.goalForm.startDate,
-              targetDate: model.goalForm.targetDate,
+              startDate: Option.getOrNull(startDate.value),
+              targetDate: Option.getOrNull(targetDate.value),
             }),
           ],
         ]
       },
-      SucceededDeleteGoal: () => [
-        evo(model, { data: () => AsyncData.Loading(), fetchedRange: () => null }),
-        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange), timezone)],
-      ],
-      SucceededFetchStats: ({ bundle, key }) => [
-        evo(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }),
-        [],
-      ],
-      SucceededSaveGoal: () => [
-        evo(model, { data: () => AsyncData.Loading(), goalForm: () => null }),
-        model.fetchedRange === null ? [] : [fetchStatsCommand(splitRangeKey(model.fetchedRange), timezone)],
-      ],
+      SucceededDeleteGoal: () =>
+        model.fetchedRange === null ? [model, []] : startStatsFetch(model, splitRangeKey(model.fetchedRange), timezone),
+      SucceededFetchStats: ({ bundle, key, requestedTimezone, requestGeneration, timezone: responseTimezone }) => {
+        if (!isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)) {
+          return [model, []]
+        }
+        return responseTimezone === timezone
+          ? [evo(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }), []]
+          : [
+              prepareStatsTimezoneReconciliation(model),
+              [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
+            ]
+      },
+      SucceededSaveGoal: () => {
+        const next = evo(model, { goalForm: () => null })
+        return model.fetchedRange === null
+          ? [next, []]
+          : startStatsFetch(next, splitRangeKey(model.fetchedRange), timezone)
+      },
     })
   )
 }
@@ -740,7 +901,7 @@ const flushDoseSegment = (build: DoseSegmentBuild): ReadonlyArray<DoseSegment> =
     ? [...build.segments, { color: build.color, points: build.current }]
     : build.segments
 
-const viewDoseHistory = (data: DoseHistoryStats) => {
+const viewDoseHistory = (data: DoseHistoryStats, timezone: IanaTimezone) => {
   if (Arr.isReadonlyArrayEmpty(data.points)) {
     return h.div([h.Class('text-muted-foreground h-[200px]')], ['No dose data available'])
   }
@@ -760,7 +921,7 @@ const viewDoseHistory = (data: DoseHistoryStats) => {
   if (minDate === undefined || maxDate === undefined || minDose === undefined || maxDose === undefined) {
     return h.empty
   }
-  const xScale = d3.scaleTime().domain([minDate, maxDate]).range([0, width])
+  const xScale = d3.scaleUtc().domain([minDate, maxDate]).range([0, width])
   const yPadding = (maxDose - minDose) * 0.2 || 2
   const yScale = d3
     .scaleLinear()
@@ -781,8 +942,10 @@ const viewDoseHistory = (data: DoseHistoryStats) => {
   })
   const segments = flushDoseSegment(builtSegments)
   const attr = h.Attribute
-  const formatDate = d3.timeFormat('%b %d, %Y')
-  const formatTick = d3.timeFormat('%b %d')
+  const formatDoseDate = (date: Date): string =>
+    new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: timezone }).format(date)
+  const formatTick = (date: Date): string =>
+    new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', timeZone: timezone }).format(date)
   return h.div(
     [h.Class('relative w-full')],
     [
@@ -826,7 +989,7 @@ const viewDoseHistory = (data: DoseHistoryStats) => {
                     h.Stroke('var(--card)'),
                     h.StrokeWidth('2'),
                     h.Cursor('pointer'),
-                    h.AriaLabel(`${point.drug} ${point.doseMg} mg on ${formatDate(point.date)}`),
+                    h.AriaLabel(`${point.drug} ${point.doseMg} mg on ${formatDoseDate(point.date)}`),
                   ],
                   []
                 )
@@ -997,7 +1160,6 @@ const goalStat = (label: string, value: string, suffix: string) =>
 
 const goalCardContent = (model: StatsModel, goal: Option.Option<GoalProgress>, unit: WeightUnit) => {
   const show = (lbs: number): number => displayWeight(unit, lbs)
-  const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' })
   if (model.goalForm !== null) {
     return viewGoalForm(model.goalForm, unit)
   }
@@ -1095,7 +1257,7 @@ const goalCardContent = (model: StatsModel, goal: Option.Option<GoalProgress>, u
             [h.Class('p-3 bg-muted/50 rounded-lg')],
             [
               h.span([h.Class('text-sm text-muted-foreground')], ['Projected goal date: ']),
-              h.span([h.Class('font-semibold')], [dateFormat.format(DateTime.toDate(progress.projectedDate))]),
+              h.span([h.Class('font-semibold')], [formatDate(progress.projectedDate)]),
             ]
           ),
     ]
@@ -1109,24 +1271,36 @@ const viewGoalCard = (model: StatsModel, goal: Option.Option<GoalProgress>, unit
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-// Ended schedules end after the sum of their phase durations; active schedules
-// and schedules without a bounded phase have no end date.
-const scheduleEndDate = (schedule: InjectionSchedule): Option.Option<Date> => {
+// Ended schedules display their final included local day, while chart
+// geometry uses the following local-day boundary as an exclusive end.
+const finiteScheduleDays = (schedule: InjectionSchedule): Option.Option<number> => {
   if (schedule.isActive) {
     return Option.none()
   }
   const orderedPhases = Arr.sortWith(schedule.phases, (phase) => phase.order, Order.Number)
-  const durationsMs = Arr.flatMap(orderedPhases, (phase) =>
-    phase.durationDays === null ? [] : [phase.durationDays * 24 * 60 * 60 * 1000]
-  )
-  if (Arr.isReadonlyArrayEmpty(durationsMs)) {
-    return Option.none()
-  }
-  const totalMs = Arr.reduce(durationsMs, 0, (sum, ms) => sum + ms)
-  return Option.some(epochToDate(DateTime.toDate(schedule.startDate).getTime() + totalMs))
+  const durationDays = Arr.flatMap(orderedPhases, (phase) => (phase.durationDays === null ? [] : [phase.durationDays]))
+  return Arr.isReadonlyArrayEmpty(durationDays)
+    ? Option.none()
+    : Option.some(Arr.reduce(durationDays, 0, (sum, days) => sum + days))
 }
 
-const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, range: StatsRange) => {
+export const scheduleEndDate = (schedule: InjectionSchedule, timezone: IanaTimezone): Option.Option<Date> =>
+  Option.map(finiteScheduleDays(schedule), (totalDays) =>
+    calendarDateStartUtc(addCalendarDays(schedule.startDate, totalDays - 1), timezone).pipe(DateTime.toDate)
+  )
+
+export const scheduleEndExclusiveDate = (schedule: InjectionSchedule, timezone: IanaTimezone): Option.Option<Date> =>
+  Option.map(finiteScheduleDays(schedule), (totalDays) =>
+    calendarDateStartUtc(addCalendarDays(schedule.startDate, totalDays), timezone).pipe(DateTime.toDate)
+  )
+
+const viewBundle = (
+  model: StatsModel,
+  bundle: StatsBundle,
+  unit: WeightUnit,
+  range: StatsRange,
+  timezone: IanaTimezone
+) => {
   const show = (lbs: number): number => displayWeight(unit, lbs)
   const weightItems: ReadonlyArray<readonly [string, string]> =
     bundle.weightStats === null
@@ -1169,17 +1343,20 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
   }))
   const schedulePeriods: ReadonlyArray<SchedulePeriod> = bundle.schedules.map((schedule) => ({
     drug: schedule.drug,
-    endDate: scheduleEndDate(schedule),
+    endDateExclusive: scheduleEndExclusiveDate(schedule, timezone),
+    endDateInclusive: scheduleEndDate(schedule, timezone),
     scheduleName: schedule.name,
-    startDate: DateTime.toDate(schedule.startDate),
+    startDate: calendarDateStartUtc(schedule.startDate, timezone).pipe(DateTime.toDate),
   }))
   const zoomRange: Option.Option<{ readonly start: Date; readonly end: Date }> = Option.all([
     range.start,
     range.end,
   ]).pipe(
     Option.map(([start, end]) => ({
-      end: DateTime.toDate(fromLocalDatetimeString(`${end}T23:59`)),
-      start: DateTime.toDate(fromLocalDatetimeString(`${start}T00:00`)),
+      end: DateTime.toDate(
+        DateTime.makeUnsafe(DateTime.toEpochMillis(calendarDateStartUtc(addCalendarDays(end, 1), timezone)) - 1)
+      ),
+      start: DateTime.toDate(calendarDateStartUtc(start, timezone)),
     }))
   )
 
@@ -1201,6 +1378,7 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
               injectionData,
               schedulePeriods,
               state: model.chart,
+              timezone,
               trendLine: Option.fromNullishOr(bundle.weightTrend.trendLine),
               unitLabel: unit,
               weightData,
@@ -1225,12 +1403,12 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
           viewCard('Medications Used', viewBarChart(bundle.drugBreakdown.drugs.map((drug) => [drug.drug, drug.count]))),
         ]
       ),
-      viewCard('Dose History', viewDoseHistory(bundle.doseHistory)),
+      viewCard('Dose History', viewDoseHistory(bundle.doseHistory, timezone)),
     ]
   )
 }
 
-export const viewStats = (model: StatsModel, unit: WeightUnit, range: StatsRange) =>
+export const viewStats = (model: StatsModel, unit: WeightUnit, range: StatsRange, timezone: IanaTimezone) =>
   h.div(
     [],
     [
@@ -1240,9 +1418,9 @@ export const viewStats = (model: StatsModel, unit: WeightUnit, range: StatsRange
           h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
         onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
         onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-        onRefreshing: (bundle) => viewBundle(model, bundle, unit, range),
-        onStale: ({ data }) => viewBundle(model, data, unit, range),
-        onSuccess: (bundle) => viewBundle(model, bundle, unit, range),
+        onRefreshing: (bundle) => viewBundle(model, bundle, unit, range, timezone),
+        onStale: ({ data }) => viewBundle(model, data, unit, range, timezone),
+        onSuccess: (bundle) => viewBundle(model, bundle, unit, range, timezone),
       }),
     ]
   )

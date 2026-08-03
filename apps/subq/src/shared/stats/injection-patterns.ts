@@ -2,6 +2,7 @@ import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 
+import type { IanaTimezone } from '../calendar/domain.js'
 import { Count, DayOfWeek, DaysBetween } from '../common/domain.js'
 import { InjectionsPerWeek } from '../injection/domain.js'
 import { DayOfWeekCount, InjectionDayOfWeekStats, InjectionFrequencyStats } from './domain.js'
@@ -10,7 +11,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 const MS_PER_WEEK = 7 * MS_PER_DAY
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
-export const getDayOfWeekInTimezone = (date: Date, timezone: string): number => {
+export const getDayOfWeekInTimezone = (date: Date, timezone: IanaTimezone): number => {
   const weekday = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     timeZone: timezone,
@@ -20,7 +21,7 @@ export const getDayOfWeekInTimezone = (date: Date, timezone: string): number => 
 }
 
 /** Count of injections for each day of the week, indexed 0 (Sunday) through 6 (Saturday). */
-const countDaysOfWeek = (dates: readonly Date[], timezone: string): ReadonlyArray<number> => {
+const countDaysOfWeek = (dates: readonly Date[], timezone: IanaTimezone): ReadonlyArray<number> => {
   const daysOfWeek = Arr.map(dates, (date) => getDayOfWeekInTimezone(date, timezone))
   return Arr.map(Arr.range(0, DAY_NAMES.length - 1), (day) => Arr.filter(daysOfWeek, (d) => d === day).length)
 }
@@ -38,7 +39,10 @@ const mostFrequentDayOfWeek = (dayCounts: ReadonlyArray<number>): Option.Option<
   return best.day
 }
 
-export const buildInjectionDayOfWeekStats = (dates: readonly Date[], timezone = 'UTC'): InjectionDayOfWeekStats => {
+export const buildInjectionDayOfWeekStats = (
+  dates: readonly Date[],
+  timezone: IanaTimezone
+): InjectionDayOfWeekStats => {
   const dayCounts = countDaysOfWeek(dates, timezone)
   const days = dayCounts.flatMap((count, day) =>
     count > 0 ? [new DayOfWeekCount({ dayOfWeek: DayOfWeek.make(day), count: Count.make(count) })] : []
@@ -49,7 +53,7 @@ export const buildInjectionDayOfWeekStats = (dates: readonly Date[], timezone = 
 
 export const buildObservedInjectionFrequency = (
   dates: readonly Date[],
-  timezone = 'UTC'
+  timezone: IanaTimezone
 ): Option.Option<InjectionFrequencyStats> => {
   if (!Arr.isReadonlyArrayNonEmpty(dates)) {
     return Option.none()

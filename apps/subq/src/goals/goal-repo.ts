@@ -8,7 +8,16 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
 
-import { GoalDatabaseError, GoalId, GoalNotFoundError, Notes, UserGoal, Weight } from '#shared'
+import {
+  CalendarDate,
+  GoalDatabaseError,
+  GoalId,
+  GoalNotFoundError,
+  Notes,
+  SettingsTimezoneNotInitialized,
+  UserGoal,
+  Weight,
+} from '#shared'
 import type { UserGoalCreate, UserGoalUpdate } from '#shared'
 
 import { mapDbError } from '../shared/common/db-error.js'
@@ -23,8 +32,9 @@ export const GoalRow = Schema.Struct({
   user_id: Schema.String,
   goal_weight: Schema.Number,
   starting_weight: Schema.Number,
-  starting_date: Schema.String,
-  target_date: Schema.NullOr(Schema.String),
+  starting_date: CalendarDate,
+  target_date: Schema.NullOr(CalendarDate),
+  calendar_date_migrated: Schema.Number,
   notes: Schema.NullOr(Schema.String),
   is_active: Schema.Number,
   completed_at: Schema.NullOr(Schema.String),
@@ -40,9 +50,8 @@ export const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
     id: GoalId.make(row.id),
     goalWeight: Weight.make(row.goal_weight),
     startingWeight: Weight.make(row.starting_weight),
-    startingDate: DateTime.makeUnsafe(row.starting_date),
-    targetDate:
-      row.target_date !== null && Str.isNonEmpty(row.target_date) ? DateTime.makeUnsafe(row.target_date) : null,
+    startingDate: row.starting_date,
+    targetDate: row.target_date,
     notes: row.notes !== null && Str.isNonEmpty(row.notes) ? Notes.make(row.notes) : null,
     isActive: row.is_active === 1,
     completedAt:
@@ -51,32 +60,18 @@ export const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
     updatedAt: DateTime.makeUnsafe(row.updated_at),
   })
 
-/**
- * Extract date portion from ISO string. DateTime.formatIso always returns
- * 'YYYY-MM-DDTHH:MM:SS.sssZ' format, so the split is guaranteed to have
- * at least one element.
- */
-const extractDatePart = (isoString: string): string => {
-  const parts = isoString.split('T')
-  return parts[0] ?? isoString
-}
-
-/**
- * Resolve the stored target_date column for an update. `null` clears it,
- * `undefined` keeps the current value, and a provided date is serialized.
- */
-const resolveUpdatedTargetDate = (
-  incoming: UserGoalUpdate['targetDate'],
-  current: (typeof GoalRow.Type)['target_date']
-) => {
-  if (incoming === null) {
-    return null
-  }
-  if (incoming === undefined) {
-    return current
-  }
-  return DateTime.formatIso(incoming)
-}
+const goalUpdatePatch = (data: UserGoalUpdate) => ({
+  changesPlannedDates: data.startingDate !== undefined || data.targetDate !== undefined,
+  goalWeight: data.goalWeight ?? null,
+  isActive: Number(data.isActive === true),
+  isActiveProvided: Number(data.isActive !== undefined),
+  notes: data.notes ?? null,
+  notesProvided: Number(data.notes !== undefined),
+  startingDate: data.startingDate ?? null,
+  startingWeight: data.startingWeight ?? null,
+  targetDate: data.targetDate ?? null,
+  targetDateProvided: Number(data.targetDate !== undefined),
+})
 
 // ============================================
 // Repository Service Definition
@@ -91,12 +86,13 @@ export class GoalRepo extends Context.Service<
     readonly create: (
       data: UserGoalCreate,
       startingWeight: number,
+      startingDate: CalendarDate,
       userId: string
     ) => Effect.Effect<UserGoal, GoalNotFoundError | GoalDatabaseError>
     readonly update: (
       data: UserGoalUpdate,
       userId: string
-    ) => Effect.Effect<UserGoal, GoalNotFoundError | GoalDatabaseError>
+    ) => Effect.Effect<UserGoal, GoalNotFoundError | GoalDatabaseError | SettingsTimezoneNotInitialized>
     readonly delete: (id: string, userId: string) => Effect.Effect<boolean, GoalDatabaseError>
   }
 >()('@garage/subq/goals/goal-repo/GoalRepo') {}
@@ -114,7 +110,7 @@ export const GoalRepoLive = Layer.effect(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
-                 target_date, notes, is_active, completed_at, created_at, updated_at
+                 target_date, calendar_date_migrated, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals
           WHERE user_id = ${userId}
           ORDER BY created_at DESC
@@ -132,7 +128,7 @@ export const GoalRepoLive = Layer.effect(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
-                 target_date, notes, is_active, completed_at, created_at, updated_at
+                 target_date, calendar_date_migrated, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals
           WHERE user_id = ${userId} AND is_active = 1
         `
@@ -149,7 +145,7 @@ export const GoalRepoLive = Layer.effect(
       function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
-                 target_date, notes, is_active, completed_at, created_at, updated_at
+                 target_date, calendar_date_migrated, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals
           WHERE id = ${id} AND user_id = ${userId}
         `
@@ -165,14 +161,12 @@ export const GoalRepoLive = Layer.effect(
     const create = Effect.fn('GoalRepo.create')(function* (
       data: UserGoalCreate,
       startingWeight: number,
+      startingDate: CalendarDate,
       userId: string
     ) {
       const id = yield* randomUuid()
       const now = DateTime.formatIso(yield* DateTime.now)
-      const startingDate = Option.isSome(data.startingDate)
-        ? data.startingDate.value.pipe(DateTime.formatIso, extractDatePart)
-        : extractDatePart(now)
-      const targetDate = Option.isSome(data.targetDate) ? DateTime.formatIso(data.targetDate.value) : null
+      const targetDate = Option.isSome(data.targetDate) ? data.targetDate.value : null
       const notes = Option.isSome(data.notes) ? data.notes.value : null
 
       // Deactivate any existing active goals for this user
@@ -182,8 +176,11 @@ export const GoalRepoLive = Layer.effect(
 
       // Create the goal
       yield* sql`
-          INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, created_at, updated_at)
-          VALUES (${id}, ${userId}, ${data.goalWeight}, ${startingWeight}, ${startingDate}, ${targetDate}, ${notes}, 1, ${now}, ${now})
+          INSERT INTO user_goals (
+            id, user_id, goal_weight, starting_weight, starting_date, target_date,
+            calendar_date_migrated, notes, is_active, created_at, updated_at
+          )
+          VALUES (${id}, ${userId}, ${data.goalWeight}, ${startingWeight}, ${startingDate}, ${targetDate}, 1, ${notes}, 1, ${now}, ${now})
         `.pipe(mapDbError(GoalDatabaseError, 'insert'))
 
       // Fetch and return the created goal
@@ -198,7 +195,7 @@ export const GoalRepoLive = Layer.effect(
       // First get current values - include user_id check to prevent IDOR
       const current = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
-                 target_date, notes, is_active, completed_at, created_at, updated_at
+                 target_date, calendar_date_migrated, notes, is_active, completed_at, created_at, updated_at
           FROM user_goals WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(mapDbError(GoalDatabaseError, 'query'))
 
@@ -207,39 +204,59 @@ export const GoalRepoLive = Layer.effect(
       }
 
       const curr = yield* decodeGoalRow(current[0]).pipe(mapDbError(GoalDatabaseError, 'query'))
+      const patch = goalUpdatePatch(data)
+      if (patch.changesPlannedDates && curr.calendar_date_migrated !== 1) {
+        return yield* new SettingsTimezoneNotInitialized({ userId })
+      }
 
       const now = DateTime.formatIso(yield* DateTime.now)
 
-      // Compute new values (use provided or fall back to current)
-      const newGoalWeight = data.goalWeight ?? curr.goal_weight
-      const newStartingWeight = data.startingWeight ?? curr.starting_weight
-      const newStartingDate =
-        data.startingDate !== undefined
-          ? data.startingDate.pipe(DateTime.formatIso, extractDatePart)
-          : curr.starting_date
-      const newTargetDate = resolveUpdatedTargetDate(data.targetDate, curr.target_date)
-      const newNotes = data.notes !== undefined ? data.notes : curr.notes
-      const newIsActive = data.isActive ?? curr.is_active === 1
-
       // If activating this goal, deactivate others
-      if (newIsActive && curr.is_active !== 1) {
+      if (patch.isActive === 1 && curr.is_active !== 1) {
         yield* sql`
             UPDATE user_goals SET is_active = 0, updated_at = ${now}
             WHERE user_id = ${userId} AND is_active = 1 AND id != ${data.id}
           `.pipe(mapDbError(GoalDatabaseError, 'update'))
       }
 
-      yield* sql`
-          UPDATE user_goals
-          SET goal_weight = ${newGoalWeight},
-              starting_weight = ${newStartingWeight},
-              starting_date = ${newStartingDate},
-              target_date = ${newTargetDate},
-              notes = ${newNotes},
-              is_active = ${newIsActive ? 1 : 0},
-              updated_at = ${now}
-          WHERE id = ${data.id} AND user_id = ${userId}
-        `.pipe(mapDbError(GoalDatabaseError, 'update'))
+      const patchFields = patch.changesPlannedDates
+        ? sql`
+            UPDATE user_goals
+            SET goal_weight = COALESCE(${patch.goalWeight}, goal_weight),
+                starting_weight = COALESCE(${patch.startingWeight}, starting_weight),
+                starting_date = COALESCE(${patch.startingDate}, starting_date),
+                target_date = CASE
+                  WHEN ${patch.targetDateProvided} = 1 THEN ${patch.targetDate}
+                  ELSE target_date
+                END,
+                calendar_date_migrated = 1,
+                notes = CASE
+                  WHEN ${patch.notesProvided} = 1 THEN ${patch.notes}
+                  ELSE notes
+                END,
+                is_active = CASE
+                  WHEN ${patch.isActiveProvided} = 1 THEN ${patch.isActive}
+                  ELSE is_active
+                END,
+                updated_at = ${now}
+            WHERE id = ${data.id} AND user_id = ${userId}
+          `
+        : sql`
+            UPDATE user_goals
+            SET goal_weight = COALESCE(${patch.goalWeight}, goal_weight),
+                starting_weight = COALESCE(${patch.startingWeight}, starting_weight),
+                notes = CASE
+                  WHEN ${patch.notesProvided} = 1 THEN ${patch.notes}
+                  ELSE notes
+                END,
+                is_active = CASE
+                  WHEN ${patch.isActiveProvided} = 1 THEN ${patch.isActive}
+                  ELSE is_active
+                END,
+                updated_at = ${now}
+            WHERE id = ${data.id} AND user_id = ${userId}
+          `
+      yield* patchFields.pipe(mapDbError(GoalDatabaseError, 'update'))
 
       // Fetch updated
       const result = yield* findById(data.id, userId)

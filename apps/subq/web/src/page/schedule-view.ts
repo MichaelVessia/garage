@@ -11,7 +11,7 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
 import { InjectionScheduleId, ScheduleView } from '#shared'
-import type { SchedulePhaseView } from '#shared'
+import type { IanaTimezone, SchedulePhaseView } from '#shared'
 
 import { Api } from '../api.js'
 import { toCommandResult } from '../lib/command.js'
@@ -155,7 +155,7 @@ const progressPercent = (phase: SchedulePhaseView): number =>
     ? Math.round((phase.completedInjections / phase.expectedInjections) * 100)
     : 0
 
-const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean) =>
+const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean, timezone: IanaTimezone) =>
   h.div(
     [h.Class('relative')],
     [
@@ -248,7 +248,7 @@ const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean) =>
                         injection.id,
                         [h.Class('flex items-center justify-between gap-3 text-sm')],
                         [
-                          h.span([h.Class('text-muted-foreground')], [formatDateTime(injection.datetime)]),
+                          h.span([h.Class('text-muted-foreground')], [formatDateTime(injection.datetime, timezone)]),
                           h.div(
                             [h.Class('flex items-center gap-2')],
                             [
@@ -275,7 +275,7 @@ const overallProgressPercent = (view: ScheduleView): number =>
     ? Math.round((view.totalCompletedInjections / view.totalExpectedInjections) * 100)
     : 0
 
-const viewContent = (view: ScheduleView) => {
+const viewContent = (view: ScheduleView, timezone: IanaTimezone) => {
   const currentPhase = view.phases.find((phase) => phase.status === 'current')
   const completedPhases = view.phases.filter((phase) => phase.status === 'completed').length
   const overallProgress = overallProgressPercent(view)
@@ -388,14 +388,14 @@ const viewContent = (view: ScheduleView) => {
       h.div(
         [h.Class('space-y-4')],
         view.phases.map((phase, index) =>
-          h.keyed('div')(phase.id, [], [viewPhaseCard(phase, index === view.phases.length - 1)])
+          h.keyed('div')(phase.id, [], [viewPhaseCard(phase, index === view.phases.length - 1, timezone)])
         )
       ),
     ]
   )
 }
 
-export const viewScheduleView = (model: ScheduleViewModel) =>
+export const viewScheduleView = (model: ScheduleViewModel, timezone: IanaTimezone) =>
   AsyncData.match(model.view, {
     onFailure: () =>
       h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
@@ -404,16 +404,16 @@ export const viewScheduleView = (model: ScheduleViewModel) =>
     onRefreshing: (view) =>
       Option.match(view, {
         onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
-        onSome: (found) => viewContent(found),
+        onSome: (found) => viewContent(found, timezone),
       }),
     onStale: ({ data }) =>
       Option.match(data, {
         onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
-        onSome: (found) => viewContent(found),
+        onSome: (found) => viewContent(found, timezone),
       }),
     onSuccess: (view) =>
       Option.match(view, {
         onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
-        onSome: (found) => viewContent(found),
+        onSome: (found) => viewContent(found, timezone),
       }),
   })

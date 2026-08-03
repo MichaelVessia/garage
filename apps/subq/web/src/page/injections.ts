@@ -21,6 +21,7 @@ import {
   InjectionLogListParams,
   InjectionLogUpdate,
   InjectionSchedule,
+  IanaTimezone,
   InjectionScheduleId,
   InjectionSite,
   Limit,
@@ -57,6 +58,7 @@ const InjectionForm = Schema.Struct({
   editingId: Schema.NullOr(InjectionLogId),
   datetime: Schema.String,
   maxDatetime: Schema.String,
+  originalDatetime: Schema.NullOr(Schema.DateTimeUtc),
   drug: Schema.String,
   supplier: Schema.String,
   doseMg: Schema.String,
@@ -218,17 +220,19 @@ const FetchInjectionSchedules = Command.define(
 
 const OpenInjectionForm = Command.define(
   'OpenInjectionForm',
-  { log: Schema.NullOr(InjectionLog) },
+  { log: Schema.NullOr(InjectionLog), timezone: IanaTimezone },
   OpenedInjectionForm
-)(({ log }) =>
-  DateTime.now.pipe(Effect.map((now) => OpenedInjectionForm({ log, nowLocal: utcToLocalDatetimeString(now) })))
+)(({ log, timezone }) =>
+  DateTime.now.pipe(
+    Effect.map((now) => OpenedInjectionForm({ log, nowLocal: utcToLocalDatetimeString(now, timezone) }))
+  )
 )
 
 const SaveInjection = Command.define(
   'SaveInjection',
   {
     editingId: Schema.NullOr(InjectionLogId),
-    datetime: Schema.String,
+    datetime: Schema.DateTimeUtc,
     drug: Schema.String,
     supplier: Schema.String,
     doseMg: Schema.String,
@@ -244,7 +248,7 @@ const SaveInjection = Command.define(
     const compound = yield* Schema.decodeUnknownEffect(MedicationCompound)(drug)
     const parsedDoseMg = yield* Schema.decodeUnknownEffect(DoseMg)(Number(doseMg))
     const fields = {
-      datetime: fromLocalDatetimeString(datetime),
+      datetime,
       doseMg: parsedDoseMg,
       drug: compound,
       injectionSite:
@@ -362,7 +366,11 @@ const isOffScheduleDose = (form: InjectionForm, schedules: ReadonlyArray<Injecti
   return Option.isSome(doseMg) && Arr.isReadonlyArrayNonEmpty(doseMgs) && !doseMgs.includes(doseMg.value)
 }
 
-export const updateInjections = (model: InjectionsModel, message: InjectionsMessage): UpdateReturn =>
+export const updateInjections = (
+  model: InjectionsModel,
+  message: InjectionsMessage,
+  timezone: IanaTimezone
+): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
@@ -383,9 +391,9 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
       ],
       ChangedInjectionSite: ({ value }) => [withForm(model, () => ({ injectionSite: value })), []],
       ChangedInjectionSupplier: ({ value }) => [withForm(model, () => ({ supplier: value })), []],
-      ClickedAddInjection: () => [model, [OpenInjectionForm({ log: null })]],
+      ClickedAddInjection: () => [model, [OpenInjectionForm({ log: null, timezone })]],
       ClickedCancelInjectionForm: () => [evo(model, { form: () => null }), []],
-      ClickedEditInjection: ({ log }) => [model, [OpenInjectionForm({ log })]],
+      ClickedEditInjection: ({ log }) => [model, [OpenInjectionForm({ log, timezone })]],
       ClickedInjectionPage: ({ delta }) => [evo(model, { page: (page) => page + delta }), []],
       ClickedInjectionSort: ({ column }) => [
         evo(model, {
@@ -423,13 +431,14 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
                   injectionSite: '',
                   maxDatetime: nowLocal,
                   notes: '',
+                  originalDatetime: null,
                   scheduleId: '',
                   supplier: '',
                   submitting: false,
                 }
               : {
                   confirmedOffSchedule: false,
-                  datetime: utcToLocalDatetimeString(log.datetime),
+                  datetime: utcToLocalDatetimeString(log.datetime, timezone),
                   doseMg: String(log.doseMg),
                   drug: log.drug,
                   editingId: log.id,
@@ -437,6 +446,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
                   injectionSite: log.injectionSite ?? '',
                   maxDatetime: nowLocal,
                   notes: log.notes ?? '',
+                  originalDatetime: log.datetime,
                   scheduleId: log.scheduleId ?? '',
                   supplier: log.supplier ?? '',
                   submitting: false,
@@ -455,6 +465,14 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
           const errorMessage = validationError.value
           return [withForm(model, () => ({ error: errorMessage, submitting: false })), []]
         }
+        const datetime =
+          model.form.originalDatetime !== null &&
+          model.form.datetime === utcToLocalDatetimeString(model.form.originalDatetime, timezone)
+            ? Option.some(model.form.originalDatetime)
+            : fromLocalDatetimeString(model.form.datetime, timezone)
+        if (Option.isNone(datetime)) {
+          return [withForm(model, () => ({ error: 'Date & time is invalid in your timezone', submitting: false })), []]
+        }
         const schedules = AsyncData.getOrElse(model.schedules, () => [])
         if (isOffScheduleDose(model.form, schedules) && !model.form.confirmedOffSchedule) {
           return [
@@ -466,7 +484,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
           withForm(model, () => ({ error: null, submitting: true })),
           [
             SaveInjection({
-              datetime: model.form.datetime,
+              datetime: datetime.value,
               doseMg: model.form.doseMg.trim(),
               drug: model.form.drug.trim(),
               editingId: model.form.editingId,
@@ -810,7 +828,8 @@ const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: O
 const viewTable = (
   model: InjectionsModel,
   logs: ReadonlyArray<InjectionLog>,
-  schedules: ReadonlyArray<InjectionSchedule>
+  schedules: ReadonlyArray<InjectionSchedule>,
+  timezone: IanaTimezone
 ) => {
   const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
   const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
@@ -877,7 +896,7 @@ const viewTable = (
                     log.id,
                     [h.Class('border-b transition-colors hover:bg-muted/50')],
                     [
-                      h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime)]),
+                      h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
                       h.td([h.Class('p-3 font-medium')], [log.drug]),
                       h.td([h.Class('p-3 font-mono')], [`${log.doseMg} mg`]),
                       h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.supplier ?? '-']),
@@ -944,7 +963,7 @@ const viewTable = (
   )
 }
 
-export const viewInjections = (model: InjectionsModel) =>
+export const viewInjections = (model: InjectionsModel, timezone: IanaTimezone) =>
   h.div(
     [],
     [
@@ -966,20 +985,23 @@ export const viewInjections = (model: InjectionsModel) =>
           viewTable(
             model,
             data,
-            AsyncData.getOrElse(model.schedules, () => [])
+            AsyncData.getOrElse(model.schedules, () => []),
+            timezone
           ),
         onStale: ({ data }) =>
           viewTable(
             model,
             data,
-            AsyncData.getOrElse(model.schedules, () => [])
+            AsyncData.getOrElse(model.schedules, () => []),
+            timezone
           ),
         onSuccess: (data) =>
           Arr.isReadonlyArrayNonEmpty(data)
             ? viewTable(
                 model,
                 data,
-                AsyncData.getOrElse(model.schedules, () => [])
+                AsyncData.getOrElse(model.schedules, () => []),
+                timezone
               )
             : h.div(
                 [h.Class('text-center py-12 text-muted-foreground')],

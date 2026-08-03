@@ -1,7 +1,9 @@
+import * as Schema from 'effect/Schema'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
 import { DataExport, DataExportError, DataImportError, DataImportResult } from './domain.js'
+import { DataExportTemporalMigrationRequired } from './errors.js'
 
 // ============================================
 // Data Export/Import RPCs
@@ -13,7 +15,7 @@ export const DataExportRpcs = RpcGroup.make(
    */
   Rpc.make('UserDataExport', {
     success: DataExport,
-    error: DataExportError,
+    error: Schema.Union([DataExportError, DataExportTemporalMigrationRequired]),
   }),
 
   /**

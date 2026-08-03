@@ -3,7 +3,7 @@ import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Story from 'foldkit/story'
 
-import { DataExport, DataImportResult } from '#shared'
+import { DataExport, DataImportResult, IanaTimezone } from '#shared'
 
 import {
   CancelledImportData,
@@ -11,6 +11,7 @@ import {
   ChangedSettingsConfirmPassword,
   ChangedSettingsCurrentPassword,
   ChangedSettingsNewPassword,
+  ChangedSettingsTimezone,
   ClickedExportData,
   ClickedSelectImportFile,
   ClickedSettingsWeightUnit,
@@ -21,6 +22,7 @@ import {
   PreparedImportData,
   SelectedImportFile,
   SubmittedSettingsPassword,
+  SubmittedSettingsTimezone,
   SucceededExportData,
   SucceededImportData,
   SucceededUpdateSettingsPreference,
@@ -32,6 +34,7 @@ import {
 import type { SettingsModel, SettingsPageMessage } from '../src/page/settings.js'
 
 const { Command } = Story
+const timezone = IanaTimezone.make('America/New_York')
 
 const sampleExport = new DataExport({
   data: {
@@ -42,7 +45,7 @@ const sampleExport = new DataExport({
     weightLogs: [],
   },
   exportedAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
-  version: '3.0.0-alpha.1',
+  version: '3.0.0-alpha.2',
 })
 
 const sampleImportResult = new DataImportResult({
@@ -53,11 +56,12 @@ const sampleImportResult = new DataImportResult({
   weightLogs: 3,
 })
 
-const update = (model: SettingsModel, message: SettingsPageMessage) => updateSettingsPage(model, message)
+const update = (model: SettingsModel, message: SettingsPageMessage) =>
+  updateSettingsPage(model, message, timezone, timezone, 1)
 
 describe('settings page update', () => {
   it('selecting a weight unit dispatches the update command and marks submitting', () => {
-    const [next, commands] = updateSettingsPage(initialSettingsModel, ClickedSettingsWeightUnit({ unit: 'kg' }))
+    const [next, commands] = update(initialSettingsModel, ClickedSettingsWeightUnit({ unit: 'kg' }))
     expect(next.preferenceSubmitting).toBe(true)
     expect(next.preferenceError).toBeNull()
     expect(commands).toHaveLength(1)
@@ -65,18 +69,38 @@ describe('settings page update', () => {
     expect(commands[0]?.args).toEqual({ unit: 'kg' })
   })
 
+  it('submitting a validated IANA timezone dispatches the preference update', () => {
+    const [edited] = update(initialSettingsModel, ChangedSettingsTimezone({ value: 'Pacific/Auckland' }))
+    const [submitting, commands] = update(edited, SubmittedSettingsTimezone())
+
+    expect(submitting.preferenceSubmitting).toBe(true)
+    expect(submitting.preferenceError).toBeNull()
+    expect(commands).toHaveLength(1)
+    expect(commands[0]?.name).toBe('UpdateSettingsTimezone')
+    expect(commands[0]?.args).toEqual({ timezone: 'Pacific/Auckland' })
+  })
+
+  it('rejects an invalid timezone before dispatching an update', () => {
+    const [edited] = update(initialSettingsModel, ChangedSettingsTimezone({ value: 'Not/A_Zone' }))
+    const [invalid, commands] = update(edited, SubmittedSettingsTimezone())
+
+    expect(invalid.preferenceError).toBe('Enter a valid IANA timezone')
+    expect(commands).toHaveLength(0)
+  })
+
   it('a successful preference update clears submitting and refetches settings', () => {
     const submitting: SettingsModel = { ...initialSettingsModel, preferenceSubmitting: true }
-    const [next, commands] = updateSettingsPage(submitting, SucceededUpdateSettingsPreference())
+    const [next, commands] = update(submitting, SucceededUpdateSettingsPreference())
     expect(next.preferenceSubmitting).toBe(false)
     expect(next.preferenceError).toBeNull()
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('FetchSettings')
+    expect(commands[0]?.args).toEqual({ detectedTimezone: timezone, requestGeneration: 1 })
   })
 
   it('a failed preference update surfaces the error and stops submitting', () => {
     const submitting: SettingsModel = { ...initialSettingsModel, preferenceSubmitting: true }
-    const [next, commands] = updateSettingsPage(
+    const [next, commands] = update(
       submitting,
       FailedUpdateSettingsPreference({ message: 'Failed to update display preferences' })
     )
@@ -144,7 +168,7 @@ describe('settings page update', () => {
         newPassword: 'newpassword',
       },
     }
-    const [next, commands] = updateSettingsPage(valid, SubmittedSettingsPassword())
+    const [next, commands] = update(valid, SubmittedSettingsPassword())
     expect(next.password.submitting).toBe(true)
     expect(next.password.error).toBeNull()
     expect(commands).toHaveLength(1)
@@ -297,11 +321,11 @@ describe('settings page update', () => {
         [{ name: 'SelectImportFile' }, SelectedImportFile({ file })],
         [
           { name: 'ReadImportFile' },
-          FailedImportData({ message: 'Invalid export file. Only Subq 3.0.0-alpha.1 exports are supported.' }),
+          FailedImportData({ message: 'Invalid export file. Only Subq 3.0.0-alpha.2 exports are supported.' }),
         ]
       ),
       Story.model((model: SettingsModel) => {
-        expect(model.dataError).toBe('Invalid export file. Only Subq 3.0.0-alpha.1 exports are supported.')
+        expect(model.dataError).toBe('Invalid export file. Only Subq 3.0.0-alpha.2 exports are supported.')
         expect(model.importConfirm).toBeNull()
         expect(model.importStatus).toBe('idle')
       })
@@ -324,7 +348,7 @@ describe('settings page update', () => {
 
   it('confirming an import dispatches ImportData with the pending export', () => {
     const withConfirm: SettingsModel = { ...initialSettingsModel, importConfirm: sampleExport }
-    const [next, commands] = updateSettingsPage(withConfirm, ConfirmedImportData())
+    const [next, commands] = update(withConfirm, ConfirmedImportData())
     expect(next.importStatus).toBe('importing')
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('ImportData')
@@ -332,19 +356,20 @@ describe('settings page update', () => {
   })
 
   it('confirming an import with nothing pending is a no-op', () => {
-    const [next, commands] = updateSettingsPage(initialSettingsModel, ConfirmedImportData())
+    const [next, commands] = update(initialSettingsModel, ConfirmedImportData())
     expect(next).toBe(initialSettingsModel)
     expect(commands).toHaveLength(0)
   })
 
   it('a successful import surfaces the summary, clears the confirmation, and refetches settings', () => {
     const importing: SettingsModel = { ...initialSettingsModel, importConfirm: sampleExport, importStatus: 'importing' }
-    const [next, commands] = updateSettingsPage(importing, SucceededImportData({ result: sampleImportResult }))
+    const [next, commands] = update(importing, SucceededImportData({ result: sampleImportResult }))
     expect(next.dataSuccess).toBe('Successfully imported: 3 weight logs, 2 injection logs, 1 schedules, 1 goals')
     expect(next.importConfirm).toBeNull()
     expect(next.importStatus).toBe('idle')
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('FetchSettings')
+    expect(commands[0]?.args).toEqual({ detectedTimezone: timezone, requestGeneration: 1 })
   })
 
   it('a failed import surfaces the error and clears the pending confirmation', () => {

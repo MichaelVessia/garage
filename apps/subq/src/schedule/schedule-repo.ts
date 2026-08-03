@@ -10,6 +10,7 @@ import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
 
 import {
+  CalendarDate,
   DoseMg,
   Frequency,
   MedicationCompound,
@@ -24,6 +25,7 @@ import {
   ScheduleNotFoundError,
   SchedulePhase,
   SchedulePhaseId,
+  SettingsTimezoneNotInitialized,
 } from '#shared'
 import type { InjectionScheduleCreate, InjectionScheduleUpdate, SchedulePhaseCreate } from '#shared'
 
@@ -40,7 +42,8 @@ export const ScheduleRow = Schema.Struct({
   drug: MedicationCompound,
   supplier: Schema.NullOr(Schema.String),
   frequency: Frequency,
-  start_date: Schema.String,
+  start_date: CalendarDate,
+  calendar_date_migrated: Schema.Number,
   is_active: Schema.Number,
   notes: Schema.NullOr(Schema.String),
   created_at: Schema.String,
@@ -72,7 +75,8 @@ const ScheduleWithPhaseRow = Schema.Struct({
   drug: MedicationCompound,
   supplier: Schema.NullOr(Schema.String),
   frequency: Frequency,
-  start_date: Schema.String,
+  start_date: CalendarDate,
+  calendar_date_migrated: Schema.Number,
   is_active: Schema.Number,
   notes: Schema.NullOr(Schema.String),
   created_at: Schema.String,
@@ -109,7 +113,7 @@ export const scheduleRowToDomain = (row: typeof ScheduleRow.Type, phases: Schedu
     drug: row.drug,
     supplier: row.supplier !== null && Str.isNonEmpty(row.supplier) ? Supplier.make(row.supplier) : null,
     frequency: row.frequency,
-    startDate: DateTime.makeUnsafe(row.start_date),
+    startDate: row.start_date,
     isActive: row.is_active === 1,
     notes: row.notes !== null && Str.isNonEmpty(row.notes) ? Notes.make(row.notes) : null,
     phases,
@@ -150,6 +154,7 @@ const joinedRowToScheduleRow = (row: typeof ScheduleWithPhaseRow.Type): typeof S
   supplier: row.supplier,
   frequency: row.frequency,
   start_date: row.start_date,
+  calendar_date_migrated: row.calendar_date_migrated,
   is_active: row.is_active,
   notes: row.notes,
   created_at: row.created_at,
@@ -187,7 +192,10 @@ export class ScheduleRepo extends Context.Service<
     readonly update: (
       data: InjectionScheduleUpdate,
       userId: string
-    ) => Effect.Effect<InjectionSchedule, ScheduleNotFoundError | ScheduleDatabaseError>
+    ) => Effect.Effect<
+      InjectionSchedule,
+      ScheduleNotFoundError | ScheduleDatabaseError | SettingsTimezoneNotInitialized
+    >
     readonly delete: (id: string, userId: string) => Effect.Effect<boolean, ScheduleDatabaseError>
     readonly getLastInjectionDate: (
       userId: string,
@@ -249,7 +257,8 @@ export const ScheduleRepoLive = Layer.effect(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT
-            s.id, s.name, s.drug, s.supplier, s.frequency, s.start_date, s.is_active, s.notes, s.created_at, s.updated_at,
+            s.id, s.name, s.drug, s.supplier, s.frequency, s.start_date, s.calendar_date_migrated,
+            s.is_active, s.notes, s.created_at, s.updated_at,
             p.id as phase_id, p.schedule_id as phase_schedule_id, p."order" as phase_order,
             p.duration_days as phase_duration_days, p.dose_mg as phase_dose_mg,
             p.created_at as phase_created_at, p.updated_at as phase_updated_at
@@ -272,7 +281,8 @@ export const ScheduleRepoLive = Layer.effect(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT
-            s.id, s.name, s.drug, s.supplier, s.frequency, s.start_date, s.is_active, s.notes, s.created_at, s.updated_at,
+            s.id, s.name, s.drug, s.supplier, s.frequency, s.start_date, s.calendar_date_migrated,
+            s.is_active, s.notes, s.created_at, s.updated_at,
             p.id as phase_id, p.schedule_id as phase_schedule_id, p."order" as phase_order,
             p.duration_days as phase_duration_days, p.dose_mg as phase_dose_mg,
             p.created_at as phase_created_at, p.updated_at as phase_updated_at
@@ -299,7 +309,8 @@ export const ScheduleRepoLive = Layer.effect(
       function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT
-            s.id, s.name, s.drug, s.supplier, s.frequency, s.start_date, s.is_active, s.notes, s.created_at, s.updated_at,
+            s.id, s.name, s.drug, s.supplier, s.frequency, s.start_date, s.calendar_date_migrated,
+            s.is_active, s.notes, s.created_at, s.updated_at,
             p.id as phase_id, p.schedule_id as phase_schedule_id, p."order" as phase_order,
             p.duration_days as phase_duration_days, p.dose_mg as phase_dose_mg,
             p.created_at as phase_created_at, p.updated_at as phase_updated_at
@@ -327,15 +338,18 @@ export const ScheduleRepoLive = Layer.effect(
         const supplier = Option.getOrNull(data.supplier)
         const notes = Option.getOrNull(data.notes)
         const now = DateTime.formatIso(yield* DateTime.now)
-        const startDateStr = DateTime.formatIso(data.startDate)
+        const { startDate } = data
 
         // Deactivate any existing active schedules for this user
         yield* sql`UPDATE injection_schedules SET is_active = 0, updated_at = ${now} WHERE user_id = ${userId} AND is_active = 1`
 
         // Create the schedule
         yield* sql`
-          INSERT INTO injection_schedules (id, name, drug, supplier, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
-          VALUES (${id}, ${data.name}, ${data.drug}, ${supplier}, ${data.frequency}, ${startDateStr}, 1, ${notes}, ${userId}, ${now}, ${now})
+          INSERT INTO injection_schedules (
+            id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+            is_active, notes, user_id, created_at, updated_at
+          )
+          VALUES (${id}, ${data.name}, ${data.drug}, ${supplier}, ${data.frequency}, ${startDate}, 1, 1, ${notes}, ${userId}, ${now}, ${now})
         `
 
         // Create phases
@@ -343,7 +357,8 @@ export const ScheduleRepoLive = Layer.effect(
 
         // Fetch and return
         const rows = yield* sql`
-          SELECT id, name, drug, supplier, frequency, start_date, is_active, notes, created_at, updated_at
+          SELECT id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+                 is_active, notes, created_at, updated_at
           FROM injection_schedules
           WHERE id = ${id}
         `
@@ -357,7 +372,8 @@ export const ScheduleRepoLive = Layer.effect(
     const update = Effect.fn('ScheduleRepo.update')(function* (data: InjectionScheduleUpdate, userId: string) {
       // First get current values - include user_id check to prevent IDOR
       const current = yield* sql`
-          SELECT id, name, drug, supplier, frequency, start_date, is_active, notes, user_id, created_at, updated_at
+          SELECT id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+                 is_active, notes, user_id, created_at, updated_at
           FROM injection_schedules WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(mapDbError(ScheduleDatabaseError, 'query'))
 
@@ -366,12 +382,23 @@ export const ScheduleRepoLive = Layer.effect(
       }
 
       const curr = yield* decodeScheduleRow(current[0]).pipe(mapDbError(ScheduleDatabaseError, 'query'))
+      const changesStartDate = data.startDate !== undefined
+      if (changesStartDate) {
+        const initializedSettings = yield* sql`
+          SELECT user_id FROM user_settings
+          WHERE user_id = ${userId}
+            AND timezone IS NOT NULL
+            AND timezone_migration_state = 'complete'
+        `.pipe(mapDbError(ScheduleDatabaseError, 'query'))
+        if (curr.calendar_date_migrated !== 1 || Arr.isReadonlyArrayEmpty(initializedSettings)) {
+          return yield* new SettingsTimezoneNotInitialized({ userId })
+        }
+      }
 
       const newName = data.name ?? curr.name
       const newDrug = data.drug ?? curr.drug
       const newSupplier = data.supplier !== undefined ? data.supplier : curr.supplier
       const newFrequency = data.frequency ?? curr.frequency
-      const newStartDate = data.startDate !== undefined ? DateTime.formatIso(data.startDate) : curr.start_date
       const newIsActive = data.isActive ?? curr.is_active === 1
       const newNotes = data.notes !== undefined ? data.notes : curr.notes
       const now = DateTime.formatIso(yield* DateTime.now)
@@ -390,7 +417,14 @@ export const ScheduleRepoLive = Layer.effect(
               drug = ${newDrug},
               supplier = ${newSupplier},
               frequency = ${newFrequency},
-              start_date = ${newStartDate},
+              start_date = CASE
+                WHEN ${changesStartDate ? 1 : 0} = 1 THEN ${data.startDate ?? null}
+                ELSE start_date
+              END,
+              calendar_date_migrated = CASE
+                WHEN ${changesStartDate ? 1 : 0} = 1 THEN 1
+                ELSE calendar_date_migrated
+              END,
               is_active = ${newIsActive ? 1 : 0},
               notes = ${newNotes},
               updated_at = ${now}
@@ -405,7 +439,8 @@ export const ScheduleRepoLive = Layer.effect(
 
       // Fetch updated
       const rows = yield* sql`
-          SELECT id, name, drug, supplier, frequency, start_date, is_active, notes, created_at, updated_at
+          SELECT id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
+                 is_active, notes, created_at, updated_at
           FROM injection_schedules
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(mapDbError(ScheduleDatabaseError, 'query'))

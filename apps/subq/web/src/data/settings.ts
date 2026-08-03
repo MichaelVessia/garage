@@ -5,37 +5,79 @@ import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { m } from 'foldkit/message'
 
-import { DEFAULT_WEIGHT_UNIT, UserSettings, kgToLbs, lbsToKg } from '#shared'
+import {
+  DEFAULT_WEIGHT_UNIT,
+  IanaTimezone,
+  SettingsDatabaseError,
+  SettingsTemporalMigrationError,
+  UserSettings,
+  UserSettingsInitialize,
+  kgToLbs,
+  lbsToKg,
+} from '#shared'
 import type { WeightUnit } from '#shared'
 
 import { Api } from '../api.js'
-import { toCommandResult } from '../lib/command.js'
 
 // ============================================
-// App-level user settings (weight unit)
+// App-level user settings
 // ============================================
 
 export const SettingsData = AsyncData.Schema(UserSettings, Schema.String).schema
 export type SettingsData = AsyncData.AsyncData<UserSettings, string>
 
-export const SucceededFetchSettings = m('SucceededFetchSettings', { settings: UserSettings })
-export const FailedFetchSettings = m('FailedFetchSettings', { message: Schema.String })
+export const SucceededFetchSettings = m('SucceededFetchSettings', {
+  requestGeneration: Schema.Number,
+  settings: UserSettings,
+})
+export const FailedFetchSettings = m('FailedFetchSettings', {
+  message: Schema.String,
+  requestGeneration: Schema.Number,
+})
+
+export const settingsLoadErrorMessage = (error: unknown): string => {
+  if (Schema.is(SettingsTemporalMigrationError)(error)) {
+    return `Timezone migration could not convert ${error.entity} record '${error.recordId}', field '${error.field}', value '${error.value}'. Correct the stored value and retry.`
+  }
+  if (Schema.is(SettingsDatabaseError)(error)) {
+    const cause = String(error.cause)
+    return `Settings database ${error.operation} failed: ${cause}. Retry after correcting the problem.`
+  }
+  return 'Failed to load settings. Retry, or check the service logs if the problem continues.'
+}
 
 export const FetchSettings = Command.define(
   'FetchSettings',
+  { detectedTimezone: IanaTimezone, requestGeneration: Schema.Number },
   SucceededFetchSettings,
   FailedFetchSettings
-)(
+)(({ detectedTimezone, requestGeneration }) =>
   Effect.gen(function* () {
     const api = yield* Api
-    const settings = yield* api.UserSettingsGet()
-    return SucceededFetchSettings({ settings })
-  }).pipe(toCommandResult(FailedFetchSettings, 'Failed to load settings'))
+    const settings = yield* api.UserSettingsGet(new UserSettingsInitialize({ detectedTimezone }))
+    return SucceededFetchSettings({ requestGeneration, settings })
+  }).pipe(
+    Effect.catchTags({
+      RpcClientError: (error) =>
+        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+      SettingsDatabaseError: (error) =>
+        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+      SettingsTemporalMigrationError: (error) =>
+        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+      Unauthorized: (error) =>
+        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+    })
+  )
 )
 
 // ============================================
 // Weight unit helpers (storage is always lbs)
 // ============================================
+
+export const timezoneOf = (settings: SettingsData, detectedTimezone: IanaTimezone): IanaTimezone => {
+  const data = AsyncData.getData(settings)
+  return Option.isSome(data) ? data.value.timezone : detectedTimezone
+}
 
 export const weightUnitOf = (settings: SettingsData): WeightUnit => {
   const data = AsyncData.getData(settings)

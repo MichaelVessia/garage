@@ -2,13 +2,17 @@
 import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as P from 'effect/Predicate'
+import * as Schema from 'effect/Schema'
 import * as Story from 'foldkit/story'
 
-import { Notes, Weight, WeightLog, WeightLogId } from '#shared'
+import { IanaTimezone, Notes, Weight, WeightLog, WeightLogId } from '#shared'
 
 import {
+  ChangedWeightDatetime,
+  ChangedWeightNotes,
   ChangedWeightValue,
   ClickedAddWeight,
+  ClickedEditWeight,
   ClickedWeightPage,
   ClickedWeightSort,
   ConfirmedDeleteWeight,
@@ -29,6 +33,7 @@ import {
 import type { WeightMessage, WeightModel } from '../src/page/weight.js'
 
 const { Command } = Story
+const timezone = IanaTimezone.make('America/New_York')
 
 const sampleLog = new WeightLog({
   createdAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
@@ -39,7 +44,17 @@ const sampleLog = new WeightLog({
   weight: Weight.make(185.5),
 })
 
-const update = (model: WeightModel, message: WeightMessage) => updateWeight(model, message)
+const weightAt = (id: string, datetime: string): WeightLog =>
+  new WeightLog({
+    createdAt: sampleLog.createdAt,
+    datetime: DateTime.makeUnsafe(datetime),
+    id: WeightLogId.make(id),
+    notes: sampleLog.notes,
+    updatedAt: sampleLog.updatedAt,
+    weight: sampleLog.weight,
+  })
+
+const update = (model: WeightModel, message: WeightMessage) => updateWeight(model, message, timezone)
 
 describe('weight page update', () => {
   it('opens the add form via a command that supplies "now"', () => {
@@ -56,6 +71,50 @@ describe('weight page update', () => {
     )
   })
 
+  it('preserves sub-minute UTC precision for a note-only edit', () => {
+    const preciseLog = weightAt('log-precise', '2026-07-01T08:00:45.123Z')
+    const [opening] = update(initialWeightModel, ClickedEditWeight({ log: preciseLog }))
+    const [opened] = update(opening, OpenedWeightForm({ log: preciseLog, nowLocal: '2026-07-03T10:00' }))
+    const [noted] = update(opened, ChangedWeightNotes({ value: 'updated note' }))
+    const [, commands] = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
+    const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
+
+    expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
+    if (Schema.is(Schema.DateTimeUtc)(datetime)) {
+      expect(DateTime.formatIso(datetime)).toBe('2026-07-01T08:00:45.123Z')
+    }
+  })
+
+  it('preserves both DST-overlap UTC identities for note-only edits', () => {
+    const overlapInstants = ['2026-11-01T05:30:17.123Z', '2026-11-01T06:30:48.456Z'] as const
+
+    for (const [index, instant] of overlapInstants.entries()) {
+      const log = weightAt(`log-overlap-${index}`, instant)
+      const [opened] = update(initialWeightModel, OpenedWeightForm({ log, nowLocal: '2026-11-02T09:00' }))
+      const [noted] = update(opened, ChangedWeightNotes({ value: `overlap ${index}` }))
+      const [, commands] = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
+      const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
+
+      expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
+      if (Schema.is(Schema.DateTimeUtc)(datetime)) {
+        expect(DateTime.formatIso(datetime)).toBe(instant)
+      }
+    }
+  })
+
+  it('reinterprets an edited wall-time field in the persisted timezone', () => {
+    const [opening] = update(initialWeightModel, ClickedEditWeight({ log: sampleLog }))
+    const [opened] = update(opening, OpenedWeightForm({ log: sampleLog, nowLocal: '2026-07-03T10:00' }))
+    const [changed] = update(opened, ChangedWeightDatetime({ value: '2026-07-01T05:15' }))
+    const [, commands] = update(changed, SubmittedWeightForm({ unit: 'lbs' }))
+    const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
+
+    expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
+    if (Schema.is(Schema.DateTimeUtc)(datetime)) {
+      expect(DateTime.formatIso(datetime)).toBe('2026-07-01T09:15:00.000Z')
+    }
+  })
+
   it('submit validates weight before dispatching SaveWeight', () => {
     const withForm: WeightModel = {
       ...initialWeightModel,
@@ -65,6 +124,7 @@ describe('weight page update', () => {
         error: null,
         maxDatetime: '2026-07-03T10:00',
         notes: '',
+        originalDatetime: null,
         submitting: false,
         weight: 'not-a-number',
       },
@@ -89,6 +149,7 @@ describe('weight page update', () => {
         error: null,
         maxDatetime: '2026-07-03T10:00',
         notes: 'note',
+        originalDatetime: null,
         submitting: false,
         weight: '185.5',
       },
@@ -121,6 +182,7 @@ describe('weight page update', () => {
         error: null,
         maxDatetime: '2026-07-03T10:00',
         notes: '',
+        originalDatetime: null,
         submitting: false,
         weight: '185.5',
       },
@@ -198,6 +260,7 @@ describe('weight page update', () => {
         error: null,
         maxDatetime: '2026-07-03T10:00',
         notes: '',
+        originalDatetime: null,
         submitting: false,
         weight: '84.0',
       },

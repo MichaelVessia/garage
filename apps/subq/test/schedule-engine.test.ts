@@ -3,6 +3,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 
 import {
+  CalendarDate,
   DoseMg,
   MedicationCompound,
   Supplier,
@@ -10,6 +11,7 @@ import {
   InjectionLogId,
   InjectionSchedule,
   InjectionScheduleId,
+  IanaTimezone,
   PhaseDurationDays,
   PhaseOrder,
   ScheduleName,
@@ -24,7 +26,7 @@ const timestamp = DateTime.makeUnsafe('2024-01-01T00:00:00Z')
 
 const makeSchedule = (
   phases: ReadonlyArray<{ readonly order: number; readonly durationDays: number | null; readonly doseMg: number }>,
-  startDate = DateTime.makeUnsafe('2024-01-01T00:00:00Z')
+  startDate = CalendarDate.make('2024-01-01')
 ) => {
   const scheduleId = InjectionScheduleId.make('schedule-1')
 
@@ -82,7 +84,7 @@ describe('ScheduleEngine', () => {
       { order: 2, durationDays: null, doseMg: 5 },
     ])
 
-    const active = Option.getOrThrow(currentPhase(schedule, DateTime.makeUnsafe('2024-01-20T00:00:00Z')))
+    const active = Option.getOrThrow(currentPhase(schedule, CalendarDate.make('2024-01-20')))
 
     expect(active.phase.order).toBe(1)
     expect(active.phase.doseMg).toBe(2.5)
@@ -96,16 +98,12 @@ describe('ScheduleEngine', () => {
     ])
 
     const dose = Option.getOrThrow(
-      nextDose(
-        schedule,
-        Option.some(DateTime.makeUnsafe('2024-03-08T12:00:00Z')),
-        DateTime.makeUnsafe('2024-03-15T12:00:00Z')
-      )
+      nextDose(schedule, Option.some(CalendarDate.make('2024-03-08')), CalendarDate.make('2024-03-15'))
     )
 
     expect(dose.currentPhase).toBe(3)
     expect(dose.doseMg).toBe(7.5)
-    expect(DateTime.formatIso(dose.suggestedDate)).toBe('2024-03-15T12:00:00.000Z')
+    expect(dose.suggestedDate).toBe('2024-03-15')
     expect(dose.daysUntilDue).toBe(0)
     expect(dose.isOverdue).toBe(false)
   })
@@ -121,7 +119,7 @@ describe('ScheduleEngine', () => {
       makeInjection('injection-3', '2024-01-29T00:00:00Z', 5, schedule.id),
     ]
 
-    const view = scheduleView(schedule, injections, DateTime.makeUnsafe('2024-02-05T00:00:00Z'))
+    const view = scheduleView(schedule, injections, CalendarDate.make('2024-02-05'), IanaTimezone.make('UTC'))
     const firstPhase = requireValue(view.phases[0])
     const secondPhase = requireValue(view.phases[1])
 
@@ -134,5 +132,26 @@ describe('ScheduleEngine', () => {
     expect(secondPhase.status).toBe('current')
     expect(secondPhase.expectedInjections).toBeNull()
     expect(secondPhase.completedInjections).toBe(1)
+  })
+
+  it('projects actual injection instants into the persisted timezone before matching phase dates', () => {
+    const schedule = makeSchedule(
+      [
+        { order: 1, durationDays: 1, doseMg: 2.5 },
+        { order: 2, durationDays: null, doseMg: 5 },
+      ],
+      CalendarDate.make('2024-12-04')
+    )
+    const injections = [makeInjection('injection-1', '2024-12-05T03:00:00Z', 2.5, schedule.id)]
+
+    const view = scheduleView(
+      schedule,
+      injections,
+      CalendarDate.make('2024-12-05'),
+      IanaTimezone.make('America/New_York')
+    )
+
+    expect(requireValue(view.phases[0]).completedInjections).toBe(1)
+    expect(requireValue(view.phases[1]).completedInjections).toBe(0)
   })
 })
