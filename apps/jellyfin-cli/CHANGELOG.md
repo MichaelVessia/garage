@@ -1,5 +1,12 @@
 # @garage/jellyfin-cli
 
+## 0.0.15
+
+### Patch Changes
+
+- Automatic CLI release for changed artifact inputs.
+- c2a87bc: Select recently added and search visibility from `JELLYFIN_USER_ID` or the sole enabled administrator instead of arbitrary Jellyfin user ordering.
+
 ## 0.0.14
 
 ### Patch Changes
