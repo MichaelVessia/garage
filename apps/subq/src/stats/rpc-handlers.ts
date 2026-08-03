@@ -57,14 +57,14 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
       })
     )
 
-    const GetDosageHistory = authedRpc('rpc.stats.getDosageHistory', (user, params: StatsParams) =>
+    const GetDoseHistory = authedRpc('rpc.stats.getDoseHistory', (user, params: StatsParams) =>
       Effect.gen(function* () {
-        yield* Effect.logDebug('GetDosageHistory called').pipe(
-          Effect.annotateLogs({ rpc: 'GetDosageHistory', userId: user.id })
+        yield* Effect.logDebug('GetDoseHistory called').pipe(
+          Effect.annotateLogs({ rpc: 'GetDoseHistory', userId: user.id })
         )
-        const result = yield* service.getDosageHistory(params, user.id)
-        yield* Effect.logDebug('GetDosageHistory completed').pipe(
-          Effect.annotateLogs({ rpc: 'GetDosageHistory', points: result?.points.length ?? 0 })
+        const result = yield* service.getDoseHistory(params, user.id)
+        yield* Effect.logDebug('GetDoseHistory completed').pipe(
+          Effect.annotateLogs({ rpc: 'GetDoseHistory', points: result?.points.length ?? 0 })
         )
         return result
       })
@@ -113,7 +113,7 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
       GetWeightStats,
       GetWeightTrend,
       GetInjectionSiteStats,
-      GetDosageHistory,
+      GetDoseHistory,
       GetInjectionFrequency,
       GetDrugBreakdown,
       GetInjectionByDayOfWeek,

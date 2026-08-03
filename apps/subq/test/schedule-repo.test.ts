@@ -4,9 +4,9 @@ import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
 import {
-  Dosage,
-  DrugName,
-  DrugSource,
+  DoseMg,
+  MedicationCompound,
+  Supplier,
   InjectionScheduleId,
   Notes,
   PhaseDurationDays,
@@ -36,8 +36,8 @@ describe('ScheduleRepo', () => {
           const created = yield* repo.create(
             {
               name: ScheduleName.make('TRT Schedule'),
-              drug: DrugName.make('Testosterone Cypionate'),
-              source: Option.some(DrugSource.make('Empower')),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.some(Supplier.make('Empower')),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.some(Notes.make('Start low')),
@@ -45,17 +45,17 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(28),
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
                 {
                   order: PhaseOrder.make(2),
                   durationDays: PhaseDurationDays.make(28),
-                  dosage: Dosage.make('150mg'),
+                  doseMg: DoseMg.make(150),
                 },
                 {
                   order: PhaseOrder.make(3),
                   durationDays: null,
-                  dosage: Dosage.make('200mg'),
+                  doseMg: DoseMg.make(200),
                 },
               ],
             },
@@ -63,12 +63,12 @@ describe('ScheduleRepo', () => {
           )
 
           assert.strictEqual(created.name, 'TRT Schedule')
-          assert.strictEqual(created.drug, 'Testosterone Cypionate')
-          assert.strictEqual(created.source, 'Empower')
+          assert.strictEqual(created.drug, 'Semaglutide')
+          assert.strictEqual(created.supplier, 'Empower')
           assert.strictEqual(created.frequency, 'weekly')
           assert.strictEqual(created.isActive, true)
           assert.strictEqual(created.phases.length, 3)
-          assert.strictEqual(requireValue(created.phases[0]).dosage, '100mg')
+          assert.strictEqual(requireValue(created.phases[0]).doseMg, 100)
           assert.isNull(requireValue(created.phases[2]).durationDays)
         })
       )
@@ -81,8 +81,8 @@ describe('ScheduleRepo', () => {
           const first = yield* repo.create(
             {
               name: ScheduleName.make('First Schedule'),
-              drug: DrugName.make('Drug A'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -90,7 +90,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(28),
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -102,8 +102,8 @@ describe('ScheduleRepo', () => {
           const second = yield* repo.create(
             {
               name: ScheduleName.make('Second Schedule'),
-              drug: DrugName.make('Drug B'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Tirzepatide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-02-01'),
               notes: Option.none(),
@@ -111,7 +111,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(28),
-                  dosage: Dosage.make('200mg'),
+                  doseMg: DoseMg.make(200),
                 },
               ],
             },
@@ -148,8 +148,8 @@ describe('ScheduleRepo', () => {
           const created = yield* repo.create(
             {
               name: ScheduleName.make('Active Schedule'),
-              drug: DrugName.make('Test Drug'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -157,7 +157,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -179,7 +179,7 @@ describe('ScheduleRepo', () => {
           yield* insertSchedule(
             'sched-1',
             'Other User Schedule',
-            'Drug',
+            'Semaglutide',
             'weekly',
             testDate('2024-01-01'),
             'user-456',
@@ -214,8 +214,8 @@ describe('ScheduleRepo', () => {
           const created = yield* repo.create(
             {
               name: ScheduleName.make('Find Me'),
-              drug: DrugName.make('Test'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'daily',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -223,12 +223,12 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(7),
-                  dosage: Dosage.make('50mg'),
+                  doseMg: DoseMg.make(50),
                 },
                 {
                   order: PhaseOrder.make(2),
                   durationDays: null,
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -248,7 +248,7 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('does not find schedule belonging to different user', () =>
         Effect.gen(function* () {
-          yield* insertSchedule('sched-1', 'Other User', 'Drug', 'weekly', testDate('2024-01-01'), 'user-456')
+          yield* insertSchedule('sched-1', 'Other User', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-456')
 
           const repo = yield* ScheduleRepo
           const found = yield* repo.findById('sched-1', 'user-123')
@@ -266,8 +266,8 @@ describe('ScheduleRepo', () => {
           const created = yield* repo.create(
             {
               name: ScheduleName.make('Original'),
-              drug: DrugName.make('Drug'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.some(Supplier.make('Clinic')),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -275,7 +275,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(28),
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -286,14 +286,16 @@ describe('ScheduleRepo', () => {
             {
               id: created.id,
               name: ScheduleName.make('Updated'),
+              supplier: null,
               frequency: 'every_3_days',
             },
             'user-123'
           )
 
           assert.strictEqual(updated.name, 'Updated')
+          assert.isNull(updated.supplier)
           assert.strictEqual(updated.frequency, 'every_3_days')
-          assert.strictEqual(updated.drug, 'Drug')
+          assert.strictEqual(updated.drug, 'Semaglutide')
         })
       )
     })
@@ -305,8 +307,8 @@ describe('ScheduleRepo', () => {
           const created = yield* repo.create(
             {
               name: ScheduleName.make('Phases Test'),
-              drug: DrugName.make('Drug'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -314,7 +316,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(28),
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -330,12 +332,12 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: PhaseDurationDays.make(14),
-                  dosage: Dosage.make('50mg'),
+                  doseMg: DoseMg.make(50),
                 },
                 {
                   order: PhaseOrder.make(2),
                   durationDays: null,
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -343,7 +345,7 @@ describe('ScheduleRepo', () => {
           )
 
           assert.strictEqual(updated.phases.length, 2)
-          assert.strictEqual(requireValue(updated.phases[0]).dosage, '50mg')
+          assert.strictEqual(requireValue(updated.phases[0]).doseMg, 50)
           assert.isNull(requireValue(updated.phases[1]).durationDays)
         })
       )
@@ -356,8 +358,8 @@ describe('ScheduleRepo', () => {
           const first = yield* repo.create(
             {
               name: ScheduleName.make('First'),
-              drug: DrugName.make('A'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -365,7 +367,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -375,8 +377,8 @@ describe('ScheduleRepo', () => {
           const second = yield* repo.create(
             {
               name: ScheduleName.make('Second'),
-              drug: DrugName.make('B'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Tirzepatide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-02-01'),
               notes: Option.none(),
@@ -384,7 +386,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('200mg'),
+                  doseMg: DoseMg.make(200),
                 },
               ],
             },
@@ -427,7 +429,7 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('cannot update schedule belonging to different user', () =>
         Effect.gen(function* () {
-          yield* insertSchedule('sched-1', 'Other User', 'Drug', 'weekly', testDate('2024-01-01'), 'user-456')
+          yield* insertSchedule('sched-1', 'Other User', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-456')
 
           const repo = yield* ScheduleRepo
           const result = yield* repo
@@ -457,8 +459,8 @@ describe('ScheduleRepo', () => {
           const created = yield* repo.create(
             {
               name: ScheduleName.make('To Delete'),
-              drug: DrugName.make('Drug'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -466,7 +468,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -495,7 +497,7 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('cannot delete schedule belonging to different user', () =>
         Effect.gen(function* () {
-          yield* insertSchedule('sched-1', 'Other User', 'Drug', 'weekly', testDate('2024-01-01'), 'user-456')
+          yield* insertSchedule('sched-1', 'Other User', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-456')
 
           const repo = yield* ScheduleRepo
           const deleted = yield* repo.delete('sched-1', 'user-123')
@@ -510,7 +512,7 @@ describe('ScheduleRepo', () => {
       it.effect('returns none when no injections exist', () =>
         Effect.gen(function* () {
           const repo = yield* ScheduleRepo
-          const lastDate = yield* repo.getLastInjectionDate('user-123', 'Test Drug')
+          const lastDate = yield* repo.getLastInjectionDate('user-123', 'Semaglutide')
           assert.strictEqual(Option.isNone(lastDate), true)
         })
       )
@@ -519,12 +521,12 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('returns most recent injection date for drug', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-          yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-          yield* insertInjectionLog('inj-3', testDate('2024-01-20T10:00:00Z'), 'BPC-157', '250mcg', 'user-123')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123')
+          yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Semaglutide', 100, 'user-123')
+          yield* insertInjectionLog('inj-3', testDate('2024-01-20T10:00:00Z'), 'Tirzepatide', 0.25, 'user-123')
 
           const repo = yield* ScheduleRepo
-          const lastDate = yield* repo.getLastInjectionDate('user-123', 'Testosterone')
+          const lastDate = yield* repo.getLastInjectionDate('user-123', 'Semaglutide')
 
           assert.strictEqual(Option.isSome(lastDate), true)
           if (Option.isSome(lastDate)) {
@@ -537,11 +539,11 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('only considers injections for the specified user', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-          yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Testosterone', '100mg', 'user-456')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123')
+          yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Semaglutide', 100, 'user-456')
 
           const repo = yield* ScheduleRepo
-          const lastDate = yield* repo.getLastInjectionDate('user-123', 'Testosterone')
+          const lastDate = yield* repo.getLastInjectionDate('user-123', 'Semaglutide')
 
           assert.strictEqual(Option.isSome(lastDate), true)
           if (Option.isSome(lastDate)) {
@@ -560,8 +562,8 @@ describe('ScheduleRepo', () => {
           yield* repo.create(
             {
               name: ScheduleName.make('January'),
-              drug: DrugName.make('A'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-01-01'),
               notes: Option.none(),
@@ -569,7 +571,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('100mg'),
+                  doseMg: DoseMg.make(100),
                 },
               ],
             },
@@ -579,8 +581,8 @@ describe('ScheduleRepo', () => {
           yield* repo.create(
             {
               name: ScheduleName.make('March'),
-              drug: DrugName.make('B'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Tirzepatide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-03-01'),
               notes: Option.none(),
@@ -588,7 +590,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('200mg'),
+                  doseMg: DoseMg.make(200),
                 },
               ],
             },
@@ -598,8 +600,8 @@ describe('ScheduleRepo', () => {
           yield* repo.create(
             {
               name: ScheduleName.make('February'),
-              drug: DrugName.make('C'),
-              source: Option.none(),
+              drug: MedicationCompound.make('Retatrutide'),
+              supplier: Option.none(),
               frequency: 'weekly',
               startDate: DateTime.makeUnsafe('2024-02-01'),
               notes: Option.none(),
@@ -607,7 +609,7 @@ describe('ScheduleRepo', () => {
                 {
                   order: PhaseOrder.make(1),
                   durationDays: null,
-                  dosage: Dosage.make('150mg'),
+                  doseMg: DoseMg.make(150),
                 },
               ],
             },
@@ -627,8 +629,22 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('only returns schedules for the specified user', () =>
         Effect.gen(function* () {
-          yield* insertSchedule('sched-1', 'User 123 Schedule', 'Drug', 'weekly', testDate('2024-01-01'), 'user-123')
-          yield* insertSchedule('sched-2', 'User 456 Schedule', 'Drug', 'weekly', testDate('2024-01-01'), 'user-456')
+          yield* insertSchedule(
+            'sched-1',
+            'User 123 Schedule',
+            'Semaglutide',
+            'weekly',
+            testDate('2024-01-01'),
+            'user-123'
+          )
+          yield* insertSchedule(
+            'sched-2',
+            'User 456 Schedule',
+            'Semaglutide',
+            'weekly',
+            testDate('2024-01-01'),
+            'user-456'
+          )
 
           const repo = yield* ScheduleRepo
           const schedules = yield* repo.list('user-123')
@@ -642,9 +658,9 @@ describe('ScheduleRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('includes phases with schedules', () =>
         Effect.gen(function* () {
-          yield* insertSchedule('sched-1', 'With Phases', 'Drug', 'weekly', testDate('2024-01-01'), 'user-123')
-          yield* insertSchedulePhase('phase-1', 'sched-1', 1, '100mg', 28)
-          yield* insertSchedulePhase('phase-2', 'sched-1', 2, '200mg', null)
+          yield* insertSchedule('sched-1', 'With Phases', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-123')
+          yield* insertSchedulePhase('phase-1', 'sched-1', 1, 100, 28)
+          yield* insertSchedulePhase('phase-2', 'sched-1', 2, 200, null)
 
           const repo = yield* ScheduleRepo
           const schedules = yield* repo.list('user-123')
@@ -652,7 +668,7 @@ describe('ScheduleRepo', () => {
           assert.strictEqual(schedules.length, 1)
           const schedule = requireValue(schedules[0])
           assert.strictEqual(schedule.phases.length, 2)
-          assert.strictEqual(requireValue(schedule.phases[0]).dosage, '100mg')
+          assert.strictEqual(requireValue(schedule.phases[0]).doseMg, 100)
           assert.isNull(requireValue(schedule.phases[1]).durationDays)
         })
       )

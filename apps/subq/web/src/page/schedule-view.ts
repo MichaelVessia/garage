@@ -181,7 +181,7 @@ const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean) =>
                     [],
                     [
                       h.h3([h.Class('font-semibold')], [`Phase ${phase.order}`]),
-                      h.p([h.Class('text-sm text-muted-foreground font-mono')], [phase.dosage]),
+                      h.p([h.Class('text-sm text-muted-foreground font-mono')], [`${phase.doseMg} mg`]),
                     ]
                   ),
                 ]
@@ -252,7 +252,7 @@ const viewPhaseCard = (phase: SchedulePhaseView, isLast: boolean) =>
                           h.div(
                             [h.Class('flex items-center gap-2')],
                             [
-                              h.span([h.Class('font-mono')], [injection.dosage]),
+                              h.span([h.Class('font-mono')], [`${injection.doseMg} mg`]),
                               injection.injectionSite !== null && Str.isNonEmpty(injection.injectionSite)
                                 ? h.span([h.Class('text-muted-foreground text-xs')], [`@ ${injection.injectionSite}`])
                                 : h.empty,
@@ -291,6 +291,9 @@ const viewContent = (view: ScheduleView) => {
             [
               h.h2([h.Class('text-xl font-semibold tracking-tight')], [view.name]),
               h.p([h.Class('text-sm text-muted-foreground')], [view.drug]),
+              view.supplier === null
+                ? h.empty
+                : h.p([h.Class('text-xs text-muted-foreground')], [`Supplier: ${view.supplier}`]),
             ]
           ),
           view.isActive

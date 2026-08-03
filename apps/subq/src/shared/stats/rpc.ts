@@ -3,7 +3,7 @@ import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
 import {
-  DosageHistoryStats,
+  DoseHistoryStats,
   DrugBreakdownStats,
   InjectionDayOfWeekStats,
   InjectionFrequencyStats,
@@ -34,9 +34,9 @@ export const StatsRpcs = RpcGroup.make(
     success: InjectionSiteStats,
     error: StatsDatabaseError,
   }),
-  Rpc.make('GetDosageHistory', {
+  Rpc.make('GetDoseHistory', {
     payload: StatsParams,
-    success: DosageHistoryStats,
+    success: DoseHistoryStats,
     error: StatsDatabaseError,
   }),
   Rpc.make('GetInjectionFrequency', {

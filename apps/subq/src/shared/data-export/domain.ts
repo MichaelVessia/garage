@@ -13,7 +13,7 @@ import { WeightLog } from '../weight/domain.js'
  * Schema version for data exports.
  * Increment when making breaking changes to the export format.
  */
-export const DataExportVersion = Schema.Literal('2.0.0')
+export const DataExportVersion = Schema.Literal('3.0.0-alpha.1')
 export type DataExportVersion = typeof DataExportVersion.Type
 
 // ============================================

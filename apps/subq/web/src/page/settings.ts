@@ -182,7 +182,7 @@ const ReadImportFile = Command.define(
   Effect.tryPromise(() => file.text()).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(DataExportJson)),
     Effect.map((data) => PreparedImportData({ data })),
-    toCommandResult(FailedImportData, 'Invalid export file. Please select a valid SubQ export file.')
+    toCommandResult(FailedImportData, 'Invalid export file. Only Subq 3.0.0-alpha.1 exports are supported.')
   )
 )
 

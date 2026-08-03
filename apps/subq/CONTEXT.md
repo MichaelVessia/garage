@@ -7,8 +7,8 @@ Subq is a multi-user health-tracking web application for body weight, medication
 ## Ubiquitous language
 
 - **Weight log**: one timestamped body-weight measurement; persistence is always pounds.
-- **Injection log**: one actual medication injection with drug, source, dosage, site, time, notes, and optional schedule assignment.
-- **Injection schedule**: a user's regimen for one drug, cadence, and ordered dosage phases.
+- **Injection log**: one actual injection of a supported GLP compound with numeric milligram dose, optional supplier, site, time, notes, and optional schedule assignment.
+- **Injection schedule**: a user's regimen for one supported GLP compound, optional supplier, cadence, and ordered dose phases.
 - **Phase**: one titration or maintenance step; an absent duration means indefinite maintenance.
 - **Active schedule**: a schedule marked active and selected for next-dose calculations; normal repository writes maintain one per user, but imported data can preserve multiple active records.
 - **Next scheduled dose**: a derived date and dosage based on cadence, active phase, and injection history.
@@ -30,14 +30,14 @@ Subq is a multi-user health-tracking web application for body weight, medication
 ## Non-responsibilities
 
 - It does not prescribe medication, validate clinical appropriateness, or manage pharmacies/inventory/clinician workflows.
-- Dosage is a non-empty textual value, not a medically typed quantity.
+- It does not model volume, concentration, syringe units, IU, brands, or formulations; dose is a positive finite milligram amount.
 - It is not a Garage service CLI and does not use the CLI JSON envelope contract.
 - It does not provide application OTel; Cloudflare observability covers logging.
 - Import is not transactional on D1 and cannot promise atomic replacement.
 
 ## Important entities and value objects
 
-Entities are `WeightLog`, `InjectionLog`, `InjectionSchedule`, `SchedulePhase`, `UserGoal`, `UserSettings`, and Better Auth user/session/account records. Important values include positive `Weight`, `Dosage`, `DrugName`, `InjectionSite`, `Frequency`, `WeightUnit`, `NextScheduledDose`, `GoalProgress`, statistics projections, and versioned `DataExport`.
+Entities are `WeightLog`, `InjectionLog`, `InjectionSchedule`, `SchedulePhase`, `UserGoal`, `UserSettings`, and Better Auth user/session/account records. Important values include positive `Weight`, closed `MedicationCompound`, positive finite `DoseMg`, optional `Supplier`, `InjectionSite`, `Frequency`, `WeightUnit`, `NextScheduledDose`, `GoalProgress`, statistics projections, and versioned `DataExport`.
 
 ## Invariants and compatibility contracts
 
@@ -61,12 +61,11 @@ The external boundaries are Cloudflare Workers/D1/assets, Better Auth, and brows
 ## Known ambiguities
 
 - **Subq** likely abbreviates subcutaneous, but the repository does not define that expansion.
-- Code alternates among **drug**, **medication**, and **compound**; `drug` is canonical today, while the intended clinical distinction is unresolved.
-- **Source** may mean manufacturer, supplier, pharmacy, or provenance; this remains unresolved.
+- Persisted and wire field names still use **drug**, but its value means the closed active-compound set; brand and formulation are not modeled.
+- **Supplier** is optional free text answering where the medication came from; separate pharmacy, manufacturer, and provider concepts are not modeled.
 - **Schedule** combines regimen, titration plan, and future cadence.
 - Only one schedule is active per user, not per drug.
 - Next-dose timing uses same-drug history, while phase progress uses explicitly assigned injections.
-- Browser dosage validation is narrower than the shared RPC schema.
 - Goal `completedAt` exists, but automatic completion behavior is not established as an invariant.
 - Legacy weight, injection, and schedule tables permit nullable `user_id`; authenticated application queries must still scope by user.
 - Imported snapshots can preserve multiple active schedules/goals; which record should win is unresolved.

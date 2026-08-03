@@ -32,13 +32,13 @@ import { SeedError } from './errors.js'
 // ============================================
 
 const SITES = ['left abdomen', 'right abdomen', 'left thigh', 'right thigh']
-const TITRATION_DOSES = ['2.5mg', '5mg', '7.5mg', '10mg', '15mg']
+const TITRATION_DOSES = [2.5, 5, 7.5, 10, 15]
 
 const siteForWeek = (week: number): string => SITES[(week - 1) % SITES.length] ?? 'left abdomen'
 
 interface DrugDose {
   drug: string
-  dose: string
+  dose: number
 }
 
 // Weekly drug/dose over the first 40 weeks: Semaglutide titration (1-20),
@@ -46,11 +46,11 @@ interface DrugDose {
 const getDrugAndDose = (week: number): Option.Option<DrugDose> => {
   if (week <= 20) {
     const phase = Math.ceil(week / 4)
-    return Option.some({ dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? '15mg', drug: 'Semaglutide' })
+    return Option.some({ dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? 15, drug: 'Semaglutide' })
   }
   if (week <= 40) {
     const phase = Math.ceil((week - 20) / 4)
-    return Option.some({ dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? '15mg', drug: 'Tirzepatide' })
+    return Option.some({ dose: TITRATION_DOSES[Math.min(phase - 1, 4)] ?? 15, drug: 'Tirzepatide' })
   }
   return Option.none()
 }
@@ -70,7 +70,7 @@ const addFluctuation = (weight: number, seed: number): number => {
 const makePhases = (
   scheduleId: string,
   now: DateTime.Utc,
-  specs: ReadonlyArray<{ order: number; durationDays: Option.Option<number>; dosage: string }>
+  specs: ReadonlyArray<{ order: number; durationDays: Option.Option<number>; doseMg: number }>
 ) =>
   Effect.forEach(
     specs,
@@ -78,7 +78,7 @@ const makePhases = (
       randomUuid().pipe(
         Effect.map((id) => ({
           createdAt: now,
-          dosage: spec.dosage,
+          doseMg: spec.doseMg,
           durationDays: Option.getOrNull(spec.durationDays),
           id,
           order: spec.order,
@@ -89,8 +89,8 @@ const makePhases = (
     { concurrency: 1 }
   )
 
-const titrationPhaseSpecs = TITRATION_DOSES.map((dosage, index) => ({
-  dosage,
+const titrationPhaseSpecs = TITRATION_DOSES.map((doseMg, index) => ({
+  doseMg,
   durationDays: Option.some(28),
   order: index + 1,
 }))
@@ -104,7 +104,7 @@ const titrationInjectionNotes = (week: number, drugDose: DrugDose): Option.Optio
   }
   const previous = getDrugAndDose(week - 1)
   if (Option.isSome(previous) && drugDose.dose !== previous.value.dose && drugDose.drug === previous.value.drug) {
-    return Option.some(`Dose increase to ${drugDose.dose}`)
+    return Option.some(`Dose increase to ${drugDose.dose} mg`)
   }
   if (week === 40) {
     return Option.some('Completing Tirzepatide, trying Retatrutide next')
@@ -138,25 +138,25 @@ const makeTitrationInjections = (
         return Option.some({
           createdAt: now,
           datetime,
-          dosage: drugDose.dose,
+          doseMg: drugDose.dose,
           drug: drugDose.drug,
           id,
           injectionSite: siteForWeek(week),
           notes: Option.getOrNull(titrationInjectionNotes(week, drugDose)),
           scheduleId: drugDose.drug === 'Semaglutide' ? semaScheduleId : tirzScheduleId,
-          source: 'Pharmacy',
+          supplier: 'Pharmacy',
           updatedAt: now,
         })
       }),
     { concurrency: 1 }
   ).pipe(Effect.map(Arr.getSomes))
 
-const retatInjectionNotes = (week: number, doseGroup: { dose: string; weeks: number[] }): Option.Option<string> => {
+const retatInjectionNotes = (week: number, doseGroup: { dose: number; weeks: number[] }): Option.Option<string> => {
   if (week === 1) {
     return Option.some('Starting Retatrutide - switching from Tirzepatide')
   }
   if (doseGroup.weeks[0] === week) {
-    return Option.some(`Increased to ${doseGroup.dose}`)
+    return Option.some(`Increased to ${doseGroup.dose} mg`)
   }
   return Option.none()
 }
@@ -169,11 +169,11 @@ const makeRetatInjections = (
   retatScheduleId: string
 ) => {
   const doseGroups = [
-    { dose: '1mg', weeks: [1, 2] },
-    { dose: '2mg', weeks: [3, 4] },
-    { dose: '4mg', weeks: [5, 6] },
-    { dose: '8mg', weeks: [7, 8] },
-    { dose: '12mg', weeks: [9, 10, 11, 12] },
+    { dose: 1, weeks: [1, 2] },
+    { dose: 2, weeks: [3, 4] },
+    { dose: 4, weeks: [5, 6] },
+    { dose: 8, weeks: [7, 8] },
+    { dose: 12, weeks: [9, 10, 11, 12] },
   ]
 
   return Effect.forEach(
@@ -193,13 +193,13 @@ const makeRetatInjections = (
         return Option.some({
           createdAt: now,
           datetime,
-          dosage: doseGroup.dose,
-          drug: 'Retatrutide (Compounded)',
+          doseMg: doseGroup.dose,
+          drug: 'Retatrutide',
           id,
           injectionSite: siteForWeek(week),
           notes: Option.getOrNull(retatInjectionNotes(week, doseGroup)),
           scheduleId: retatScheduleId,
-          source: 'Compounding Pharmacy',
+          supplier: 'Compounding Pharmacy',
           updatedAt: now,
         })
       }),
@@ -329,7 +329,7 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       name: 'Semaglutide Titration',
       notes: 'Completed 20-week titration',
       phases: yield* makePhases(semaScheduleId, now, titrationPhaseSpecs),
-      source: null,
+      supplier: null,
       startDate,
       updatedAt: now,
     },
@@ -342,26 +342,26 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       name: 'Tirzepatide Titration',
       notes: 'Completed - switched to Retatrutide',
       phases: yield* makePhases(tirzScheduleId, now, titrationPhaseSpecs),
-      source: null,
+      supplier: null,
       startDate: tirzStartDate,
       updatedAt: now,
     },
     {
       createdAt: now,
-      drug: 'Retatrutide (Compounded)',
+      drug: 'Retatrutide',
       frequency: 'weekly',
       id: retatScheduleId,
       isActive: true,
       name: 'Retatrutide Maintenance',
       notes: 'Active maintenance schedule with indefinite final phase',
       phases: yield* makePhases(retatScheduleId, now, [
-        { dosage: '1mg', durationDays: Option.some(14), order: 1 },
-        { dosage: '2mg', durationDays: Option.some(14), order: 2 },
-        { dosage: '4mg', durationDays: Option.some(14), order: 3 },
-        { dosage: '8mg', durationDays: Option.some(14), order: 4 },
-        { dosage: '12mg', durationDays: Option.none<number>(), order: 5 },
+        { doseMg: 1, durationDays: Option.some(14), order: 1 },
+        { doseMg: 2, durationDays: Option.some(14), order: 2 },
+        { doseMg: 4, durationDays: Option.some(14), order: 3 },
+        { doseMg: 8, durationDays: Option.some(14), order: 4 },
+        { doseMg: 12, durationDays: Option.none<number>(), order: 5 },
       ]),
-      source: 'Compounding Pharmacy',
+      supplier: 'Compounding Pharmacy',
       startDate: retatStartDate,
       updatedAt: now,
     },
@@ -402,7 +402,7 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
       weightLogs,
     },
     exportedAt: now,
-    version: '2.0.0',
+    version: '3.0.0-alpha.1',
   }
 })
 

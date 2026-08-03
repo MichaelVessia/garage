@@ -12,10 +12,12 @@ import {
   Count,
   DayOfWeek,
   DaysBetween,
+  DoseMg,
   Frequency,
   frequencyToDays,
   InjectionsPerWeek,
   Limit,
+  MedicationCompound,
   Offset,
   PhaseDurationDays,
   PhaseOrder,
@@ -34,6 +36,40 @@ const runProperty = <A>(arbitrary: FC.Arbitrary<A>, predicate: (value: A) => boo
 }
 
 describe('Branded Type Property Tests', () => {
+  // ============================================
+  // Canonical medication primitives
+  // ============================================
+  describe('MedicationCompound', () => {
+    it.effect('accepts exactly the five supported GLP compounds', () =>
+      Effect.sync(() => {
+        const accepted = ['Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide']
+        for (const compound of accepted) {
+          assert.isTrue(Exit.isSuccess(Schema.decodeUnknownExit(MedicationCompound)(compound)))
+        }
+        assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(MedicationCompound)('Ozempic')))
+        assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(MedicationCompound)('semaglutide')))
+        assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(MedicationCompound)('Testosterone')))
+      })
+    )
+  })
+
+  describe('DoseMg', () => {
+    it.effect('accepts positive finite decimal milligrams', () =>
+      Effect.sync(() => {
+        assert.strictEqual(DoseMg.make(0.25), 0.25)
+        assert.strictEqual(DoseMg.make(15), 15)
+      })
+    )
+
+    it.effect('rejects strings, non-positive values, and non-finite values', () =>
+      Effect.sync(() => {
+        for (const invalid of ['2.5mg', 0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+          assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(DoseMg)(invalid)))
+        }
+      })
+    )
+  })
+
   // ============================================
   // Weight - positive number
   // ============================================

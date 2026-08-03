@@ -44,10 +44,6 @@ export const InjectionRpcs = RpcGroup.make(
     success: Schema.Boolean,
     error: InjectionLogDatabaseError,
   }),
-  Rpc.make('InjectionLogGetDrugs', {
-    success: Schema.Array(Schema.String),
-    error: InjectionLogDatabaseError,
-  }),
   Rpc.make('InjectionLogGetSites', {
     success: Schema.Array(Schema.String),
     error: InjectionLogDatabaseError,

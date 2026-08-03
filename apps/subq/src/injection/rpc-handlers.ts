@@ -55,7 +55,7 @@ export const InjectionRpcHandlersLive = InjectionRpcs.toLayer(
             rpc: 'InjectionLogCreate',
             userId: user.id,
             drug: data.drug,
-            dosage: data.dosage,
+            doseMg: data.doseMg,
             site: Option.getOrNull(data.injectionSite) ?? 'none',
           })
         )
@@ -86,19 +86,6 @@ export const InjectionRpcHandlersLive = InjectionRpcs.toLayer(
         const result = yield* repo.delete(id, user.id)
         yield* Effect.logInfo('InjectionLogDelete completed').pipe(
           Effect.annotateLogs({ rpc: 'InjectionLogDelete', id, deleted: result })
-        )
-        return result
-      })
-    )
-
-    const InjectionLogGetDrugs = authedRpc('rpc.injection.getDrugs', (user) =>
-      Effect.gen(function* () {
-        yield* Effect.logDebug('InjectionLogGetDrugs called').pipe(
-          Effect.annotateLogs({ rpc: 'InjectionLogGetDrugs', userId: user.id })
-        )
-        const result = yield* repo.getUniqueDrugs(user.id)
-        yield* Effect.logDebug('InjectionLogGetDrugs completed').pipe(
-          Effect.annotateLogs({ rpc: 'InjectionLogGetDrugs', count: result.length })
         )
         return result
       })
@@ -157,7 +144,6 @@ export const InjectionRpcHandlersLive = InjectionRpcs.toLayer(
       InjectionLogCreate,
       InjectionLogUpdate,
       InjectionLogDelete,
-      InjectionLogGetDrugs,
       InjectionLogGetSites,
       InjectionLogGetLastSite,
       InjectionLogBulkAssignSchedule,

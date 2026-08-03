@@ -1,2 +1,2 @@
-export { listKnownDrugVariants, suggestedDosagesForDrug, listDefaultInjectionSites } from './domain.js'
-export type { DrugVocabularyEntry } from './domain.js'
+export { listMedicationCompounds, suggestedDoseMgForCompound, listDefaultInjectionSites } from './domain.js'
+export type { MedicationVocabularyEntry } from './domain.js'

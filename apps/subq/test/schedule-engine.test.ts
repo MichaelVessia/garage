@@ -3,9 +3,9 @@ import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 
 import {
-  Dosage,
-  DrugName,
-  DrugSource,
+  DoseMg,
+  MedicationCompound,
+  Supplier,
   InjectionLog,
   InjectionLogId,
   InjectionSchedule,
@@ -23,7 +23,7 @@ import {
 const timestamp = DateTime.makeUnsafe('2024-01-01T00:00:00Z')
 
 const makeSchedule = (
-  phases: ReadonlyArray<{ readonly order: number; readonly durationDays: number | null; readonly dosage: string }>,
+  phases: ReadonlyArray<{ readonly order: number; readonly durationDays: number | null; readonly doseMg: number }>,
   startDate = DateTime.makeUnsafe('2024-01-01T00:00:00Z')
 ) => {
   const scheduleId = InjectionScheduleId.make('schedule-1')
@@ -31,8 +31,8 @@ const makeSchedule = (
   return new InjectionSchedule({
     id: scheduleId,
     name: ScheduleName.make('Test schedule'),
-    drug: DrugName.make('Semaglutide'),
-    source: DrugSource.make('Compounded'),
+    drug: MedicationCompound.make('Semaglutide'),
+    supplier: Supplier.make('Compounded'),
     frequency: 'weekly',
     startDate,
     isActive: true,
@@ -44,7 +44,7 @@ const makeSchedule = (
           scheduleId,
           order: PhaseOrder.make(phase.order),
           durationDays: phase.durationDays === null ? null : PhaseDurationDays.make(phase.durationDays),
-          dosage: Dosage.make(phase.dosage),
+          doseMg: DoseMg.make(phase.doseMg),
           createdAt: timestamp,
           updatedAt: timestamp,
         })
@@ -54,13 +54,13 @@ const makeSchedule = (
   })
 }
 
-const makeInjection = (id: string, datetime: string, dosage: string, scheduleId: InjectionScheduleId) =>
+const makeInjection = (id: string, datetime: string, doseMg: number, scheduleId: InjectionScheduleId) =>
   new InjectionLog({
     id: InjectionLogId.make(id),
     datetime: DateTime.makeUnsafe(datetime),
-    drug: DrugName.make('Semaglutide'),
-    source: DrugSource.make('Compounded'),
-    dosage: Dosage.make(dosage),
+    drug: MedicationCompound.make('Semaglutide'),
+    supplier: Supplier.make('Compounded'),
+    doseMg: DoseMg.make(doseMg),
     injectionSite: null,
     notes: null,
     scheduleId,
@@ -78,21 +78,21 @@ const requireValue = <T>(value: T | null | undefined): T => {
 describe('ScheduleEngine', () => {
   it('keeps the current phase before an indefinite maintenance phase is reached', () => {
     const schedule = makeSchedule([
-      { order: 1, durationDays: 28, dosage: '2.5mg' },
-      { order: 2, durationDays: null, dosage: '5mg' },
+      { order: 1, durationDays: 28, doseMg: 2.5 },
+      { order: 2, durationDays: null, doseMg: 5 },
     ])
 
     const active = Option.getOrThrow(currentPhase(schedule, DateTime.makeUnsafe('2024-01-20T00:00:00Z')))
 
     expect(active.phase.order).toBe(1)
-    expect(active.phase.dosage).toBe('2.5mg')
+    expect(active.phase.doseMg).toBe(2.5)
   })
 
   it('calculates the next scheduled dose from the active phase and last injection', () => {
     const schedule = makeSchedule([
-      { order: 1, durationDays: 28, dosage: '2.5mg' },
-      { order: 2, durationDays: 28, dosage: '5mg' },
-      { order: 3, durationDays: null, dosage: '7.5mg' },
+      { order: 1, durationDays: 28, doseMg: 2.5 },
+      { order: 2, durationDays: 28, doseMg: 5 },
+      { order: 3, durationDays: null, doseMg: 7.5 },
     ])
 
     const dose = Option.getOrThrow(
@@ -104,7 +104,7 @@ describe('ScheduleEngine', () => {
     )
 
     expect(dose.currentPhase).toBe(3)
-    expect(dose.dosage).toBe('7.5mg')
+    expect(dose.doseMg).toBe(7.5)
     expect(DateTime.formatIso(dose.suggestedDate)).toBe('2024-03-15T12:00:00.000Z')
     expect(dose.daysUntilDue).toBe(0)
     expect(dose.isOverdue).toBe(false)
@@ -112,13 +112,13 @@ describe('ScheduleEngine', () => {
 
   it('builds a schedule view with phase status, expected counts, and assigned injections', () => {
     const schedule = makeSchedule([
-      { order: 1, durationDays: 28, dosage: '2.5mg' },
-      { order: 2, durationDays: null, dosage: '5mg' },
+      { order: 1, durationDays: 28, doseMg: 2.5 },
+      { order: 2, durationDays: null, doseMg: 5 },
     ])
     const injections = [
-      makeInjection('injection-1', '2024-01-01T00:00:00Z', '2.5mg', schedule.id),
-      makeInjection('injection-2', '2024-01-08T00:00:00Z', '2.5mg', schedule.id),
-      makeInjection('injection-3', '2024-01-29T00:00:00Z', '5mg', schedule.id),
+      makeInjection('injection-1', '2024-01-01T00:00:00Z', 2.5, schedule.id),
+      makeInjection('injection-2', '2024-01-08T00:00:00Z', 2.5, schedule.id),
+      makeInjection('injection-3', '2024-01-29T00:00:00Z', 5, schedule.id),
     ]
 
     const view = scheduleView(schedule, injections, DateTime.makeUnsafe('2024-02-05T00:00:00Z'))

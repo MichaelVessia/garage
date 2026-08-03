@@ -5,9 +5,9 @@ import * as AsyncData from 'foldkit/asyncData'
 import * as Story from 'foldkit/story'
 
 import {
-  Dosage,
-  DrugName,
-  DrugSource,
+  DoseMg,
+  MedicationCompound,
+  Supplier,
   InjectionLog,
   InjectionLogId,
   InjectionSchedule,
@@ -23,9 +23,10 @@ import {
 import { utcToLocalDatetimeString } from '../src/lib/datetime.js'
 import {
   CancelledDeleteInjection,
-  ChangedInjectionDosage,
+  ChangedInjectionDoseMg,
   ChangedInjectionDrug,
   ChangedInjectionSchedule,
+  ChangedInjectionSupplier,
   ClickedAddInjection,
   ClickedEditInjection,
   ClickedInjectionPage,
@@ -40,7 +41,6 @@ import {
   RequestedDeleteInjection,
   SubmittedInjectionForm,
   SucceededDeleteInjection,
-  SucceededFetchInjectionDrugs,
   SucceededFetchInjectionLogs,
   SucceededFetchInjectionSchedules,
   SucceededFetchInjectionSites,
@@ -56,32 +56,32 @@ const { Command } = Story
 const sampleLog = new InjectionLog({
   createdAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
   datetime: DateTime.makeUnsafe('2026-07-01T08:00:00Z'),
-  dosage: Dosage.make('2.5mg'),
-  drug: DrugName.make('Semaglutide'),
+  doseMg: DoseMg.make(2.5),
+  drug: MedicationCompound.make('Semaglutide'),
   id: InjectionLogId.make('inj-1'),
   injectionSite: InjectionSite.make('Abdomen'),
   notes: Notes.make('no issues'),
   scheduleId: InjectionScheduleId.make('sched-1'),
-  source: DrugSource.make('Pharmacy'),
+  supplier: Supplier.make('Pharmacy'),
   updatedAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
 })
 
 const bareLog = new InjectionLog({
   createdAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
   datetime: DateTime.makeUnsafe('2026-07-01T08:00:00Z'),
-  dosage: Dosage.make('5mg'),
-  drug: DrugName.make('Tirzepatide'),
+  doseMg: DoseMg.make(5),
+  drug: MedicationCompound.make('Tirzepatide'),
   id: InjectionLogId.make('inj-2'),
   injectionSite: null,
   notes: null,
   scheduleId: null,
-  source: null,
+  supplier: null,
   updatedAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
 })
 
 const sampleSchedule = new InjectionSchedule({
   createdAt: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
-  drug: DrugName.make('Semaglutide'),
+  drug: MedicationCompound.make('Semaglutide'),
   frequency: 'weekly',
   id: InjectionScheduleId.make('sched-1'),
   isActive: true,
@@ -90,7 +90,7 @@ const sampleSchedule = new InjectionSchedule({
   phases: [
     {
       createdAt: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
-      dosage: Dosage.make('2.5mg'),
+      doseMg: DoseMg.make(2.5),
       durationDays: PhaseDurationDays.make(28),
       id: SchedulePhaseId.make('phase-1'),
       order: PhaseOrder.make(1),
@@ -98,7 +98,7 @@ const sampleSchedule = new InjectionSchedule({
       updatedAt: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
     },
   ],
-  source: null,
+  supplier: null,
   startDate: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
   updatedAt: DateTime.makeUnsafe('2026-06-01T00:00:00Z'),
 })
@@ -139,11 +139,11 @@ describe('injections page update', () => {
         expect(model.form?.datetime).toBe(utcToLocalDatetimeString(sampleLog.datetime))
         expect(model.form?.maxDatetime).toBe('2026-07-04T09:00')
         expect(model.form?.drug).toBe(sampleLog.drug)
-        expect(model.form?.dosage).toBe(sampleLog.dosage)
+        expect(model.form?.doseMg).toBe(String(sampleLog.doseMg))
         expect(model.form?.injectionSite).toBe('Abdomen')
         expect(model.form?.notes).toBe('no issues')
         expect(model.form?.scheduleId).toBe('sched-1')
-        expect(model.form?.source).toBe('Pharmacy')
+        expect(model.form?.supplier).toBe('Pharmacy')
       })
     )
   })
@@ -161,7 +161,7 @@ describe('injections page update', () => {
         expect(model.form?.injectionSite).toBe('')
         expect(model.form?.notes).toBe('')
         expect(model.form?.scheduleId).toBe('')
-        expect(model.form?.source).toBe('')
+        expect(model.form?.supplier).toBe('')
       })
     )
   })
@@ -181,7 +181,7 @@ describe('injections page update', () => {
       form: {
         confirmedOffSchedule: false,
         datetime: '',
-        dosage: '2.5mg',
+        doseMg: '2.5',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -189,7 +189,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: '',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
@@ -204,13 +204,13 @@ describe('injections page update', () => {
     )
   })
 
-  it('submit validation requires a valid medication name', () => {
+  it('submit validation rejects a medication outside the supported compounds', () => {
     const withForm: InjectionsModel = {
       ...initialInjectionsModel,
       form: {
         confirmedOffSchedule: false,
         datetime: '2026-07-04T09:00',
-        dosage: '2.5mg',
+        doseMg: '2.5',
         drug: 'A',
         editingId: null,
         error: null,
@@ -218,7 +218,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: '',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
@@ -228,18 +228,18 @@ describe('injections page update', () => {
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
-        expect(model.form?.error).toBe('Enter a valid medication name')
+        expect(model.form?.error).toBe('Select a supported medication')
       })
     )
   })
 
-  it('submit validation requires dosage with a unit', () => {
+  it('submit validation requires a positive numeric milligram dose', () => {
     const withForm: InjectionsModel = {
       ...initialInjectionsModel,
       form: {
         confirmedOffSchedule: false,
         datetime: '2026-07-04T09:00',
-        dosage: 'lots',
+        doseMg: 'lots',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -247,7 +247,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: '',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
@@ -257,18 +257,18 @@ describe('injections page update', () => {
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
-        expect(model.form?.error).toBe('Enter dosage with unit (e.g., 2.5mg, 0.5ml)')
+        expect(model.form?.error).toBe('Enter a positive dose in milligrams')
       })
     )
   })
 
-  it('an off-schedule dosage requires confirmation before saving', () => {
+  it('an off-schedule doseMg requires confirmation before saving', () => {
     const withForm: InjectionsModel = {
       ...initialInjectionsModel,
       form: {
         confirmedOffSchedule: false,
         datetime: '2026-07-04T09:00',
-        dosage: '5mg',
+        doseMg: '5',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -276,7 +276,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: 'sched-1',
-        source: '',
+        supplier: '',
         submitting: false,
       },
       schedules: AsyncData.succeed([sampleSchedule]),
@@ -287,27 +287,27 @@ describe('injections page update', () => {
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
-        expect(model.form?.error).toBe('Confirm off-schedule dosage before saving')
+        expect(model.form?.error).toBe('Confirm the off-schedule dose before saving')
         expect(model.form?.submitting).toBe(false)
       })
     )
   })
 
-  it('confirming the off-schedule dosage allows the submit to proceed and save', () => {
+  it('confirming the off-schedule doseMg allows the submit to proceed and save', () => {
     const withForm: InjectionsModel = {
       ...initialInjectionsModel,
       form: {
         confirmedOffSchedule: false,
         datetime: '2026-07-04T09:00',
-        dosage: '5mg',
-        drug: ' Semaglutide ',
+        doseMg: '5',
+        drug: 'Semaglutide',
         editingId: null,
         error: null,
         injectionSite: '',
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: 'sched-1',
-        source: '',
+        supplier: '',
         submitting: false,
       },
       schedules: AsyncData.succeed([sampleSchedule]),
@@ -325,20 +325,19 @@ describe('injections page update', () => {
         expect(command?.name).toBe('SaveInjection')
         expect(command?.args).toEqual({
           datetime: '2026-07-04T09:00',
-          dosage: '5mg',
+          doseMg: '5',
           drug: 'Semaglutide',
           editingId: null,
           injectionSite: '',
           notes: '',
           scheduleId: 'sched-1',
-          source: '',
+          supplier: '',
         })
         return simulation
       },
       Command.resolveAll(
         [{ name: 'SaveInjection' }, SucceededSaveInjection()],
         [FetchInjectionLogs, SucceededFetchInjectionLogs({ logs: [] })],
-        [{ name: 'FetchInjectionDrugs' }, SucceededFetchInjectionDrugs({ drugs: [] })],
         [{ name: 'FetchInjectionSites' }, SucceededFetchInjectionSites({ sites: [] })]
       ),
       Story.model((model: InjectionsModel) => {
@@ -354,7 +353,7 @@ describe('injections page update', () => {
       form: {
         confirmedOffSchedule: false,
         datetime: '2026-07-04T09:00',
-        dosage: '2.5mg',
+        doseMg: '2.5',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -362,7 +361,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: '',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
@@ -385,7 +384,7 @@ describe('injections page update', () => {
       form: {
         confirmedOffSchedule: false,
         datetime: '2026-07-04T09:00',
-        dosage: '2.5mg',
+        doseMg: '2.5',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -393,7 +392,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: '',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
@@ -487,13 +486,37 @@ describe('injections page update', () => {
     )
   })
 
+  it('changing the optional supplier updates the form', () => {
+    const withForm: InjectionsModel = {
+      ...initialInjectionsModel,
+      form: {
+        confirmedOffSchedule: false,
+        datetime: '2026-07-04T09:00',
+        doseMg: '2.5',
+        drug: 'Semaglutide',
+        editingId: null,
+        error: null,
+        injectionSite: '',
+        maxDatetime: '2026-07-04T09:00',
+        notes: '',
+        scheduleId: '',
+        supplier: '',
+        submitting: false,
+      },
+    }
+
+    const [updated] = updateInjections(withForm, ChangedInjectionSupplier({ value: 'Clinic' }))
+
+    expect(updated.form?.supplier).toBe('Clinic')
+  })
+
   it('changing the drug clears the schedule selection and any off-schedule confirmation', () => {
     const confirmed: InjectionsModel = {
       ...initialInjectionsModel,
       form: {
         confirmedOffSchedule: true,
         datetime: '2026-07-04T09:00',
-        dosage: '5mg',
+        doseMg: '5',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -501,7 +524,7 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: 'sched-1',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
@@ -518,13 +541,13 @@ describe('injections page update', () => {
     )
   })
 
-  it('changing the dosage or the schedule clears any off-schedule confirmation', () => {
+  it('changing the doseMg or the schedule clears any off-schedule confirmation', () => {
     const confirmed: InjectionsModel = {
       ...initialInjectionsModel,
       form: {
         confirmedOffSchedule: true,
         datetime: '2026-07-04T09:00',
-        dosage: '5mg',
+        doseMg: '5',
         drug: 'Semaglutide',
         editingId: null,
         error: null,
@@ -532,26 +555,20 @@ describe('injections page update', () => {
         maxDatetime: '2026-07-04T09:00',
         notes: '',
         scheduleId: 'sched-1',
-        source: '',
+        supplier: '',
         submitting: false,
       },
     }
-    const [afterDosage] = updateInjections(confirmed, ChangedInjectionDosage({ value: '10mg' }))
-    expect(afterDosage.form?.confirmedOffSchedule).toBe(false)
-    expect(afterDosage.form?.dosage).toBe('10mg')
+    const [afterDoseMg] = updateInjections(confirmed, ChangedInjectionDoseMg({ value: '10' }))
+    expect(afterDoseMg.form?.confirmedOffSchedule).toBe(false)
+    expect(afterDoseMg.form?.doseMg).toBe('10')
 
     const [afterSchedule] = updateInjections(confirmed, ChangedInjectionSchedule({ value: 'sched-2' }))
     expect(afterSchedule.form?.confirmedOffSchedule).toBe(false)
     expect(afterSchedule.form?.scheduleId).toBe('sched-2')
   })
 
-  it('drug, site, and schedule lookups populate on success and record failures', () => {
-    const [withDrugs] = updateInjections(
-      initialInjectionsModel,
-      SucceededFetchInjectionDrugs({ drugs: ['Semaglutide'] })
-    )
-    expect(AsyncData.getOrElse(withDrugs.drugs, () => [])).toEqual(['Semaglutide'])
-
+  it('site and schedule lookups populate on success and record failures', () => {
     const [withSites] = updateInjections(
       initialInjectionsModel,
       FailedFetchInjectionSites({ message: 'Failed to load site suggestions' })
@@ -565,19 +582,17 @@ describe('injections page update', () => {
     expect(AsyncData.getOrElse(withSchedules.schedules, () => [])).toEqual([sampleSchedule])
   })
 
-  it('fetchInjectionsIfIdle dispatches all four fetches when idle, and is a no-op once loaded', () => {
+  it('fetchInjectionsIfIdle dispatches all three fetches when idle, and is a no-op once loaded', () => {
     const [loading, commands] = fetchInjectionsIfIdle(initialInjectionsModel)
     expect(commands.map((command) => command.name).toSorted()).toEqual(
-      ['FetchInjectionDrugs', 'FetchInjectionLogs', 'FetchInjectionSchedules', 'FetchInjectionSites'].toSorted()
+      ['FetchInjectionLogs', 'FetchInjectionSchedules', 'FetchInjectionSites'].toSorted()
     )
     expect(AsyncData.isLoading(loading.logs)).toBe(true)
-    expect(AsyncData.isLoading(loading.drugs)).toBe(true)
     expect(AsyncData.isLoading(loading.sites)).toBe(true)
     expect(AsyncData.isLoading(loading.schedules)).toBe(true)
 
     const loaded: InjectionsModel = {
       ...initialInjectionsModel,
-      drugs: AsyncData.succeed([]),
       logs: AsyncData.succeed([]),
       schedules: AsyncData.succeed([]),
       sites: AsyncData.succeed([]),

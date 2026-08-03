@@ -12,8 +12,8 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
 import {
-  Dosage,
-  DrugName,
+  DoseMg,
+  MedicationCompound,
   Frequency,
   InjectionSchedule,
   InjectionScheduleCreate,
@@ -26,7 +26,9 @@ import {
   PhaseOrder,
   ScheduleName,
   SchedulePhaseCreate,
-  listKnownDrugVariants,
+  Supplier,
+  listMedicationCompounds,
+  suggestedDoseMgForCompound,
 } from '#shared'
 
 import { Api } from '../api.js'
@@ -38,8 +40,6 @@ import { viewDatalist } from '../lib/view.js'
 import { scheduleViewRouter } from '../route.js'
 import { button, card, input, select } from '../ui.js'
 
-const DOSAGE_PATTERN = /^\d+(\.\d+)?\s*(mg|mcg|ml|units?|iu)$/iu
-
 // ============================================
 // Model
 // ============================================
@@ -50,13 +50,10 @@ export type SchedulesData = AsyncData.AsyncData<ReadonlyArray<InjectionSchedule>
 export const NextDoseData = AsyncData.Schema(Schema.OptionFromNullOr(NextScheduledDose), Schema.String).schema
 export type NextDoseData = AsyncData.AsyncData<Option.Option<NextScheduledDose>, string>
 
-export const ScheduleDrugData = AsyncData.Schema(Schema.Array(Schema.String), Schema.String).schema
-export type ScheduleDrugData = AsyncData.AsyncData<ReadonlyArray<string>, string>
-
 const SchedulePhaseForm = Schema.Struct({
   order: Schema.Number,
   durationDays: Schema.String,
-  dosage: Schema.String,
+  doseMg: Schema.String,
   isIndefinite: Schema.Boolean,
 })
 type SchedulePhaseForm = typeof SchedulePhaseForm.Type
@@ -65,6 +62,7 @@ const ScheduleForm = Schema.Struct({
   editingId: Schema.NullOr(InjectionScheduleId),
   name: Schema.String,
   drug: Schema.String,
+  supplier: Schema.String,
   frequency: Frequency,
   startDate: Schema.String,
   notes: Schema.String,
@@ -77,14 +75,12 @@ type ScheduleForm = typeof ScheduleForm.Type
 export const ScheduleModel = Schema.Struct({
   schedules: SchedulesData,
   nextDose: NextDoseData,
-  drugs: ScheduleDrugData,
   form: Schema.NullOr(ScheduleForm),
   pendingDeleteId: Schema.NullOr(InjectionScheduleId),
 })
 export type ScheduleModel = typeof ScheduleModel.Type
 
 export const initialScheduleModel: ScheduleModel = {
-  drugs: AsyncData.Idle(),
   form: null,
   nextDose: AsyncData.Idle(),
   pendingDeleteId: null,
@@ -103,12 +99,6 @@ export const SucceededFetchNextDose = m('SucceededFetchNextDose', {
   nextDose: Schema.NullOr(NextScheduledDose),
 })
 export const FailedFetchNextDose = m('FailedFetchNextDose', { message: Schema.String })
-export const SucceededFetchScheduleDrugs = m('SucceededFetchScheduleDrugs', {
-  drugs: Schema.Array(Schema.String),
-})
-export const FailedFetchScheduleDrugs = m('FailedFetchScheduleDrugs', {
-  message: Schema.String,
-})
 export const OpenedScheduleForm = m('OpenedScheduleForm', {
   todayLocal: Schema.String,
   schedule: Schema.NullOr(InjectionSchedule),
@@ -118,12 +108,13 @@ export const ClickedEditSchedule = m('ClickedEditSchedule', { schedule: Injectio
 export const ClickedCancelScheduleForm = m('ClickedCancelScheduleForm')
 export const ChangedScheduleName = m('ChangedScheduleName', { value: Schema.String })
 export const ChangedScheduleDrug = m('ChangedScheduleDrug', { value: Schema.String })
+export const ChangedScheduleSupplier = m('ChangedScheduleSupplier', { value: Schema.String })
 export const ChangedScheduleFrequency = m('ChangedScheduleFrequency', { value: Frequency })
 export const ChangedScheduleStartDate = m('ChangedScheduleStartDate', { value: Schema.String })
 export const ChangedScheduleNotes = m('ChangedScheduleNotes', { value: Schema.String })
 export const AddedSchedulePhase = m('AddedSchedulePhase')
 export const RemovedSchedulePhase = m('RemovedSchedulePhase', { index: Schema.Number })
-export const ChangedSchedulePhaseDosage = m('ChangedSchedulePhaseDosage', {
+export const ChangedSchedulePhaseDoseMg = m('ChangedSchedulePhaseDoseMg', {
   index: Schema.Number,
   value: Schema.String,
 })
@@ -152,20 +143,19 @@ export const ScheduleMessage = Schema.Union([
   FailedFetchSchedules,
   SucceededFetchNextDose,
   FailedFetchNextDose,
-  SucceededFetchScheduleDrugs,
-  FailedFetchScheduleDrugs,
   OpenedScheduleForm,
   ClickedAddSchedule,
   ClickedEditSchedule,
   ClickedCancelScheduleForm,
   ChangedScheduleName,
   ChangedScheduleDrug,
+  ChangedScheduleSupplier,
   ChangedScheduleFrequency,
   ChangedScheduleStartDate,
   ChangedScheduleNotes,
   AddedSchedulePhase,
   RemovedSchedulePhase,
-  ChangedSchedulePhaseDosage,
+  ChangedSchedulePhaseDoseMg,
   ChangedSchedulePhaseDuration,
   ToggledSchedulePhaseIndefinite,
   SubmittedScheduleForm,
@@ -210,18 +200,6 @@ export const FetchNextDose = Command.define(
   }).pipe(toCommandResult(FailedFetchNextDose, 'Failed to load next dose'))
 )
 
-const FetchScheduleDrugs = Command.define(
-  'FetchScheduleDrugs',
-  SucceededFetchScheduleDrugs,
-  FailedFetchScheduleDrugs
-)(
-  Effect.gen(function* () {
-    const api = yield* Api
-    const drugs = yield* api.InjectionLogGetDrugs()
-    return SucceededFetchScheduleDrugs({ drugs })
-  }).pipe(toCommandResult(FailedFetchScheduleDrugs, 'Failed to load medication suggestions'))
-)
-
 const OpenScheduleForm = Command.define(
   'OpenScheduleForm',
   { schedule: Schema.NullOr(InjectionSchedule) },
@@ -236,6 +214,7 @@ const SaveSchedule = Command.define(
     editingId: Schema.NullOr(InjectionScheduleId),
     name: Schema.String,
     drug: Schema.String,
+    supplier: Schema.String,
     frequency: Frequency,
     startDate: Schema.String,
     notes: Schema.String,
@@ -243,38 +222,48 @@ const SaveSchedule = Command.define(
   },
   SucceededSaveSchedule,
   FailedSaveSchedule
-)(({ drug, editingId, frequency, name, notes, phases, startDate }) =>
+)(({ drug, editingId, frequency, name, notes, phases, startDate, supplier }) =>
   Effect.gen(function* () {
     const api = yield* Api
-    const phaseCreates = phases.map(
+    const compound = yield* Schema.decodeUnknownEffect(MedicationCompound)(drug)
+    const phaseCreates = yield* Effect.forEach(
+      phases,
       (phase, index) =>
-        new SchedulePhaseCreate({
-          dosage: Dosage.make(phase.dosage.trim()),
-          durationDays: phase.isIndefinite ? null : PhaseDurationDays.make(Number.parseInt(phase.durationDays, 10)),
-          order: PhaseOrder.make(index + 1),
-        })
+        Schema.decodeUnknownEffect(DoseMg)(Number(phase.doseMg)).pipe(
+          Effect.map(
+            (doseMg) =>
+              new SchedulePhaseCreate({
+                doseMg,
+                durationDays: phase.isIndefinite
+                  ? null
+                  : PhaseDurationDays.make(Number.parseInt(phase.durationDays, 10)),
+                order: PhaseOrder.make(index + 1),
+              })
+          )
+        ),
+      { concurrency: 1 }
     )
     yield* editingId === null
       ? api.ScheduleCreate(
           new InjectionScheduleCreate({
-            drug: DrugName.make(drug.trim()),
+            drug: compound,
             frequency,
             name: ScheduleName.make(name.trim()),
             notes: notes.trim() === '' ? Option.none<Notes>() : Option.some(Notes.make(notes.trim())),
             phases: phaseCreates,
-            source: Option.none(),
+            supplier: supplier.trim() === '' ? Option.none<Supplier>() : Option.some(Supplier.make(supplier.trim())),
             startDate: fromLocalDateString(startDate),
           })
         )
       : api.ScheduleUpdate(
           new InjectionScheduleUpdate({
-            drug: DrugName.make(drug.trim()),
+            drug: compound,
             frequency,
             id: editingId,
             name: ScheduleName.make(name.trim()),
             notes: notes.trim() === '' ? null : Notes.make(notes.trim()),
             phases: phaseCreates,
-            source: null,
+            supplier: supplier.trim() === '' ? null : Supplier.make(supplier.trim()),
             startDate: fromLocalDateString(startDate),
           })
         )
@@ -317,8 +306,6 @@ type ScheduleCommandMessage =
   | typeof FailedFetchSchedules.Type
   | typeof SucceededFetchNextDose.Type
   | typeof FailedFetchNextDose.Type
-  | typeof SucceededFetchScheduleDrugs.Type
-  | typeof FailedFetchScheduleDrugs.Type
   | typeof OpenedScheduleForm.Type
   | typeof SucceededSaveSchedule.Type
   | typeof FailedSaveSchedule.Type
@@ -340,15 +327,11 @@ export const fetchScheduleIfIdle = (model: ScheduleModel): UpdateReturn => {
     next = evo(next, { nextDose: () => AsyncData.Loading() })
     commands.push(FetchNextDose())
   }
-  if (AsyncData.isIdle(next.drugs)) {
-    next = evo(next, { drugs: () => AsyncData.Loading() })
-    commands.push(FetchScheduleDrugs())
-  }
   return [next, commands]
 }
 
 const defaultPhase = (order: number): SchedulePhaseForm => ({
-  dosage: '',
+  doseMg: '',
   durationDays: '28',
   isIndefinite: false,
   order,
@@ -364,9 +347,14 @@ const updatePhase = (
 ): ReadonlyArray<SchedulePhaseForm> =>
   reorderPhases(phases.map((phase, current) => (current === index ? update(phase) : phase)))
 
+const parseDoseMg = (value: string): Option.Option<DoseMg> => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Option.some(DoseMg.make(parsed)) : Option.none()
+}
+
 const validatePhase = (phase: SchedulePhaseForm, index: number, total: number): Option.Option<string> => {
-  if (!DOSAGE_PATTERN.test(phase.dosage.trim())) {
-    return Option.some(`Phase ${index + 1}: enter dosage with unit`)
+  if (Option.isNone(parseDoseMg(phase.doseMg))) {
+    return Option.some(`Phase ${index + 1}: enter a positive dose in milligrams`)
   }
   if (!phase.isIndefinite) {
     const days = Number.parseInt(phase.durationDays, 10)
@@ -384,8 +372,8 @@ const validateScheduleForm = (form: ScheduleForm): Option.Option<string> => {
   if (form.name.trim() === '') {
     return Option.some('Schedule name is required')
   }
-  if (form.drug.trim() === '') {
-    return Option.some('Medication is required')
+  if (!Schema.is(MedicationCompound)(form.drug)) {
+    return Option.some('Select a supported medication')
   }
   if (form.startDate === '') {
     return Option.some('Start date is required')
@@ -418,12 +406,13 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
       ],
       CancelledDeleteSchedule: () => [evo(model, { pendingDeleteId: () => null }), []],
       ChangedScheduleDrug: ({ value }) => [withForm(model, () => ({ drug: value })), []],
+      ChangedScheduleSupplier: ({ value }) => [withForm(model, () => ({ supplier: value })), []],
       ChangedScheduleFrequency: ({ value }) => [withForm(model, () => ({ frequency: value })), []],
       ChangedScheduleName: ({ value }) => [withForm(model, () => ({ name: value })), []],
       ChangedScheduleNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
-      ChangedSchedulePhaseDosage: ({ index, value }) => [
+      ChangedSchedulePhaseDoseMg: ({ index, value }) => [
         withForm(model, (form) => ({
-          phases: updatePhase(form.phases, index, (phase) => evo(phase, { dosage: () => value })),
+          phases: updatePhase(form.phases, index, (phase) => evo(phase, { doseMg: () => value })),
         })),
         [],
       ],
@@ -443,7 +432,6 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
       FailedActivateSchedule: () => [model, []],
       FailedDeleteSchedule: () => [evo(model, { pendingDeleteId: () => null }), []],
       FailedFetchNextDose: ({ message: error }) => [evo(model, { nextDose: () => AsyncData.Failure({ error }) }), []],
-      FailedFetchScheduleDrugs: ({ message: error }) => [evo(model, { drugs: () => AsyncData.Failure({ error }) }), []],
       FailedFetchSchedules: ({ message: error }) => [evo(model, { schedules: () => AsyncData.Failure({ error }) }), []],
       FailedSaveSchedule: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
       OpenedScheduleForm: ({ schedule, todayLocal }) => [
@@ -452,6 +440,7 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
             schedule === null
               ? {
                   drug: '',
+                  supplier: '',
                   editingId: null,
                   error: null,
                   frequency: 'weekly',
@@ -463,6 +452,7 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
                 }
               : {
                   drug: schedule.drug,
+                  supplier: schedule.supplier ?? '',
                   editingId: schedule.id,
                   error: null,
                   frequency: schedule.frequency,
@@ -470,7 +460,7 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
                   notes: schedule.notes ?? '',
                   phases: reorderPhases(
                     schedule.phases.map((phase) => ({
-                      dosage: phase.dosage,
+                      doseMg: String(phase.doseMg),
                       durationDays: phase.durationDays === null ? '' : String(phase.durationDays),
                       isIndefinite: phase.durationDays === null,
                       order: phase.order,
@@ -505,6 +495,7 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
           [
             SaveSchedule({
               drug: model.form.drug,
+              supplier: model.form.supplier,
               editingId: model.form.editingId,
               frequency: model.form.frequency,
               name: model.form.name,
@@ -521,7 +512,6 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
         evo(model, { nextDose: () => AsyncData.succeed(Option.fromNullOr(nextDose)) }),
         [],
       ],
-      SucceededFetchScheduleDrugs: ({ drugs }) => [evo(model, { drugs: () => AsyncData.succeed(drugs) }), []],
       SucceededFetchSchedules: ({ schedules }) => [evo(model, { schedules: () => AsyncData.succeed(schedules) }), []],
       SucceededSaveSchedule: () => refreshSchedules(evo(model, { form: () => null })),
       ToggledSchedulePhaseIndefinite: ({ checked, index }) => [
@@ -543,15 +533,6 @@ export const updateSchedule = (model: ScheduleModel, message: ScheduleMessage): 
 // ============================================
 
 const h = html<ScheduleMessage>()
-
-const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
-  Arr.dedupe(Arr.appendAll(primary, fallback))
-
-const drugSuggestions = (data: ScheduleDrugData): ReadonlyArray<string> =>
-  uniqueStrings(
-    AsyncData.getOrElse(data, () => []),
-    listKnownDrugVariants()
-  )
 
 const scheduleSubmitLabel = (form: ScheduleForm): string => {
   if (form.submitting) {
@@ -622,7 +603,7 @@ const viewNextDoseValue = (nextDose: NextScheduledDose) =>
                     [
                       h.span([h.Class('font-medium')], [nextDose.drug]),
                       h.span([h.Class('text-muted-foreground')], ['-']),
-                      h.span([h.Class('font-mono text-primary')], [nextDose.dosage]),
+                      h.span([h.Class('font-mono text-primary')], [`${nextDose.doseMg} mg`]),
                     ]
                   ),
                   h.div(
@@ -678,6 +659,9 @@ const viewScheduleCard = (schedule: InjectionSchedule) => {
                 ]
               ),
               h.p([h.Class('text-sm text-muted-foreground')], [schedule.drug]),
+              schedule.supplier === null
+                ? h.empty
+                : h.p([h.Class('text-xs text-muted-foreground')], [`Supplier: ${schedule.supplier}`]),
             ]
           ),
           h.div(
@@ -739,7 +723,7 @@ const viewScheduleCard = (schedule: InjectionSchedule) => {
                 ],
                 [String(phase.order)]
               ),
-              h.span([h.Class('font-mono')], [phase.dosage]),
+              h.span([h.Class('font-mono')], [`${phase.doseMg} mg`]),
               h.span(
                 [h.Class('text-muted-foreground')],
                 [phase.durationDays !== null ? `for ${phase.durationDays} days` : '(ongoing)']
@@ -789,10 +773,13 @@ const viewPhaseEditor = (form: ScheduleForm) =>
                 [
                   h.input([
                     h.Class(input()),
-                    h.Type('text'),
-                    h.Placeholder('Dosage (e.g., 2.5mg)'),
-                    h.Value(phase.dosage),
-                    h.OnInput((value) => ChangedSchedulePhaseDosage({ index, value })),
+                    h.Type('number'),
+                    h.List('schedule-dose-mg-suggestions'),
+                    h.Min('0'),
+                    h.Step('any'),
+                    h.Placeholder('Dose in mg (e.g., 2.5)'),
+                    h.Value(phase.doseMg),
+                    h.OnInput((value) => ChangedSchedulePhaseDoseMg({ index, value })),
                   ]),
                 ]
               ),
@@ -852,13 +839,16 @@ const viewPhaseEditor = (form: ScheduleForm) =>
     ]
   )
 
-const viewForm = (model: ScheduleModel, form: ScheduleForm) => {
+const viewForm = (form: ScheduleForm) => {
   const submitLabel = scheduleSubmitLabel(form)
+  const doseMgSuggestions = (Schema.is(MedicationCompound)(form.drug) ? suggestedDoseMgForCompound(form.drug) : []).map(
+    String
+  )
   const isValid =
     form.name.trim() !== '' &&
     form.drug.trim() !== '' &&
     form.startDate !== '' &&
-    form.phases.every((phase) => phase.dosage.trim() !== '' && (phase.isIndefinite || phase.durationDays.trim() !== ''))
+    form.phases.every((phase) => phase.doseMg.trim() !== '' && (phase.isIndefinite || phase.durationDays.trim() !== ''))
   return h.div(
     [h.Class(card({ class: 'mb-6 p-6' }))],
     [
@@ -889,16 +879,34 @@ const viewForm = (model: ScheduleModel, form: ScheduleForm) => {
                 [h.For('schedule-drug'), h.Class('mb-2 block text-sm font-medium')],
                 ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
               ),
+              h.select(
+                [
+                  h.Class(select()),
+                  h.Id('schedule-drug'),
+                  h.Value(form.drug),
+                  h.OnChange((value) => ChangedScheduleDrug({ value })),
+                ],
+                [
+                  h.option([h.Value('')], ['Select medication']),
+                  ...listMedicationCompounds().map((compound) =>
+                    h.keyed('option')(compound, [h.Value(compound)], [compound])
+                  ),
+                ]
+              ),
+            ]
+          ),
+          h.div(
+            [h.Class('mb-4')],
+            [
+              h.label([h.For('schedule-supplier'), h.Class('mb-2 block text-sm font-medium')], ['Supplier']),
               h.input([
                 h.Class(input()),
                 h.Type('text'),
-                h.Id('schedule-drug'),
-                h.List('schedule-drug-suggestions'),
-                h.Placeholder('Select medication'),
-                h.Value(form.drug),
-                h.OnInput((value) => ChangedScheduleDrug({ value })),
+                h.Id('schedule-supplier'),
+                h.Placeholder('e.g., CVS, clinic, direct vendor'),
+                h.Value(form.supplier),
+                h.OnInput((value) => ChangedScheduleSupplier({ value })),
               ]),
-              viewDatalist(h, 'schedule-drug-suggestions', drugSuggestions(model.drugs)),
             ]
           ),
           h.div(
@@ -941,6 +949,7 @@ const viewForm = (model: ScheduleModel, form: ScheduleForm) => {
             ]
           ),
           viewPhaseEditor(form),
+          viewDatalist(h, 'schedule-dose-mg-suggestions', doseMgSuggestions),
           h.div(
             [h.Class('mb-4')],
             [
@@ -1037,7 +1046,7 @@ export const viewSchedule = (model: ScheduleModel) =>
           h.button([h.Class(button()), h.OnClick(ClickedAddSchedule())], ['New Schedule']),
         ]
       ),
-      model.form === null ? h.empty : viewForm(model, model.form),
+      model.form === null ? h.empty : viewForm(model.form),
       AsyncData.match(model.schedules, {
         onFailure: () =>
           h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),

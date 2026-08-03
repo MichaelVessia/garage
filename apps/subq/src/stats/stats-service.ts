@@ -8,14 +8,15 @@ import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
 
 import {
-  buildDosageHistoryStats,
+  buildDoseHistoryStats,
   buildInjectionDayOfWeekStats,
   buildObservedInjectionFrequency,
   calculateWeightTrajectory,
   Count,
   DrugBreakdownStats,
   DrugCount,
-  DrugName,
+  DoseMg,
+  MedicationCompound,
   InjectionSiteCount,
   InjectionSiteStats,
   InjectionSite,
@@ -27,7 +28,7 @@ import {
   WeightTrendPoint,
   WeightTrendStats,
 } from '#shared'
-import type { DosageHistoryStats, InjectionDayOfWeekStats, InjectionFrequencyStats, StatsParams } from '#shared'
+import type { DoseHistoryStats, InjectionDayOfWeekStats, InjectionFrequencyStats, StatsParams } from '#shared'
 
 import { mapDbError } from '../shared/common/db-error.js'
 
@@ -66,17 +67,17 @@ const InjectionSiteRow = Schema.Struct({
 })
 const decodeInjectionSiteRows = Schema.decodeUnknownEffect(Schema.Array(InjectionSiteRow))
 
-// Dosage history row schema - decode ISO8601 string to Date
-const DosageHistoryRow = Schema.Struct({
+// Dose history row schema - decode ISO8601 string to Date
+const DoseHistoryRow = Schema.Struct({
   datetime: Schema.DateFromString.check(Schema.isDateValid()),
-  drug: Schema.String,
-  dosage: Schema.String,
+  drug: MedicationCompound,
+  dose_mg: DoseMg,
 })
-const decodeDosageHistoryRows = Schema.decodeUnknownEffect(Schema.Array(DosageHistoryRow))
+const decodeDoseHistoryRows = Schema.decodeUnknownEffect(Schema.Array(DoseHistoryRow))
 
 // Drug count row schema
 const DrugCountRow = Schema.Struct({
-  drug: Schema.String,
+  drug: MedicationCompound,
   count: Schema.Number,
 })
 const decodeDrugCountRows = Schema.decodeUnknownEffect(Schema.Array(DrugCountRow))
@@ -106,10 +107,10 @@ export class StatsService extends Context.Service<
       params: StatsParams,
       userId: string
     ) => Effect.Effect<InjectionSiteStats, StatsDatabaseError>
-    readonly getDosageHistory: (
+    readonly getDoseHistory: (
       params: StatsParams,
       userId: string
-    ) => Effect.Effect<DosageHistoryStats, StatsDatabaseError>
+    ) => Effect.Effect<DoseHistoryStats, StatsDatabaseError>
     readonly getInjectionFrequency: (
       params: StatsParams,
       userId: string
@@ -280,24 +281,24 @@ export const StatsServiceLive = Layer.effect(
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getDosageHistory = Effect.fn('StatsService.getDosageHistory')(
+    const getDoseHistory = Effect.fn('StatsService.getDoseHistory')(
       function* (params: StatsParams, userId: string) {
         yield* Effect.annotateCurrentSpan('userId', userId)
         const rows = yield* sql`
-          SELECT datetime, drug, dosage
+          SELECT datetime, drug, dose_mg
           FROM injection_logs
           WHERE user_id = ${userId}
           ${dateRangeClause(params)}
           ORDER BY datetime ASC
         `
-        const decoded = yield* decodeDosageHistoryRows(rows)
+        const decoded = yield* decodeDoseHistoryRows(rows)
         const inputs = Arr.map(decoded, (row) => ({
           date: row.datetime,
           drug: row.drug,
-          dosage: row.dosage,
+          doseMg: row.dose_mg,
         }))
         yield* Effect.annotateCurrentSpan('pointCount', inputs.length)
-        return buildDosageHistoryStats(inputs)
+        return buildDoseHistoryStats(inputs)
       },
       mapDbError(StatsDatabaseError, 'query')
     )
@@ -333,7 +334,7 @@ export const StatsServiceLive = Layer.effect(
         const decodedRows = yield* decodeDrugCountRows(rows)
         const drugs = Arr.map(
           decodedRows,
-          (decoded) => new DrugCount({ drug: DrugName.make(decoded.drug), count: Count.make(decoded.count) })
+          (decoded) => new DrugCount({ drug: decoded.drug, count: Count.make(decoded.count) })
         )
         const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
         yield* Effect.annotateCurrentSpan('totalInjections', total)
@@ -360,7 +361,7 @@ export const StatsServiceLive = Layer.effect(
       getWeightStats,
       getWeightTrend,
       getInjectionSiteStats,
-      getDosageHistory,
+      getDoseHistory,
       getInjectionFrequency,
       getDrugBreakdown,
       getInjectionByDayOfWeek,

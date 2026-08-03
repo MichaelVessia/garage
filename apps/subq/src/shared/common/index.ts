@@ -7,8 +7,7 @@ export {
   Count,
   DaysBetween,
   DayOfWeek,
-  DrugName,
-  DrugSource,
-  Dosage,
-  DosageValue,
+  MedicationCompound,
+  Supplier,
+  DoseMg,
 } from './domain.js'

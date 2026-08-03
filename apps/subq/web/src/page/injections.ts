@@ -11,9 +11,9 @@ import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
 import {
-  Dosage,
-  DrugName,
-  DrugSource,
+  DoseMg,
+  MedicationCompound,
+  Supplier,
   InjectionLog,
   InjectionLogCreate,
   InjectionLogDelete,
@@ -27,8 +27,8 @@ import {
   Notes,
   Offset,
   listDefaultInjectionSites,
-  listKnownDrugVariants,
-  suggestedDosagesForDrug,
+  listMedicationCompounds,
+  suggestedDoseMgForCompound,
 } from '#shared'
 
 import { Api } from '../api.js'
@@ -39,7 +39,6 @@ import { headerButton, viewDatalist } from '../lib/view.js'
 import { button, card, input, select } from '../ui.js'
 
 const PAGE_SIZE = 10
-const DOSAGE_PATTERN = /^\d+(\.\d+)?\s*(mg|mcg|ml|units?|iu)$/iu
 
 // ============================================
 // Model
@@ -59,8 +58,8 @@ const InjectionForm = Schema.Struct({
   datetime: Schema.String,
   maxDatetime: Schema.String,
   drug: Schema.String,
-  source: Schema.String,
-  dosage: Schema.String,
+  supplier: Schema.String,
+  doseMg: Schema.String,
   injectionSite: Schema.String,
   notes: Schema.String,
   scheduleId: Schema.String,
@@ -72,19 +71,17 @@ type InjectionForm = typeof InjectionForm.Type
 
 export const InjectionsModel = Schema.Struct({
   logs: InjectionLogsData,
-  drugs: InjectionLookupData,
   sites: InjectionLookupData,
   schedules: InjectionSchedulesData,
   form: Schema.NullOr(InjectionForm),
   pendingDeleteId: Schema.NullOr(InjectionLogId),
-  sortColumn: Schema.Literals(['datetime', 'drug', 'dosage']),
+  sortColumn: Schema.Literals(['datetime', 'drug', 'doseMg']),
   sortDesc: Schema.Boolean,
   page: Schema.Number,
 })
 export type InjectionsModel = typeof InjectionsModel.Type
 
 export const initialInjectionsModel: InjectionsModel = {
-  drugs: AsyncData.Idle(),
   form: null,
   logs: AsyncData.Idle(),
   page: 0,
@@ -103,12 +100,6 @@ export const SucceededFetchInjectionLogs = m('SucceededFetchInjectionLogs', {
   logs: Schema.Array(InjectionLog),
 })
 export const FailedFetchInjectionLogs = m('FailedFetchInjectionLogs', {
-  message: Schema.String,
-})
-export const SucceededFetchInjectionDrugs = m('SucceededFetchInjectionDrugs', {
-  drugs: Schema.Array(Schema.String),
-})
-export const FailedFetchInjectionDrugs = m('FailedFetchInjectionDrugs', {
   message: Schema.String,
 })
 export const SucceededFetchInjectionSites = m('SucceededFetchInjectionSites', {
@@ -132,8 +123,8 @@ export const ClickedEditInjection = m('ClickedEditInjection', { log: InjectionLo
 export const ClickedCancelInjectionForm = m('ClickedCancelInjectionForm')
 export const ChangedInjectionDatetime = m('ChangedInjectionDatetime', { value: Schema.String })
 export const ChangedInjectionDrug = m('ChangedInjectionDrug', { value: Schema.String })
-export const ChangedInjectionSource = m('ChangedInjectionSource', { value: Schema.String })
-export const ChangedInjectionDosage = m('ChangedInjectionDosage', { value: Schema.String })
+export const ChangedInjectionSupplier = m('ChangedInjectionSupplier', { value: Schema.String })
+export const ChangedInjectionDoseMg = m('ChangedInjectionDoseMg', { value: Schema.String })
 export const ChangedInjectionSite = m('ChangedInjectionSite', { value: Schema.String })
 export const ChangedInjectionNotes = m('ChangedInjectionNotes', { value: Schema.String })
 export const ChangedInjectionSchedule = m('ChangedInjectionSchedule', { value: Schema.String })
@@ -147,15 +138,13 @@ export const ConfirmedDeleteInjection = m('ConfirmedDeleteInjection')
 export const SucceededDeleteInjection = m('SucceededDeleteInjection')
 export const FailedDeleteInjection = m('FailedDeleteInjection', { message: Schema.String })
 export const ClickedInjectionSort = m('ClickedInjectionSort', {
-  column: Schema.Literals(['datetime', 'drug', 'dosage']),
+  column: Schema.Literals(['datetime', 'drug', 'doseMg']),
 })
 export const ClickedInjectionPage = m('ClickedInjectionPage', { delta: Schema.Number })
 
 export const InjectionsMessage = Schema.Union([
   SucceededFetchInjectionLogs,
   FailedFetchInjectionLogs,
-  SucceededFetchInjectionDrugs,
-  FailedFetchInjectionDrugs,
   SucceededFetchInjectionSites,
   FailedFetchInjectionSites,
   SucceededFetchInjectionSchedules,
@@ -166,8 +155,8 @@ export const InjectionsMessage = Schema.Union([
   ClickedCancelInjectionForm,
   ChangedInjectionDatetime,
   ChangedInjectionDrug,
-  ChangedInjectionSource,
-  ChangedInjectionDosage,
+  ChangedInjectionSupplier,
+  ChangedInjectionDoseMg,
   ChangedInjectionSite,
   ChangedInjectionNotes,
   ChangedInjectionSchedule,
@@ -201,18 +190,6 @@ export const FetchInjectionLogs = Command.define(
     )
     return SucceededFetchInjectionLogs({ logs })
   }).pipe(toCommandResult(FailedFetchInjectionLogs, 'Failed to load injection logs'))
-)
-
-const FetchInjectionDrugs = Command.define(
-  'FetchInjectionDrugs',
-  SucceededFetchInjectionDrugs,
-  FailedFetchInjectionDrugs
-)(
-  Effect.gen(function* () {
-    const api = yield* Api
-    const drugs = yield* api.InjectionLogGetDrugs()
-    return SucceededFetchInjectionDrugs({ drugs })
-  }).pipe(toCommandResult(FailedFetchInjectionDrugs, 'Failed to load medication suggestions'))
 )
 
 const FetchInjectionSites = Command.define(
@@ -253,31 +230,43 @@ const SaveInjection = Command.define(
     editingId: Schema.NullOr(InjectionLogId),
     datetime: Schema.String,
     drug: Schema.String,
-    source: Schema.String,
-    dosage: Schema.String,
+    supplier: Schema.String,
+    doseMg: Schema.String,
     injectionSite: Schema.String,
     notes: Schema.String,
     scheduleId: Schema.String,
   },
   SucceededSaveInjection,
   FailedSaveInjection
-)(({ datetime, dosage, drug, editingId, injectionSite, notes, scheduleId, source }) =>
+)(({ datetime, doseMg, drug, editingId, injectionSite, notes, scheduleId, supplier }) =>
   Effect.gen(function* () {
     const api = yield* Api
+    const compound = yield* Schema.decodeUnknownEffect(MedicationCompound)(drug)
+    const parsedDoseMg = yield* Schema.decodeUnknownEffect(DoseMg)(Number(doseMg))
     const fields = {
       datetime: fromLocalDatetimeString(datetime),
-      dosage: Dosage.make(dosage),
-      drug: DrugName.make(drug),
+      doseMg: parsedDoseMg,
+      drug: compound,
       injectionSite:
         injectionSite === '' ? Option.none<InjectionSite>() : Option.some(InjectionSite.make(injectionSite)),
       notes: notes === '' ? Option.none<Notes>() : Option.some(Notes.make(notes)),
       scheduleId:
         scheduleId === '' ? Option.none<InjectionScheduleId>() : Option.some(InjectionScheduleId.make(scheduleId)),
-      source: source === '' ? Option.none<DrugSource>() : Option.some(DrugSource.make(source)),
     }
     yield* editingId === null
-      ? api.InjectionLogCreate(new InjectionLogCreate(fields))
-      : api.InjectionLogUpdate(new InjectionLogUpdate({ id: editingId, ...fields }))
+      ? api.InjectionLogCreate(
+          new InjectionLogCreate({
+            ...fields,
+            supplier: supplier === '' ? Option.none<Supplier>() : Option.some(Supplier.make(supplier)),
+          })
+        )
+      : api.InjectionLogUpdate(
+          new InjectionLogUpdate({
+            id: editingId,
+            ...fields,
+            supplier: supplier === '' ? null : Supplier.make(supplier),
+          })
+        )
     return SucceededSaveInjection()
   }).pipe(toCommandResult(FailedSaveInjection, 'Failed to save injection log'))
 )
@@ -302,8 +291,6 @@ const DeleteInjection = Command.define(
 type InjectionCommandMessage =
   | typeof SucceededFetchInjectionLogs.Type
   | typeof FailedFetchInjectionLogs.Type
-  | typeof SucceededFetchInjectionDrugs.Type
-  | typeof FailedFetchInjectionDrugs.Type
   | typeof SucceededFetchInjectionSites.Type
   | typeof FailedFetchInjectionSites.Type
   | typeof SucceededFetchInjectionSchedules.Type
@@ -323,10 +310,6 @@ export const fetchInjectionsIfIdle = (model: InjectionsModel): UpdateReturn => {
     next = evo(next, { logs: () => AsyncData.Loading() })
     commands.push(FetchInjectionLogs())
   }
-  if (AsyncData.isIdle(next.drugs)) {
-    next = evo(next, { drugs: () => AsyncData.Loading() })
-    commands.push(FetchInjectionDrugs())
-  }
   if (AsyncData.isIdle(next.sites)) {
     next = evo(next, { sites: () => AsyncData.Loading() })
     commands.push(FetchInjectionSites())
@@ -338,15 +321,20 @@ export const fetchInjectionsIfIdle = (model: InjectionsModel): UpdateReturn => {
   return [next, commands]
 }
 
+const parseDoseMg = (value: string): Option.Option<DoseMg> => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Option.some(DoseMg.make(parsed)) : Option.none()
+}
+
 const validateForm = (form: InjectionForm): Option.Option<string> => {
   if (form.datetime === '') {
     return Option.some('Date & time is required')
   }
-  if (form.drug.trim().length < 2) {
-    return Option.some('Enter a valid medication name')
+  if (!Schema.is(MedicationCompound)(form.drug)) {
+    return Option.some('Select a supported medication')
   }
-  if (!DOSAGE_PATTERN.test(form.dosage.trim())) {
-    return Option.some('Enter dosage with unit (e.g., 2.5mg, 0.5ml)')
+  if (Option.isNone(parseDoseMg(form.doseMg))) {
+    return Option.some('Enter a positive dose in milligrams')
   }
   return Option.none()
 }
@@ -359,22 +347,19 @@ const scheduleById = (
   scheduleId: string
 ): Option.Option<InjectionSchedule> => Arr.findFirst(schedules, (schedule) => schedule.id === scheduleId)
 
-const scheduleDosages = (schedule: Option.Option<InjectionSchedule>): ReadonlyArray<string> =>
+const scheduleDoseMgs = (schedule: Option.Option<InjectionSchedule>): ReadonlyArray<DoseMg> =>
   Option.match(schedule, {
     onNone: () => [],
-    onSome: (s) =>
-      uniqueStrings(
-        s.phases.map((phase) => phase.dosage),
-        []
-      ),
+    onSome: (found) => Arr.dedupe(found.phases.map((phase) => phase.doseMg)),
   })
 
 const isOffScheduleDose = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>): boolean => {
-  if (form.scheduleId === '' || form.dosage === '') {
+  if (form.scheduleId === '') {
     return false
   }
-  const dosages = scheduleDosages(scheduleById(schedules, form.scheduleId))
-  return Arr.isReadonlyArrayNonEmpty(dosages) && !dosages.includes(form.dosage)
+  const doseMg = parseDoseMg(form.doseMg)
+  const doseMgs = scheduleDoseMgs(scheduleById(schedules, form.scheduleId))
+  return Option.isSome(doseMg) && Arr.isReadonlyArrayNonEmpty(doseMgs) && !doseMgs.includes(doseMg.value)
 }
 
 export const updateInjections = (model: InjectionsModel, message: InjectionsMessage): UpdateReturn =>
@@ -383,8 +368,8 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
     Match.tagsExhaustive({
       CancelledDeleteInjection: () => [evo(model, { pendingDeleteId: () => null }), []],
       ChangedInjectionDatetime: ({ value }) => [withForm(model, () => ({ datetime: value })), []],
-      ChangedInjectionDosage: ({ value }) => [
-        withForm(model, () => ({ confirmedOffSchedule: false, dosage: value })),
+      ChangedInjectionDoseMg: ({ value }) => [
+        withForm(model, () => ({ confirmedOffSchedule: false, doseMg: value })),
         [],
       ],
       ChangedInjectionDrug: ({ value }) => [
@@ -397,7 +382,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
         [],
       ],
       ChangedInjectionSite: ({ value }) => [withForm(model, () => ({ injectionSite: value })), []],
-      ChangedInjectionSource: ({ value }) => [withForm(model, () => ({ source: value })), []],
+      ChangedInjectionSupplier: ({ value }) => [withForm(model, () => ({ supplier: value })), []],
       ClickedAddInjection: () => [model, [OpenInjectionForm({ log: null })]],
       ClickedCancelInjectionForm: () => [evo(model, { form: () => null }), []],
       ClickedEditInjection: ({ log }) => [model, [OpenInjectionForm({ log })]],
@@ -414,10 +399,6 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
         model.pendingDeleteId === null ? [model, []] : [model, [DeleteInjection({ id: model.pendingDeleteId })]],
       ConfirmedInjectionOffSchedule: () => [withForm(model, () => ({ confirmedOffSchedule: true })), []],
       FailedDeleteInjection: () => [evo(model, { pendingDeleteId: () => null }), []],
-      FailedFetchInjectionDrugs: ({ message: error }) => [
-        evo(model, { drugs: () => AsyncData.Failure({ error }) }),
-        [],
-      ],
       FailedFetchInjectionLogs: ({ message: error }) => [evo(model, { logs: () => AsyncData.Failure({ error }) }), []],
       FailedFetchInjectionSchedules: ({ message: error }) => [
         evo(model, { schedules: () => AsyncData.Failure({ error }) }),
@@ -435,7 +416,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
               ? {
                   confirmedOffSchedule: false,
                   datetime: nowLocal,
-                  dosage: '',
+                  doseMg: '',
                   drug: '',
                   editingId: null,
                   error: null,
@@ -443,13 +424,13 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
                   maxDatetime: nowLocal,
                   notes: '',
                   scheduleId: '',
-                  source: '',
+                  supplier: '',
                   submitting: false,
                 }
               : {
                   confirmedOffSchedule: false,
                   datetime: utcToLocalDatetimeString(log.datetime),
-                  dosage: log.dosage,
+                  doseMg: String(log.doseMg),
                   drug: log.drug,
                   editingId: log.id,
                   error: null,
@@ -457,7 +438,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
                   maxDatetime: nowLocal,
                   notes: log.notes ?? '',
                   scheduleId: log.scheduleId ?? '',
-                  source: log.source ?? '',
+                  supplier: log.supplier ?? '',
                   submitting: false,
                 },
           pendingDeleteId: () => null,
@@ -477,7 +458,7 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
         const schedules = AsyncData.getOrElse(model.schedules, () => [])
         if (isOffScheduleDose(model.form, schedules) && !model.form.confirmedOffSchedule) {
           return [
-            withForm(model, () => ({ error: 'Confirm off-schedule dosage before saving', submitting: false })),
+            withForm(model, () => ({ error: 'Confirm the off-schedule dose before saving', submitting: false })),
             [],
           ]
         }
@@ -486,13 +467,13 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
           [
             SaveInjection({
               datetime: model.form.datetime,
-              dosage: model.form.dosage.trim(),
+              doseMg: model.form.doseMg.trim(),
               drug: model.form.drug.trim(),
               editingId: model.form.editingId,
               injectionSite: model.form.injectionSite.trim(),
               notes: model.form.notes.trim(),
               scheduleId: model.form.scheduleId,
-              source: model.form.source.trim(),
+              supplier: model.form.supplier.trim(),
             }),
           ],
         ]
@@ -501,7 +482,6 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
         evo(model, { logs: () => AsyncData.Loading(), pendingDeleteId: () => null }),
         [FetchInjectionLogs()],
       ],
-      SucceededFetchInjectionDrugs: ({ drugs }) => [evo(model, { drugs: () => AsyncData.succeed(drugs) }), []],
       SucceededFetchInjectionLogs: ({ logs }) => [evo(model, { logs: () => AsyncData.succeed(logs) }), []],
       SucceededFetchInjectionSchedules: ({ schedules }) => [
         evo(model, { schedules: () => AsyncData.succeed(schedules) }),
@@ -510,12 +490,11 @@ export const updateInjections = (model: InjectionsModel, message: InjectionsMess
       SucceededFetchInjectionSites: ({ sites }) => [evo(model, { sites: () => AsyncData.succeed(sites) }), []],
       SucceededSaveInjection: () => [
         evo(model, {
-          drugs: () => AsyncData.Loading(),
           form: () => null,
           logs: () => AsyncData.Loading(),
           sites: () => AsyncData.Loading(),
         }),
-        [FetchInjectionLogs(), FetchInjectionDrugs(), FetchInjectionSites()],
+        [FetchInjectionLogs(), FetchInjectionSites()],
       ],
     })
   )
@@ -532,20 +511,27 @@ const lookupValues = (data: InjectionLookupData, fallback: ReadonlyArray<string>
     fallback
   )
 
+const compareLogs = (left: InjectionLog, right: InjectionLog, column: 'datetime' | 'drug' | 'doseMg'): number => {
+  if (column === 'datetime') {
+    return DateTime.toEpochMillis(left.datetime) - DateTime.toEpochMillis(right.datetime)
+  }
+  if (column === 'doseMg') {
+    return left.doseMg - right.doseMg
+  }
+  return left.drug.localeCompare(right.drug)
+}
+
 const sortLogs = (
   logs: ReadonlyArray<InjectionLog>,
-  column: 'datetime' | 'drug' | 'dosage',
+  column: 'datetime' | 'drug' | 'doseMg',
   desc: boolean
 ): ReadonlyArray<InjectionLog> =>
-  logs.toSorted((a, b) => {
-    const order =
-      column === 'datetime'
-        ? DateTime.toEpochMillis(a.datetime) - DateTime.toEpochMillis(b.datetime)
-        : a[column].localeCompare(b[column])
+  logs.toSorted((left, right) => {
+    const order = compareLogs(left, right, column)
     return desc ? -order : order
   })
 
-const sortIndicator = (model: InjectionsModel, column: 'datetime' | 'drug' | 'dosage'): string => {
+const sortIndicator = (model: InjectionsModel, column: 'datetime' | 'drug' | 'doseMg'): string => {
   if (model.sortColumn !== column) {
     return ''
   }
@@ -568,7 +554,7 @@ const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<In
   if (!isOffScheduleDose(form, schedules)) {
     return h.empty
   }
-  const dosages = scheduleDosages(selectedSchedule(schedules, form))
+  const doseMgs = scheduleDoseMgs(selectedSchedule(schedules, form))
   return h.div(
     [h.Class('mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg')],
     [
@@ -578,10 +564,12 @@ const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<In
           h.div(
             [h.Class('flex-1')],
             [
-              h.p([h.Class('text-sm font-medium text-amber-600')], ['Off-schedule dosage']),
+              h.p([h.Class('text-sm font-medium text-amber-600')], ['Off-schedule dose']),
               h.p(
                 [h.Class('text-xs text-muted-foreground mt-1')],
-                [`This dosage (${form.dosage}) does not match your schedule phases (${dosages.join(', ')}).`]
+                [
+                  `This dose (${form.doseMg} mg) does not match your schedule phases (${doseMgs.map((dose) => `${dose} mg`).join(', ')}).`,
+                ]
               ),
               form.confirmedOffSchedule
                 ? h.p([h.Class('mt-1 text-xs text-amber-600')], ['Confirmed - will log as entered'])
@@ -603,12 +591,15 @@ const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<In
 
 const viewForm = (model: InjectionsModel, form: InjectionForm) => {
   const schedules = AsyncData.getOrElse(model.schedules, () => [])
-  const drugSuggestions = lookupValues(model.drugs, listKnownDrugVariants())
   const siteSuggestions = lookupValues(model.sites, listDefaultInjectionSites())
-  const dosageSuggestions = uniqueStrings(
-    scheduleDosages(selectedSchedule(schedules, form)),
-    suggestedDosagesForDrug(form.drug)
-  )
+  const selectedCompound = Schema.is(MedicationCompound)(form.drug) ? Option.some(form.drug) : Option.none()
+  const doseMgSuggestions = Arr.dedupe([
+    ...scheduleDoseMgs(selectedSchedule(schedules, form)),
+    ...Option.match(selectedCompound, {
+      onNone: () => [],
+      onSome: suggestedDoseMgForCompound,
+    }),
+  ]).map(String)
   const submitLabel = injectionSubmitLabel(form)
   const needsOffScheduleConfirmation = isOffScheduleDose(form, schedules) && !form.confirmedOffSchedule
   return h.div(
@@ -641,16 +632,20 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                 [h.For('injection-drug'), h.Class('mb-2 block text-sm font-medium')],
                 ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
               ),
-              h.input([
-                h.Class(input()),
-                h.Type('text'),
-                h.Id('injection-drug'),
-                h.List('injection-drug-suggestions'),
-                h.Placeholder('e.g., Semaglutide'),
-                h.Value(form.drug),
-                h.OnInput((value) => ChangedInjectionDrug({ value })),
-              ]),
-              viewDatalist(h, 'injection-drug-suggestions', drugSuggestions),
+              h.select(
+                [
+                  h.Class(select()),
+                  h.Id('injection-drug'),
+                  h.Value(form.drug),
+                  h.OnChange((value) => ChangedInjectionDrug({ value })),
+                ],
+                [
+                  h.option([h.Value('')], ['Select medication']),
+                  ...listMedicationCompounds().map((compound) =>
+                    h.keyed('option')(compound, [h.Value(compound)], [compound])
+                  ),
+                ]
+              ),
             ]
           ),
           h.div(
@@ -680,32 +675,34 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                 [],
                 [
                   h.label(
-                    [h.For('injection-dosage'), h.Class('mb-2 block text-sm font-medium')],
-                    ['Dosage ', h.span([h.Class('text-destructive')], ['*'])]
+                    [h.For('injection-dose-mg'), h.Class('mb-2 block text-sm font-medium')],
+                    ['Dose (mg) ', h.span([h.Class('text-destructive')], ['*'])]
                   ),
                   h.input([
                     h.Class(input()),
-                    h.Type('text'),
-                    h.Id('injection-dosage'),
-                    h.List('injection-dosage-suggestions'),
-                    h.Placeholder('e.g., 2.5mg'),
-                    h.Value(form.dosage),
-                    h.OnInput((value) => ChangedInjectionDosage({ value })),
+                    h.Type('number'),
+                    h.Id('injection-dose-mg'),
+                    h.List('injection-dose-mg-suggestions'),
+                    h.Min('0'),
+                    h.Step('any'),
+                    h.Placeholder('e.g., 2.5'),
+                    h.Value(form.doseMg),
+                    h.OnInput((value) => ChangedInjectionDoseMg({ value })),
                   ]),
-                  viewDatalist(h, 'injection-dosage-suggestions', dosageSuggestions),
+                  viewDatalist(h, 'injection-dose-mg-suggestions', doseMgSuggestions),
                 ]
               ),
               h.div(
                 [],
                 [
-                  h.label([h.For('injection-source'), h.Class('mb-2 block text-sm font-medium')], ['Source']),
+                  h.label([h.For('injection-supplier'), h.Class('mb-2 block text-sm font-medium')], ['Supplier']),
                   h.input([
                     h.Class(input()),
                     h.Type('text'),
-                    h.Id('injection-source'),
+                    h.Id('injection-supplier'),
                     h.Placeholder('e.g., CVS, Pharmacy'),
-                    h.Value(form.source),
-                    h.OnInput((value) => ChangedInjectionSource({ value })),
+                    h.Value(form.supplier),
+                    h.OnInput((value) => ChangedInjectionSupplier({ value })),
                   ]),
                 ]
               ),
@@ -764,7 +761,7 @@ const viewForm = (model: InjectionsModel, form: InjectionForm) => {
                   h.Disabled(
                     form.submitting ||
                       form.drug.trim() === '' ||
-                      form.dosage.trim() === '' ||
+                      form.doseMg.trim() === '' ||
                       needsOffScheduleConfirmation
                   ),
                 ],
@@ -849,7 +846,7 @@ const viewTable = (
                         [
                           headerButton(
                             h,
-                            `Drug${sortIndicator(model, 'drug')}`,
+                            `Compound${sortIndicator(model, 'drug')}`,
                             ClickedInjectionSort({ column: 'drug' })
                           ),
                         ]
@@ -859,11 +856,12 @@ const viewTable = (
                         [
                           headerButton(
                             h,
-                            `Dosage${sortIndicator(model, 'dosage')}`,
-                            ClickedInjectionSort({ column: 'dosage' })
+                            `Dose (mg)${sortIndicator(model, 'doseMg')}`,
+                            ClickedInjectionSort({ column: 'doseMg' })
                           ),
                         ]
                       ),
+                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Supplier']),
                       h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Site']),
                       h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Schedule']),
                       h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Notes']),
@@ -881,7 +879,8 @@ const viewTable = (
                     [
                       h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime)]),
                       h.td([h.Class('p-3 font-medium')], [log.drug]),
-                      h.td([h.Class('p-3 font-mono')], [log.dosage]),
+                      h.td([h.Class('p-3 font-mono')], [`${log.doseMg} mg`]),
+                      h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.supplier ?? '-']),
                       h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.injectionSite ?? '-']),
                       h.td([h.Class('p-3 text-sm')], [scheduleName(schedules, Option.fromNullOr(log.scheduleId))]),
                       h.td(

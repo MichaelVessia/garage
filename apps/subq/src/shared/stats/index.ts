@@ -1,5 +1,5 @@
-export { parseDosageValue, buildDosageHistoryStats } from './dosage-history.js'
-export type { DosageHistoryInput } from './dosage-history.js'
+export { buildDoseHistoryStats } from './dose-history.js'
+export type { DoseHistoryInput } from './dose-history.js'
 export {
   StatsParams,
   WeightStats,
@@ -8,8 +8,8 @@ export {
   WeightTrendStats,
   InjectionSiteCount,
   InjectionSiteStats,
-  DosageHistoryPoint,
-  DosageHistoryStats,
+  DoseHistoryPoint,
+  DoseHistoryStats,
   InjectionFrequencyStats,
   DrugCount,
   DrugBreakdownStats,

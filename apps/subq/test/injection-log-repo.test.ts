@@ -3,7 +3,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
-import { Dosage, DrugName, DrugSource, InjectionLogId, InjectionSite, Limit, Notes, Offset } from '#shared'
+import { DoseMg, MedicationCompound, Supplier, InjectionLogId, InjectionSite, Limit, Notes, Offset } from '#shared'
 
 import { InjectionLogRepo, InjectionLogRepoLive } from '../src/injection/injection-log-repo.js'
 import { testDate } from './helpers/dates.js'
@@ -27,9 +27,9 @@ describe('InjectionLogRepo', () => {
           const created = yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('Testosterone Cypionate'),
-              source: Option.some(DrugSource.make('Empower Pharmacy')),
-              dosage: Dosage.make('200mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.some(Supplier.make('Empower Pharmacy')),
+              doseMg: DoseMg.make(200),
               injectionSite: Option.some(InjectionSite.make('left ventrogluteal')),
               notes: Option.some(Notes.make('Weekly injection')),
               scheduleId: Option.none(),
@@ -37,9 +37,9 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          assert.strictEqual(created.drug, 'Testosterone Cypionate')
-          assert.strictEqual(created.source, 'Empower Pharmacy')
-          assert.strictEqual(created.dosage, '200mg')
+          assert.strictEqual(created.drug, 'Semaglutide')
+          assert.strictEqual(created.supplier, 'Empower Pharmacy')
+          assert.strictEqual(created.doseMg, 200)
           assert.strictEqual(created.injectionSite, 'left ventrogluteal')
           assert.strictEqual(created.notes, 'Weekly injection')
           assert.isDefined(created.id)
@@ -54,9 +54,9 @@ describe('InjectionLogRepo', () => {
           const created = yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('BPC-157'),
-              source: Option.none(),
-              dosage: Dosage.make('250mcg'),
+              drug: MedicationCompound.make('Tirzepatide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(0.25),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -64,8 +64,8 @@ describe('InjectionLogRepo', () => {
             'user-123'
           )
 
-          assert.strictEqual(created.drug, 'BPC-157')
-          assert.isNull(created.source)
+          assert.strictEqual(created.drug, 'Tirzepatide')
+          assert.isNull(created.supplier)
           assert.isNull(created.injectionSite)
           assert.isNull(created.notes)
         })
@@ -81,9 +81,9 @@ describe('InjectionLogRepo', () => {
           const created = yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('Testosterone'),
-              source: Option.none(),
-              dosage: Dosage.make('100mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(100),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -95,7 +95,7 @@ describe('InjectionLogRepo', () => {
           assert.isTrue(Option.isSome(found))
           if (Option.isSome(found)) {
             assert.strictEqual(found.value.id, created.id)
-            assert.strictEqual(found.value.drug, 'Testosterone')
+            assert.strictEqual(found.value.drug, 'Semaglutide')
           }
         })
       )
@@ -114,7 +114,7 @@ describe('InjectionLogRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('does not find entry belonging to different user', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-456')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-456')
 
           const repo = yield* InjectionLogRepo
           const found = yield* repo.findById('inj-1', 'user-123')
@@ -133,9 +133,9 @@ describe('InjectionLogRepo', () => {
             yield* repo.create(
               {
                 datetime: DateTime.makeUnsafe(`2024-01-${15 + i}T10:00:00Z`),
-                drug: DrugName.make('Testosterone'),
-                source: Option.none(),
-                dosage: Dosage.make(`${100 + i * 10}mg`),
+                drug: MedicationCompound.make('Semaglutide'),
+                supplier: Option.none(),
+                doseMg: DoseMg.make(100 + i * 10),
                 injectionSite: Option.none(),
                 notes: Option.none(),
                 scheduleId: Option.none(),
@@ -147,8 +147,8 @@ describe('InjectionLogRepo', () => {
           const page1 = yield* repo.list({ limit: Limit.make(2), offset: Offset.make(0) }, 'user-123')
           assert.strictEqual(page1.length, 2)
           // Should be sorted by datetime DESC
-          assert.strictEqual(requireValue(page1[0]).dosage, '140mg')
-          assert.strictEqual(requireValue(page1[1]).dosage, '130mg')
+          assert.strictEqual(requireValue(page1[0]).doseMg, 140)
+          assert.strictEqual(requireValue(page1[1]).doseMg, 130)
 
           const page2 = yield* repo.list({ limit: Limit.make(2), offset: Offset.make(2) }, 'user-123')
           assert.strictEqual(page2.length, 2)
@@ -163,9 +163,9 @@ describe('InjectionLogRepo', () => {
           yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('Testosterone'),
-              source: Option.none(),
-              dosage: Dosage.make('100mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(100),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -175,9 +175,9 @@ describe('InjectionLogRepo', () => {
           yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-16T10:00:00Z'),
-              drug: DrugName.make('BPC-157'),
-              source: Option.none(),
-              dosage: Dosage.make('250mcg'),
+              drug: MedicationCompound.make('Tirzepatide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(0.25),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -189,13 +189,13 @@ describe('InjectionLogRepo', () => {
             {
               limit: Limit.make(50),
               offset: Offset.make(0),
-              drug: DrugName.make('Testosterone'),
+              drug: MedicationCompound.make('Semaglutide'),
             },
             'user-123'
           )
 
           assert.strictEqual(filtered.length, 1)
-          assert.strictEqual(requireValue(filtered[0]).drug, 'Testosterone')
+          assert.strictEqual(requireValue(filtered[0]).drug, 'Semaglutide')
         })
       )
     })
@@ -207,9 +207,9 @@ describe('InjectionLogRepo', () => {
           yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-10T10:00:00Z'),
-              drug: DrugName.make('Test'),
-              source: Option.none(),
-              dosage: Dosage.make('100mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(100),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -219,9 +219,9 @@ describe('InjectionLogRepo', () => {
           yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('Test'),
-              source: Option.none(),
-              dosage: Dosage.make('200mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(200),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -231,9 +231,9 @@ describe('InjectionLogRepo', () => {
           yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-20T10:00:00Z'),
-              drug: DrugName.make('Test'),
-              source: Option.none(),
-              dosage: Dosage.make('300mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(300),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -252,7 +252,7 @@ describe('InjectionLogRepo', () => {
           )
 
           assert.strictEqual(filtered.length, 1)
-          assert.strictEqual(requireValue(filtered[0]).dosage, '200mg')
+          assert.strictEqual(requireValue(filtered[0]).doseMg, 200)
         })
       )
     })
@@ -260,9 +260,9 @@ describe('InjectionLogRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('only returns entries for the specified user', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-          yield* insertInjectionLog('inj-2', testDate('2024-01-16T10:00:00Z'), 'Testosterone', '100mg', 'user-456')
-          yield* insertInjectionLog('inj-3', testDate('2024-01-17T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123')
+          yield* insertInjectionLog('inj-2', testDate('2024-01-16T10:00:00Z'), 'Semaglutide', 100, 'user-456')
+          yield* insertInjectionLog('inj-3', testDate('2024-01-17T10:00:00Z'), 'Semaglutide', 100, 'user-123')
 
           const repo = yield* InjectionLogRepo
           const logs = yield* repo.list({ limit: Limit.make(50), offset: Offset.make(0) }, 'user-123')
@@ -282,9 +282,9 @@ describe('InjectionLogRepo', () => {
           const created = yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('Testosterone'),
-              source: Option.none(),
-              dosage: Dosage.make('100mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.some(Supplier.make('Pharmacy')),
+              doseMg: DoseMg.make(100),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -295,16 +295,17 @@ describe('InjectionLogRepo', () => {
           const updated = yield* repo.update(
             {
               id: created.id,
-              dosage: Dosage.make('150mg'),
+              doseMg: DoseMg.make(150),
               injectionSite: Option.some(InjectionSite.make('right deltoid')),
               notes: Option.some(Notes.make('Updated notes')),
-              source: Option.none(),
+              supplier: null,
               scheduleId: Option.none(),
             },
             'user-123'
           )
 
-          assert.strictEqual(updated.dosage, '150mg')
+          assert.strictEqual(updated.doseMg, 150)
+          assert.isNull(updated.supplier)
           assert.strictEqual(updated.injectionSite, 'right deltoid')
           assert.strictEqual(updated.notes, 'Updated notes')
         })
@@ -319,8 +320,7 @@ describe('InjectionLogRepo', () => {
             .update(
               {
                 id: InjectionLogId.make('non-existent'),
-                dosage: Dosage.make('100mg'),
-                source: Option.none(),
+                doseMg: DoseMg.make(100),
                 injectionSite: Option.none(),
                 notes: Option.none(),
                 scheduleId: Option.none(),
@@ -340,15 +340,14 @@ describe('InjectionLogRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('cannot update entry belonging to different user', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-456')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-456')
 
           const repo = yield* InjectionLogRepo
           const result = yield* repo
             .update(
               {
                 id: InjectionLogId.make('inj-1'),
-                dosage: Dosage.make('999mg'),
-                source: Option.none(),
+                doseMg: DoseMg.make(999),
                 injectionSite: Option.none(),
                 notes: Option.none(),
                 scheduleId: Option.none(),
@@ -374,9 +373,9 @@ describe('InjectionLogRepo', () => {
           const created = yield* repo.create(
             {
               datetime: DateTime.makeUnsafe('2024-01-15T10:00:00Z'),
-              drug: DrugName.make('Testosterone'),
-              source: Option.none(),
-              dosage: Dosage.make('100mg'),
+              drug: MedicationCompound.make('Semaglutide'),
+              supplier: Option.none(),
+              doseMg: DoseMg.make(100),
               injectionSite: Option.none(),
               notes: Option.none(),
               scheduleId: Option.none(),
@@ -406,7 +405,7 @@ describe('InjectionLogRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('cannot delete entry belonging to different user', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-456')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-456')
 
           const repo = yield* InjectionLogRepo
           const deleted = yield* repo.delete('inj-1', 'user-123')
@@ -416,41 +415,20 @@ describe('InjectionLogRepo', () => {
     })
   })
 
-  describe('getUniqueDrugs', () => {
-    it.layer(TestLayer)((it) => {
-      it.effect('returns unique drug names for user', () =>
-        Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-          yield* insertInjectionLog('inj-2', testDate('2024-01-16T10:00:00Z'), 'BPC-157', '250mcg', 'user-123')
-          yield* insertInjectionLog('inj-3', testDate('2024-01-17T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-          yield* insertInjectionLog('inj-4', testDate('2024-01-18T10:00:00Z'), 'Other Drug', '100mg', 'user-456')
-
-          const repo = yield* InjectionLogRepo
-          const drugs = yield* repo.getUniqueDrugs('user-123')
-
-          assert.strictEqual(drugs.length, 2)
-          assert.include(drugs, 'BPC-157')
-          assert.include(drugs, 'Testosterone')
-          assert.notInclude(drugs, 'Other Drug')
-        })
-      )
-    })
-  })
-
   describe('getUniqueSites', () => {
     it.layer(TestLayer)((it) => {
       it.effect('returns unique injection sites for user', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Test', '100mg', 'user-123', {
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             injectionSite: 'left VG',
           })
-          yield* insertInjectionLog('inj-2', testDate('2024-01-16T10:00:00Z'), 'Test', '100mg', 'user-123', {
+          yield* insertInjectionLog('inj-2', testDate('2024-01-16T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             injectionSite: 'right VG',
           })
-          yield* insertInjectionLog('inj-3', testDate('2024-01-17T10:00:00Z'), 'Test', '100mg', 'user-123', {
+          yield* insertInjectionLog('inj-3', testDate('2024-01-17T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             injectionSite: 'left VG',
           })
-          yield* insertInjectionLog('inj-4', testDate('2024-01-18T10:00:00Z'), 'Test', '100mg', 'user-456', {
+          yield* insertInjectionLog('inj-4', testDate('2024-01-18T10:00:00Z'), 'Semaglutide', 100, 'user-456', {
             injectionSite: 'other site',
           })
 
@@ -470,10 +448,10 @@ describe('InjectionLogRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('returns most recent injection site', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Test', '100mg', 'user-123', {
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             injectionSite: 'left VG',
           })
-          yield* insertInjectionLog('inj-2', testDate('2024-01-17T10:00:00Z'), 'Test', '100mg', 'user-123', {
+          yield* insertInjectionLog('inj-2', testDate('2024-01-17T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             injectionSite: 'right VG',
           })
 
@@ -504,14 +482,14 @@ describe('InjectionLogRepo', () => {
     it.layer(TestLayer)((it) => {
       it.effect('returns injections for a specific schedule', () =>
         Effect.gen(function* () {
-          yield* insertSchedule('sched-1', 'TRT', 'Testosterone', 'weekly', testDate('2024-01-01'), 'user-123')
-          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123', {
+          yield* insertSchedule('sched-1', 'TRT', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-123')
+          yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             scheduleId: 'sched-1',
           })
-          yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Testosterone', '100mg', 'user-123', {
+          yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
             scheduleId: 'sched-1',
           })
-          yield* insertInjectionLog('inj-3', testDate('2024-01-16T10:00:00Z'), 'BPC-157', '250mcg', 'user-123')
+          yield* insertInjectionLog('inj-3', testDate('2024-01-16T10:00:00Z'), 'Tirzepatide', 0.25, 'user-123')
 
           const repo = yield* InjectionLogRepo
           const logs = yield* repo.listBySchedule('sched-1', 'user-123')

@@ -9,6 +9,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { SqlClient } from 'effect/unstable/sql'
 
+import type { MedicationCompound } from '#shared'
+
 // ============================================
 // SQLite In-Memory Test Layer
 // ============================================
@@ -49,8 +51,8 @@ const setupTables = Effect.gen(function* () {
     CREATE TABLE IF NOT EXISTS injection_schedules (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      drug TEXT NOT NULL,
-      source TEXT,
+      drug TEXT NOT NULL CHECK (drug IN ('Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide')),
+      supplier TEXT,
       frequency TEXT NOT NULL,
       start_date TEXT NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 1,
@@ -68,7 +70,7 @@ const setupTables = Effect.gen(function* () {
       schedule_id TEXT NOT NULL REFERENCES injection_schedules(id) ON DELETE CASCADE,
       "order" INTEGER NOT NULL,
       duration_days INTEGER,
-      dosage TEXT NOT NULL,
+      dose_mg REAL NOT NULL CHECK (dose_mg > 0 AND dose_mg <= 1.7976931348623157e308),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
@@ -79,9 +81,9 @@ const setupTables = Effect.gen(function* () {
     CREATE TABLE IF NOT EXISTS injection_logs (
       id TEXT PRIMARY KEY,
       datetime TEXT NOT NULL,
-      drug TEXT NOT NULL,
-      source TEXT,
-      dosage TEXT NOT NULL,
+      drug TEXT NOT NULL CHECK (drug IN ('Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide')),
+      supplier TEXT,
+      dose_mg REAL NOT NULL CHECK (dose_mg > 0 AND dose_mg <= 1.7976931348623157e308),
       injection_site TEXT,
       notes TEXT,
       schedule_id TEXT REFERENCES injection_schedules(id) ON DELETE SET NULL,
@@ -168,11 +170,11 @@ export const insertUser = (id: string, email = `${id}@example.com`, name = 'Test
 export const insertInjectionLog = (
   id: string,
   datetime: Date,
-  drug: string,
-  dosage: string,
+  drug: MedicationCompound,
+  doseMg: number,
   userId: string,
   options: {
-    source?: string | null
+    supplier?: string | null
     injectionSite?: string | null
     notes?: string | null
     scheduleId?: string | null
@@ -182,20 +184,20 @@ export const insertInjectionLog = (
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* sql`
-      INSERT INTO injection_logs (id, datetime, drug, source, dosage, injection_site, notes, schedule_id, user_id, created_at, updated_at)
-      VALUES (${id}, ${datetime.toISOString()}, ${drug}, ${options.source ?? null}, ${dosage}, ${options.injectionSite ?? null}, ${options.notes ?? null}, ${options.scheduleId ?? null}, ${userId}, ${now}, ${now})
+      INSERT INTO injection_logs (id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, user_id, created_at, updated_at)
+      VALUES (${id}, ${datetime.toISOString()}, ${drug}, ${options.supplier ?? null}, ${doseMg}, ${options.injectionSite ?? null}, ${options.notes ?? null}, ${options.scheduleId ?? null}, ${userId}, ${now}, ${now})
     `
   })
 
 export const insertSchedule = (
   id: string,
   name: string,
-  drug: string,
+  drug: MedicationCompound,
   frequency: string,
   startDate: Date,
   userId: string,
   options: {
-    source?: string | null
+    supplier?: string | null
     isActive?: boolean
     notes?: string | null
   } = {}
@@ -204,8 +206,8 @@ export const insertSchedule = (
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* sql`
-      INSERT INTO injection_schedules (id, name, drug, source, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
-      VALUES (${id}, ${name}, ${drug}, ${options.source ?? null}, ${frequency}, ${startDate.toISOString()}, ${options.isActive !== false ? 1 : 0}, ${options.notes ?? null}, ${userId}, ${now}, ${now})
+      INSERT INTO injection_schedules (id, name, drug, supplier, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
+      VALUES (${id}, ${name}, ${drug}, ${options.supplier ?? null}, ${frequency}, ${startDate.toISOString()}, ${options.isActive !== false ? 1 : 0}, ${options.notes ?? null}, ${userId}, ${now}, ${now})
     `
   })
 
@@ -213,15 +215,15 @@ export const insertSchedulePhase = (
   id: string,
   scheduleId: string,
   order: number,
-  dosage: string,
+  doseMg: number,
   durationDays: number | null = null
 ) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* sql`
-      INSERT INTO schedule_phases (id, schedule_id, "order", duration_days, dosage, created_at, updated_at)
-      VALUES (${id}, ${scheduleId}, ${order}, ${durationDays}, ${dosage}, ${now}, ${now})
+      INSERT INTO schedule_phases (id, schedule_id, "order", duration_days, dose_mg, created_at, updated_at)
+      VALUES (${id}, ${scheduleId}, ${order}, ${durationDays}, ${doseMg}, ${now}, ${now})
     `
   })
 

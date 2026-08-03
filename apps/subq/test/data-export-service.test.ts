@@ -1,13 +1,15 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
+import * as Schema from 'effect/Schema'
 import { TestClock } from 'effect/testing'
 import { SqlClient } from 'effect/unstable/sql'
 
 import {
   DataExport,
-  Dosage,
-  DrugName,
+  DoseMg,
+  MedicationCompound,
   ExportedSettings,
   InjectionLog,
   InjectionLogId,
@@ -20,7 +22,14 @@ import {
 
 import { DataExportService, DataExportServiceLive } from '../src/data-export/data-export-service.js'
 import { testDate } from './helpers/dates.js'
-import { insertSettings, insertWeightLog, makeInitializedTestLayer } from './helpers/test-db.js'
+import {
+  insertInjectionLog,
+  insertSchedule,
+  insertSchedulePhase,
+  insertSettings,
+  insertWeightLog,
+  makeInitializedTestLayer,
+} from './helpers/test-db.js'
 
 const TestLayer = makeInitializedTestLayer(DataExportServiceLive)
 
@@ -32,12 +41,26 @@ describe('DataExportService', () => {
           const service = yield* DataExportService
           const result = yield* service.exportData('user-123')
 
-          assert.strictEqual(result.version, '2.0.0')
+          assert.strictEqual(result.version, '3.0.0-alpha.1')
           assert.lengthOf(result.data.weightLogs, 0)
           assert.lengthOf(result.data.injectionLogs, 0)
           assert.lengthOf(result.data.schedules, 0)
           assert.lengthOf(result.data.goals, 0)
           assert.isNull(result.data.settings)
+        })
+      )
+    })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('rejects the previous v2 export contract explicitly', () =>
+        Effect.gen(function* () {
+          const service = yield* DataExportService
+          const snapshot = yield* service.exportData('user-123')
+          const encoded = yield* Schema.encodeEffect(DataExport)(snapshot)
+
+          const result = Schema.decodeUnknownExit(DataExport)({ ...encoded, version: '2.0.0' })
+
+          assert.isTrue(Exit.isFailure(result))
         })
       )
     })
@@ -121,6 +144,46 @@ describe('DataExportService', () => {
         })
       )
     })
+
+    it.layer(TestLayer)((it) => {
+      it.effect('round-trips canonical medication records through the alpha v3 contract', () =>
+        Effect.gen(function* () {
+          yield* insertSchedule(
+            'schedule-1',
+            'Titration',
+            'Semaglutide',
+            'weekly',
+            testDate('2026-01-01T00:00:00Z'),
+            'user-123',
+            { supplier: 'Clinic' }
+          )
+          yield* insertSchedulePhase('phase-1', 'schedule-1', 1, 0.25, null)
+          yield* insertInjectionLog('injection-1', testDate('2026-01-08T12:00:00Z'), 'Semaglutide', 0.25, 'user-123', {
+            scheduleId: 'schedule-1',
+            supplier: 'Pharmacy',
+          })
+
+          const service = yield* DataExportService
+          const snapshot = yield* service.exportData('user-123')
+
+          assert.strictEqual(snapshot.version, '3.0.0-alpha.1')
+          assert.strictEqual(snapshot.data.schedules[0]?.drug, 'Semaglutide')
+          assert.strictEqual(snapshot.data.schedules[0]?.supplier, 'Clinic')
+          assert.strictEqual(snapshot.data.schedules[0]?.phases[0]?.doseMg, 0.25)
+          assert.strictEqual(snapshot.data.injectionLogs[0]?.drug, 'Semaglutide')
+          assert.strictEqual(snapshot.data.injectionLogs[0]?.supplier, 'Pharmacy')
+          assert.strictEqual(snapshot.data.injectionLogs[0]?.doseMg, 0.25)
+
+          yield* service.importData('user-123', snapshot)
+          const roundTripped = yield* service.exportData('user-123')
+
+          assert.strictEqual(roundTripped.data.schedules[0]?.supplier, 'Clinic')
+          assert.strictEqual(roundTripped.data.schedules[0]?.phases[0]?.doseMg, 0.25)
+          assert.strictEqual(roundTripped.data.injectionLogs[0]?.supplier, 'Pharmacy')
+          assert.strictEqual(roundTripped.data.injectionLogs[0]?.doseMg, 0.25)
+        })
+      )
+    })
   })
 
   describe('importData', () => {
@@ -135,7 +198,7 @@ describe('DataExportService', () => {
 
           // Create import data
           const importData = new DataExport({
-            version: '2.0.0',
+            version: '3.0.0-alpha.1',
             exportedAt: DateTime.nowUnsafe(),
             data: {
               weightLogs: [
@@ -184,7 +247,7 @@ describe('DataExportService', () => {
 
           // Import data for user-123
           const importData = new DataExport({
-            version: '2.0.0',
+            version: '3.0.0-alpha.1',
             exportedAt: DateTime.nowUnsafe(),
             data: {
               weightLogs: [
@@ -232,7 +295,7 @@ describe('DataExportService', () => {
           const now = DateTime.nowUnsafe()
           const duplicateId = WeightLogId.make('duplicate-log')
           const importData = new DataExport({
-            version: '2.0.0',
+            version: '3.0.0-alpha.1',
             exportedAt: now,
             data: {
               weightLogs: [
@@ -272,7 +335,7 @@ describe('DataExportService', () => {
 
           // Re-running with a corrected import fully recovers.
           const corrected = new DataExport({
-            version: '2.0.0',
+            version: '3.0.0-alpha.1',
             exportedAt: now,
             data: {
               weightLogs: [
@@ -309,7 +372,7 @@ describe('DataExportService', () => {
           const service = yield* DataExportService
           const now = DateTime.nowUnsafe()
           const importData = new DataExport({
-            version: '2.0.0',
+            version: '3.0.0-alpha.1',
             exportedAt: now,
             data: {
               weightLogs: [],
@@ -317,9 +380,9 @@ describe('DataExportService', () => {
                 new InjectionLog({
                   id: InjectionLogId.make('inj-1'),
                   datetime: DateTime.makeUnsafe('2024-02-01T00:00:00Z'),
-                  drug: DrugName.make('Testosterone'),
-                  source: null,
-                  dosage: Dosage.make('100mg'),
+                  drug: MedicationCompound.make('Semaglutide'),
+                  supplier: null,
+                  doseMg: DoseMg.make(100),
                   injectionSite: null,
                   notes: null,
                   scheduleId: InjectionScheduleId.make('missing-schedule'),

@@ -14,7 +14,7 @@ import { pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
 
 import {
-  DosageHistoryStats,
+  DoseHistoryStats,
   GoalId,
   DrugBreakdownStats,
   GoalProgress,
@@ -43,7 +43,7 @@ import {
   CHART_COLORS,
   ChartMessage,
   ChartState,
-  getDosageColor,
+  getDoseColor,
   initialChartState,
   updateChart,
   viewWeightTrend,
@@ -62,7 +62,7 @@ const StatsBundle = Schema.Struct({
   weightTrend: WeightTrendStats,
   injections: Schema.Array(InjectionLog),
   siteStats: InjectionSiteStats,
-  dosageHistory: DosageHistoryStats,
+  doseHistory: DoseHistoryStats,
   frequency: Schema.NullOr(InjectionFrequencyStats),
   drugBreakdown: DrugBreakdownStats,
   dayOfWeek: InjectionDayOfWeekStats,
@@ -206,7 +206,7 @@ export const FetchStats = Command.define(
     const bundle = yield* Effect.all(
       {
         dayOfWeek: api.GetInjectionByDayOfWeek(tzParams),
-        dosageHistory: api.GetDosageHistory(params),
+        doseHistory: api.GetDoseHistory(params),
         drugBreakdown: api.GetDrugBreakdown(params),
         frequency: api.GetInjectionFrequency(tzParams),
         goal: api.GoalGetProgress(),
@@ -712,76 +712,74 @@ const viewBarChart = (data: ReadonlyArray<readonly [string, number]>) => {
   )
 }
 
-// ---- Dosage history step chart (pure SVG) ----
+// ---- Dose history step chart (pure SVG) ----
 
-const DOSAGE_W = 800
-const DOSAGE_H = 200
+const DOSE_W = 800
+const DOSE_H = 200
 
-interface DosagePoint {
+interface DosePoint {
   readonly date: Date
   readonly drug: string
-  readonly dosage: string
-  readonly dosageValue: number
+  readonly doseMg: number
   readonly color: string
 }
 
-interface DosageSegment {
-  readonly points: ReadonlyArray<DosagePoint>
+interface DoseSegment {
+  readonly points: ReadonlyArray<DosePoint>
   readonly color: string
 }
 
-interface DosageSegmentBuild {
-  readonly segments: ReadonlyArray<DosageSegment>
-  readonly current: ReadonlyArray<DosagePoint>
+interface DoseSegmentBuild {
+  readonly segments: ReadonlyArray<DoseSegment>
+  readonly current: ReadonlyArray<DosePoint>
   readonly color: string
 }
 
-const flushDosageSegment = (build: DosageSegmentBuild): ReadonlyArray<DosageSegment> =>
+const flushDoseSegment = (build: DoseSegmentBuild): ReadonlyArray<DoseSegment> =>
   Arr.isReadonlyArrayNonEmpty(build.current)
     ? [...build.segments, { color: build.color, points: build.current }]
     : build.segments
 
-const viewDosageHistory = (data: DosageHistoryStats) => {
+const viewDoseHistory = (data: DoseHistoryStats) => {
   if (Arr.isReadonlyArrayEmpty(data.points)) {
-    return h.div([h.Class('text-muted-foreground h-[200px]')], ['No dosage data available'])
+    return h.div([h.Class('text-muted-foreground h-[200px]')], ['No dose data available'])
   }
   const margin = { bottom: 40, left: 50, right: 20, top: 20 }
-  const width = DOSAGE_W - margin.left - margin.right
-  const height = DOSAGE_H - margin.top - margin.bottom
-  const points: ReadonlyArray<DosagePoint> = [...data.points]
+  const width = DOSE_W - margin.left - margin.right
+  const height = DOSE_H - margin.top - margin.bottom
+  const points: ReadonlyArray<DosePoint> = [...data.points]
     .map((point) => ({
-      color: getDosageColor(`${point.drug}::${point.dosage}`),
+      color: getDoseColor(`${point.drug}::${point.doseMg}`),
       date: point.date,
-      dosage: point.dosage,
-      dosageValue: point.dosageValue,
+      doseMg: point.doseMg,
       drug: point.drug,
     }))
     .toSorted((a, b) => a.date.getTime() - b.date.getTime())
   const [minDate, maxDate] = d3.extent(points, (point) => point.date)
-  const [minDosage, maxDosage] = d3.extent(points, (point) => point.dosageValue)
-  if (minDate === undefined || maxDate === undefined || minDosage === undefined || maxDosage === undefined) {
+  const [minDose, maxDose] = d3.extent(points, (point) => point.doseMg)
+  if (minDate === undefined || maxDate === undefined || minDose === undefined || maxDose === undefined) {
     return h.empty
   }
   const xScale = d3.scaleTime().domain([minDate, maxDate]).range([0, width])
-  const yPadding = (maxDosage - minDosage) * 0.2 || 2
+  const yPadding = (maxDose - minDose) * 0.2 || 2
   const yScale = d3
     .scaleLinear()
-    .domain([Math.max(0, minDosage - yPadding), maxDosage + yPadding])
+    .domain([Math.max(0, minDose - yPadding), maxDose + yPadding])
     .range([height, 0])
   const line = d3
-    .line<DosagePoint>()
+    .line<DosePoint>()
     .x((point) => xScale(point.date))
-    .y((point) => yScale(point.dosageValue))
+    .y((point) => yScale(point.doseMg))
     .curve(d3.curveStepAfter)
-  const segmentInitial: DosageSegmentBuild = { color: '', current: [], segments: [] }
+  const segmentInitial: DoseSegmentBuild = { color: '', current: [], segments: [] }
   const builtSegments = Arr.reduce(points, segmentInitial, (build, point) => {
     if (point.color === build.color) {
       return { ...build, current: [...build.current, point] }
     }
     const seed = Arr.isReadonlyArrayNonEmpty(build.current) ? [Arr.lastNonEmpty(build.current), point] : [point]
-    return { color: point.color, current: seed, segments: flushDosageSegment(build) }
+    return { color: point.color, current: seed, segments: flushDoseSegment(build) }
   })
-  const segments = flushDosageSegment(builtSegments)
+  const segments = flushDoseSegment(builtSegments)
   const attr = h.Attribute
   const formatDate = d3.timeFormat('%b %d, %Y')
   const formatTick = d3.timeFormat('%b %d')
@@ -789,7 +787,7 @@ const viewDosageHistory = (data: DosageHistoryStats) => {
     [h.Class('relative w-full')],
     [
       h.svg(
-        [h.ViewBox(`0 0 ${DOSAGE_W} ${DOSAGE_H}`), h.Class('block w-full h-auto')],
+        [h.ViewBox(`0 0 ${DOSE_W} ${DOSE_H}`), h.Class('block w-full h-auto')],
         [
           h.g(
             [h.Transform(`translate(${margin.left},${margin.top})`)],
@@ -822,13 +820,13 @@ const viewDosageHistory = (data: DosageHistoryStats) => {
                 h.circle(
                   [
                     h.Cx(String(xScale(point.date))),
-                    h.Cy(String(yScale(point.dosageValue))),
+                    h.Cy(String(yScale(point.doseMg))),
                     attr('r', '4'),
                     h.Fill(point.color),
                     h.Stroke('var(--card)'),
                     h.StrokeWidth('2'),
                     h.Cursor('pointer'),
-                    h.AriaLabel(`${point.drug} ${point.dosage} on ${formatDate(point.date)}`),
+                    h.AriaLabel(`${point.drug} ${point.doseMg} mg on ${formatDate(point.date)}`),
                   ],
                   []
                 )
@@ -866,7 +864,7 @@ const viewDosageHistory = (data: DosageHistoryStats) => {
                         h.Fill('#9ca3af'),
                         h.FontSize('10px'),
                       ],
-                      [`${tick}mg`]
+                      [`${tick} mg`]
                     )
                   )
               ),
@@ -1166,7 +1164,7 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
   }))
   const injectionData: ReadonlyArray<InjectionPoint> = bundle.injections.map((injection) => ({
     date: DateTime.toDate(injection.datetime),
-    dosage: injection.dosage,
+    doseMg: injection.doseMg,
     drug: injection.drug,
   }))
   const schedulePeriods: ReadonlyArray<SchedulePeriod> = bundle.schedules.map((schedule) => ({
@@ -1227,7 +1225,7 @@ const viewBundle = (model: StatsModel, bundle: StatsBundle, unit: WeightUnit, ra
           viewCard('Medications Used', viewBarChart(bundle.drugBreakdown.drugs.map((drug) => [drug.drug, drug.count]))),
         ]
       ),
-      viewCard('Dosage History', viewDosageHistory(bundle.dosageHistory)),
+      viewCard('Dose History', viewDoseHistory(bundle.doseHistory)),
     ]
   )
 }

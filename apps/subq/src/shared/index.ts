@@ -7,10 +7,9 @@ export {
   Count,
   DaysBetween,
   DayOfWeek,
-  DrugName,
-  DrugSource,
-  Dosage,
-  DosageValue,
+  MedicationCompound,
+  Supplier,
+  DoseMg,
 } from './common/index.js'
 export {
   DEMO_USER,
@@ -104,8 +103,7 @@ export type {
   ScheduleInferenceDraft,
 } from './schedule/index.js'
 export {
-  parseDosageValue,
-  buildDosageHistoryStats,
+  buildDoseHistoryStats,
   StatsParams,
   WeightStats,
   WeightTrendPoint,
@@ -113,8 +111,8 @@ export {
   WeightTrendStats,
   InjectionSiteCount,
   InjectionSiteStats,
-  DosageHistoryPoint,
-  DosageHistoryStats,
+  DoseHistoryPoint,
+  DoseHistoryStats,
   InjectionFrequencyStats,
   DrugCount,
   DrugBreakdownStats,
@@ -126,7 +124,7 @@ export {
   buildObservedInjectionFrequency,
   StatsRpcs,
 } from './stats/index.js'
-export type { DosageHistoryInput } from './stats/index.js'
+export type { DoseHistoryInput } from './stats/index.js'
 export {
   GoalId,
   PaceStatus,
@@ -162,8 +160,12 @@ export {
   DataImportError,
   DataExportRpcs,
 } from './data-export/index.js'
-export { listKnownDrugVariants, suggestedDosagesForDrug, listDefaultInjectionSites } from './drug-vocabulary/index.js'
-export type { DrugVocabularyEntry } from './drug-vocabulary/index.js'
+export {
+  listMedicationCompounds,
+  suggestedDoseMgForCompound,
+  listDefaultInjectionSites,
+} from './drug-vocabulary/index.js'
+export type { MedicationVocabularyEntry } from './drug-vocabulary/index.js'
 export { AppRpcs } from './rpc.js'
 export { AuthContext, Unauthorized, AuthRpcMiddleware, authedRpc } from './auth-middleware.js'
 export type { AuthUser, AuthSession } from './auth-middleware.js'

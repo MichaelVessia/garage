@@ -6,8 +6,8 @@ import * as AsyncData from 'foldkit/asyncData'
 import * as Story from 'foldkit/story'
 
 import {
-  Dosage,
-  DrugName,
+  DoseMg,
+  MedicationCompound,
   InjectionSchedule,
   InjectionScheduleId,
   Notes,
@@ -15,6 +15,7 @@ import {
   PhaseOrder,
   ScheduleName,
   SchedulePhaseId,
+  Supplier,
 } from '#shared'
 
 import { utcToLocalDateString } from '../src/lib/datetime.js'
@@ -22,10 +23,11 @@ import {
   AddedSchedulePhase,
   CancelledDeleteSchedule,
   ChangedScheduleDrug,
+  ChangedScheduleSupplier,
   ChangedScheduleFrequency,
   ChangedScheduleName,
   ChangedScheduleNotes,
-  ChangedSchedulePhaseDosage,
+  ChangedSchedulePhaseDoseMg,
   ChangedSchedulePhaseDuration,
   ChangedScheduleStartDate,
   ClickedActivateSchedule,
@@ -36,7 +38,6 @@ import {
   FailedActivateSchedule,
   FailedDeleteSchedule,
   FailedFetchNextDose,
-  FailedFetchScheduleDrugs,
   FailedFetchSchedules,
   FailedSaveSchedule,
   FetchNextDose,
@@ -48,7 +49,6 @@ import {
   SucceededActivateSchedule,
   SucceededDeleteSchedule,
   SucceededFetchNextDose,
-  SucceededFetchScheduleDrugs,
   SucceededFetchSchedules,
   SucceededSaveSchedule,
   ToggledSchedulePhaseIndefinite,
@@ -64,7 +64,7 @@ const update = (model: ScheduleModel, message: ScheduleMessage) => updateSchedul
 
 const sampleSchedule = new InjectionSchedule({
   createdAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
-  drug: DrugName.make('Semaglutide'),
+  drug: MedicationCompound.make('Semaglutide'),
   frequency: 'weekly',
   id: InjectionScheduleId.make('schedule-1'),
   isActive: false,
@@ -73,7 +73,7 @@ const sampleSchedule = new InjectionSchedule({
   phases: [
     {
       createdAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
-      dosage: Dosage.make('0.25mg'),
+      doseMg: DoseMg.make(0.25),
       durationDays: PhaseDurationDays.make(28),
       id: SchedulePhaseId.make('phase-1'),
       order: PhaseOrder.make(1),
@@ -82,7 +82,7 @@ const sampleSchedule = new InjectionSchedule({
     },
     {
       createdAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
-      dosage: Dosage.make('0.5mg'),
+      doseMg: DoseMg.make(0.5),
       durationDays: null,
       id: SchedulePhaseId.make('phase-2'),
       order: PhaseOrder.make(2),
@@ -90,19 +90,20 @@ const sampleSchedule = new InjectionSchedule({
       updatedAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
     },
   ],
-  source: null,
+  supplier: Supplier.make('Pharmacy'),
   startDate: DateTime.makeUnsafe('2026-01-15T00:00:00Z'),
   updatedAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
 })
 
-const validForm: ScheduleModel['form'] = {
+const validForm: NonNullable<ScheduleModel['form']> = {
   drug: 'Semaglutide',
+  supplier: 'Pharmacy',
   editingId: null,
   error: null,
   frequency: 'weekly',
   name: 'Titration',
   notes: '',
-  phases: [{ dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 }],
+  phases: [{ doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 }],
   startDate: '2026-01-01',
   submitting: false,
 }
@@ -123,7 +124,7 @@ describe('schedule page update', () => {
           expect(model.form?.editingId).toBeNull()
           expect(model.form?.frequency).toBe('weekly')
           expect(model.form?.startDate).toBe('2026-07-03')
-          expect(model.form?.phases).toEqual([{ dosage: '', durationDays: '28', isIndefinite: false, order: 1 }])
+          expect(model.form?.phases).toEqual([{ doseMg: '', durationDays: '28', isIndefinite: false, order: 1 }])
         })
       )
     })
@@ -140,12 +141,13 @@ describe('schedule page update', () => {
         Story.model((model: ScheduleModel) => {
           expect(model.form?.editingId).toBe(sampleSchedule.id)
           expect(model.form?.drug).toBe('Semaglutide')
+          expect(model.form?.supplier).toBe('Pharmacy')
           expect(model.form?.name).toBe('Titration')
           expect(model.form?.notes).toBe('taper slowly')
           expect(model.form?.startDate).toBe(utcToLocalDateString(sampleSchedule.startDate))
           expect(model.form?.phases).toEqual([
-            { dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 },
-            { dosage: '0.5mg', durationDays: '', isIndefinite: true, order: 2 },
+            { doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 },
+            { doseMg: '0.5', durationDays: '', isIndefinite: true, order: 2 },
           ])
         })
       )
@@ -171,7 +173,7 @@ describe('schedule page update', () => {
         ...initialScheduleModel,
         form: {
           ...validForm,
-          phases: [{ dosage: '0.25mg', durationDays: '', isIndefinite: true, order: 1 }],
+          phases: [{ doseMg: '0.25', durationDays: '', isIndefinite: true, order: 1 }],
         },
       }
       Story.story(
@@ -181,8 +183,8 @@ describe('schedule page update', () => {
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
           expect(model.form?.phases).toEqual([
-            { dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 },
-            { dosage: '', durationDays: '28', isIndefinite: false, order: 2 },
+            { doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 },
+            { doseMg: '', durationDays: '28', isIndefinite: false, order: 2 },
           ])
         })
       )
@@ -194,8 +196,8 @@ describe('schedule page update', () => {
         form: {
           ...validForm,
           phases: [
-            { dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 },
-            { dosage: '0.5mg', durationDays: '28', isIndefinite: false, order: 2 },
+            { doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 },
+            { doseMg: '0.5', durationDays: '28', isIndefinite: false, order: 2 },
           ],
         },
       }
@@ -205,7 +207,7 @@ describe('schedule page update', () => {
         Story.message(RemovedSchedulePhase({ index: 0 })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
-          expect(model.form?.phases).toEqual([{ dosage: '0.5mg', durationDays: '28', isIndefinite: false, order: 1 }])
+          expect(model.form?.phases).toEqual([{ doseMg: '0.5', durationDays: '28', isIndefinite: false, order: 1 }])
         })
       )
     })
@@ -223,28 +225,28 @@ describe('schedule page update', () => {
       )
     })
 
-    it('changing a phase dosage or duration updates only that phase', () => {
+    it('changing a phase doseMg or duration updates only that phase', () => {
       const withTwoPhases: ScheduleModel = {
         ...initialScheduleModel,
         form: {
           ...validForm,
           phases: [
-            { dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 },
-            { dosage: '0.5mg', durationDays: '28', isIndefinite: false, order: 2 },
+            { doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 },
+            { doseMg: '0.5', durationDays: '28', isIndefinite: false, order: 2 },
           ],
         },
       }
       Story.story(
         update,
         Story.with(withTwoPhases),
-        Story.message(ChangedSchedulePhaseDosage({ index: 1, value: '1mg' })),
+        Story.message(ChangedSchedulePhaseDoseMg({ index: 1, value: '1' })),
         Command.expectNone(),
         Story.message(ChangedSchedulePhaseDuration({ index: 1, value: '56' })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
           expect(model.form?.phases).toEqual([
-            { dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 },
-            { dosage: '1mg', durationDays: '56', isIndefinite: false, order: 2 },
+            { doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 },
+            { doseMg: '1', durationDays: '56', isIndefinite: false, order: 2 },
           ])
         })
       )
@@ -258,24 +260,25 @@ describe('schedule page update', () => {
         Story.message(ToggledSchedulePhaseIndefinite({ checked: true, index: 0 })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
-          expect(model.form?.phases[0]).toEqual({ dosage: '0.25mg', durationDays: '', isIndefinite: true, order: 1 })
+          expect(model.form?.phases[0]).toEqual({ doseMg: '0.25', durationDays: '', isIndefinite: true, order: 1 })
         }),
         Story.message(ToggledSchedulePhaseIndefinite({ checked: false, index: 0 })),
         Story.model((model: ScheduleModel) => {
-          expect(model.form?.phases[0]).toEqual({ dosage: '0.25mg', durationDays: '28', isIndefinite: false, order: 1 })
+          expect(model.form?.phases[0]).toEqual({ doseMg: '0.25', durationDays: '28', isIndefinite: false, order: 1 })
         })
       )
     })
   })
 
   describe('form field changes', () => {
-    it('name, drug, notes, start date, and frequency changes update the form', () => {
+    it('name, drug, supplier, notes, start date, and frequency changes update the form', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
         Story.with(withForm),
         Story.message(ChangedScheduleName({ value: 'New Name' })),
         Story.message(ChangedScheduleDrug({ value: 'Tirzepatide' })),
+        Story.message(ChangedScheduleSupplier({ value: 'Clinic' })),
         Story.message(ChangedScheduleNotes({ value: 'be careful' })),
         Story.message(ChangedScheduleStartDate({ value: '2026-02-01' })),
         Story.message(ChangedScheduleFrequency({ value: 'monthly' })),
@@ -283,6 +286,7 @@ describe('schedule page update', () => {
         Story.model((model: ScheduleModel) => {
           expect(model.form?.name).toBe('New Name')
           expect(model.form?.drug).toBe('Tirzepatide')
+          expect(model.form?.supplier).toBe('Clinic')
           expect(model.form?.notes).toBe('be careful')
           expect(model.form?.startDate).toBe('2026-02-01')
           expect(model.form?.frequency).toBe('monthly')
@@ -325,7 +329,7 @@ describe('schedule page update', () => {
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
-          expect(model.form?.error).toBe('Medication is required')
+          expect(model.form?.error).toBe('Select a supported medication')
         })
       )
     })
@@ -356,10 +360,10 @@ describe('schedule page update', () => {
       )
     })
 
-    it('requires each phase dosage to include a recognized unit', () => {
+    it('rejects non-milligram and non-positive phase doses', () => {
       const withForm: ScheduleModel = {
         ...initialScheduleModel,
-        form: { ...validForm, phases: [{ dosage: '25', durationDays: '28', isIndefinite: false, order: 1 }] },
+        form: { ...validForm, phases: [{ doseMg: '0.5ml', durationDays: '28', isIndefinite: false, order: 1 }] },
       }
       Story.story(
         update,
@@ -367,7 +371,7 @@ describe('schedule page update', () => {
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
-          expect(model.form?.error).toBe('Phase 1: enter dosage with unit')
+          expect(model.form?.error).toBe('Phase 1: enter a positive dose in milligrams')
         })
       )
     })
@@ -375,7 +379,7 @@ describe('schedule page update', () => {
     it('requires a duration for phases that are not indefinite', () => {
       const withForm: ScheduleModel = {
         ...initialScheduleModel,
-        form: { ...validForm, phases: [{ dosage: '0.25mg', durationDays: '0', isIndefinite: false, order: 1 }] },
+        form: { ...validForm, phases: [{ doseMg: '0.25', durationDays: '0', isIndefinite: false, order: 1 }] },
       }
       Story.story(
         update,
@@ -394,8 +398,8 @@ describe('schedule page update', () => {
         form: {
           ...validForm,
           phases: [
-            { dosage: '0.25mg', durationDays: '', isIndefinite: true, order: 1 },
-            { dosage: '0.5mg', durationDays: '28', isIndefinite: false, order: 2 },
+            { doseMg: '0.25', durationDays: '', isIndefinite: true, order: 1 },
+            { doseMg: '0.5', durationDays: '28', isIndefinite: false, order: 2 },
           ],
         },
       }
@@ -431,6 +435,7 @@ describe('schedule page update', () => {
             notes: '',
             phases: validForm.phases,
             startDate: '2026-01-01',
+            supplier: 'Pharmacy',
           })
           return simulation
         },
@@ -577,42 +582,25 @@ describe('schedule page update', () => {
         Command.expectNone(),
         Story.message(FailedFetchNextDose({ message: 'Failed to load next dose' })),
         Command.expectNone(),
-        Story.message(FailedFetchScheduleDrugs({ message: 'Failed to load medication suggestions' })),
-        Command.expectNone(),
         Story.model((model: ScheduleModel) => {
           expect(model.schedules).toEqual(AsyncData.Failure({ error: 'Failed to load schedules' }))
           expect(model.nextDose).toEqual(AsyncData.Failure({ error: 'Failed to load next dose' }))
-          expect(model.drugs).toEqual(AsyncData.Failure({ error: 'Failed to load medication suggestions' }))
-        })
-      )
-    })
-
-    it('a successful drug fetch stores the suggestion list', () => {
-      Story.story(
-        update,
-        Story.with(initialScheduleModel),
-        Story.message(SucceededFetchScheduleDrugs({ drugs: ['Semaglutide', 'Tirzepatide'] })),
-        Command.expectNone(),
-        Story.model((model: ScheduleModel) => {
-          expect(AsyncData.getOrElse(model.drugs, () => [])).toEqual(['Semaglutide', 'Tirzepatide'])
         })
       )
     })
   })
 
   describe('fetchScheduleIfIdle', () => {
-    it('dispatches all three fetches when everything is idle', () => {
+    it('dispatches both fetches when everything is idle', () => {
       const [loading, commands] = fetchScheduleIfIdle(initialScheduleModel)
       expect(AsyncData.isLoading(loading.schedules)).toBe(true)
       expect(AsyncData.isLoading(loading.nextDose)).toBe(true)
-      expect(AsyncData.isLoading(loading.drugs)).toBe(true)
-      expect(commands.map((command) => command.name)).toEqual(['FetchSchedules', 'FetchNextDose', 'FetchScheduleDrugs'])
+      expect(commands.map((command) => command.name)).toEqual(['FetchSchedules', 'FetchNextDose'])
     })
 
     it('skips slices that are already loaded', () => {
       const alreadyLoaded: ScheduleModel = {
         ...initialScheduleModel,
-        drugs: AsyncData.succeed(['Semaglutide']),
         nextDose: AsyncData.succeed(Option.none()),
         schedules: AsyncData.succeed([sampleSchedule]),
       }

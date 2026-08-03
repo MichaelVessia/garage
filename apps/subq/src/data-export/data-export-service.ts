@@ -51,7 +51,7 @@ export const DataExportServiceLive = Layer.effect(
 
       // Fetch phases for this schedule
       const phaseRows = yield* sql`
-        SELECT id, schedule_id, "order", duration_days, dosage, created_at, updated_at
+        SELECT id, schedule_id, "order", duration_days, dose_mg, created_at, updated_at
         FROM schedule_phases WHERE schedule_id = ${r.id}
         ORDER BY "order" ASC
       `
@@ -74,7 +74,7 @@ export const DataExportServiceLive = Layer.effect(
 
         // Fetch all injection logs
         const injectionLogRows = yield* sql`
-          SELECT id, datetime, drug, source, dosage, injection_site, notes, schedule_id, created_at, updated_at
+          SELECT id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, created_at, updated_at
           FROM injection_logs WHERE user_id = ${userId}
           ORDER BY datetime DESC
         `
@@ -85,7 +85,7 @@ export const DataExportServiceLive = Layer.effect(
 
         // Fetch all schedules with phases
         const scheduleRows = yield* sql`
-          SELECT id, name, drug, source, frequency, start_date, is_active, notes, created_at, updated_at
+          SELECT id, name, drug, supplier, frequency, start_date, is_active, notes, created_at, updated_at
           FROM injection_schedules WHERE user_id = ${userId}
           ORDER BY start_date DESC
         `
@@ -114,7 +114,7 @@ export const DataExportServiceLive = Layer.effect(
 
         const exportedAt = yield* DateTime.now
         return new DataExport({
-          version: '2.0.0',
+          version: '3.0.0-alpha.1',
           exportedAt,
           data: {
             weightLogs,
@@ -134,16 +134,16 @@ export const DataExportServiceLive = Layer.effect(
       schedule: InjectionSchedule
     ) {
       yield* sql`
-        INSERT INTO injection_schedules (id, name, drug, source, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
-        VALUES (${schedule.id}, ${schedule.name}, ${schedule.drug}, ${schedule.source}, ${schedule.frequency}, ${DateTime.formatIso(schedule.startDate)}, ${schedule.isActive ? 1 : 0}, ${schedule.notes}, ${userId}, ${DateTime.formatIso(schedule.createdAt)}, ${DateTime.formatIso(schedule.updatedAt)})
+        INSERT INTO injection_schedules (id, name, drug, supplier, frequency, start_date, is_active, notes, user_id, created_at, updated_at)
+        VALUES (${schedule.id}, ${schedule.name}, ${schedule.drug}, ${schedule.supplier}, ${schedule.frequency}, ${DateTime.formatIso(schedule.startDate)}, ${schedule.isActive ? 1 : 0}, ${schedule.notes}, ${userId}, ${DateTime.formatIso(schedule.createdAt)}, ${DateTime.formatIso(schedule.updatedAt)})
       `
 
       yield* Effect.forEach(
         schedule.phases,
         (phase) =>
           sql`
-            INSERT INTO schedule_phases (id, schedule_id, "order", duration_days, dosage, created_at, updated_at)
-            VALUES (${phase.id}, ${phase.scheduleId}, ${phase.order}, ${phase.durationDays}, ${phase.dosage}, ${DateTime.formatIso(phase.createdAt)}, ${DateTime.formatIso(phase.updatedAt)})
+            INSERT INTO schedule_phases (id, schedule_id, "order", duration_days, dose_mg, created_at, updated_at)
+            VALUES (${phase.id}, ${phase.scheduleId}, ${phase.order}, ${phase.durationDays}, ${phase.doseMg}, ${DateTime.formatIso(phase.createdAt)}, ${DateTime.formatIso(phase.updatedAt)})
           `,
         { concurrency: 1 }
       )
@@ -184,8 +184,8 @@ export const DataExportServiceLive = Layer.effect(
         snapshot.data.injectionLogs,
         (log) =>
           sql`
-            INSERT INTO injection_logs (id, datetime, drug, source, dosage, injection_site, notes, schedule_id, user_id, created_at, updated_at)
-            VALUES (${log.id}, ${DateTime.formatIso(log.datetime)}, ${log.drug}, ${log.source}, ${log.dosage}, ${log.injectionSite}, ${log.notes}, ${log.scheduleId}, ${userId}, ${DateTime.formatIso(log.createdAt)}, ${DateTime.formatIso(log.updatedAt)})
+            INSERT INTO injection_logs (id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, user_id, created_at, updated_at)
+            VALUES (${log.id}, ${DateTime.formatIso(log.datetime)}, ${log.drug}, ${log.supplier}, ${log.doseMg}, ${log.injectionSite}, ${log.notes}, ${log.scheduleId}, ${userId}, ${DateTime.formatIso(log.createdAt)}, ${DateTime.formatIso(log.updatedAt)})
           `,
         { concurrency: 1 }
       )

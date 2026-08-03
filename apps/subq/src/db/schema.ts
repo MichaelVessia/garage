@@ -1,4 +1,5 @@
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { check, index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 // Better Auth tables
 export const user = sqliteTable('user', {
@@ -73,8 +74,10 @@ export const injectionSchedules = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    drug: text('drug').notNull(),
-    source: text('source'),
+    drug: text('drug', {
+      enum: ['Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide'],
+    }).notNull(),
+    supplier: text('supplier'),
     frequency: text('frequency', {
       enum: ['daily', 'every_3_days', 'weekly', 'every_2_weeks', 'monthly'],
     }).notNull(),
@@ -88,6 +91,10 @@ export const injectionSchedules = sqliteTable(
   (table) => [
     index('idx_injection_schedules_user_id').on(table.userId),
     index('idx_injection_schedules_is_active').on(table.isActive),
+    check(
+      'injection_schedules_drug_supported',
+      sql`${table.drug} IN ('Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide')`
+    ),
   ]
 )
 
@@ -97,9 +104,11 @@ export const injectionLogs = sqliteTable(
   {
     id: text('id').primaryKey(),
     datetime: text('datetime').notNull(),
-    drug: text('drug').notNull(),
-    source: text('source'),
-    dosage: text('dosage').notNull(),
+    drug: text('drug', {
+      enum: ['Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide'],
+    }).notNull(),
+    supplier: text('supplier'),
+    doseMg: real('dose_mg').notNull(),
     injectionSite: text('injection_site'),
     notes: text('notes'),
     scheduleId: text('schedule_id').references(() => injectionSchedules.id, {
@@ -114,6 +123,14 @@ export const injectionLogs = sqliteTable(
     index('idx_injection_logs_drug').on(table.drug),
     index('idx_injection_logs_user_id').on(table.userId),
     index('idx_injection_logs_schedule_id').on(table.scheduleId),
+    check(
+      'injection_logs_drug_supported',
+      sql`${table.drug} IN ('Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide')`
+    ),
+    check(
+      'injection_logs_dose_mg_positive_finite',
+      sql`${table.doseMg} > 0 AND ${table.doseMg} <= 1.7976931348623157e308`
+    ),
   ]
 )
 
@@ -127,11 +144,17 @@ export const schedulePhases = sqliteTable(
       .references(() => injectionSchedules.id, { onDelete: 'cascade' }),
     order: integer('order').notNull(),
     durationDays: integer('duration_days'),
-    dosage: text('dosage').notNull(),
+    doseMg: real('dose_mg').notNull(),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
-  (table) => [index('idx_schedule_phases_schedule_id').on(table.scheduleId)]
+  (table) => [
+    index('idx_schedule_phases_schedule_id').on(table.scheduleId),
+    check(
+      'schedule_phases_dose_mg_positive_finite',
+      sql`${table.doseMg} > 0 AND ${table.doseMg} <= 1.7976931348623157e308`
+    ),
+  ]
 )
 
 // User goals table

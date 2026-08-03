@@ -36,9 +36,9 @@ describe('ScheduleAssignment', () => {
   it.layer(TestLayer)((it) => {
     it.effect('assigns an owned injection schedule to owned injection logs', () =>
       Effect.gen(function* () {
-        yield* insertSchedule('sched-1', 'TRT', 'Testosterone', 'weekly', testDate('2024-01-01'), 'user-123')
-        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-        yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
+        yield* insertSchedule('sched-1', 'TRT', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-123')
+        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123')
+        yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Semaglutide', 100, 'user-123')
 
         const assignment = yield* ScheduleAssignment
         const count = yield* assignment.assign(
@@ -60,8 +60,8 @@ describe('ScheduleAssignment', () => {
   it.layer(TestLayer)((it) => {
     it.effect('unassigns owned injection logs from an injection schedule', () =>
       Effect.gen(function* () {
-        yield* insertSchedule('sched-1', 'TRT', 'Testosterone', 'weekly', testDate('2024-01-01'), 'user-123')
-        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123', {
+        yield* insertSchedule('sched-1', 'TRT', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-123')
+        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123', {
           scheduleId: 'sched-1',
         })
 
@@ -84,9 +84,9 @@ describe('ScheduleAssignment', () => {
   it.layer(TestLayer)((it) => {
     it.effect('ignores injection logs owned by another user', () =>
       Effect.gen(function* () {
-        yield* insertSchedule('sched-1', 'TRT', 'Testosterone', 'weekly', testDate('2024-01-01'), 'user-123')
-        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
-        yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Testosterone', '100mg', 'user-456')
+        yield* insertSchedule('sched-1', 'TRT', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-123')
+        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123')
+        yield* insertInjectionLog('inj-2', testDate('2024-01-22T10:00:00Z'), 'Semaglutide', 100, 'user-456')
 
         const assignment = yield* ScheduleAssignment
         const count = yield* assignment.assign(
@@ -108,8 +108,8 @@ describe('ScheduleAssignment', () => {
   it.layer(TestLayer)((it) => {
     it.effect('rejects assignment to an injection schedule not owned by the user', () =>
       Effect.gen(function* () {
-        yield* insertSchedule('sched-1', 'TRT', 'Testosterone', 'weekly', testDate('2024-01-01'), 'user-456')
-        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Testosterone', '100mg', 'user-123')
+        yield* insertSchedule('sched-1', 'TRT', 'Semaglutide', 'weekly', testDate('2024-01-01'), 'user-456')
+        yield* insertInjectionLog('inj-1', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 100, 'user-123')
 
         const assignment = yield* ScheduleAssignment
         const result = yield* assignment

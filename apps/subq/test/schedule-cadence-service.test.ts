@@ -38,21 +38,21 @@ describe('ScheduleCadenceService', () => {
       yield* insertUser(userId)
       yield* insertSchedule(
         'schedule-1',
-        'Testosterone schedule',
-        'Testosterone',
+        'Semaglutide schedule',
+        'Semaglutide',
         'weekly',
         testDate('2024-01-01T12:00:00Z'),
         userId
       )
-      yield* insertSchedulePhase('phase-1', 'schedule-1', 1, '200mg')
-      yield* insertInjectionLog('injection-1', testDate('2024-01-10T12:00:00Z'), 'Testosterone', '200mg', userId)
+      yield* insertSchedulePhase('phase-1', 'schedule-1', 1, 200)
+      yield* insertInjectionLog('injection-1', testDate('2024-01-10T12:00:00Z'), 'Semaglutide', 200, userId)
 
       const service = yield* ScheduleCadenceService
       const dose = Option.getOrThrow(yield* service.getNextScheduledDose(userId))
 
       assert.strictEqual(DateTime.formatIso(dose.suggestedDate), '2024-01-17T12:00:00.000Z')
       assert.strictEqual(dose.daysUntilDue, 2)
-      assert.strictEqual(dose.dosage, '200mg')
+      assert.strictEqual(dose.doseMg, 200)
     }).pipe(Effect.provide(TestLayer))
   )
 
@@ -71,21 +71,16 @@ describe('ScheduleCadenceService', () => {
         testDate('2024-01-01T00:00:00Z'),
         userId
       )
-      yield* insertSchedulePhase('phase-1', scheduleId, 1, '2.5mg', 28)
-      yield* insertSchedulePhase('phase-2', scheduleId, 2, '5mg')
-      yield* insertInjectionLog(
-        'assigned-injection',
-        testDate('2024-01-08T00:00:00Z'),
-        'Semaglutide',
-        '2.5mg',
-        userId,
-        { scheduleId }
-      )
+      yield* insertSchedulePhase('phase-1', scheduleId, 1, 2.5, 28)
+      yield* insertSchedulePhase('phase-2', scheduleId, 2, 5)
+      yield* insertInjectionLog('assigned-injection', testDate('2024-01-08T00:00:00Z'), 'Semaglutide', 2.5, userId, {
+        scheduleId,
+      })
       yield* insertInjectionLog(
         'same-drug-unassigned-injection',
         testDate('2024-01-15T00:00:00Z'),
         'Semaglutide',
-        '2.5mg',
+        2.5,
         userId
       )
 

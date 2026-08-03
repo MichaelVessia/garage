@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 
-import { DbOperation, Dosage, DrugName, DrugSource, Limit, Notes, Offset } from '../common/domain.js'
+import { DbOperation, DoseMg, Limit, MedicationCompound, Notes, Offset, Supplier } from '../common/domain.js'
 import { InjectionScheduleId } from '../schedule/domain.js'
 
 // ============================================
@@ -64,14 +64,14 @@ export type InjectionLogError = typeof InjectionLogError.Type
 
 /**
  * An injection log entry represents a single injection event.
- * Used for tracking medication injections (TRT, peptides, etc.)
+ * Used for tracking supported GLP medication injections.
  */
 export class InjectionLog extends Schema.Class<InjectionLog>('InjectionLog')({
   id: InjectionLogId,
   datetime: Schema.DateTimeUtc,
-  drug: DrugName,
-  source: Schema.NullOr(DrugSource),
-  dosage: Dosage,
+  drug: MedicationCompound,
+  supplier: Schema.NullOr(Supplier),
+  doseMg: DoseMg,
   injectionSite: Schema.NullOr(InjectionSite),
   notes: Schema.NullOr(Notes),
   scheduleId: Schema.NullOr(InjectionScheduleId),
@@ -88,9 +88,9 @@ export class InjectionLog extends Schema.Class<InjectionLog>('InjectionLog')({
  */
 export class InjectionLogCreate extends Schema.Class<InjectionLogCreate>('InjectionLogCreate')({
   datetime: Schema.DateTimeUtc,
-  drug: DrugName,
-  source: Schema.OptionFromOptional(DrugSource),
-  dosage: Dosage,
+  drug: MedicationCompound,
+  supplier: Schema.OptionFromOptional(Supplier),
+  doseMg: DoseMg,
   injectionSite: Schema.OptionFromOptional(InjectionSite),
   notes: Schema.OptionFromOptional(Notes),
   scheduleId: Schema.OptionFromOptional(InjectionScheduleId),
@@ -102,9 +102,9 @@ export class InjectionLogCreate extends Schema.Class<InjectionLogCreate>('Inject
 export class InjectionLogUpdate extends Schema.Class<InjectionLogUpdate>('InjectionLogUpdate')({
   id: InjectionLogId,
   datetime: Schema.optional(Schema.DateTimeUtc),
-  drug: Schema.optional(DrugName),
-  source: Schema.OptionFromOptionalNullOr(DrugSource),
-  dosage: Schema.optional(Dosage),
+  drug: Schema.optional(MedicationCompound),
+  supplier: Supplier.pipe(Schema.NullOr, Schema.optional),
+  doseMg: Schema.optional(DoseMg),
   injectionSite: Schema.OptionFromOptionalNullOr(InjectionSite),
   notes: Schema.OptionFromOptionalNullOr(Notes),
   scheduleId: Schema.OptionFromOptionalNullOr(InjectionScheduleId),
@@ -125,7 +125,7 @@ export class InjectionLogListParams extends Schema.Class<InjectionLogListParams>
   offset: Offset.pipe(Schema.withDecodingDefaultType(Effect.succeed(Offset.make(0)))),
   startDate: Schema.optional(Schema.DateTimeUtc),
   endDate: Schema.optional(Schema.DateTimeUtc),
-  drug: Schema.optional(DrugName),
+  drug: Schema.optional(MedicationCompound),
 }) {}
 
 /**

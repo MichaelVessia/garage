@@ -1,6 +1,6 @@
 import * as Schema from 'effect/Schema'
 
-import { Count, DayOfWeek, DaysBetween, DbOperation, Dosage, DosageValue, DrugName } from '../common/domain.js'
+import { Count, DayOfWeek, DaysBetween, DbOperation, DoseMg, MedicationCompound } from '../common/domain.js'
 import { InjectionSite, InjectionsPerWeek } from '../injection/domain.js'
 import { Weight, WeightRateOfChange } from '../weight/domain.js'
 
@@ -76,19 +76,17 @@ export class InjectionSiteStats extends Schema.Class<InjectionSiteStats>('Inject
 }) {}
 
 // ============================================
-// Dosage History (for line/step chart)
+// Dose History (for line/step chart)
 // ============================================
 
-export class DosageHistoryPoint extends Schema.Class<DosageHistoryPoint>('DosageHistoryPoint')({
+export class DoseHistoryPoint extends Schema.Class<DoseHistoryPoint>('DoseHistoryPoint')({
   date: Schema.Date,
-  drug: DrugName,
-  dosage: Dosage,
-  /** Numeric value extracted from dosage string (e.g. 5 from "5mg") */
-  dosageValue: DosageValue,
+  drug: MedicationCompound,
+  doseMg: DoseMg,
 }) {}
 
-export class DosageHistoryStats extends Schema.Class<DosageHistoryStats>('DosageHistoryStats')({
-  points: Schema.Array(DosageHistoryPoint),
+export class DoseHistoryStats extends Schema.Class<DoseHistoryStats>('DoseHistoryStats')({
+  points: Schema.Array(DoseHistoryPoint),
 }) {}
 
 // ============================================
@@ -111,7 +109,7 @@ export class InjectionFrequencyStats extends Schema.Class<InjectionFrequencyStat
 // ============================================
 
 export class DrugCount extends Schema.Class<DrugCount>('DrugCount')({
-  drug: DrugName,
+  drug: MedicationCompound,
   count: Count,
 }) {}
 

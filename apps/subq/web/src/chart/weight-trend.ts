@@ -32,7 +32,7 @@ export interface WeightPoint {
 export interface InjectionPoint {
   readonly date: Date
   readonly drug: string
-  readonly dosage: string
+  readonly doseMg: number
 }
 
 export interface SchedulePeriod {
@@ -46,26 +46,27 @@ export interface SchedulePeriod {
 // Colors (ported from chart-colors.ts)
 // ============================================
 
-const DOSAGE_COLORS: Record<string, string> = {
-  '2.5mg': '#64748b',
-  '5mg': '#0891b2',
-  '7.5mg': '#0d9488',
-  '10mg': '#059669',
-  '12.5mg': '#7c3aed',
-  '15mg': '#be185d',
+const DOSE_COLORS: Record<string, string> = {
+  '2.5': '#64748b',
+  '5': '#0891b2',
+  '7.5': '#0d9488',
+  '10': '#059669',
+  '12.5': '#7c3aed',
+  '15': '#be185d',
 }
 
 const FALLBACK_COLORS = ['#0891b2', '#059669', '#7c3aed', '#be185d', '#f59e0b', '#10b981', '#6366f1', '#ec4899']
 
-export const getDosageColor = (keyOrDosage: string): string => {
-  const parts = keyOrDosage.split('::')
-  const dosage = parts.length === 2 ? (parts[1] ?? keyOrDosage) : keyOrDosage
-  const mapped = DOSAGE_COLORS[dosage]
+export const getDoseColor = (keyOrDose: string | number): string => {
+  const key = String(keyOrDose)
+  const parts = key.split('::')
+  const doseMg = parts.length === 2 ? (parts[1] ?? key) : key
+  const mapped = DOSE_COLORS[doseMg]
   if (mapped !== undefined) {
     return mapped
   }
   const hash = Arr.reduce(
-    Array.from(keyOrDosage, (char) => char.codePointAt(0) ?? 0),
+    Array.from(key, (char) => char.codePointAt(0) ?? 0),
     0,
     (sum, code) => sum + code
   )
@@ -86,14 +87,14 @@ const ChartTooltip = Schema.Struct({
 })
 type ChartTooltip = typeof ChartTooltip.Type
 
-const DrugDosageFilter = Schema.Struct({ drug: Schema.String, dosage: Schema.String })
-type DrugDosageFilter = typeof DrugDosageFilter.Type
+const DrugDoseFilter = Schema.Struct({ drug: Schema.String, doseMg: Schema.Number })
+type DrugDoseFilter = typeof DrugDoseFilter.Type
 
 const ZoomDrag = Schema.Struct({ startMs: Schema.Number, hoverMs: Schema.Number })
 
 export const ChartState = Schema.Struct({
   tooltip: Schema.NullOr(ChartTooltip),
-  filter: Schema.NullOr(DrugDosageFilter),
+  filter: Schema.NullOr(DrugDoseFilter),
   zoomDrag: Schema.NullOr(ZoomDrag),
 })
 export type ChartState = typeof ChartState.Type
@@ -111,7 +112,7 @@ export const HoveredChartTooltip = m('HoveredChartTooltip', {
   lines: Schema.Array(Schema.String),
 })
 export const ClearedChartTooltip = m('ClearedChartTooltip')
-export const ClickedChartPill = m('ClickedChartPill', { drug: Schema.String, dosage: Schema.String })
+export const ClickedChartPill = m('ClickedChartPill', { drug: Schema.String, doseMg: Schema.Number })
 export const ClearedChartFilter = m('ClearedChartFilter')
 export const StartedChartZoom = m('StartedChartZoom', { ms: Schema.Number })
 export const HoveredChartZoom = m('HoveredChartZoom', { ms: Schema.Number })
@@ -141,10 +142,10 @@ export const updateChart = (
       CancelledChartZoom: () => [evo(state, { zoomDrag: () => null }), Option.none()],
       ClearedChartFilter: () => [evo(state, { filter: () => null }), Option.none()],
       ClearedChartTooltip: () => [evo(state, { tooltip: () => null }), Option.none()],
-      ClickedChartPill: ({ dosage, drug }) => [
+      ClickedChartPill: ({ doseMg, drug }) => [
         evo(state, {
           filter: (filter) =>
-            filter !== null && filter.drug === drug && filter.dosage === dosage ? null : { dosage, drug },
+            filter !== null && filter.drug === drug && filter.doseMg === doseMg ? null : { doseMg, drug },
           tooltip: () => null,
         }),
         Option.none(),
@@ -186,19 +187,19 @@ const CHART_HEIGHT = 320
 interface WeightPointColored extends WeightPoint {
   readonly color: string
   readonly drug: Option.Option<string>
-  readonly dosage: Option.Option<string>
+  readonly doseMg: Option.Option<number>
 }
 
 interface Segment {
   readonly points: ReadonlyArray<WeightPointColored>
   readonly color: string
   readonly drug: Option.Option<string>
-  readonly dosage: Option.Option<string>
+  readonly doseMg: Option.Option<number>
 }
 
 interface Pill {
   readonly drug: string
-  readonly dosage: string
+  readonly doseMg: number
   readonly color: string
   readonly date: Date
   readonly weight: number
@@ -214,12 +215,12 @@ interface SegmentBuild {
   readonly current: ReadonlyArray<WeightPointColored>
   readonly color: string
   readonly drug: Option.Option<string>
-  readonly dosage: Option.Option<string>
+  readonly doseMg: Option.Option<number>
 }
 
 const flushSegment = (build: SegmentBuild): ReadonlyArray<Segment> =>
   Arr.isReadonlyArrayNonEmpty(build.current)
-    ? [...build.segments, { color: build.color, dosage: build.dosage, drug: build.drug, points: build.current }]
+    ? [...build.segments, { color: build.color, doseMg: build.doseMg, drug: build.drug, points: build.current }]
     : build.segments
 
 const computeSegments = (
@@ -234,19 +235,19 @@ const computeSegments = (
       ...point,
       color: Option.match(recent, {
         onNone: () => '#94a3b8',
-        onSome: (inj) => getDosageColor(`${inj.drug}::${inj.dosage}`),
+        onSome: (inj) => getDoseColor(`${inj.drug}::${inj.doseMg}`),
       }),
-      dosage: Option.map(recent, (inj) => inj.dosage),
+      doseMg: Option.map(recent, (inj) => inj.doseMg),
       drug: Option.map(recent, (inj) => inj.drug),
     }
   })
-  const initial: SegmentBuild = { color: '', current: [], dosage: Option.none(), drug: Option.none(), segments: [] }
+  const initial: SegmentBuild = { color: '', current: [], doseMg: Option.none(), drug: Option.none(), segments: [] }
   const built = Arr.reduce(colored, initial, (build, point) => {
     if (point.color === build.color) {
       return { ...build, current: [...build.current, point] }
     }
     const seed = Arr.isReadonlyArrayNonEmpty(build.current) ? [Arr.lastNonEmpty(build.current), point] : [point]
-    return { color: point.color, current: seed, dosage: point.dosage, drug: point.drug, segments: flushSegment(build) }
+    return { color: point.color, current: seed, doseMg: point.doseMg, drug: point.drug, segments: flushSegment(build) }
   })
   return flushSegment(built)
 }
@@ -286,9 +287,9 @@ const computePills = (
           onNone: () => [],
           onSome: ([prior, first]) => [
             {
-              color: getDosageColor(prior.dosage),
+              color: getDoseColor(prior.doseMg),
               date: range.start,
-              dosage: prior.dosage,
+              doseMg: prior.doseMg,
               drug: prior.drug,
               row: 0,
               weight: first.weight,
@@ -298,15 +299,15 @@ const computePills = (
         })
       ),
   })
-  const initialDosage = Arr.head(priorPills).pipe(
-    Option.map((pill) => pill.dosage),
-    Option.getOrElse(() => '')
+  const initialDose = Arr.head(priorPills).pipe(
+    Option.map((pill) => pill.doseMg),
+    Option.getOrNull
   )
   const [domainStart, domainEnd] = xScale.domain()
-  const built = Arr.reduce(visible, { pills: priorPills, prevDosage: initialDosage }, (acc, inj) => {
+  const built = Arr.reduce(visible, { pills: priorPills, prevDose: initialDose }, (acc, inj) => {
     const outOfDomain =
       domainStart !== undefined && domainEnd !== undefined && (inj.date < domainStart || inj.date > domainEnd)
-    if (outOfDomain || inj.dosage === acc.prevDosage) {
+    if (outOfDomain || inj.doseMg === acc.prevDose) {
       return acc
     }
     const pills = Option.match(closestWeight(inj.date), {
@@ -314,9 +315,9 @@ const computePills = (
       onSome: (near) => [
         ...acc.pills,
         {
-          color: getDosageColor(inj.dosage),
+          color: getDoseColor(inj.doseMg),
           date: inj.date,
-          dosage: inj.dosage,
+          doseMg: inj.doseMg,
           drug: inj.drug,
           row: 0,
           weight: near.weight,
@@ -324,7 +325,7 @@ const computePills = (
         },
       ],
     })
-    return { pills, prevDosage: inj.dosage }
+    return { pills, prevDose: inj.doseMg }
   })
   const placementInitial: { readonly maxRow: number; readonly placed: ReadonlyArray<Pill> } = { maxRow: 0, placed: [] }
   const placement = Arr.reduce(built.pills, placementInitial, (acc, pill) => {
@@ -397,9 +398,9 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
     .curve(d3.curveMonotoneX)
 
   const { filter } = state
-  const isSelected = (drug: Option.Option<string>, dosage: Option.Option<string>): boolean =>
+  const isSelected = (drug: Option.Option<string>, doseMg: Option.Option<number>): boolean =>
     filter === null ||
-    (Option.exists(drug, (value) => value === filter.drug) && Option.exists(dosage, (value) => value === filter.dosage))
+    (Option.exists(drug, (value) => value === filter.drug) && Option.exists(doseMg, (value) => value === filter.doseMg))
 
   const attr = h.Attribute
 
@@ -566,7 +567,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
     if (d === null) {
       return []
     }
-    const selected = isSelected(segment.drug, segment.dosage)
+    const selected = isSelected(segment.drug, segment.doseMg)
     return [
       h.path(
         [
@@ -641,7 +642,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
   const dots = segments
     .flatMap((segment) => segment.points)
     .map((point) => {
-      const selected = isSelected(point.drug, point.dosage)
+      const selected = isSelected(point.drug, point.doseMg)
       const cx = xScale(point.date)
       const cy = yScale(point.weight)
       const noteLines = point.notes.pipe(
@@ -673,10 +674,10 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
       )
     })
 
-  // Dosage pills
+  // Dose pills
   const rowOffset = (row: number): number => row * (PILL.HEIGHT + PILL.VERTICAL_GAP)
   const pillElements = pills.flatMap((pill) => {
-    const selected = filter === null || (pill.drug === filter.drug && pill.dosage === filter.dosage)
+    const selected = filter === null || (pill.drug === filter.drug && pill.doseMg === filter.doseMg)
     const px = Math.max(PILL.WIDTH / 2, pill.x)
     const py = 12 + rowOffset(pill.row)
     return [
@@ -698,12 +699,12 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
         [
           h.Transform(`translate(${px},${py})`),
           h.Cursor('pointer'),
-          h.AriaLabel(`${pill.drug} ${pill.dosage} on ${formatDate(pill.date)}`),
-          h.OnClick(ClickedChartPill({ dosage: pill.dosage, drug: pill.drug })),
+          h.AriaLabel(`${pill.drug} ${pill.doseMg} mg on ${formatDate(pill.date)}`),
+          h.OnClick(ClickedChartPill({ doseMg: pill.doseMg, drug: pill.drug })),
           h.OnMouseEnter(
             HoveredChartTooltip({
               lines: [formatDate(pill.date), ...(filter === null ? ['Click to filter'] : [])],
-              title: `${pill.drug} ${pill.dosage}`,
+              title: `${pill.drug} ${pill.doseMg} mg`,
               x: margin.left + px,
               y: margin.top + py,
             })
@@ -726,7 +727,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
           ),
           h.text(
             [h.TextAnchor('middle'), h.Dy('0.3em'), h.Fill('#fff'), h.FontSize('10px'), h.FontWeight('600')],
-            [pill.dosage]
+            [`${pill.doseMg} mg`]
           ),
         ]
       ),
@@ -793,7 +794,7 @@ export const viewWeightTrend = (props: WeightTrendProps) => {
               ),
               h.OnClick(ClearedChartFilter()),
             ],
-            [`Clear filter: ${filter.drug} ${filter.dosage}`]
+            [`Clear filter: ${filter.drug} ${filter.doseMg} mg`]
           ),
       Option.isNone(zoomRange) && filter === null
         ? h.div([h.Class('absolute bottom-2 right-2 text-xs text-muted-foreground opacity-60')], ['Drag to zoom'])

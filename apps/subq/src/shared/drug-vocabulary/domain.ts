@@ -1,60 +1,51 @@
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 
+import { DoseMg } from '../common/domain.js'
+import type { MedicationCompound } from '../common/domain.js'
 import { SITE_ROTATION } from '../injection/site-rotation.js'
-export interface DrugVocabularyEntry {
-  readonly name: string
-  readonly suggestedDosages: readonly string[]
+
+/** Suggested dose values for one supported medication compound. */
+export interface MedicationVocabularyEntry {
+  readonly compound: MedicationCompound
+  readonly suggestedDoseMg: ReadonlyArray<DoseMg>
 }
-const DrugVocabularyEntries: readonly DrugVocabularyEntry[] = [
-  { name: 'Semaglutide (Ozempic)', suggestedDosages: ['0.25mg', '0.5mg', '1mg', '2mg'] },
+
+const MedicationVocabularyEntries: ReadonlyArray<MedicationVocabularyEntry> = [
   {
-    name: 'Semaglutide (Wegovy)',
-    suggestedDosages: ['0.25mg', '0.5mg', '1mg', '1.7mg', '2.4mg'],
+    compound: 'Semaglutide',
+    suggestedDoseMg: [0.25, 0.5, 1, 1.7, 2, 2.4].map((dose) => DoseMg.make(dose)),
   },
   {
-    name: 'Semaglutide (Compounded)',
-    suggestedDosages: ['0.25mg', '0.5mg', '1mg', '1.7mg', '2mg', '2.4mg'],
+    compound: 'Tirzepatide',
+    suggestedDoseMg: [2.5, 5, 7.5, 10, 12.5, 15].map((dose) => DoseMg.make(dose)),
   },
   {
-    name: 'Tirzepatide (Mounjaro)',
-    suggestedDosages: ['2.5mg', '5mg', '7.5mg', '10mg', '12.5mg', '15mg'],
+    compound: 'Retatrutide',
+    suggestedDoseMg: [1, 2, 4, 8, 12].map((dose) => DoseMg.make(dose)),
   },
   {
-    name: 'Tirzepatide (Zepbound)',
-    suggestedDosages: ['2.5mg', '5mg', '7.5mg', '10mg', '12.5mg', '15mg'],
+    compound: 'Liraglutide',
+    suggestedDoseMg: [0.6, 1.2, 1.8, 2.4, 3].map((dose) => DoseMg.make(dose)),
   },
   {
-    name: 'Tirzepatide (Compounded)',
-    suggestedDosages: ['2.5mg', '5mg', '7.5mg', '10mg', '12.5mg', '15mg'],
+    compound: 'Dulaglutide',
+    suggestedDoseMg: [0.75, 1.5, 3, 4.5].map((dose) => DoseMg.make(dose)),
   },
-  {
-    name: 'Retatrutide (Compounded)',
-    suggestedDosages: ['1mg', '2mg', '4mg', '8mg', '12mg'],
-  },
-  {
-    name: 'Liraglutide (Saxenda)',
-    suggestedDosages: ['0.6mg', '1.2mg', '1.8mg', '2.4mg', '3mg'],
-  },
-  { name: 'Dulaglutide (Trulicity)', suggestedDosages: ['0.75mg', '1.5mg', '3mg', '4.5mg'] },
 ]
-const normalizeDrugName = (drug: string): string => drug.trim().toLowerCase()
-const findDrugVocabularyEntry = (drug: string): Option.Option<DrugVocabularyEntry> => {
-  const normalizedDrug = normalizeDrugName(drug)
-  if (normalizedDrug === '') {
-    return Option.none()
-  }
-  return Arr.findFirst(DrugVocabularyEntries, (entry) => {
-    const normalizedEntryName = normalizeDrugName(entry.name)
-    return normalizedDrug === normalizedEntryName || normalizedDrug.includes(normalizedEntryName)
-  })
-}
-export const listKnownDrugVariants = (): string[] => DrugVocabularyEntries.map((entry) => entry.name)
-export const suggestedDosagesForDrug = (drug: string): string[] => {
-  const entry = findDrugVocabularyEntry(drug)
+
+/** List every compound accepted by the live medication model. */
+export const listMedicationCompounds = (): ReadonlyArray<MedicationCompound> =>
+  MedicationVocabularyEntries.map((entry) => entry.compound)
+
+/** Return the numeric milligram suggestions for a supported compound. */
+export const suggestedDoseMgForCompound = (compound: MedicationCompound): ReadonlyArray<DoseMg> => {
+  const entry = Arr.findFirst(MedicationVocabularyEntries, (candidate) => candidate.compound === compound)
   return Option.match(entry, {
     onNone: () => [],
-    onSome: (found) => found.suggestedDosages.map((dosage) => dosage),
+    onSome: (found) => found.suggestedDoseMg,
   })
 }
-export const listDefaultInjectionSites = (): string[] => SITE_ROTATION.map((site) => site)
+
+/** List the default injection-site rotation values. */
+export const listDefaultInjectionSites = (): ReadonlyArray<string> => SITE_ROTATION.map((site) => site)

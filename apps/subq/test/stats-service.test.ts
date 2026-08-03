@@ -95,16 +95,16 @@ describe('StatsService', () => {
     it.layer(TestLayer)((it) => {
       it.effect('groups injection sites correctly', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Test', '200mg', 'user-123', {
+          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Semaglutide', 200, 'user-123', {
             injectionSite: 'left VG',
           })
-          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'Test', '200mg', 'user-123', {
+          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'Semaglutide', 200, 'user-123', {
             injectionSite: 'right VG',
           })
-          yield* insertInjectionLog('i3', testDate('2024-01-03T10:00:00Z'), 'Test', '200mg', 'user-123', {
+          yield* insertInjectionLog('i3', testDate('2024-01-03T10:00:00Z'), 'Semaglutide', 200, 'user-123', {
             injectionSite: 'left VG',
           })
-          yield* insertInjectionLog('i4', testDate('2024-01-04T10:00:00Z'), 'Test', '200mg', 'user-123')
+          yield* insertInjectionLog('i4', testDate('2024-01-04T10:00:00Z'), 'Semaglutide', 200, 'user-123')
 
           const stats = yield* StatsService
           const result = yield* stats.getInjectionSiteStats({}, 'user-123')
@@ -118,21 +118,21 @@ describe('StatsService', () => {
     })
   })
 
-  describe('getDosageHistory', () => {
+  describe('getDoseHistory', () => {
     it.layer(TestLayer)((it) => {
-      it.effect('extracts dosage values from strings', () =>
+      it.effect('returns persisted numeric milligram doses directly', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'BPC', '250mcg', 'user-123')
-          yield* insertInjectionLog('i3', testDate('2024-01-03T10:00:00Z'), 'Test', '0.5ml', 'user-123')
+          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'Tirzepatide', 0.25, 'user-123')
+          yield* insertInjectionLog('i3', testDate('2024-01-03T10:00:00Z'), 'Semaglutide', 0.5, 'user-123')
 
           const stats = yield* StatsService
-          const result = yield* stats.getDosageHistory({}, 'user-123')
+          const result = yield* stats.getDoseHistory({}, 'user-123')
 
           assert.strictEqual(result.points.length, 3)
-          assert.strictEqual(requireValue(result.points[0]).dosageValue, 200)
-          assert.strictEqual(requireValue(result.points[1]).dosageValue, 250)
-          assert.strictEqual(requireValue(result.points[2]).dosageValue, 0.5)
+          assert.strictEqual(requireValue(result.points[0]).doseMg, 200)
+          assert.strictEqual(requireValue(result.points[1]).doseMg, 0.25)
+          assert.strictEqual(requireValue(result.points[2]).doseMg, 0.5)
         })
       )
     })
@@ -152,11 +152,11 @@ describe('StatsService', () => {
     it.layer(TestLayer)((it) => {
       it.effect('calculates frequency stats correctly', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i2', testDate('2024-01-04T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i3', testDate('2024-01-08T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i4', testDate('2024-01-11T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i5', testDate('2024-01-15T10:00:00Z'), 'Test', '200mg', 'user-123')
+          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i2', testDate('2024-01-04T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i3', testDate('2024-01-08T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i4', testDate('2024-01-11T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i5', testDate('2024-01-15T10:00:00Z'), 'Semaglutide', 200, 'user-123')
 
           const stats = yield* StatsService
           const result = yield* stats.getInjectionFrequency({}, 'user-123')
@@ -174,19 +174,19 @@ describe('StatsService', () => {
     it.layer(TestLayer)((it) => {
       it.effect('groups drugs correctly', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Testosterone', '200mg', 'user-123')
-          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'BPC-157', '250mcg', 'user-123')
-          yield* insertInjectionLog('i3', testDate('2024-01-03T10:00:00Z'), 'Testosterone', '200mg', 'user-123')
-          yield* insertInjectionLog('i4', testDate('2024-01-04T10:00:00Z'), 'Testosterone', '200mg', 'user-123')
+          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'Tirzepatide', 0.25, 'user-123')
+          yield* insertInjectionLog('i3', testDate('2024-01-03T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i4', testDate('2024-01-04T10:00:00Z'), 'Semaglutide', 200, 'user-123')
 
           const stats = yield* StatsService
           const result = yield* stats.getDrugBreakdown({}, 'user-123')
 
           assert.strictEqual(result.totalInjections, 4)
           assert.strictEqual(result.drugs.length, 2)
-          assert.strictEqual(requireValue(result.drugs[0]).drug, 'Testosterone')
+          assert.strictEqual(requireValue(result.drugs[0]).drug, 'Semaglutide')
           assert.strictEqual(requireValue(result.drugs[0]).count, 3)
-          assert.strictEqual(requireValue(result.drugs[1]).drug, 'BPC-157')
+          assert.strictEqual(requireValue(result.drugs[1]).drug, 'Tirzepatide')
           assert.strictEqual(requireValue(result.drugs[1]).count, 1)
         })
       )
@@ -198,9 +198,9 @@ describe('StatsService', () => {
       it.effect('groups by day of week correctly in UTC', () =>
         Effect.gen(function* () {
           // Monday Jan 1 2024, Tuesday Jan 2, Monday Jan 8
-          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i3', testDate('2024-01-08T10:00:00Z'), 'Test', '200mg', 'user-123')
+          yield* insertInjectionLog('i1', testDate('2024-01-01T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i2', testDate('2024-01-02T10:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i3', testDate('2024-01-08T10:00:00Z'), 'Semaglutide', 200, 'user-123')
 
           const stats = yield* StatsService
           const result = yield* stats.getInjectionByDayOfWeek({}, 'user-123')
@@ -219,8 +219,8 @@ describe('StatsService', () => {
         Effect.gen(function* () {
           // Wed Dec 4 2024 at 10:00 PM Eastern = Thu Dec 5 at 03:00 AM UTC
           // Wed Dec 11 2024 at 9:00 PM Eastern = Thu Dec 12 at 02:00 AM UTC
-          yield* insertInjectionLog('i1', testDate('2024-12-05T03:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i2', testDate('2024-12-12T02:00:00Z'), 'Test', '200mg', 'user-123')
+          yield* insertInjectionLog('i1', testDate('2024-12-05T03:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i2', testDate('2024-12-12T02:00:00Z'), 'Semaglutide', 200, 'user-123')
 
           const stats = yield* StatsService
 
@@ -278,7 +278,7 @@ describe('StatsService', () => {
     it.layer(TestLayer)((it) => {
       it.effect('returns row decode failures in the StatsDatabaseError channel', () =>
         Effect.gen(function* () {
-          yield* insertInjectionLog('invalid-date', testDate('2024-01-01T10:00:00Z'), 'Test', '200mg', 'user-123')
+          yield* insertInjectionLog('invalid-date', testDate('2024-01-01T10:00:00Z'), 'Semaglutide', 200, 'user-123')
           const sql = yield* SqlClient.SqlClient
           yield* sql`UPDATE injection_logs SET datetime = 'not-a-date' WHERE id = 'invalid-date'`
 
@@ -300,9 +300,9 @@ describe('StatsService', () => {
       it.effect('respects timezone for most frequent day of week', () =>
         Effect.gen(function* () {
           // 3 Wednesday evenings Eastern (Thursday UTC)
-          yield* insertInjectionLog('i1', testDate('2024-12-05T03:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i2', testDate('2024-12-12T02:00:00Z'), 'Test', '200mg', 'user-123')
-          yield* insertInjectionLog('i3', testDate('2024-12-19T03:30:00Z'), 'Test', '200mg', 'user-123')
+          yield* insertInjectionLog('i1', testDate('2024-12-05T03:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i2', testDate('2024-12-12T02:00:00Z'), 'Semaglutide', 200, 'user-123')
+          yield* insertInjectionLog('i3', testDate('2024-12-19T03:30:00Z'), 'Semaglutide', 200, 'user-123')
 
           const stats = yield* StatsService
 

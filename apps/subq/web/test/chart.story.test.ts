@@ -19,14 +19,14 @@ const DAY = 24 * 60 * 60 * 1000
 
 describe('weight trend chart state', () => {
   it('pill click sets the filter and clicking the same pill clears it', () => {
-    const [filtered] = updateChart(initialChartState, ClickedChartPill({ dosage: '5mg', drug: 'Sema' }))
-    expect(filtered.filter).toEqual({ dosage: '5mg', drug: 'Sema' })
+    const [filtered] = updateChart(initialChartState, ClickedChartPill({ doseMg: 5, drug: 'Sema' }))
+    expect(filtered.filter).toEqual({ doseMg: 5, drug: 'Sema' })
 
-    const [cleared] = updateChart(filtered, ClickedChartPill({ dosage: '5mg', drug: 'Sema' }))
+    const [cleared] = updateChart(filtered, ClickedChartPill({ doseMg: 5, drug: 'Sema' }))
     expect(cleared.filter).toBeNull()
 
-    const [switched] = updateChart(filtered, ClickedChartPill({ dosage: '10mg', drug: 'Sema' }))
-    expect(switched.filter).toEqual({ dosage: '10mg', drug: 'Sema' })
+    const [switched] = updateChart(filtered, ClickedChartPill({ doseMg: 10, drug: 'Sema' }))
+    expect(switched.filter).toEqual({ doseMg: 10, drug: 'Sema' })
 
     const [explicitClear] = updateChart(filtered, ClearedChartFilter())
     expect(explicitClear.filter).toBeNull()

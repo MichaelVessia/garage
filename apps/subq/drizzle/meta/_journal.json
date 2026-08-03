@@ -71,6 +71,13 @@
       "when": 1783180800000,
       "tag": "0012_user_settings_weight_unit_only",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785721468350,
+      "tag": "0013_canonical_medications",
+      "breakpoints": true
     }
   ]
 }

@@ -42,7 +42,7 @@ const sampleExport = new DataExport({
     weightLogs: [],
   },
   exportedAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
-  version: '2.0.0',
+  version: '3.0.0-alpha.1',
 })
 
 const sampleImportResult = new DataImportResult({
@@ -297,11 +297,11 @@ describe('settings page update', () => {
         [{ name: 'SelectImportFile' }, SelectedImportFile({ file })],
         [
           { name: 'ReadImportFile' },
-          FailedImportData({ message: 'Invalid export file. Please select a valid SubQ export file.' }),
+          FailedImportData({ message: 'Invalid export file. Only Subq 3.0.0-alpha.1 exports are supported.' }),
         ]
       ),
       Story.model((model: SettingsModel) => {
-        expect(model.dataError).toBe('Invalid export file. Please select a valid SubQ export file.')
+        expect(model.dataError).toBe('Invalid export file. Only Subq 3.0.0-alpha.1 exports are supported.')
         expect(model.importConfirm).toBeNull()
         expect(model.importStatus).toBe('idle')
       })

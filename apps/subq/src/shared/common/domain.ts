@@ -53,25 +53,23 @@ export const DayOfWeek = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum
 export type DayOfWeek = typeof DayOfWeek.Type
 
 // ============================================
-// Drug Primitives
+// Medication Primitives
 // ============================================
 
-/** Drug/compound name */
-export const DrugName = Schema.NonEmptyString.pipe(Schema.brand('DrugName'))
-export type DrugName = typeof DrugName.Type
+/** Supported GLP active compound. */
+export const MedicationCompound = Schema.Literals([
+  'Semaglutide',
+  'Tirzepatide',
+  'Retatrutide',
+  'Liraglutide',
+  'Dulaglutide',
+] as const)
+export type MedicationCompound = typeof MedicationCompound.Type
 
-/** Drug source/manufacturer */
-export const DrugSource = Schema.NonEmptyString.pipe(Schema.brand('DrugSource'))
-export type DrugSource = typeof DrugSource.Type
+/** Optional free-text medication supplier. */
+export const Supplier = Schema.NonEmptyString.pipe(Schema.brand('Supplier'))
+export type Supplier = typeof Supplier.Type
 
-// ============================================
-// Dosage Primitives
-// ============================================
-
-/** Dosage amount as string (e.g., "0.5ml", "100mg") */
-export const Dosage = Schema.NonEmptyString.pipe(Schema.brand('Dosage'))
-export type Dosage = typeof Dosage.Type
-
-/** Numeric dosage value for calculations */
-export const DosageValue = Schema.Number.pipe(Schema.brand('DosageValue'))
-export type DosageValue = typeof DosageValue.Type
+/** Positive finite active-compound dose in milligrams. */
+export const DoseMg = Schema.Finite.check(Schema.isGreaterThan(0)).pipe(Schema.brand('DoseMg'))
+export type DoseMg = typeof DoseMg.Type
