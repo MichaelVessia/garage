@@ -65,7 +65,7 @@ const decodeWeightPointsJson = Schema.decodeUnknownEffect(Schema.fromJsonString(
 
 // Weight trend row schema - decode ISO8601 string to Date
 const WeightTrendRow = Schema.Struct({
-  datetime: Schema.DateFromString.check(Schema.isDateValid()),
+  datetime: Schema.DateFromString,
   weight: Schema.Number,
 })
 const decodeWeightTrendRows = Schema.decodeUnknownEffect(Schema.Array(WeightTrendRow))
@@ -79,7 +79,7 @@ const decodeInjectionSiteRows = Schema.decodeUnknownEffect(Schema.Array(Injectio
 
 // Dose history row schema - decode ISO8601 string to Date
 const DoseHistoryRow = Schema.Struct({
-  datetime: Schema.DateFromString.check(Schema.isDateValid()),
+  datetime: Schema.DateFromString,
   drug: MedicationCompound,
   dose_mg: DoseMg,
 })
@@ -94,7 +94,7 @@ const decodeDrugCountRows = Schema.decodeUnknownEffect(Schema.Array(DrugCountRow
 
 // Datetime-only row schema (for timezone-aware day of week calculation)
 const DatetimeRow = Schema.Struct({
-  datetime: Schema.DateFromString.check(Schema.isDateValid()),
+  datetime: Schema.DateFromString,
 })
 const decodeDatetimeRows = Schema.decodeUnknownEffect(Schema.Array(DatetimeRow))
 

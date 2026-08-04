@@ -35,7 +35,7 @@ bun run validate
 ## Stack
 
 - TypeScript, Bun, and one exact Effect beta across first-party manifests
-  (currently `4.0.0-beta.93`; always copy current manifests).
+  (currently `4.0.0-beta.103`; always copy current manifests).
 - Tests: `vitest` (plus `@effect/vitest` for Effect matchers and `it.effect`).
 - Lint: `oxlint` (with the Effect plugin). Format: `oxfmt`. Structural lint:
   `ast-grep`. Configs live at the repo root and are inherited by every

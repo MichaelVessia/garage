@@ -108,6 +108,7 @@ interface CliRunResult {
   readonly exitCode: number
 }
 
+// @effect-diagnostics-next-line processEnv:off -- subprocess boundary forwards only the host executable path
 const hostPath = globalThis.process.env.PATH ?? ''
 
 const runCliMain = Effect.fn('live-cli-missing-env.runCliMain')(function* (
@@ -123,8 +124,8 @@ const runCliMain = Effect.fn('live-cli-missing-env.runCliMain')(function* (
       const result = yield* Effect.all(
         {
           exitCode: handle.exitCode,
-          stdout: Stream.mkString(Stream.decodeText(handle.stdout)),
-          stderr: Stream.mkString(Stream.decodeText(handle.stderr)),
+          stdout: handle.stdout.pipe(Stream.decodeText, Stream.mkString),
+          stderr: handle.stderr.pipe(Stream.decodeText, Stream.mkString),
         },
         { concurrency: 'unbounded' }
       )

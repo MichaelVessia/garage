@@ -24,25 +24,25 @@
     "test:watch": "bun --bun vitest"
   },
   "dependencies": {
-    "@cloudflare/workers-types": "^4.20260511.1",
-    "@effect/platform-browser": "4.0.0-beta.93",
-    "@effect/sql-d1": "4.0.0-beta.93",
-    "better-auth": "^1.6.23",
-    "drizzle-orm": "^0.44.7",
-    "effect": "4.0.0-beta.93",
+    "@cloudflare/workers-types": "^5.20260804.1",
+    "@effect/platform-browser": "4.0.0-beta.103",
+    "@effect/sql-d1": "4.0.0-beta.103",
+    "better-auth": "^1.6.26",
+    "drizzle-orm": "^0.45.2",
+    "effect": "4.0.0-beta.103",
     "foldkit": "^0.122.1"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-beta.93",
-    "@effect/sql-sqlite-bun": "4.0.0-beta.93",
-    "@tailwindcss/vite": "^4.1.17",
+    "@effect/platform-node": "4.0.0-beta.103",
+    "@effect/sql-sqlite-bun": "4.0.0-beta.103",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/d3": "^7.4.3",
-    "alchemy": "2.0.0-beta.59",
+    "alchemy": "2.0.0-beta.67",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
-    "drizzle-kit": "^0.31.7",
-    "happy-dom": "^20.10.6",
-    "tailwindcss": "^4.1.17",
-    "vite": "^6.0.0"
+    "drizzle-kit": "^0.31.10",
+    "happy-dom": "^20.11.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.0"
   }
 }

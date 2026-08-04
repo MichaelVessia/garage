@@ -110,7 +110,9 @@ const defaultQualityProfileAction = Effect.fn('radarrCli.defaultQualityProfileAc
   }
 })
 
-const existsNextActions = (result: ExistsResult): Effect.Effect<ReadonlyArray<NextAction>, RadarrError, RadarrConfig> =>
+const existsNextActions = (
+  result: ExistsResult
+): Effect.Effect<ReadonlyArray<NextAction>, RadarrError, RadarrConfig> =>
   result.exists
     ? Effect.succeed([])
     : defaultQualityProfileAction(result.tmdbId, 'Add this TMDB movie to Radarr').pipe(Effect.map((action) => [action]))

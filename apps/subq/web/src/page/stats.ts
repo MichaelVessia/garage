@@ -620,7 +620,7 @@ export const updateStats = (
             [],
           ]
         }
-        const lbs = unit === 'kg' ? parsed * 2.204_622_6 : parsed
+        const lbs = unit === 'kg' ? parsed * 2.2046226 : parsed
         return [
           evo(model, {
             goalForm: (form) => (form === null ? null : evo(form, { error: () => null, submitting: () => true })),

@@ -77,6 +77,6 @@ export const errorEnvelope = (input: ErrorEnvelopeInput): ErrorEnvelope => ({
   next_actions: input.nextActions ?? [],
 })
 
-const encodeEnvelopeJson = Schema.encodeSync(Schema.UnknownFromJsonString)
+const encodeEnvelopeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))
 
 export const renderEnvelope = (envelope: CliEnvelope<unknown>): string => encodeEnvelopeJson(envelope)

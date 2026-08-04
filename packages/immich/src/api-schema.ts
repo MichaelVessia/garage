@@ -370,15 +370,13 @@ export const AlbumInfoSchema = (limit: number) =>
 export const SearchResponseSchema = (mode: 'smart' | 'metadata', query: string) =>
   SearchResponseApi.pipe(
     Schema.decodeTo(DomainSearchResult, {
-      decode: SchemaGetter.transform(
-        (response: typeof SearchResponseApi.Type): SearchResult => ({
-          mode,
-          query,
-          total: response.assets.total,
-          count: response.assets.count,
-          records: response.assets.items.map(assetRecordFromApi),
-        })
-      ),
+      decode: SchemaGetter.transform((response: typeof SearchResponseApi.Type): SearchResult => ({
+        mode,
+        query,
+        total: response.assets.total,
+        count: response.assets.count,
+        records: response.assets.items.map(assetRecordFromApi),
+      })),
       encode: SchemaGetter.transform((result: SearchResult) => ({
         assets: { total: result.total, count: result.count, items: result.records.map(assetRecordToApi) },
       })),

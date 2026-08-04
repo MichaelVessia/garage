@@ -26,6 +26,9 @@ export default defineConfig({
       rules: {
         'no-shadow': ['error', { allow: ['it'] }],
         'vitest/no-standalone-expect': 'off',
+        'vitest/expect-expect': 'off',
+        'vitest/no-conditional-expect': 'off',
+        'vitest/require-top-level-describe': 'off',
         'vitest/prefer-describe-function-title': 'off',
         'vitest/prefer-importing-vitest-globals': 'off',
         'vitest/prefer-strict-equal': 'off',
@@ -48,7 +51,6 @@ export default defineConfig({
         'effect/require-effect-concurrency': 'off',
         'effect/avoid-schema-suffix': 'off',
         'effect/avoid-option-getorthrow': 'off',
-        'effect/stream-large-files': 'off',
         'effect/avoid-expect-in-if': 'off',
         'effect/avoid-process-env': 'off',
         'effect/require-schema-type-alias': 'off',
@@ -80,9 +82,13 @@ export default defineConfig({
     '@typescript-eslint/promise-function-async': 'off',
     'func-names': 'off',
     '@typescript-eslint/array-type': 'off',
+    '@typescript-eslint/consistent-return': 'off',
     'no-negated-condition': 'off',
     'unicorn/no-negated-condition': 'off',
+    'unicorn/prefer-export-from': 'off',
+    'unicorn/prefer-number-coercion': 'off',
     'max-classes-per-file': 'off',
+    'prefer-named-capture-group': 'off',
 
     // `Effect.forEach` is a module-level Effect combinator, not
     // `Array.prototype.forEach`. These unicorn rules misfire on it (especially
@@ -95,12 +101,6 @@ export default defineConfig({
     // array empty/non-empty branching `Arr.match` targets; most hits are
     // early-return guards and string-length checks where it does not fit.
     'effect/prefer-arr-match': 'off',
-
-    // prefer-schema-class wants Schema.Class for every named Schema.Struct,
-    // but these are decode-only DTOs composed via `.pipe(...)` where a class
-    // declaration does not fit, and converting exported structs ripples
-    // through every importer. Struct is the intended shape here.
-    'effect/prefer-schema-class': 'off',
 
     // Schema struct keys are the wire keys decoded from external service APIs
     // (e.g. `monitored`, `hasFile`, `deleted`, `subscribed`). A boolean field

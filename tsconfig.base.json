@@ -99,7 +99,10 @@
           "unnecessaryEffectGen": "error",
           "unnecessaryFailYieldableError": "error",
           "unnecessaryPipe": "error",
-          "unnecessaryPipeChain": "error"
+          "unnecessaryPipeChain": "error",
+          "lazyEffect": "off",
+          "schemaNumber": "off",
+          "unnecessaryTypeofType": "off"
         },
         "overrides": [
           {

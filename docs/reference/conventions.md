@@ -8,7 +8,7 @@ routing and [CONTRIBUTING.md](../../CONTRIBUTING.md) for contributor setup.
 - Shared devDependencies live in the repo-root `package.json`; Bun hoists them.
 - Runtime dependencies live in the workspace where they are used.
 - First-party `effect`, runtime platform/SQL packages, and `@effect/vitest` use
-  the exact same beta: currently `4.0.0-beta.93`. Caret and tilde ranges are not
+  the exact same beta: currently `4.0.0-beta.103`. Caret and tilde ranges are not
   allowed for these packages. Tooling such as the language service and lint
   plugin follows its own version line.
 - Upgrade the Effect beta atomically: update every first-party manifest, run

@@ -9,7 +9,7 @@ import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import { describe } from 'vitest'
 
-const effectBeta = '4.0.0-beta.93'
+const effectBeta = '4.0.0-beta.103'
 
 const DependencyMap = Schema.Record(Schema.String, Schema.String)
 const Manifest = Schema.Struct({

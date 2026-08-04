@@ -76,7 +76,7 @@ const platformError = (operation: string, cause: PlatformError.PlatformError): C
 
 const streamText = (
   stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>
-): Effect.Effect<string, PlatformError.PlatformError> => Stream.mkString(Stream.decodeText(stream))
+): Effect.Effect<string, PlatformError.PlatformError> => stream.pipe(Stream.decodeText, Stream.mkString)
 
 const commandText = (command: string, args: readonly string[]): string => `${command} ${args.join(' ')}`
 
@@ -141,7 +141,7 @@ const changedFilesBetween = Effect.fn('cli-versioning.changedFilesBetween')(func
   const result = yield* runCommand('git', ['diff', '--name-only', `${baseRef}...${headRef}`])
 
   if (result.exitCode !== 0) {
-    return yield* Effect.fail(new CliVersioningError({ message: `git diff failed: ${commandOutput(result)}` }))
+    return yield* new CliVersioningError({ message: `git diff failed: ${commandOutput(result)}` })
   }
 
   return result.stdout
@@ -233,7 +233,7 @@ const createGitTag = Effect.fn('cli-versioning.createGitTag')(function* (tagName
   const result = yield* runCommand('git', ['tag', tagName])
 
   if (result.exitCode !== 0) {
-    yield* Effect.fail(new CliVersioningError({ message: `git tag failed for ${tagName}: ${commandOutput(result)}` }))
+    return yield* new CliVersioningError({ message: `git tag failed for ${tagName}: ${commandOutput(result)}` })
   }
 })
 
@@ -313,14 +313,14 @@ export const runCliVersioning = Effect.fn('cli-versioning.runCliVersioning')(fun
     return
   }
 
-  yield* Effect.fail(new CliVersioningError({ message: usage }))
+  return yield* new CliVersioningError({ message: usage })
 })
 
 const reportCliVersioningFailure = Effect.fn('cli-versioning.runCliVersioning.onFailure')(function* (
   failure: CliVersioningError
 ) {
   yield* Console.error(failure.message)
-  return yield* Effect.fail(failure)
+  return yield* failure
 })
 
 if (import.meta.main) {
@@ -329,6 +329,7 @@ if (import.meta.main) {
       onFailure: reportCliVersioningFailure,
       onSuccess: () => Effect.void,
     }),
+    // @effect-diagnostics-next-line strictEffectProvide:off -- application entry point
     Effect.provide(BunServices.layer)
   )
 

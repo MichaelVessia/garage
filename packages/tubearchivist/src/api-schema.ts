@@ -299,15 +299,13 @@ export const TasksSchema = (limit: number) =>
 export const SearchResponseSchema = (query: string, limit: number) =>
   SearchResponseApi.pipe(
     Schema.decodeTo(DomainSearchResult, {
-      decode: SchemaGetter.transform(
-        (response: typeof SearchResponseApi.Type): SearchResult => ({
-          query,
-          queryType: fromNullable(response.queryType),
-          videos: listResult((response.results.video_results ?? []).map(videoFromApi), limit),
-          channels: listResult((response.results.channel_results ?? []).map(channelFromApi), limit),
-          playlists: listResult((response.results.playlist_results ?? []).map(playlistFromApi), limit),
-        })
-      ),
+      decode: SchemaGetter.transform((response: typeof SearchResponseApi.Type): SearchResult => ({
+        query,
+        queryType: fromNullable(response.queryType),
+        videos: listResult((response.results.video_results ?? []).map(videoFromApi), limit),
+        channels: listResult((response.results.channel_results ?? []).map(channelFromApi), limit),
+        playlists: listResult((response.results.playlist_results ?? []).map(playlistFromApi), limit),
+      })),
       encode: SchemaGetter.transform((result: SearchResult) => ({
         queryType: result.queryType,
         results: {

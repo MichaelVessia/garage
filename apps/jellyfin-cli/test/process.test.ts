@@ -105,7 +105,7 @@ it.effect('renders media visibility failures as one stdout envelope with status 
           'expected exactly one non-empty stdout line'
         )
 
-        const parsed = yield* Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(result.stdout)
+        const parsed = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))(result.stdout)
         const envelope = yield* Schema.decodeUnknownEffect(CliEnvelope(Schema.Unknown))(parsed)
         assert.deepStrictEqual(envelope, {
           ok: false,

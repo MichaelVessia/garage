@@ -100,7 +100,9 @@ const defaultQualityProfileAction = Effect.fn('sonarrCli.defaultQualityProfileAc
   }
 })
 
-const existsNextActions = (result: ExistsResult): Effect.Effect<ReadonlyArray<NextAction>, SonarrError, SonarrConfig> =>
+const existsNextActions = (
+  result: ExistsResult
+): Effect.Effect<ReadonlyArray<NextAction>, SonarrError, SonarrConfig> =>
   result.exists
     ? Effect.succeed([])
     : defaultQualityProfileAction(result.tvdbId, 'Add this TVDB series to Sonarr').pipe(

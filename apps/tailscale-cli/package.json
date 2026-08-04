@@ -21,9 +21,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0-beta.93",
+    "@effect/platform-bun": "4.0.0-beta.103",
     "@garage/cli-protocol": "workspace:*",
     "@garage/tailscale": "workspace:*",
-    "effect": "4.0.0-beta.93"
+    "effect": "4.0.0-beta.103"
   }
 }

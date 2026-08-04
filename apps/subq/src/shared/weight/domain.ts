@@ -8,7 +8,7 @@ import { DbOperation, Limit, Notes, Offset } from '../common/domain.js'
 // ============================================
 
 /** Conversion factor: 1 kg = 2.20462 lbs */
-export const LBS_PER_KG = 2.204_62
+export const LBS_PER_KG = 2.20462
 
 /**
  * Convert pounds to kilograms.

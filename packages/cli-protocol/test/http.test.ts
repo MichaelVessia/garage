@@ -133,7 +133,7 @@ it.effect('sends a JSON body for postJson and putJson, and no body for getJson/d
     yield* jsonClient.deleteJson('/things/1', ItemSchema)
 
     const recorded = yield* Ref.get(requests)
-    const decodeJsonBody = Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)
+    const decodeJsonBody = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))
     const bodyOf = (index: number) =>
       Effect.gen(function* () {
         const record = recorded[index]
