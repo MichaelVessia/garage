@@ -4,7 +4,7 @@ import * as HashSet from 'effect/HashSet'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { html } from 'foldkit/html'
+import type { HtmlBuilder } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
@@ -355,9 +355,10 @@ export interface WeightTrendProps {
   readonly timezone: IanaTimezone
 }
 
-const h = html<ChartMessage>()
-
-export const viewWeightTrend = (props: WeightTrendProps) => {
+export const viewWeightTrend = <ParentMessage>(
+  props: WeightTrendProps,
+  h: HtmlBuilder<ParentMessage | ChartMessage>
+) => {
   const {
     displayWeight,
     injectionData,

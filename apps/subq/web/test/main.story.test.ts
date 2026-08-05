@@ -3,6 +3,7 @@ import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import * as AsyncData from 'foldkit/asyncData'
+import * as Scene from 'foldkit/scene'
 import * as Url from 'foldkit/url'
 
 import {
@@ -20,11 +21,11 @@ import {
   settingsLoadErrorMessage,
 } from '../src/data/settings.js'
 import { ChangedUrl, ClickedRetrySettings, init, update, view } from '../src/main.js'
-import { OpenedInjectionForm } from '../src/page/injections.js'
+import { CompletedOpenInjectionForm } from '../src/page/injections.js'
 import { SucceededFetchNextDose } from '../src/page/schedule.js'
 import { SucceededImportData, SucceededUpdateSettingsPreference } from '../src/page/settings.js'
 import { RejectedFetchStats, rangeKey } from '../src/page/stats.js'
-import { OpenedWeightForm } from '../src/page/weight.js'
+import { CompletedOpenWeightForm } from '../src/page/weight.js'
 
 const detectedTimezone = IanaTimezone.make('America/New_York')
 const persistedTimezone = IanaTimezone.make('Pacific/Auckland')
@@ -183,15 +184,20 @@ describe('application timezone', () => {
       "Cannot migrate user_goal 'goal-17' field 'target_date' with value 'not-a-date'. Correct the stored value and retry."
 
     const [failed] = update(authenticated, FailedFetchSettings({ message: details }))
-    const rendered = JSON.stringify(view(failed).body)
-
-    expect(rendered).toContain('goal-17')
-    expect(rendered).toContain('target_date')
-    expect(rendered).toContain('not-a-date')
-    expect(rendered).toContain('Retry')
-    expect(rendered).not.toContain('No planned dates were changed')
-    expect(rendered).toContain('may already have been converted')
-    expect(rendered).toContain('idempotent')
+    Scene.scene(
+      { update, view },
+      Scene.given(failed),
+      Scene.tap(({ html }) => {
+        const rendered = JSON.stringify(html)
+        expect(rendered).toContain('goal-17')
+        expect(rendered).toContain('target_date')
+        expect(rendered).toContain('not-a-date')
+        expect(rendered).toContain('Retry')
+        expect(rendered).not.toContain('No planned dates were changed')
+        expect(rendered).toContain('may already have been converted')
+        expect(rendered).toContain('idempotent')
+      })
+    )
 
     const [retrying, commands] = update(failed, ClickedRetrySettings())
     expect(retrying.settings._tag).toBe('Loading')
@@ -411,8 +417,11 @@ describe('application timezone', () => {
     const [initial] = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const [authenticated] = update(initial, SucceededFetchSession({ user }))
     const [ready] = update(authenticated, SucceededFetchSettings({ settings }))
-    const [withWeightForm] = update(ready, OpenedWeightForm({ log: null, nowLocal: '2026-07-01T09:30' }))
-    const [withBothForms] = update(withWeightForm, OpenedInjectionForm({ log: null, nowLocal: '2026-07-01T09:30' }))
+    const [withWeightForm] = update(ready, CompletedOpenWeightForm({ log: null, nowLocal: '2026-07-01T09:30' }))
+    const [withBothForms] = update(
+      withWeightForm,
+      CompletedOpenInjectionForm({ log: null, nowLocal: '2026-07-01T09:30' })
+    )
     const changed = new UserSettings({
       createdAt: settings.createdAt,
       id: settings.id,

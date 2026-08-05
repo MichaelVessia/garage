@@ -46,29 +46,27 @@ export const settingsLoadErrorMessage = (error: unknown): string => {
   return 'Failed to load settings. Retry, or check the service logs if the problem continues.'
 }
 
-export const FetchSettings = Command.define(
-  'FetchSettings',
-  { detectedTimezone: IanaTimezone, requestGeneration: Schema.Number },
-  SucceededFetchSettings,
-  FailedFetchSettings
-)(({ detectedTimezone, requestGeneration }) =>
-  Effect.gen(function* () {
-    const api = yield* Api
-    const settings = yield* api.UserSettingsGet(new UserSettingsInitialize({ detectedTimezone }))
-    return SucceededFetchSettings({ requestGeneration, settings })
-  }).pipe(
-    Effect.catchTags({
-      RpcClientError: (error) =>
-        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
-      SettingsDatabaseError: (error) =>
-        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
-      SettingsTemporalMigrationError: (error) =>
-        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
-      Unauthorized: (error) =>
-        Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
-    })
-  )
-)
+export const FetchSettings = Command.define('FetchSettings', {
+  args: { detectedTimezone: IanaTimezone, requestGeneration: Schema.Number },
+  messages: [SucceededFetchSettings, FailedFetchSettings],
+  execute: ({ detectedTimezone, requestGeneration }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      const settings = yield* api.UserSettingsGet(new UserSettingsInitialize({ detectedTimezone }))
+      return SucceededFetchSettings({ requestGeneration, settings })
+    }).pipe(
+      Effect.catchTags({
+        RpcClientError: (error) =>
+          Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+        SettingsDatabaseError: (error) =>
+          Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+        SettingsTemporalMigrationError: (error) =>
+          Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+        Unauthorized: (error) =>
+          Effect.succeed(FailedFetchSettings({ message: settingsLoadErrorMessage(error), requestGeneration })),
+      })
+    ),
+})
 
 // ============================================
 // Weight unit helpers (storage is always lbs)

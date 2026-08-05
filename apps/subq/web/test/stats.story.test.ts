@@ -4,6 +4,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as AsyncData from 'foldkit/asyncData'
+import * as Scene from 'foldkit/scene'
 
 import {
   CalendarDate,
@@ -18,6 +19,7 @@ import {
 } from '#shared'
 
 import { initialChartState, viewWeightTrend } from '../src/chart/weight-trend.js'
+import type { ChartMessage, WeightTrendProps } from '../src/chart/weight-trend.js'
 import {
   ChangedCustomEnd,
   ChangedCustomStart,
@@ -68,33 +70,40 @@ describe('stats page update', () => {
     const start = DateTime.makeUnsafe('2026-01-01T05:00:00.000Z').pipe(DateTime.toDate)
     const inclusiveEnd = DateTime.makeUnsafe('2026-01-21T05:00:00.000Z').pipe(DateTime.toDate)
     const nextDayStart = DateTime.makeUnsafe('2026-01-22T05:00:00.000Z').pipe(DateTime.toDate)
-    const rendered = JSON.stringify(
-      viewWeightTrend({
-        displayWeight: (weight) => weight,
-        injectionData: [],
-        schedulePeriods: [
-          {
-            drug: 'Semaglutide',
-            endDateExclusive: Option.some(nextDayStart),
-            endDateInclusive: Option.some(inclusiveEnd),
-            scheduleName: 'Finite schedule',
-            startDate: start,
-          },
-        ],
-        state: initialChartState,
-        timezone,
-        trendLine: Option.none(),
-        unitLabel: 'lbs',
-        weightData: [
-          { date: start, notes: Option.none(), weight: 200 },
-          { date: nextDayStart, notes: Option.none(), weight: 190 },
-        ],
-        zoomRange: Option.none(),
+    const props: WeightTrendProps = {
+      displayWeight: (weight) => weight,
+      injectionData: [],
+      schedulePeriods: [
+        {
+          drug: 'Semaglutide',
+          endDateExclusive: Option.some(nextDayStart),
+          endDateInclusive: Option.some(inclusiveEnd),
+          scheduleName: 'Finite schedule',
+          startDate: start,
+        },
+      ],
+      state: initialChartState,
+      timezone,
+      trendLine: Option.none(),
+      unitLabel: 'lbs',
+      weightData: [
+        { date: start, notes: Option.none(), weight: 200 },
+        { date: nextDayStart, notes: Option.none(), weight: 190 },
+      ],
+      zoomRange: Option.none(),
+    }
+    Scene.scene(
+      {
+        update: (model: WeightTrendProps, _message: ChartMessage) => [model, []],
+        view: viewWeightTrend,
+      },
+      Scene.given(props),
+      Scene.tap(({ html }) => {
+        const rendered = JSON.stringify(html)
+        expect(rendered).toContain('Jan 1, 2026 — Jan 21, 2026')
+        expect(rendered).toContain('"width":"710"')
       })
     )
-
-    expect(rendered).toContain('Jan 1, 2026 — Jan 21, 2026')
-    expect(rendered).toContain('"width":"710"')
   })
 
   it('uses the last included day as a finite schedule chart end date', () => {

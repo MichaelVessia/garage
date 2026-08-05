@@ -2,7 +2,7 @@ import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
 import type { HttpClient } from 'effect/unstable/http'
 import type { Command } from 'foldkit'
-import { html } from 'foldkit/html'
+import type { HtmlBuilder } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
@@ -107,8 +107,6 @@ export const loginFailed = (model: LoginModel, message: string): LoginModel =>
 // View
 // ============================================
 
-const h = html<LoginMessage>()
-
 const loginSubmitLabel = (model: LoginModel): string => {
   if (model.loading) {
     return model.mode === 'signup' ? 'Creating account...' : 'Signing in...'
@@ -116,71 +114,76 @@ const loginSubmitLabel = (model: LoginModel): string => {
   return model.mode === 'signup' ? 'Create Account' : 'Sign In'
 }
 
-export const viewLogin = (model: LoginModel) => {
-  const submitLabel = loginSubmitLabel(model)
+const makeViewLogin =
+  <ParentMessage>(h: HtmlBuilder<ParentMessage | LoginMessage>) =>
+  (model: LoginModel) => {
+    const submitLabel = loginSubmitLabel(model)
 
-  return h.div(
-    [h.Class('max-w-xs mx-auto mt-16 p-6')],
-    [
-      h.h1([h.Class('text-lg font-semibold mb-6')], [model.mode === 'signin' ? 'Sign In' : 'Create Account']),
-      model.mode === 'signin'
-        ? h.div(
-            [h.Class('mb-6')],
-            [
-              h.p([h.Class('text-xs text-muted-foreground mb-3')], ['Try a demo account:']),
-              h.button(
-                [
-                  h.Class(button({ class: 'justify-start text-xs', size: 'sm', variant: 'outline' })),
-                  h.Disabled(model.loading),
-                  h.OnClick(ClickedDemoLogin()),
-                ],
-                ['Demo Account']
-              ),
-            ]
-          )
-        : h.empty,
-      h.form(
-        [h.Class('flex flex-col gap-4'), h.OnSubmit(SubmittedLogin())],
-        [
-          model.mode === 'signup'
-            ? h.input([
-                h.Class(input()),
-                h.Type('text'),
-                h.Placeholder('Name'),
-                h.Value(model.name),
-                h.OnInput((value) => ChangedLoginName({ value })),
-              ])
-            : h.empty,
-          h.input([
-            h.Class(input()),
-            h.Type('email'),
-            h.Placeholder('Email'),
-            h.Value(model.email),
-            h.OnInput((value) => ChangedLoginEmail({ value })),
-          ]),
-          h.input([
-            h.Class(input()),
-            h.Type('password'),
-            h.Placeholder('Password'),
-            h.Value(model.password),
-            h.OnInput((value) => ChangedLoginPassword({ value })),
-          ]),
-          model.error === null ? h.empty : h.p([h.Class('text-sm text-destructive')], [model.error]),
-          h.button([h.Class(button()), h.Type('submit'), h.Disabled(model.loading)], [submitLabel]),
-        ]
-      ),
-      h.p(
-        [h.Class('text-sm text-muted-foreground mt-4')],
-        [
-          model.mode === 'signin' ? "Don't have an account? " : 'Already have an account? ',
-          h.button(
-            [h.Class(button({ variant: 'link' })), h.OnClick(ToggledLoginMode())],
-            [model.mode === 'signin' ? 'Sign up' : 'Sign in']
-          ),
-        ]
-      ),
-    ]
-  )
-}
+    return h.div(
+      [h.Class('max-w-xs mx-auto mt-16 p-6')],
+      [
+        h.h1([h.Class('text-lg font-semibold mb-6')], [model.mode === 'signin' ? 'Sign In' : 'Create Account']),
+        model.mode === 'signin'
+          ? h.div(
+              [h.Class('mb-6')],
+              [
+                h.p([h.Class('text-xs text-muted-foreground mb-3')], ['Try a demo account:']),
+                h.button(
+                  [
+                    h.Class(button({ class: 'justify-start text-xs', size: 'sm', variant: 'outline' })),
+                    h.Disabled(model.loading),
+                    h.OnClick(ClickedDemoLogin()),
+                  ],
+                  ['Demo Account']
+                ),
+              ]
+            )
+          : h.empty,
+        h.form(
+          [h.Class('flex flex-col gap-4'), h.OnSubmit(SubmittedLogin())],
+          [
+            model.mode === 'signup'
+              ? h.input([
+                  h.Class(input()),
+                  h.Type('text'),
+                  h.Placeholder('Name'),
+                  h.Value(model.name),
+                  h.OnInput((value) => ChangedLoginName({ value })),
+                ])
+              : h.empty,
+            h.input([
+              h.Class(input()),
+              h.Type('email'),
+              h.Placeholder('Email'),
+              h.Value(model.email),
+              h.OnInput((value) => ChangedLoginEmail({ value })),
+            ]),
+            h.input([
+              h.Class(input()),
+              h.Type('password'),
+              h.Placeholder('Password'),
+              h.Value(model.password),
+              h.OnInput((value) => ChangedLoginPassword({ value })),
+            ]),
+            model.error === null ? h.empty : h.p([h.Class('text-sm text-destructive')], [model.error]),
+            h.button([h.Class(button()), h.Type('submit'), h.Disabled(model.loading)], [submitLabel]),
+          ]
+        ),
+        h.p(
+          [h.Class('text-sm text-muted-foreground mt-4')],
+          [
+            model.mode === 'signin' ? "Don't have an account? " : 'Already have an account? ',
+            h.button(
+              [h.Class(button({ variant: 'link' })), h.OnClick(ToggledLoginMode())],
+              [model.mode === 'signin' ? 'Sign up' : 'Sign in']
+            ),
+          ]
+        ),
+      ]
+    )
+  }
+
+export const viewLogin = <ParentMessage>(model: LoginModel, h: HtmlBuilder<ParentMessage | LoginMessage>) =>
+  makeViewLogin(h)(model)
 
 export { FailedSignIn, FailedSignUp, SucceededSignIn, SucceededSignUp }

@@ -2547,9 +2547,9 @@
     url = "https://registry.npmjs.org/flatted/-/flatted-3.4.4.tgz";
     hash = "sha512-5+ybhBZANEJxaH3X5evAFatUxLfEHSr7n6kYJ+1Qd0mUqr4eu9gIf6GDbWHf8RJijHrjjO8G+la14SlL2SeS1Q==";
   };
-  "foldkit@0.122.1" = fetchurl {
-    url = "https://registry.npmjs.org/foldkit/-/foldkit-0.122.1.tgz";
-    hash = "sha512-k5vFJf460ES9qQLSUrTudx1Vxfh16shQXb1/Bpxw2cEk/uGa2ZrijH2AFSe5jXOYqr4xD1S7atNuvCCWdx19XQ==";
+  "foldkit@0.138.0" = fetchurl {
+    url = "https://registry.npmjs.org/foldkit/-/foldkit-0.138.0.tgz";
+    hash = "sha512-fWMpVaUYuvq456BMUcKpGEF7kAtRJiVB/cz4iE8EYow1OpfYOXK0/24roBezOJBPylgc2+oF+PFhhSmK6zCAww==";
   };
   "foreground-child@3.3.1" = fetchurl {
     url = "https://registry.npmjs.org/foreground-child/-/foreground-child-3.3.1.tgz";
@@ -3466,10 +3466,6 @@
   "slice-ansi@8.0.0" = fetchurl {
     url = "https://registry.npmjs.org/slice-ansi/-/slice-ansi-8.0.0.tgz";
     hash = "sha512-stxByr12oeeOyY2BlviTNQlYV5xOj47GirPr4yA1hE9JCtxfQN0+tVbkxwCtYDQWhEKWFHsEK48ORg5jrouCAg==";
-  };
-  "snabbdom@3.6.4" = fetchurl {
-    url = "https://registry.npmjs.org/snabbdom/-/snabbdom-3.6.4.tgz";
-    hash = "sha512-VmxEfuw1/Y/eFj5VtMhYnukExpYiPkNzoo3+N3qwAOUDMl8wXgbli5ebR+j0knE3lZ/0eYskLxNcX64uy10N9w==";
   };
   "source-map-js@1.2.1" = fetchurl {
     url = "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz";

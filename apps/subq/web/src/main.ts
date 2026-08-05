@@ -7,7 +7,7 @@ import type { HttpClient } from 'effect/unstable/http'
 import { Command } from 'foldkit'
 import type { Runtime } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
-import { html } from 'foldkit/html'
+import type { HtmlBuilder } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { evo } from 'foldkit/struct'
@@ -153,17 +153,17 @@ type UpdateReturn = readonly [Model, Commands]
 // Navigation commands
 // ============================================
 
-const Navigate = Command.define(
-  'Navigate',
-  { url: Schema.String },
-  NavigationDone
-)(({ url }) => pushUrl(url).pipe(Effect.as(NavigationDone())))
+const Navigate = Command.define('Navigate', {
+  args: { url: Schema.String },
+  messages: [NavigationDone],
+  execute: ({ url }) => pushUrl(url).pipe(Effect.as(NavigationDone())),
+})
 
-const LoadUrl = Command.define(
-  'LoadUrl',
-  { url: Schema.String },
-  NavigationDone
-)(({ url }) => load(url).pipe(Effect.as(NavigationDone())))
+const LoadUrl = Command.define('LoadUrl', {
+  args: { url: Schema.String },
+  messages: [NavigationDone],
+  execute: ({ url }) => load(url).pipe(Effect.as(NavigationDone())),
+})
 
 const statsHref = statsRouter({ end: Option.none(), start: Option.none() })
 const loginHref = loginRouter({})
@@ -460,109 +460,111 @@ export const update = (model: Model, message: Message): UpdateReturn => {
 // View
 // ============================================
 
-const h = html<Message>()
-
-const viewLoading = h.div(
-  [h.Class('flex items-center justify-center h-screen')],
-  [h.p([h.Class('text-muted-foreground')], ['Loading...'])]
-)
-
-const navItems: ReadonlyArray<readonly [label: string, href: string, tag: string]> = [
-  ['Stats', statsHref, 'Stats'],
-  ['Weight', weightRouter({}), 'Weight'],
-  ['Injections', injectionRouter({}), 'Injection'],
-  ['Schedule', scheduleRouter({}), 'Schedule'],
-]
-
-type Html = typeof viewLoading
-
-const viewShell = (model: Model, email: string, content: Html) =>
-  h.div(
-    [h.Class('max-w-7xl mx-auto p-4 sm:p-6')],
-    [
-      h.header(
-        [h.Class('flex flex-col gap-3 mb-6 pb-4 border-b sm:mb-8 sm:pb-5')],
-        [
-          h.div(
-            [h.Class('flex items-center justify-between gap-3')],
-            [
-              h.h1(
-                [h.Class('flex items-center gap-2 text-lg font-semibold tracking-tight')],
-                [h.img([h.Src('/logo.svg'), h.Alt(''), h.Class('h-6 w-6')]), 'SubQ']
-              ),
-              h.div(
-                [h.Class('flex items-center gap-3')],
-                [
-                  h.span([h.Class('hidden sm:inline text-xs text-muted-foreground')], [email]),
-                  h.a(
-                    [h.Href(settingsRouter({}))],
-                    [h.button([h.Class(button({ size: 'icon', variant: 'ghost' })), h.Title('Settings')], ['⚙'])]
-                  ),
-                  h.button(
-                    [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(ClickedSignOut())],
-                    ['Sign Out']
-                  ),
-                ]
-              ),
-            ]
-          ),
-          h.nav(
-            [h.Class('flex gap-4 sm:gap-6 overflow-x-auto scrollbar-hide')],
-            navItems.map(([label, href, tag]) =>
-              h.a([h.Href(href), h.Class(navLink(model.route._tag === tag))], [label])
-            )
-          ),
-        ]
-      ),
-      h.main([], [content]),
-    ]
+const makeView = (h: HtmlBuilder<Message>) => {
+  const viewLoading = h.div(
+    [h.Class('flex items-center justify-center h-screen')],
+    [h.p([h.Class('text-muted-foreground')], ['Loading...'])]
   )
 
-const viewPlaceholder = (title: string) => h.div([h.Class('text-muted-foreground')], [`${title} — coming soon`])
+  const navItems: ReadonlyArray<readonly [label: string, href: string, tag: string]> = [
+    ['Stats', statsHref, 'Stats'],
+    ['Weight', weightRouter({}), 'Weight'],
+    ['Injections', injectionRouter({}), 'Injection'],
+    ['Schedule', scheduleRouter({}), 'Schedule'],
+  ]
 
-const viewSettingsFailure = (error: string) =>
-  h.div(
-    [h.Class('mx-auto max-w-2xl rounded-md border border-destructive/40 p-6')],
-    [
-      h.h2([h.Class('text-lg font-semibold text-destructive')], ['Timezone setup needs attention']),
-      h.p([h.Class('mt-3 break-words text-sm')], [error]),
-      h.p(
-        [h.Class('mt-3 text-sm text-muted-foreground')],
-        [
-          'Some earlier records may already have been converted. Correct the identified problem and retry; migration retries are idempotent and completed conversions are not applied again.',
-        ]
-      ),
-      h.button([h.Class(button({ class: 'mt-4' })), h.OnClick(ClickedRetrySettings())], ['Retry timezone setup']),
-    ]
-  )
+  type Html = typeof viewLoading
 
-const viewPage = (model: Model) => {
-  const timezone = timezoneOf(model.settings, model.detectedTimezone)
-  return Match.value(model.route).pipe(
-    Match.tagsExhaustive({
-      Injection: () => viewInjections(model.injections, timezone),
-      Login: () => viewPlaceholder('Login'),
-      NotFound: () => h.div([h.Class('text-muted-foreground')], ['Page not found']),
-      Schedule: () => viewSchedule(model.schedule),
-      ScheduleView: () => viewScheduleView(model.scheduleView, timezone),
-      Settings: () => viewSettings(model.settingsPage, model.settings, timezone),
-      Stats: () => viewStats(model.stats, weightUnitOf(model.settings), statsRangeOf(model), timezone),
-      Weight: () => viewWeight(model.weight, weightUnitOf(model.settings), timezone),
+  const viewShell = (model: Model, email: string, content: Html) =>
+    h.div(
+      [h.Class('max-w-7xl mx-auto p-4 sm:p-6')],
+      [
+        h.header(
+          [h.Class('flex flex-col gap-3 mb-6 pb-4 border-b sm:mb-8 sm:pb-5')],
+          [
+            h.div(
+              [h.Class('flex items-center justify-between gap-3')],
+              [
+                h.h1(
+                  [h.Class('flex items-center gap-2 text-lg font-semibold tracking-tight')],
+                  [h.img([h.Src('/logo.svg'), h.Alt(''), h.Class('h-6 w-6')]), 'SubQ']
+                ),
+                h.div(
+                  [h.Class('flex items-center gap-3')],
+                  [
+                    h.span([h.Class('hidden sm:inline text-xs text-muted-foreground')], [email]),
+                    h.a(
+                      [h.Href(settingsRouter({}))],
+                      [h.button([h.Class(button({ size: 'icon', variant: 'ghost' })), h.Title('Settings')], ['⚙'])]
+                    ),
+                    h.button(
+                      [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(ClickedSignOut())],
+                      ['Sign Out']
+                    ),
+                  ]
+                ),
+              ]
+            ),
+            h.nav(
+              [h.Class('flex gap-4 sm:gap-6 overflow-x-auto scrollbar-hide')],
+              navItems.map(([label, href, tag]) =>
+                h.a([h.Href(href), h.Class(navLink(model.route._tag === tag))], [label])
+              )
+            ),
+          ]
+        ),
+        h.main([], [content]),
+      ]
+    )
+
+  const viewPlaceholder = (title: string) => h.div([h.Class('text-muted-foreground')], [`${title} — coming soon`])
+
+  const viewSettingsFailure = (error: string) =>
+    h.div(
+      [h.Class('mx-auto max-w-2xl rounded-md border border-destructive/40 p-6')],
+      [
+        h.h2([h.Class('text-lg font-semibold text-destructive')], ['Timezone setup needs attention']),
+        h.p([h.Class('mt-3 break-words text-sm')], [error]),
+        h.p(
+          [h.Class('mt-3 text-sm text-muted-foreground')],
+          [
+            'Some earlier records may already have been converted. Correct the identified problem and retry; migration retries are idempotent and completed conversions are not applied again.',
+          ]
+        ),
+        h.button([h.Class(button({ class: 'mt-4' })), h.OnClick(ClickedRetrySettings())], ['Retry timezone setup']),
+      ]
+    )
+
+  const viewPage = (model: Model) => {
+    const timezone = timezoneOf(model.settings, model.detectedTimezone)
+    return Match.value(model.route).pipe(
+      Match.tagsExhaustive({
+        Injection: () => viewInjections(model.injections, timezone, h),
+        Login: () => viewPlaceholder('Login'),
+        NotFound: () => h.div([h.Class('text-muted-foreground')], ['Page not found']),
+        Schedule: () => viewSchedule(model.schedule, h),
+        ScheduleView: () => viewScheduleView(model.scheduleView, timezone, h),
+        Settings: () => viewSettings(model.settingsPage, model.settings, timezone, h),
+        Stats: () => viewStats(model.stats, weightUnitOf(model.settings), statsRangeOf(model), timezone, h),
+        Weight: () => viewWeight(model.weight, weightUnitOf(model.settings), timezone, h),
+      })
+    )
+  }
+
+  return (model: Model) => {
+    if (!model.sessionLoaded) {
+      return { body: viewLoading, title: 'SubQ' }
+    }
+    if (model.user === null || model.route._tag === 'Login') {
+      return { body: viewLogin(model.login, h), title: 'SubQ — Sign In' }
+    }
+    const settingsError = AsyncData.getError(model.settings)
+    const page = Option.match(settingsError, {
+      onNone: () => viewPage(model),
+      onSome: viewSettingsFailure,
     })
-  )
+    return { body: viewShell(model, model.user.email, page), title: 'SubQ' }
+  }
 }
 
-export const view = (model: Model) => {
-  if (!model.sessionLoaded) {
-    return { body: viewLoading, title: 'SubQ' }
-  }
-  if (model.user === null || model.route._tag === 'Login') {
-    return { body: viewLogin(model.login), title: 'SubQ — Sign In' }
-  }
-  const settingsError = AsyncData.getError(model.settings)
-  const page = Option.match(settingsError, {
-    onNone: () => viewPage(model),
-    onSome: viewSettingsFailure,
-  })
-  return { body: viewShell(model, model.user.email, page), title: 'SubQ' }
-}
+export const view = (model: Model, h: HtmlBuilder<Message>) => makeView(h)(model)

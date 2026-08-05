@@ -20,7 +20,7 @@ import {
   FailedSaveWeight,
   FetchWeightLogs,
   OpenWeightForm,
-  OpenedWeightForm,
+  CompletedOpenWeightForm,
   RequestedDeleteWeight,
   SaveWeight,
   SubmittedWeightForm,
@@ -60,9 +60,9 @@ describe('weight page update', () => {
   it('opens the add form via a command that supplies "now"', () => {
     Story.story(
       update,
-      Story.with(initialWeightModel),
+      Story.given(initialWeightModel),
       Story.message(ClickedAddWeight()),
-      Command.resolveAll([OpenWeightForm, OpenedWeightForm({ log: null, nowLocal: '2026-07-03T10:00' })]),
+      Command.resolveAll([OpenWeightForm, CompletedOpenWeightForm({ log: null, nowLocal: '2026-07-03T10:00' })]),
       Story.model((model: WeightModel) => {
         expect(model.form).not.toBeNull()
         expect(model.form?.datetime).toBe('2026-07-03T10:00')
@@ -74,7 +74,7 @@ describe('weight page update', () => {
   it('preserves sub-minute UTC precision for a note-only edit', () => {
     const preciseLog = weightAt('log-precise', '2026-07-01T08:00:45.123Z')
     const [opening] = update(initialWeightModel, ClickedEditWeight({ log: preciseLog }))
-    const [opened] = update(opening, OpenedWeightForm({ log: preciseLog, nowLocal: '2026-07-03T10:00' }))
+    const [opened] = update(opening, CompletedOpenWeightForm({ log: preciseLog, nowLocal: '2026-07-03T10:00' }))
     const [noted] = update(opened, ChangedWeightNotes({ value: 'updated note' }))
     const [, commands] = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
     const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
@@ -90,7 +90,7 @@ describe('weight page update', () => {
 
     for (const [index, instant] of overlapInstants.entries()) {
       const log = weightAt(`log-overlap-${index}`, instant)
-      const [opened] = update(initialWeightModel, OpenedWeightForm({ log, nowLocal: '2026-11-02T09:00' }))
+      const [opened] = update(initialWeightModel, CompletedOpenWeightForm({ log, nowLocal: '2026-11-02T09:00' }))
       const [noted] = update(opened, ChangedWeightNotes({ value: `overlap ${index}` }))
       const [, commands] = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
       const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
@@ -104,7 +104,7 @@ describe('weight page update', () => {
 
   it('reinterprets an edited wall-time field in the persisted timezone', () => {
     const [opening] = update(initialWeightModel, ClickedEditWeight({ log: sampleLog }))
-    const [opened] = update(opening, OpenedWeightForm({ log: sampleLog, nowLocal: '2026-07-03T10:00' }))
+    const [opened] = update(opening, CompletedOpenWeightForm({ log: sampleLog, nowLocal: '2026-07-03T10:00' }))
     const [changed] = update(opened, ChangedWeightDatetime({ value: '2026-07-01T05:15' }))
     const [, commands] = update(changed, SubmittedWeightForm({ unit: 'lbs' }))
     const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
@@ -131,7 +131,7 @@ describe('weight page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedWeightForm({ unit: 'lbs' })),
       Command.expectNone(),
       Story.model((model: WeightModel) => {
@@ -156,7 +156,7 @@ describe('weight page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(ChangedWeightValue({ value: '184.0' })),
       Story.message(SubmittedWeightForm({ unit: 'lbs' })),
       Story.model((model: WeightModel) => {
@@ -189,7 +189,7 @@ describe('weight page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedWeightForm({ unit: 'kg' })),
       Command.resolveAll([SaveWeight, FailedSaveWeight({ message: 'Failed to save entry' })]),
       Story.model((model: WeightModel) => {
@@ -203,7 +203,7 @@ describe('weight page update', () => {
   it('delete flow requires confirmation, then refetches', () => {
     Story.story(
       update,
-      Story.with(initialWeightModel),
+      Story.given(initialWeightModel),
       Story.message(RequestedDeleteWeight({ id: sampleLog.id })),
       Command.expectNone(),
       Story.model((model: WeightModel) => {
@@ -224,7 +224,7 @@ describe('weight page update', () => {
     const paged: WeightModel = { ...initialWeightModel, page: 3 }
     Story.story(
       update,
-      Story.with(paged),
+      Story.given(paged),
       Story.message(ClickedWeightSort({ column: 'weight' })),
       Story.model((model: WeightModel) => {
         expect(model.sortColumn).toBe('weight')
@@ -241,7 +241,7 @@ describe('weight page update', () => {
   it('pagination moves by delta', () => {
     Story.story(
       update,
-      Story.with(initialWeightModel),
+      Story.given(initialWeightModel),
       Story.message(ClickedWeightPage({ delta: 1 })),
       Story.message(ClickedWeightPage({ delta: 1 })),
       Story.message(ClickedWeightPage({ delta: -1 })),
@@ -267,7 +267,7 @@ describe('weight page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedWeightForm({ unit: 'kg' })),
       (simulation: Story.StorySimulation<WeightModel, WeightMessage>) => {
         const [command] = simulation.commands

@@ -95,7 +95,7 @@ describe('schedule-view page', () => {
     const [loading] = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
     Story.story(
       updateScheduleView,
-      Story.with(loading),
+      Story.given(loading),
       Story.message(SucceededFetchScheduleView({ view: sampleView })),
       Story.model((model: ScheduleViewModel) => {
         expect(model.view._tag).toBe('Success')
@@ -108,7 +108,7 @@ describe('schedule-view page', () => {
     const [loading] = fetchScheduleView(initialScheduleViewModel, 'missing-schedule')
     Story.story(
       updateScheduleView,
-      Story.with(loading),
+      Story.given(loading),
       Story.message(SucceededFetchScheduleView({ view: null })),
       Story.model((model: ScheduleViewModel) => {
         expect(model.view._tag).toBe('Success')
@@ -121,7 +121,7 @@ describe('schedule-view page', () => {
     const [loading] = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
     Story.story(
       updateScheduleView,
-      Story.with(loading),
+      Story.given(loading),
       Story.message(FailedFetchScheduleView({ message: 'Failed to load schedule' })),
       Story.model((model: ScheduleViewModel) => {
         expect(model.view).toEqual(AsyncData.Failure({ error: 'Failed to load schedule' }))
@@ -132,7 +132,7 @@ describe('schedule-view page', () => {
   it('no commands are left pending once the fetch resolves', () => {
     Story.story(
       updateScheduleView,
-      Story.with(initialScheduleViewModel),
+      Story.given(initialScheduleViewModel),
       Story.message(SucceededFetchScheduleView({ view: sampleView })),
       Command.expectNone()
     )

@@ -41,7 +41,7 @@ import {
   FailedFetchInjectionSites,
   FailedSaveInjection,
   FetchInjectionLogs,
-  OpenedInjectionForm,
+  CompletedOpenInjectionForm,
   RequestedDeleteInjection,
   SubmittedInjectionForm,
   SucceededDeleteInjection,
@@ -128,11 +128,11 @@ describe('injections page update', () => {
   it('opens the add form via a command that supplies "now"', () => {
     Story.story(
       update,
-      Story.with(initialInjectionsModel),
+      Story.given(initialInjectionsModel),
       Story.message(ClickedAddInjection()),
       Command.resolveAll([
         { name: 'OpenInjectionForm' },
-        OpenedInjectionForm({ log: null, nowLocal: '2026-07-04T09:00' }),
+        CompletedOpenInjectionForm({ log: null, nowLocal: '2026-07-04T09:00' }),
       ]),
       Story.model((model: InjectionsModel) => {
         expect(model.form).not.toBeNull()
@@ -147,11 +147,11 @@ describe('injections page update', () => {
   it('opens the edit form pre-filled from an existing log', () => {
     Story.story(
       update,
-      Story.with(initialInjectionsModel),
+      Story.given(initialInjectionsModel),
       Story.message(ClickedEditInjection({ log: sampleLog })),
       Command.resolveAll([
         { name: 'OpenInjectionForm' },
-        OpenedInjectionForm({ log: sampleLog, nowLocal: '2026-07-04T09:00' }),
+        CompletedOpenInjectionForm({ log: sampleLog, nowLocal: '2026-07-04T09:00' }),
       ]),
       Story.model((model: InjectionsModel) => {
         expect(model.form?.editingId).toBe(sampleLog.id)
@@ -170,11 +170,11 @@ describe('injections page update', () => {
   it('edit form falls back to empty strings for null optional fields', () => {
     Story.story(
       update,
-      Story.with(initialInjectionsModel),
+      Story.given(initialInjectionsModel),
       Story.message(ClickedEditInjection({ log: bareLog })),
       Command.resolveAll([
         { name: 'OpenInjectionForm' },
-        OpenedInjectionForm({ log: bareLog, nowLocal: '2026-07-04T09:00' }),
+        CompletedOpenInjectionForm({ log: bareLog, nowLocal: '2026-07-04T09:00' }),
       ]),
       Story.model((model: InjectionsModel) => {
         expect(model.form?.injectionSite).toBe('')
@@ -189,7 +189,7 @@ describe('injections page update', () => {
     const preciseLog = injectionAt('inj-precise', '2026-07-01T08:00:45.123Z')
     const [opened] = update(
       initialInjectionsModel,
-      OpenedInjectionForm({ log: preciseLog, nowLocal: '2026-07-04T09:00' })
+      CompletedOpenInjectionForm({ log: preciseLog, nowLocal: '2026-07-04T09:00' })
     )
     const [noted] = update(opened, ChangedInjectionNotes({ value: 'updated note' }))
     const [, commands] = update(noted, SubmittedInjectionForm())
@@ -210,7 +210,7 @@ describe('injections page update', () => {
 
     for (const [index, instant] of overlapInstants.entries()) {
       const log = injectionAt(`inj-overlap-${index}`, instant)
-      const [opened] = update(initialInjectionsModel, OpenedInjectionForm({ log, nowLocal: '2026-11-02T09:00' }))
+      const [opened] = update(initialInjectionsModel, CompletedOpenInjectionForm({ log, nowLocal: '2026-11-02T09:00' }))
       const [noted] = update(opened, ChangedInjectionNotes({ value: `overlap ${index}` }))
       const [, commands] = update(noted, SubmittedInjectionForm())
       const datetime = commands.find((command) => command.name === 'SaveInjection')?.args?.datetime
@@ -225,7 +225,7 @@ describe('injections page update', () => {
   it('submitting without an open form is a no-op', () => {
     Story.story(
       update,
-      Story.with(initialInjectionsModel),
+      Story.given(initialInjectionsModel),
       Story.message(SubmittedInjectionForm()),
       Command.expectNone()
     )
@@ -252,7 +252,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
@@ -282,7 +282,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
@@ -312,7 +312,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
@@ -343,7 +343,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedInjectionForm()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
@@ -375,7 +375,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(ConfirmedInjectionOffSchedule()),
       Story.model((model: InjectionsModel) => {
         expect(model.form?.confirmedOffSchedule).toBe(true)
@@ -429,7 +429,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(SubmittedInjectionForm()),
       Command.resolveAll([{ name: 'SaveInjection' }, FailedSaveInjection({ message: 'Failed to save injection log' })]),
       Story.model((model: InjectionsModel) => {
@@ -461,7 +461,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(withForm),
+      Story.given(withForm),
       Story.message(RequestedDeleteInjection({ id: sampleLog.id })),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
@@ -484,7 +484,7 @@ describe('injections page update', () => {
     const withPending: InjectionsModel = { ...initialInjectionsModel, pendingDeleteId: sampleLog.id }
     Story.story(
       update,
-      Story.with(withPending),
+      Story.given(withPending),
       Story.message(CancelledDeleteInjection()),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {
@@ -497,7 +497,7 @@ describe('injections page update', () => {
     const withPending: InjectionsModel = { ...initialInjectionsModel, pendingDeleteId: sampleLog.id }
     Story.story(
       update,
-      Story.with(withPending),
+      Story.given(withPending),
       Story.message(ConfirmedDeleteInjection()),
       Command.resolveAll([
         { name: 'DeleteInjection' },
@@ -512,7 +512,7 @@ describe('injections page update', () => {
   it('confirming a delete with nothing pending is a no-op', () => {
     Story.story(
       update,
-      Story.with(initialInjectionsModel),
+      Story.given(initialInjectionsModel),
       Story.message(ConfirmedDeleteInjection()),
       Command.expectNone()
     )
@@ -522,7 +522,7 @@ describe('injections page update', () => {
     const paged: InjectionsModel = { ...initialInjectionsModel, page: 2 }
     Story.story(
       update,
-      Story.with(paged),
+      Story.given(paged),
       Story.message(ClickedInjectionSort({ column: 'drug' })),
       Story.model((model: InjectionsModel) => {
         expect(model.sortColumn).toBe('drug')
@@ -539,7 +539,7 @@ describe('injections page update', () => {
   it('pagination moves by delta', () => {
     Story.story(
       update,
-      Story.with(initialInjectionsModel),
+      Story.given(initialInjectionsModel),
       Story.message(ClickedInjectionPage({ delta: 1 })),
       Story.message(ClickedInjectionPage({ delta: 1 })),
       Story.message(ClickedInjectionPage({ delta: -1 })),
@@ -595,7 +595,7 @@ describe('injections page update', () => {
     }
     Story.story(
       update,
-      Story.with(confirmed),
+      Story.given(confirmed),
       Story.message(ChangedInjectionDrug({ value: 'Tirzepatide' })),
       Command.expectNone(),
       Story.model((model: InjectionsModel) => {

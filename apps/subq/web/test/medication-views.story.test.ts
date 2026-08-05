@@ -3,6 +3,7 @@ import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as P from 'effect/Predicate'
 import * as AsyncData from 'foldkit/asyncData'
+import * as Scene from 'foldkit/scene'
 
 import {
   CalendarDate,
@@ -20,10 +21,10 @@ import {
   Supplier,
 } from '#shared'
 
-import { initialInjectionsModel, viewInjections } from '../src/page/injections.js'
-import type { InjectionsModel } from '../src/page/injections.js'
-import { initialScheduleModel, viewSchedule } from '../src/page/schedule.js'
-import type { ScheduleModel } from '../src/page/schedule.js'
+import { initialInjectionsModel, updateInjections, viewInjections } from '../src/page/injections.js'
+import type { InjectionsMessage, InjectionsModel } from '../src/page/injections.js'
+import { initialScheduleModel, updateSchedule, viewSchedule } from '../src/page/schedule.js'
+import type { ScheduleMessage, ScheduleModel } from '../src/page/schedule.js'
 
 interface ViewNode {
   readonly sel: string | undefined
@@ -125,18 +126,28 @@ describe('canonical medication views', () => {
       sites: AsyncData.succeed([]),
     }
 
-    const view = viewInjections(model, IanaTimezone.make('UTC'))
-    const medication = findById(view, 'injection-drug')
-    const dose = findById(view, 'injection-dose-mg')
-    const supplier = findById(view, 'injection-supplier')
+    const timezone = IanaTimezone.make('UTC')
+    Scene.scene(
+      {
+        update: (currentModel: InjectionsModel, message: InjectionsMessage) =>
+          updateInjections(currentModel, message, timezone),
+        view: (currentModel, h) => viewInjections(currentModel, timezone, h),
+      },
+      Scene.given(model),
+      Scene.tap<InjectionsModel, InjectionsMessage>(({ html: view }) => {
+        const medication = findById(view, 'injection-drug')
+        const dose = findById(view, 'injection-dose-mg')
+        const supplier = findById(view, 'injection-supplier')
 
-    expect(medication?.sel).toBe('select')
-    expect(textContent(medication ?? view)).toContain('Dulaglutide')
-    expect(textContent(medication ?? view)).not.toContain('Ozempic')
-    expect(dose?.data?.props?.type).toBe('number')
-    expect(supplier?.data?.props?.value).toBe('Pharmacy')
-    expect(textContent(view)).toContain('0.25 mg')
-    expect(textContent(view)).toContain('Pharmacy')
+        expect(medication?.sel).toBe('select')
+        expect(textContent(medication ?? view)).toContain('Dulaglutide')
+        expect(textContent(medication ?? view)).not.toContain('Ozempic')
+        expect(dose?.data?.props?.type).toBe('number')
+        expect(supplier?.data?.props?.value).toBe('Pharmacy')
+        expect(textContent(view)).toContain('0.25 mg')
+        expect(textContent(view)).toContain('Pharmacy')
+      })
+    )
   })
 
   it('renders the same closed compound, numeric dose, and supplier controls for schedules', () => {
@@ -157,15 +168,25 @@ describe('canonical medication views', () => {
       schedules: AsyncData.succeed([schedule]),
     }
 
-    const view = viewSchedule(model)
-    const medication = findById(view, 'schedule-drug')
-    const supplier = findById(view, 'schedule-supplier')
+    const timezone = IanaTimezone.make('UTC')
+    Scene.scene(
+      {
+        update: (currentModel: ScheduleModel, message: ScheduleMessage) =>
+          updateSchedule(currentModel, message, timezone, 1),
+        view: viewSchedule,
+      },
+      Scene.given(model),
+      Scene.tap<ScheduleModel, ScheduleMessage>(({ html: view }) => {
+        const medication = findById(view, 'schedule-drug')
+        const supplier = findById(view, 'schedule-supplier')
 
-    expect(medication?.sel).toBe('select')
-    expect(textContent(medication ?? view)).toContain('Retatrutide')
-    expect(textContent(medication ?? view)).not.toContain('Compounded')
-    expect(supplier?.data?.props?.value).toBe('Clinic')
-    expect(textContent(view)).toContain('0.25 mg')
-    expect(textContent(view)).toContain('Supplier: Clinic')
+        expect(medication?.sel).toBe('select')
+        expect(textContent(medication ?? view)).toContain('Retatrutide')
+        expect(textContent(medication ?? view)).not.toContain('Compounded')
+        expect(supplier?.data?.props?.value).toBe('Clinic')
+        expect(textContent(view)).toContain('0.25 mg')
+        expect(textContent(view)).toContain('Supplier: Clinic')
+      })
+    )
   })
 })

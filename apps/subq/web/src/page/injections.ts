@@ -6,7 +6,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
-import { html } from 'foldkit/html'
+import type { HtmlBuilder } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
@@ -116,7 +116,7 @@ export const SucceededFetchInjectionSchedules = m('SucceededFetchInjectionSchedu
 export const FailedFetchInjectionSchedules = m('FailedFetchInjectionSchedules', {
   message: Schema.String,
 })
-export const OpenedInjectionForm = m('OpenedInjectionForm', {
+export const CompletedOpenInjectionForm = m('CompletedOpenInjectionForm', {
   nowLocal: Schema.String,
   log: Schema.NullOr(InjectionLog),
 })
@@ -151,7 +151,7 @@ export const InjectionsMessage = Schema.Union([
   FailedFetchInjectionSites,
   SucceededFetchInjectionSchedules,
   FailedFetchInjectionSchedules,
-  OpenedInjectionForm,
+  CompletedOpenInjectionForm,
   ClickedAddInjection,
   ClickedEditInjection,
   ClickedCancelInjectionForm,
@@ -180,57 +180,46 @@ export type InjectionsMessage = typeof InjectionsMessage.Type
 // Commands
 // ============================================
 
-export const FetchInjectionLogs = Command.define(
-  'FetchInjectionLogs',
-  SucceededFetchInjectionLogs,
-  FailedFetchInjectionLogs
-)(
-  Effect.gen(function* () {
+export const FetchInjectionLogs = Command.define('FetchInjectionLogs', {
+  messages: [SucceededFetchInjectionLogs, FailedFetchInjectionLogs],
+  execute: Effect.gen(function* () {
     const api = yield* Api
     const logs = yield* api.InjectionLogList(
       new InjectionLogListParams({ limit: Limit.make(10_000), offset: Offset.make(0) })
     )
     return SucceededFetchInjectionLogs({ logs })
-  }).pipe(toCommandResult(FailedFetchInjectionLogs, 'Failed to load injection logs'))
-)
+  }).pipe(toCommandResult(FailedFetchInjectionLogs, 'Failed to load injection logs')),
+})
 
-const FetchInjectionSites = Command.define(
-  'FetchInjectionSites',
-  SucceededFetchInjectionSites,
-  FailedFetchInjectionSites
-)(
-  Effect.gen(function* () {
+const FetchInjectionSites = Command.define('FetchInjectionSites', {
+  messages: [SucceededFetchInjectionSites, FailedFetchInjectionSites],
+  execute: Effect.gen(function* () {
     const api = yield* Api
     const sites = yield* api.InjectionLogGetSites()
     return SucceededFetchInjectionSites({ sites })
-  }).pipe(toCommandResult(FailedFetchInjectionSites, 'Failed to load site suggestions'))
-)
+  }).pipe(toCommandResult(FailedFetchInjectionSites, 'Failed to load site suggestions')),
+})
 
-const FetchInjectionSchedules = Command.define(
-  'FetchInjectionSchedules',
-  SucceededFetchInjectionSchedules,
-  FailedFetchInjectionSchedules
-)(
-  Effect.gen(function* () {
+const FetchInjectionSchedules = Command.define('FetchInjectionSchedules', {
+  messages: [SucceededFetchInjectionSchedules, FailedFetchInjectionSchedules],
+  execute: Effect.gen(function* () {
     const api = yield* Api
     const schedules = yield* api.ScheduleList()
     return SucceededFetchInjectionSchedules({ schedules })
-  }).pipe(toCommandResult(FailedFetchInjectionSchedules, 'Failed to load schedules'))
-)
+  }).pipe(toCommandResult(FailedFetchInjectionSchedules, 'Failed to load schedules')),
+})
 
-const OpenInjectionForm = Command.define(
-  'OpenInjectionForm',
-  { log: Schema.NullOr(InjectionLog), timezone: IanaTimezone },
-  OpenedInjectionForm
-)(({ log, timezone }) =>
-  DateTime.now.pipe(
-    Effect.map((now) => OpenedInjectionForm({ log, nowLocal: utcToLocalDatetimeString(now, timezone) }))
-  )
-)
+const OpenInjectionForm = Command.define('OpenInjectionForm', {
+  args: { log: Schema.NullOr(InjectionLog), timezone: IanaTimezone },
+  messages: [CompletedOpenInjectionForm],
+  execute: ({ log, timezone }) =>
+    DateTime.now.pipe(
+      Effect.map((now) => CompletedOpenInjectionForm({ log, nowLocal: utcToLocalDatetimeString(now, timezone) }))
+    ),
+})
 
-const SaveInjection = Command.define(
-  'SaveInjection',
-  {
+const SaveInjection = Command.define('SaveInjection', {
+  args: {
     editingId: Schema.NullOr(InjectionLogId),
     datetime: Schema.DateTimeUtc,
     drug: Schema.String,
@@ -240,53 +229,50 @@ const SaveInjection = Command.define(
     notes: Schema.String,
     scheduleId: Schema.String,
   },
-  SucceededSaveInjection,
-  FailedSaveInjection
-)(({ datetime, doseMg, drug, editingId, injectionSite, notes, scheduleId, supplier }) =>
-  Effect.gen(function* () {
-    const api = yield* Api
-    const compound = yield* Schema.decodeUnknownEffect(MedicationCompound)(drug)
-    const parsedDoseMg = yield* Schema.decodeUnknownEffect(DoseMg)(Number(doseMg))
-    const fields = {
-      datetime,
-      doseMg: parsedDoseMg,
-      drug: compound,
-      injectionSite:
-        injectionSite === '' ? Option.none<InjectionSite>() : Option.some(InjectionSite.make(injectionSite)),
-      notes: notes === '' ? Option.none<Notes>() : Option.some(Notes.make(notes)),
-      scheduleId:
-        scheduleId === '' ? Option.none<InjectionScheduleId>() : Option.some(InjectionScheduleId.make(scheduleId)),
-    }
-    yield* editingId === null
-      ? api.InjectionLogCreate(
-          new InjectionLogCreate({
-            ...fields,
-            supplier: supplier === '' ? Option.none<Supplier>() : Option.some(Supplier.make(supplier)),
-          })
-        )
-      : api.InjectionLogUpdate(
-          new InjectionLogUpdate({
-            id: editingId,
-            ...fields,
-            supplier: supplier === '' ? null : Supplier.make(supplier),
-          })
-        )
-    return SucceededSaveInjection()
-  }).pipe(toCommandResult(FailedSaveInjection, 'Failed to save injection log'))
-)
+  messages: [SucceededSaveInjection, FailedSaveInjection],
+  execute: ({ datetime, doseMg, drug, editingId, injectionSite, notes, scheduleId, supplier }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      const compound = yield* Schema.decodeUnknownEffect(MedicationCompound)(drug)
+      const parsedDoseMg = yield* Schema.decodeUnknownEffect(DoseMg)(Number(doseMg))
+      const fields = {
+        datetime,
+        doseMg: parsedDoseMg,
+        drug: compound,
+        injectionSite:
+          injectionSite === '' ? Option.none<InjectionSite>() : Option.some(InjectionSite.make(injectionSite)),
+        notes: notes === '' ? Option.none<Notes>() : Option.some(Notes.make(notes)),
+        scheduleId:
+          scheduleId === '' ? Option.none<InjectionScheduleId>() : Option.some(InjectionScheduleId.make(scheduleId)),
+      }
+      yield* editingId === null
+        ? api.InjectionLogCreate(
+            new InjectionLogCreate({
+              ...fields,
+              supplier: supplier === '' ? Option.none<Supplier>() : Option.some(Supplier.make(supplier)),
+            })
+          )
+        : api.InjectionLogUpdate(
+            new InjectionLogUpdate({
+              id: editingId,
+              ...fields,
+              supplier: supplier === '' ? null : Supplier.make(supplier),
+            })
+          )
+      return SucceededSaveInjection()
+    }).pipe(toCommandResult(FailedSaveInjection, 'Failed to save injection log')),
+})
 
-const DeleteInjection = Command.define(
-  'DeleteInjection',
-  { id: InjectionLogId },
-  SucceededDeleteInjection,
-  FailedDeleteInjection
-)(({ id }) =>
-  Effect.gen(function* () {
-    const api = yield* Api
-    yield* api.InjectionLogDelete(new InjectionLogDelete({ id }))
-    return SucceededDeleteInjection()
-  }).pipe(toCommandResult(FailedDeleteInjection, 'Failed to delete injection log'))
-)
+const DeleteInjection = Command.define('DeleteInjection', {
+  args: { id: InjectionLogId },
+  messages: [SucceededDeleteInjection, FailedDeleteInjection],
+  execute: ({ id }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      yield* api.InjectionLogDelete(new InjectionLogDelete({ id }))
+      return SucceededDeleteInjection()
+    }).pipe(toCommandResult(FailedDeleteInjection, 'Failed to delete injection log')),
+})
 
 // ============================================
 // Update
@@ -299,7 +285,7 @@ type InjectionCommandMessage =
   | typeof FailedFetchInjectionSites.Type
   | typeof SucceededFetchInjectionSchedules.Type
   | typeof FailedFetchInjectionSchedules.Type
-  | typeof OpenedInjectionForm.Type
+  | typeof CompletedOpenInjectionForm.Type
   | typeof SucceededSaveInjection.Type
   | typeof FailedSaveInjection.Type
   | typeof SucceededDeleteInjection.Type
@@ -417,7 +403,7 @@ export const updateInjections = (
         [],
       ],
       FailedSaveInjection: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
-      OpenedInjectionForm: ({ log, nowLocal }) => [
+      CompletedOpenInjectionForm: ({ log, nowLocal }) => [
         evo(model, {
           form: () =>
             log === null
@@ -521,14 +507,6 @@ export const updateInjections = (
 // View
 // ============================================
 
-const h = html<InjectionsMessage>()
-
-const lookupValues = (data: InjectionLookupData, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
-  uniqueStrings(
-    AsyncData.getOrElse(data, () => []),
-    fallback
-  )
-
 const compareLogs = (left: InjectionLog, right: InjectionLog, column: 'datetime' | 'drug' | 'doseMg'): number => {
   if (column === 'datetime') {
     return DateTime.toEpochMillis(left.datetime) - DateTime.toEpochMillis(right.datetime)
@@ -563,450 +541,464 @@ const injectionSubmitLabel = (form: InjectionForm): string => {
   return form.editingId !== null ? 'Update' : 'Save'
 }
 
-const selectedSchedule = (
-  schedules: ReadonlyArray<InjectionSchedule>,
-  form: InjectionForm
-): Option.Option<InjectionSchedule> => scheduleById(schedules, form.scheduleId)
+const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | InjectionsMessage>) => {
+  const lookupValues = (data: InjectionLookupData, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
+    uniqueStrings(
+      AsyncData.getOrElse(data, () => []),
+      fallback
+    )
 
-const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>) => {
-  if (!isOffScheduleDose(form, schedules)) {
-    return h.empty
+  const selectedSchedule = (
+    schedules: ReadonlyArray<InjectionSchedule>,
+    form: InjectionForm
+  ): Option.Option<InjectionSchedule> => scheduleById(schedules, form.scheduleId)
+
+  const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>) => {
+    if (!isOffScheduleDose(form, schedules)) {
+      return h.empty
+    }
+    const doseMgs = scheduleDoseMgs(selectedSchedule(schedules, form))
+    return h.div(
+      [h.Class('mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg')],
+      [
+        h.div(
+          [h.Class('flex items-start gap-2')],
+          [
+            h.div(
+              [h.Class('flex-1')],
+              [
+                h.p([h.Class('text-sm font-medium text-amber-600')], ['Off-schedule dose']),
+                h.p(
+                  [h.Class('text-xs text-muted-foreground mt-1')],
+                  [
+                    `This dose (${form.doseMg} mg) does not match your schedule phases (${doseMgs.map((dose) => `${dose} mg`).join(', ')}).`,
+                  ]
+                ),
+                form.confirmedOffSchedule
+                  ? h.p([h.Class('mt-1 text-xs text-amber-600')], ['Confirmed - will log as entered'])
+                  : h.button(
+                      [
+                        h.Class('mt-2 text-xs text-amber-600 hover:underline font-medium'),
+                        h.Type('button'),
+                        h.OnClick(ConfirmedInjectionOffSchedule()),
+                      ],
+                      ['Log anyway']
+                    ),
+              ]
+            ),
+          ]
+        ),
+      ]
+    )
   }
-  const doseMgs = scheduleDoseMgs(selectedSchedule(schedules, form))
-  return h.div(
-    [h.Class('mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg')],
-    [
-      h.div(
-        [h.Class('flex items-start gap-2')],
-        [
-          h.div(
-            [h.Class('flex-1')],
-            [
-              h.p([h.Class('text-sm font-medium text-amber-600')], ['Off-schedule dose']),
-              h.p(
-                [h.Class('text-xs text-muted-foreground mt-1')],
-                [
-                  `This dose (${form.doseMg} mg) does not match your schedule phases (${doseMgs.map((dose) => `${dose} mg`).join(', ')}).`,
-                ]
-              ),
-              form.confirmedOffSchedule
-                ? h.p([h.Class('mt-1 text-xs text-amber-600')], ['Confirmed - will log as entered'])
-                : h.button(
-                    [
-                      h.Class('mt-2 text-xs text-amber-600 hover:underline font-medium'),
-                      h.Type('button'),
-                      h.OnClick(ConfirmedInjectionOffSchedule()),
-                    ],
-                    ['Log anyway']
-                  ),
-            ]
-          ),
-        ]
-      ),
-    ]
-  )
-}
 
-const viewForm = (model: InjectionsModel, form: InjectionForm) => {
-  const schedules = AsyncData.getOrElse(model.schedules, () => [])
-  const siteSuggestions = lookupValues(model.sites, listDefaultInjectionSites())
-  const selectedCompound = Schema.is(MedicationCompound)(form.drug) ? Option.some(form.drug) : Option.none()
-  const doseMgSuggestions = Arr.dedupe([
-    ...scheduleDoseMgs(selectedSchedule(schedules, form)),
-    ...Option.match(selectedCompound, {
-      onNone: () => [],
-      onSome: suggestedDoseMgForCompound,
-    }),
-  ]).map(String)
-  const submitLabel = injectionSubmitLabel(form)
-  const needsOffScheduleConfirmation = isOffScheduleDose(form, schedules) && !form.confirmedOffSchedule
-  return h.div(
-    [h.Class(card({ class: 'mb-6 p-6' }))],
-    [
-      h.form(
-        [h.OnSubmit(SubmittedInjectionForm())],
-        [
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label(
-                [h.For('injection-datetime'), h.Class('mb-2 block text-sm font-medium')],
-                ['Date & Time ', h.span([h.Class('text-destructive')], ['*'])]
-              ),
-              h.input([
-                h.Class(input()),
-                h.Type('datetime-local'),
-                h.Id('injection-datetime'),
-                h.Value(form.datetime),
-                h.Max(form.maxDatetime),
-                h.OnInput((value) => ChangedInjectionDatetime({ value })),
-              ]),
-            ]
-          ),
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label(
-                [h.For('injection-drug'), h.Class('mb-2 block text-sm font-medium')],
-                ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
-              ),
-              h.select(
-                [
-                  h.Class(select()),
-                  h.Id('injection-drug'),
-                  h.Value(form.drug),
-                  h.OnChange((value) => ChangedInjectionDrug({ value })),
-                ],
-                [
-                  h.option([h.Value('')], ['Select medication']),
-                  ...listMedicationCompounds().map((compound) =>
-                    h.keyed('option')(compound, [h.Value(compound)], [compound])
-                  ),
-                ]
-              ),
-            ]
-          ),
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label([h.For('injection-schedule'), h.Class('mb-2 block text-sm font-medium')], ['Link to Schedule']),
-              h.select(
-                [
-                  h.Class(select()),
-                  h.Id('injection-schedule'),
-                  h.Value(form.scheduleId),
-                  h.OnChange((value) => ChangedInjectionSchedule({ value })),
-                ],
-                [
-                  h.option([h.Value('')], ['No schedule']),
-                  ...schedules.map((schedule) =>
-                    h.keyed('option')(schedule.id, [h.Value(schedule.id)], [`${schedule.name} (${schedule.drug})`])
-                  ),
-                ]
-              ),
-            ]
-          ),
-          h.div(
-            [h.Class('grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2')],
-            [
-              h.div(
-                [],
-                [
-                  h.label(
-                    [h.For('injection-dose-mg'), h.Class('mb-2 block text-sm font-medium')],
-                    ['Dose (mg) ', h.span([h.Class('text-destructive')], ['*'])]
-                  ),
-                  h.input([
-                    h.Class(input()),
-                    h.Type('number'),
-                    h.Id('injection-dose-mg'),
-                    h.List('injection-dose-mg-suggestions'),
-                    h.Min('0'),
-                    h.Step('any'),
-                    h.Placeholder('e.g., 2.5'),
-                    h.Value(form.doseMg),
-                    h.OnInput((value) => ChangedInjectionDoseMg({ value })),
-                  ]),
-                  viewDatalist(h, 'injection-dose-mg-suggestions', doseMgSuggestions),
-                ]
-              ),
-              h.div(
-                [],
-                [
-                  h.label([h.For('injection-supplier'), h.Class('mb-2 block text-sm font-medium')], ['Supplier']),
-                  h.input([
-                    h.Class(input()),
-                    h.Type('text'),
-                    h.Id('injection-supplier'),
-                    h.Placeholder('e.g., CVS, Pharmacy'),
-                    h.Value(form.supplier),
-                    h.OnInput((value) => ChangedInjectionSupplier({ value })),
-                  ]),
-                ]
-              ),
-            ]
-          ),
-          viewOffScheduleWarning(form, schedules),
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label([h.For('injection-site'), h.Class('mb-2 block text-sm font-medium')], ['Injection Site']),
-              h.input([
-                h.Class(input()),
-                h.Type('text'),
-                h.Id('injection-site'),
-                h.List('injection-site-suggestions'),
-                h.Placeholder('Select site (optional)'),
-                h.Value(form.injectionSite),
-                h.OnInput((value) => ChangedInjectionSite({ value })),
-              ]),
-              viewDatalist(h, 'injection-site-suggestions', siteSuggestions),
-              h.p(
-                [h.Class('text-xs text-muted-foreground mt-1')],
-                ['Rotating injection sites helps prevent lipodystrophy']
-              ),
-            ]
-          ),
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label([h.For('injection-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
-              h.textarea(
-                [
-                  h.Class(input({ class: 'h-auto' })),
-                  h.Id('injection-notes'),
-                  h.Rows(2),
-                  h.Placeholder('Any side effects or observations...'),
-                  h.Value(form.notes),
-                  h.OnInput((value) => ChangedInjectionNotes({ value })),
-                ],
-                []
-              ),
-            ]
-          ),
-          form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),
-          h.div(
-            [h.Class('flex justify-end gap-3')],
-            [
-              h.button(
-                [h.Class(button({ variant: 'outline' })), h.Type('button'), h.OnClick(ClickedCancelInjectionForm())],
-                ['Cancel']
-              ),
-              h.button(
-                [
-                  h.Class(button()),
-                  h.Type('submit'),
-                  h.Disabled(
-                    form.submitting ||
-                      form.drug.trim() === '' ||
-                      form.doseMg.trim() === '' ||
-                      needsOffScheduleConfirmation
-                  ),
-                ],
-                [submitLabel]
-              ),
-            ]
-          ),
-        ]
-      ),
-    ]
-  )
-}
-
-const viewDeleteConfirm = () =>
-  h.div(
-    [h.Class(card({ class: 'mb-6 p-4 border-destructive/40' }))],
-    [
-      h.div(
-        [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
-        [
-          h.p([h.Class('text-sm')], ['Delete this entry?']),
-          h.div(
-            [h.Class('flex gap-2')],
-            [
-              h.button(
-                [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(CancelledDeleteInjection())],
-                ['Cancel']
-              ),
-              h.button(
-                [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(ConfirmedDeleteInjection())],
-                ['Delete']
-              ),
-            ]
-          ),
-        ]
-      ),
-    ]
-  )
-
-const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: Option.Option<string>): string =>
-  scheduleId.pipe(
-    Option.flatMap((id) => scheduleById(schedules, id)),
-    Option.match({ onNone: () => '-', onSome: (schedule) => schedule.name })
-  )
-
-const viewTable = (
-  model: InjectionsModel,
-  logs: ReadonlyArray<InjectionLog>,
-  schedules: ReadonlyArray<InjectionSchedule>,
-  timezone: IanaTimezone
-) => {
-  const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const page = Math.min(model.page, pageCount - 1)
-  const rows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  return h.div(
-    [],
-    [
-      h.div(
-        [h.Class('rounded-md border overflow-x-auto')],
-        [
-          h.table(
-            [h.Class('w-full caption-bottom text-sm')],
-            [
-              h.thead(
-                [h.Class('border-b')],
-                [
-                  h.tr(
-                    [h.Class('text-muted-foreground')],
-                    [
-                      h.th(
-                        [h.Class('h-10 px-3 text-left align-middle')],
-                        [
-                          headerButton(
-                            h,
-                            `Date${sortIndicator(model, 'datetime')}`,
-                            ClickedInjectionSort({ column: 'datetime' })
-                          ),
-                        ]
-                      ),
-                      h.th(
-                        [h.Class('h-10 px-3 text-left align-middle')],
-                        [
-                          headerButton(
-                            h,
-                            `Compound${sortIndicator(model, 'drug')}`,
-                            ClickedInjectionSort({ column: 'drug' })
-                          ),
-                        ]
-                      ),
-                      h.th(
-                        [h.Class('h-10 px-3 text-left align-middle')],
-                        [
-                          headerButton(
-                            h,
-                            `Dose (mg)${sortIndicator(model, 'doseMg')}`,
-                            ClickedInjectionSort({ column: 'doseMg' })
-                          ),
-                        ]
-                      ),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Supplier']),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Site']),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Schedule']),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Notes']),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Actions']),
-                    ]
-                  ),
-                ]
-              ),
-              h.tbody(
-                [],
-                rows.map((log) =>
-                  h.keyed('tr')(
-                    log.id,
-                    [h.Class('border-b transition-colors hover:bg-muted/50')],
-                    [
-                      h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
-                      h.td([h.Class('p-3 font-medium')], [log.drug]),
-                      h.td([h.Class('p-3 font-mono')], [`${log.doseMg} mg`]),
-                      h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.supplier ?? '-']),
-                      h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.injectionSite ?? '-']),
-                      h.td([h.Class('p-3 text-sm')], [scheduleName(schedules, Option.fromNullOr(log.scheduleId))]),
-                      h.td(
-                        [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
-                        [log.notes ?? '-']
-                      ),
-                      h.td(
-                        [h.Class('p-3')],
-                        [
-                          h.div(
-                            [h.Class('flex gap-2')],
-                            [
-                              h.button(
-                                [
-                                  h.Class(button({ size: 'sm', variant: 'ghost' })),
-                                  h.OnClick(ClickedEditInjection({ log })),
-                                ],
-                                ['Edit']
-                              ),
-                              h.button(
-                                [
-                                  h.Class(button({ size: 'sm', variant: 'destructive' })),
-                                  h.OnClick(RequestedDeleteInjection({ id: log.id })),
-                                ],
-                                ['Delete']
-                              ),
-                            ]
-                          ),
-                        ]
-                      ),
-                    ]
-                  )
-                )
-              ),
-            ]
-          ),
-        ]
-      ),
-      h.div(
-        [h.Class('flex items-center justify-end gap-2 py-4')],
-        [
-          h.button(
-            [
-              h.Class(button({ size: 'sm', variant: 'outline' })),
-              h.Disabled(page === 0),
-              h.OnClick(ClickedInjectionPage({ delta: -1 })),
-            ],
-            ['Previous']
-          ),
-          h.button(
-            [
-              h.Class(button({ size: 'sm', variant: 'outline' })),
-              h.Disabled(page >= pageCount - 1),
-              h.OnClick(ClickedInjectionPage({ delta: 1 })),
-            ],
-            ['Next']
-          ),
-        ]
-      ),
-    ]
-  )
-}
-
-export const viewInjections = (model: InjectionsModel, timezone: IanaTimezone) =>
-  h.div(
-    [],
-    [
-      h.div(
-        [h.Class('flex justify-between items-center mb-6')],
-        [
-          h.h2([h.Class('text-xl font-semibold tracking-tight')], ['Injection Log']),
-          h.button([h.Class(button()), h.OnClick(ClickedAddInjection())], ['Add Entry']),
-        ]
-      ),
-      model.form === null ? h.empty : viewForm(model, model.form),
-      model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
-      AsyncData.match(model.logs, {
-        onFailure: () =>
-          h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-        onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-        onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-        onRefreshing: (data) =>
-          viewTable(
-            model,
-            data,
-            AsyncData.getOrElse(model.schedules, () => []),
-            timezone
-          ),
-        onStale: ({ data }) =>
-          viewTable(
-            model,
-            data,
-            AsyncData.getOrElse(model.schedules, () => []),
-            timezone
-          ),
-        onSuccess: (data) =>
-          Arr.isReadonlyArrayNonEmpty(data)
-            ? viewTable(
-                model,
-                data,
-                AsyncData.getOrElse(model.schedules, () => []),
-                timezone
-              )
-            : h.div(
-                [h.Class('text-center py-12 text-muted-foreground')],
-                ['No entries yet. Add your first injection log.']
-              ),
+  const viewForm = (model: InjectionsModel, form: InjectionForm) => {
+    const schedules = AsyncData.getOrElse(model.schedules, () => [])
+    const siteSuggestions = lookupValues(model.sites, listDefaultInjectionSites())
+    const selectedCompound = Schema.is(MedicationCompound)(form.drug) ? Option.some(form.drug) : Option.none()
+    const doseMgSuggestions = Arr.dedupe([
+      ...scheduleDoseMgs(selectedSchedule(schedules, form)),
+      ...Option.match(selectedCompound, {
+        onNone: () => [],
+        onSome: suggestedDoseMgForCompound,
       }),
-    ]
-  )
+    ]).map(String)
+    const submitLabel = injectionSubmitLabel(form)
+    const needsOffScheduleConfirmation = isOffScheduleDose(form, schedules) && !form.confirmedOffSchedule
+    return h.div(
+      [h.Class(card({ class: 'mb-6 p-6' }))],
+      [
+        h.form(
+          [h.OnSubmit(SubmittedInjectionForm())],
+          [
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label(
+                  [h.For('injection-datetime'), h.Class('mb-2 block text-sm font-medium')],
+                  ['Date & Time ', h.span([h.Class('text-destructive')], ['*'])]
+                ),
+                h.input([
+                  h.Class(input()),
+                  h.Type('datetime-local'),
+                  h.Id('injection-datetime'),
+                  h.Value(form.datetime),
+                  h.Max(form.maxDatetime),
+                  h.OnInput((value) => ChangedInjectionDatetime({ value })),
+                ]),
+              ]
+            ),
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label(
+                  [h.For('injection-drug'), h.Class('mb-2 block text-sm font-medium')],
+                  ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
+                ),
+                h.select(
+                  [
+                    h.Class(select()),
+                    h.Id('injection-drug'),
+                    h.Value(form.drug),
+                    h.OnChange((value) => ChangedInjectionDrug({ value })),
+                  ],
+                  [
+                    h.option([h.Value('')], ['Select medication']),
+                    ...listMedicationCompounds().map((compound) =>
+                      h.keyed('option')(compound, [h.Value(compound)], [compound])
+                    ),
+                  ]
+                ),
+              ]
+            ),
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label([h.For('injection-schedule'), h.Class('mb-2 block text-sm font-medium')], ['Link to Schedule']),
+                h.select(
+                  [
+                    h.Class(select()),
+                    h.Id('injection-schedule'),
+                    h.Value(form.scheduleId),
+                    h.OnChange((value) => ChangedInjectionSchedule({ value })),
+                  ],
+                  [
+                    h.option([h.Value('')], ['No schedule']),
+                    ...schedules.map((schedule) =>
+                      h.keyed('option')(schedule.id, [h.Value(schedule.id)], [`${schedule.name} (${schedule.drug})`])
+                    ),
+                  ]
+                ),
+              ]
+            ),
+            h.div(
+              [h.Class('grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2')],
+              [
+                h.div(
+                  [],
+                  [
+                    h.label(
+                      [h.For('injection-dose-mg'), h.Class('mb-2 block text-sm font-medium')],
+                      ['Dose (mg) ', h.span([h.Class('text-destructive')], ['*'])]
+                    ),
+                    h.input([
+                      h.Class(input()),
+                      h.Type('number'),
+                      h.Id('injection-dose-mg'),
+                      h.List('injection-dose-mg-suggestions'),
+                      h.Min('0'),
+                      h.Step('any'),
+                      h.Placeholder('e.g., 2.5'),
+                      h.Value(form.doseMg),
+                      h.OnInput((value) => ChangedInjectionDoseMg({ value })),
+                    ]),
+                    viewDatalist(h, 'injection-dose-mg-suggestions', doseMgSuggestions),
+                  ]
+                ),
+                h.div(
+                  [],
+                  [
+                    h.label([h.For('injection-supplier'), h.Class('mb-2 block text-sm font-medium')], ['Supplier']),
+                    h.input([
+                      h.Class(input()),
+                      h.Type('text'),
+                      h.Id('injection-supplier'),
+                      h.Placeholder('e.g., CVS, Pharmacy'),
+                      h.Value(form.supplier),
+                      h.OnInput((value) => ChangedInjectionSupplier({ value })),
+                    ]),
+                  ]
+                ),
+              ]
+            ),
+            viewOffScheduleWarning(form, schedules),
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label([h.For('injection-site'), h.Class('mb-2 block text-sm font-medium')], ['Injection Site']),
+                h.input([
+                  h.Class(input()),
+                  h.Type('text'),
+                  h.Id('injection-site'),
+                  h.List('injection-site-suggestions'),
+                  h.Placeholder('Select site (optional)'),
+                  h.Value(form.injectionSite),
+                  h.OnInput((value) => ChangedInjectionSite({ value })),
+                ]),
+                viewDatalist(h, 'injection-site-suggestions', siteSuggestions),
+                h.p(
+                  [h.Class('text-xs text-muted-foreground mt-1')],
+                  ['Rotating injection sites helps prevent lipodystrophy']
+                ),
+              ]
+            ),
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label([h.For('injection-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
+                h.textarea(
+                  [
+                    h.Class(input({ class: 'h-auto' })),
+                    h.Id('injection-notes'),
+                    h.Rows(2),
+                    h.Placeholder('Any side effects or observations...'),
+                    h.Value(form.notes),
+                    h.OnInput((value) => ChangedInjectionNotes({ value })),
+                  ],
+                  []
+                ),
+              ]
+            ),
+            form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),
+            h.div(
+              [h.Class('flex justify-end gap-3')],
+              [
+                h.button(
+                  [h.Class(button({ variant: 'outline' })), h.Type('button'), h.OnClick(ClickedCancelInjectionForm())],
+                  ['Cancel']
+                ),
+                h.button(
+                  [
+                    h.Class(button()),
+                    h.Type('submit'),
+                    h.Disabled(
+                      form.submitting ||
+                        form.drug.trim() === '' ||
+                        form.doseMg.trim() === '' ||
+                        needsOffScheduleConfirmation
+                    ),
+                  ],
+                  [submitLabel]
+                ),
+              ]
+            ),
+          ]
+        ),
+      ]
+    )
+  }
+
+  const viewDeleteConfirm = () =>
+    h.div(
+      [h.Class(card({ class: 'mb-6 p-4 border-destructive/40' }))],
+      [
+        h.div(
+          [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
+          [
+            h.p([h.Class('text-sm')], ['Delete this entry?']),
+            h.div(
+              [h.Class('flex gap-2')],
+              [
+                h.button(
+                  [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(CancelledDeleteInjection())],
+                  ['Cancel']
+                ),
+                h.button(
+                  [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(ConfirmedDeleteInjection())],
+                  ['Delete']
+                ),
+              ]
+            ),
+          ]
+        ),
+      ]
+    )
+
+  const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: Option.Option<string>): string =>
+    scheduleId.pipe(
+      Option.flatMap((id) => scheduleById(schedules, id)),
+      Option.match({ onNone: () => '-', onSome: (schedule) => schedule.name })
+    )
+
+  const viewTable = (
+    model: InjectionsModel,
+    logs: ReadonlyArray<InjectionLog>,
+    schedules: ReadonlyArray<InjectionSchedule>,
+    timezone: IanaTimezone
+  ) => {
+    const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
+    const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+    const page = Math.min(model.page, pageCount - 1)
+    const rows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+    return h.div(
+      [],
+      [
+        h.div(
+          [h.Class('rounded-md border overflow-x-auto')],
+          [
+            h.table(
+              [h.Class('w-full caption-bottom text-sm')],
+              [
+                h.thead(
+                  [h.Class('border-b')],
+                  [
+                    h.tr(
+                      [h.Class('text-muted-foreground')],
+                      [
+                        h.th(
+                          [h.Class('h-10 px-3 text-left align-middle')],
+                          [
+                            headerButton(
+                              h,
+                              `Date${sortIndicator(model, 'datetime')}`,
+                              ClickedInjectionSort({ column: 'datetime' })
+                            ),
+                          ]
+                        ),
+                        h.th(
+                          [h.Class('h-10 px-3 text-left align-middle')],
+                          [
+                            headerButton(
+                              h,
+                              `Compound${sortIndicator(model, 'drug')}`,
+                              ClickedInjectionSort({ column: 'drug' })
+                            ),
+                          ]
+                        ),
+                        h.th(
+                          [h.Class('h-10 px-3 text-left align-middle')],
+                          [
+                            headerButton(
+                              h,
+                              `Dose (mg)${sortIndicator(model, 'doseMg')}`,
+                              ClickedInjectionSort({ column: 'doseMg' })
+                            ),
+                          ]
+                        ),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Supplier']),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Site']),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Schedule']),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Notes']),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Actions']),
+                      ]
+                    ),
+                  ]
+                ),
+                h.tbody(
+                  [],
+                  rows.map((log) =>
+                    h.keyed('tr')(
+                      log.id,
+                      [h.Class('border-b transition-colors hover:bg-muted/50')],
+                      [
+                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
+                        h.td([h.Class('p-3 font-medium')], [log.drug]),
+                        h.td([h.Class('p-3 font-mono')], [`${log.doseMg} mg`]),
+                        h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.supplier ?? '-']),
+                        h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.injectionSite ?? '-']),
+                        h.td([h.Class('p-3 text-sm')], [scheduleName(schedules, Option.fromNullOr(log.scheduleId))]),
+                        h.td(
+                          [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
+                          [log.notes ?? '-']
+                        ),
+                        h.td(
+                          [h.Class('p-3')],
+                          [
+                            h.div(
+                              [h.Class('flex gap-2')],
+                              [
+                                h.button(
+                                  [
+                                    h.Class(button({ size: 'sm', variant: 'ghost' })),
+                                    h.OnClick(ClickedEditInjection({ log })),
+                                  ],
+                                  ['Edit']
+                                ),
+                                h.button(
+                                  [
+                                    h.Class(button({ size: 'sm', variant: 'destructive' })),
+                                    h.OnClick(RequestedDeleteInjection({ id: log.id })),
+                                  ],
+                                  ['Delete']
+                                ),
+                              ]
+                            ),
+                          ]
+                        ),
+                      ]
+                    )
+                  )
+                ),
+              ]
+            ),
+          ]
+        ),
+        h.div(
+          [h.Class('flex items-center justify-end gap-2 py-4')],
+          [
+            h.button(
+              [
+                h.Class(button({ size: 'sm', variant: 'outline' })),
+                h.Disabled(page === 0),
+                h.OnClick(ClickedInjectionPage({ delta: -1 })),
+              ],
+              ['Previous']
+            ),
+            h.button(
+              [
+                h.Class(button({ size: 'sm', variant: 'outline' })),
+                h.Disabled(page >= pageCount - 1),
+                h.OnClick(ClickedInjectionPage({ delta: 1 })),
+              ],
+              ['Next']
+            ),
+          ]
+        ),
+      ]
+    )
+  }
+
+  return (model: InjectionsModel, timezone: IanaTimezone) =>
+    h.div(
+      [],
+      [
+        h.div(
+          [h.Class('flex justify-between items-center mb-6')],
+          [
+            h.h2([h.Class('text-xl font-semibold tracking-tight')], ['Injection Log']),
+            h.button([h.Class(button()), h.OnClick(ClickedAddInjection())], ['Add Entry']),
+          ]
+        ),
+        model.form === null ? h.empty : viewForm(model, model.form),
+        model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
+        AsyncData.match(model.logs, {
+          onFailure: () =>
+            h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
+          onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
+          onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
+          onRefreshing: (data) =>
+            viewTable(
+              model,
+              data,
+              AsyncData.getOrElse(model.schedules, () => []),
+              timezone
+            ),
+          onStale: ({ data }) =>
+            viewTable(
+              model,
+              data,
+              AsyncData.getOrElse(model.schedules, () => []),
+              timezone
+            ),
+          onSuccess: (data) =>
+            Arr.isReadonlyArrayNonEmpty(data)
+              ? viewTable(
+                  model,
+                  data,
+                  AsyncData.getOrElse(model.schedules, () => []),
+                  timezone
+                )
+              : h.div(
+                  [h.Class('text-center py-12 text-muted-foreground')],
+                  ['No entries yet. Add your first injection log.']
+                ),
+        }),
+      ]
+    )
+}
+
+export const viewInjections = <ParentMessage>(
+  model: InjectionsModel,
+  timezone: IanaTimezone,
+  h: HtmlBuilder<ParentMessage | InjectionsMessage>
+) => makeViewInjections(h)(model, timezone)

@@ -43,7 +43,7 @@ import {
   FailedSaveSchedule,
   FetchNextDose,
   FetchSchedules,
-  OpenedScheduleForm,
+  CompletedOpenScheduleForm,
   RemovedSchedulePhase,
   RequestedDeleteSchedule,
   SubmittedScheduleForm,
@@ -123,11 +123,11 @@ describe('schedule page update', () => {
     it('adding a schedule opens a blank form seeded with a single default phase', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(ClickedAddSchedule()),
         Command.resolveAll([
           { name: 'OpenScheduleForm' },
-          OpenedScheduleForm({ schedule: null, todayLocal: '2026-07-03' }),
+          CompletedOpenScheduleForm({ schedule: null, todayLocal: '2026-07-03' }),
         ]),
         Story.model((model: ScheduleModel) => {
           expect(model.form).not.toBeNull()
@@ -142,11 +142,11 @@ describe('schedule page update', () => {
     it('editing a schedule seeds the form from the existing schedule, mapping indefinite phases', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(ClickedEditSchedule({ schedule: sampleSchedule })),
         Command.resolveAll([
           { name: 'OpenScheduleForm' },
-          OpenedScheduleForm({ schedule: sampleSchedule, todayLocal: '2026-07-03' }),
+          CompletedOpenScheduleForm({ schedule: sampleSchedule, todayLocal: '2026-07-03' }),
         ]),
         Story.model((model: ScheduleModel) => {
           expect(model.form?.editingId).toBe(sampleSchedule.id)
@@ -164,7 +164,10 @@ describe('schedule page update', () => {
     })
 
     it('keeps a planned date stable for clients in different timezones', () => {
-      const opened = OpenedScheduleForm({ schedule: sampleSchedule, todayLocal: CalendarDate.make('2026-07-03') })
+      const opened = CompletedOpenScheduleForm({
+        schedule: sampleSchedule,
+        todayLocal: CalendarDate.make('2026-07-03'),
+      })
       const [newYork] = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('America/New_York'), 1)
       const [auckland] = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('Pacific/Auckland'), 1)
 
@@ -176,7 +179,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(ClickedCancelScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -197,7 +200,7 @@ describe('schedule page update', () => {
       }
       Story.story(
         update,
-        Story.with(withIndefiniteLastPhase),
+        Story.given(withIndefiniteLastPhase),
         Story.message(AddedSchedulePhase()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -222,7 +225,7 @@ describe('schedule page update', () => {
       }
       Story.story(
         update,
-        Story.with(withTwoPhases),
+        Story.given(withTwoPhases),
         Story.message(RemovedSchedulePhase({ index: 0 })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -235,7 +238,7 @@ describe('schedule page update', () => {
       const withOnePhase: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withOnePhase),
+        Story.given(withOnePhase),
         Story.message(RemovedSchedulePhase({ index: 0 })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -257,7 +260,7 @@ describe('schedule page update', () => {
       }
       Story.story(
         update,
-        Story.with(withTwoPhases),
+        Story.given(withTwoPhases),
         Story.message(ChangedSchedulePhaseDoseMg({ index: 1, value: '1' })),
         Command.expectNone(),
         Story.message(ChangedSchedulePhaseDuration({ index: 1, value: '56' })),
@@ -275,7 +278,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(ToggledSchedulePhaseIndefinite({ checked: true, index: 0 })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -294,7 +297,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(ChangedScheduleName({ value: 'New Name' })),
         Story.message(ChangedScheduleDrug({ value: 'Tirzepatide' })),
         Story.message(ChangedScheduleSupplier({ value: 'Clinic' })),
@@ -318,7 +321,7 @@ describe('schedule page update', () => {
     it('does nothing when there is no open form', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -331,7 +334,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: { ...validForm, name: '  ' } }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -344,7 +347,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: { ...validForm, drug: '' } }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -357,7 +360,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: { ...validForm, startDate: '' } }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -370,7 +373,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: { ...validForm, phases: [] } }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -386,7 +389,7 @@ describe('schedule page update', () => {
       }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -402,7 +405,7 @@ describe('schedule page update', () => {
       }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -424,7 +427,7 @@ describe('schedule page update', () => {
       }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -437,7 +440,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Story.model((model: ScheduleModel) => {
           expect(model.form?.submitting).toBe(true)
@@ -475,7 +478,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
         Command.resolveAll([{ name: 'SaveSchedule' }, FailedSaveSchedule({ message: 'Failed to save schedule' })]),
         Story.model((model: ScheduleModel) => {
@@ -492,7 +495,7 @@ describe('schedule page update', () => {
       const withForm: ScheduleModel = { ...initialScheduleModel, form: validForm }
       Story.story(
         update,
-        Story.with(withForm),
+        Story.given(withForm),
         Story.message(RequestedDeleteSchedule({ id: sampleSchedule.id })),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -506,7 +509,7 @@ describe('schedule page update', () => {
       const withPending: ScheduleModel = { ...initialScheduleModel, pendingDeleteId: sampleSchedule.id }
       Story.story(
         update,
-        Story.with(withPending),
+        Story.given(withPending),
         Story.message(CancelledDeleteSchedule()),
         Command.expectNone(),
         Story.model((model: ScheduleModel) => {
@@ -518,7 +521,7 @@ describe('schedule page update', () => {
     it('confirming with no pending id does nothing', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(ConfirmedDeleteSchedule()),
         Command.expectNone()
       )
@@ -528,7 +531,7 @@ describe('schedule page update', () => {
       const withPending: ScheduleModel = { ...initialScheduleModel, pendingDeleteId: sampleSchedule.id }
       Story.story(
         update,
-        Story.with(withPending),
+        Story.given(withPending),
         Story.message(ConfirmedDeleteSchedule()),
         Command.resolveAll(
           [{ name: 'DeleteSchedule' }, SucceededDeleteSchedule()],
@@ -546,7 +549,7 @@ describe('schedule page update', () => {
       const withPending: ScheduleModel = { ...initialScheduleModel, pendingDeleteId: sampleSchedule.id }
       Story.story(
         update,
-        Story.with(withPending),
+        Story.given(withPending),
         Story.message(ConfirmedDeleteSchedule()),
         Command.resolveAll([
           { name: 'DeleteSchedule' },
@@ -563,7 +566,7 @@ describe('schedule page update', () => {
     it('activating a schedule refetches schedules and next dose on success', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(ClickedActivateSchedule({ schedule: sampleSchedule })),
         Command.resolveAll(
           [{ name: 'ActivateSchedule' }, SucceededActivateSchedule()],
@@ -579,7 +582,7 @@ describe('schedule page update', () => {
     it('a failed activation leaves the model untouched', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(ClickedActivateSchedule({ schedule: sampleSchedule })),
         Command.resolveAll([
           { name: 'ActivateSchedule' },
@@ -596,7 +599,7 @@ describe('schedule page update', () => {
     it('failed fetches mark each data slice as a Failure', () => {
       Story.story(
         update,
-        Story.with(initialScheduleModel),
+        Story.given(initialScheduleModel),
         Story.message(FailedFetchSchedules({ message: 'Failed to load schedules' })),
         Command.expectNone(),
         Story.message(

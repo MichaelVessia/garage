@@ -112,7 +112,7 @@ describe('settings page update', () => {
   it('submitting without a current password surfaces a validation error', () => {
     Story.story(
       update,
-      Story.with(initialSettingsModel),
+      Story.given(initialSettingsModel),
       Story.message(SubmittedSettingsPassword()),
       Command.expectNone(),
       Story.model((model: SettingsModel) => {
@@ -128,7 +128,7 @@ describe('settings page update', () => {
     }
     Story.story(
       update,
-      Story.with(withCurrent),
+      Story.given(withCurrent),
       Story.message(SubmittedSettingsPassword()),
       Command.expectNone(),
       Story.model((model: SettingsModel) => {
@@ -149,7 +149,7 @@ describe('settings page update', () => {
     }
     Story.story(
       update,
-      Story.with(mismatched),
+      Story.given(mismatched),
       Story.message(SubmittedSettingsPassword()),
       Command.expectNone(),
       Story.model((model: SettingsModel) => {
@@ -183,7 +183,7 @@ describe('settings page update', () => {
     }
     Story.story(
       update,
-      Story.with(succeeded),
+      Story.given(succeeded),
       Story.message(ChangedSettingsCurrentPassword({ value: 'abc' })),
       Command.expectNone(),
       Story.model((model: SettingsModel) => {
@@ -247,7 +247,7 @@ describe('settings page update', () => {
     const withStatus: SettingsModel = { ...initialSettingsModel, dataError: 'old error', dataSuccess: 'old success' }
     Story.story(
       update,
-      Story.with(withStatus),
+      Story.given(withStatus),
       Story.message(ClickedExportData()),
       Story.model((model: SettingsModel) => {
         expect(model.exportStatus).toBe('exporting')
@@ -265,7 +265,7 @@ describe('settings page update', () => {
   it('a failed export surfaces the error and stops exporting', () => {
     Story.story(
       update,
-      Story.with(initialSettingsModel),
+      Story.given(initialSettingsModel),
       Story.message(ClickedExportData()),
       Command.resolveAll([
         { name: 'ExportData' },
@@ -281,7 +281,7 @@ describe('settings page update', () => {
   it('cancelling the file picker returns to idle without an error', () => {
     Story.story(
       update,
-      Story.with(initialSettingsModel),
+      Story.given(initialSettingsModel),
       Story.message(ClickedSelectImportFile()),
       Story.model((model: SettingsModel) => {
         expect(model.importStatus).toBe('reading')
@@ -298,7 +298,7 @@ describe('settings page update', () => {
     const file = new File([], 'export.json', { type: 'application/json' })
     Story.story(
       update,
-      Story.with(initialSettingsModel),
+      Story.given(initialSettingsModel),
       Story.message(ClickedSelectImportFile()),
       Command.resolveAll(
         [{ name: 'SelectImportFile' }, SelectedImportFile({ file })],
@@ -315,7 +315,7 @@ describe('settings page update', () => {
     const file = new File([], 'export.json', { type: 'application/json' })
     Story.story(
       update,
-      Story.with(initialSettingsModel),
+      Story.given(initialSettingsModel),
       Story.message(ClickedSelectImportFile()),
       Command.resolveAll(
         [{ name: 'SelectImportFile' }, SelectedImportFile({ file })],
@@ -336,7 +336,7 @@ describe('settings page update', () => {
     const withConfirm: SettingsModel = { ...initialSettingsModel, importConfirm: sampleExport }
     Story.story(
       update,
-      Story.with(withConfirm),
+      Story.given(withConfirm),
       Story.message(CancelledImportData()),
       Command.expectNone(),
       Story.model((model: SettingsModel) => {
@@ -376,7 +376,7 @@ describe('settings page update', () => {
     const importing: SettingsModel = { ...initialSettingsModel, importConfirm: sampleExport, importStatus: 'importing' }
     Story.story(
       update,
-      Story.with(importing),
+      Story.given(importing),
       Story.message(FailedImportData({ message: 'Failed to import data. Please try again.' })),
       Command.expectNone(),
       Story.model((model: SettingsModel) => {

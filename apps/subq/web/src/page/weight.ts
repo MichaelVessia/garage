@@ -6,7 +6,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
-import { html } from 'foldkit/html'
+import type { HtmlBuilder } from 'foldkit/html'
 import { m } from 'foldkit/message'
 import { evo } from 'foldkit/struct'
 
@@ -80,7 +80,7 @@ export const SucceededFetchWeightLogs = m('SucceededFetchWeightLogs', {
   logs: Schema.Array(WeightLog),
 })
 export const FailedFetchWeightLogs = m('FailedFetchWeightLogs', { message: Schema.String })
-export const OpenedWeightForm = m('OpenedWeightForm', {
+export const CompletedOpenWeightForm = m('CompletedOpenWeightForm', {
   nowLocal: Schema.String,
   log: Schema.NullOr(WeightLog),
 })
@@ -108,7 +108,7 @@ export const ClickedWeightPage = m('ClickedWeightPage', { delta: Schema.Number }
 export const WeightMessage = Schema.Union([
   SucceededFetchWeightLogs,
   FailedFetchWeightLogs,
-  OpenedWeightForm,
+  CompletedOpenWeightForm,
   ClickedAddWeight,
   ClickedEditWeight,
   ClickedCancelWeightForm,
@@ -132,66 +132,60 @@ export type WeightMessage = typeof WeightMessage.Type
 // Commands
 // ============================================
 
-export const FetchWeightLogs = Command.define(
-  'FetchWeightLogs',
-  SucceededFetchWeightLogs,
-  FailedFetchWeightLogs
-)(
-  Effect.gen(function* () {
+export const FetchWeightLogs = Command.define('FetchWeightLogs', {
+  messages: [SucceededFetchWeightLogs, FailedFetchWeightLogs],
+  execute: Effect.gen(function* () {
     const api = yield* Api
     const logs = yield* api.WeightLogList(
       new WeightLogListParams({ limit: Limit.make(10_000), offset: Offset.make(0) })
     )
     return SucceededFetchWeightLogs({ logs })
-  }).pipe(toCommandResult(FailedFetchWeightLogs, 'Failed to load weight logs'))
-)
+  }).pipe(toCommandResult(FailedFetchWeightLogs, 'Failed to load weight logs')),
+})
 
 // Opening the form needs "now" for the datetime default and max.
-export const OpenWeightForm = Command.define(
-  'OpenWeightForm',
-  { log: Schema.NullOr(WeightLog), timezone: IanaTimezone },
-  OpenedWeightForm
-)(({ log, timezone }) =>
-  DateTime.now.pipe(Effect.map((now) => OpenedWeightForm({ log, nowLocal: utcToLocalDatetimeString(now, timezone) })))
-)
+export const OpenWeightForm = Command.define('OpenWeightForm', {
+  args: { log: Schema.NullOr(WeightLog), timezone: IanaTimezone },
+  messages: [CompletedOpenWeightForm],
+  execute: ({ log, timezone }) =>
+    DateTime.now.pipe(
+      Effect.map((now) => CompletedOpenWeightForm({ log, nowLocal: utcToLocalDatetimeString(now, timezone) }))
+    ),
+})
 
-export const SaveWeight = Command.define(
-  'SaveWeight',
-  {
+export const SaveWeight = Command.define('SaveWeight', {
+  args: {
     editingId: Schema.NullOr(WeightLogId),
     datetime: Schema.DateTimeUtc,
     weightLbs: Schema.Number,
     notes: Schema.String,
   },
-  SucceededSaveWeight,
-  FailedSaveWeight
-)(({ datetime, editingId, notes, weightLbs }) =>
-  Effect.gen(function* () {
-    const api = yield* Api
-    const fields = {
-      datetime,
-      notes: notes === '' ? Option.none<Notes>() : Option.some(Notes.make(notes)),
-      weight: Weight.make(weightLbs),
-    }
-    yield* editingId === null
-      ? api.WeightLogCreate(new WeightLogCreate(fields))
-      : api.WeightLogUpdate(new WeightLogUpdate({ id: editingId, ...fields }))
-    return SucceededSaveWeight()
-  }).pipe(toCommandResult(FailedSaveWeight, 'Failed to save entry'))
-)
+  messages: [SucceededSaveWeight, FailedSaveWeight],
+  execute: ({ datetime, editingId, notes, weightLbs }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      const fields = {
+        datetime,
+        notes: notes === '' ? Option.none<Notes>() : Option.some(Notes.make(notes)),
+        weight: Weight.make(weightLbs),
+      }
+      yield* editingId === null
+        ? api.WeightLogCreate(new WeightLogCreate(fields))
+        : api.WeightLogUpdate(new WeightLogUpdate({ id: editingId, ...fields }))
+      return SucceededSaveWeight()
+    }).pipe(toCommandResult(FailedSaveWeight, 'Failed to save entry')),
+})
 
-export const DeleteWeight = Command.define(
-  'DeleteWeight',
-  { id: WeightLogId },
-  SucceededDeleteWeight,
-  FailedDeleteWeight
-)(({ id }) =>
-  Effect.gen(function* () {
-    const api = yield* Api
-    yield* api.WeightLogDelete({ id })
-    return SucceededDeleteWeight()
-  }).pipe(toCommandResult(FailedDeleteWeight, 'Failed to delete entry'))
-)
+export const DeleteWeight = Command.define('DeleteWeight', {
+  args: { id: WeightLogId },
+  messages: [SucceededDeleteWeight, FailedDeleteWeight],
+  execute: ({ id }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      yield* api.WeightLogDelete({ id })
+      return SucceededDeleteWeight()
+    }).pipe(toCommandResult(FailedDeleteWeight, 'Failed to delete entry')),
+})
 
 // ============================================
 // Update
@@ -200,7 +194,7 @@ export const DeleteWeight = Command.define(
 type WeightCommandMessage =
   | typeof SucceededFetchWeightLogs.Type
   | typeof FailedFetchWeightLogs.Type
-  | typeof OpenedWeightForm.Type
+  | typeof CompletedOpenWeightForm.Type
   | typeof SucceededSaveWeight.Type
   | typeof FailedSaveWeight.Type
   | typeof SucceededDeleteWeight.Type
@@ -236,7 +230,7 @@ export const updateWeight = (model: WeightModel, message: WeightMessage, timezon
       FailedDeleteWeight: () => [evo(model, { pendingDeleteId: () => null }), []],
       FailedFetchWeightLogs: ({ message: error }) => [evo(model, { logs: () => AsyncData.Failure({ error }) }), []],
       FailedSaveWeight: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
-      OpenedWeightForm: ({ log, nowLocal }) => [
+      CompletedOpenWeightForm: ({ log, nowLocal }) => [
         evo(model, {
           form: () =>
             log === null
@@ -309,8 +303,6 @@ export const updateWeight = (model: WeightModel, message: WeightMessage, timezon
 // View
 // ============================================
 
-const h = html<WeightMessage>()
-
 const sortLogs = (
   logs: ReadonlyArray<WeightLog>,
   column: 'datetime' | 'weight',
@@ -338,257 +330,266 @@ const weightSubmitLabel = (form: WeightForm): string => {
   return form.editingId !== null ? 'Update' : 'Save'
 }
 
-const viewForm = (form: WeightForm, unit: WeightUnit) => {
-  const submitLabel = weightSubmitLabel(form)
-  return h.div(
-    [h.Class('mb-6 p-6 rounded-lg border bg-card text-card-foreground shadow-sm')],
-    [
-      h.form(
-        [h.OnSubmit(SubmittedWeightForm({ unit }))],
-        [
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label(
-                [h.For('weight-datetime'), h.Class('mb-2 block text-sm font-medium')],
-                ['Date & Time ', h.span([h.Class('text-destructive')], ['*'])]
-              ),
-              h.input([
-                h.Class(input()),
-                h.Type('datetime-local'),
-                h.Id('weight-datetime'),
-                h.Value(form.datetime),
-                h.Max(form.maxDatetime),
-                h.OnInput((value) => ChangedWeightDatetime({ value })),
-              ]),
-            ]
-          ),
-          h.div(
-            [h.Class('mb-4')],
-            [
-              h.label(
-                [h.For('weight-value'), h.Class('mb-2 block text-sm font-medium')],
-                [`Weight (${unit}) `, h.span([h.Class('text-destructive')], ['*'])]
-              ),
-              h.input([
-                h.Class(input()),
-                h.Type('number'),
-                h.Id('weight-value'),
-                h.Step('0.1'),
-                h.Min('0'),
-                h.Max('1000'),
-                h.Placeholder(unit === 'kg' ? 'e.g., 84.0' : 'e.g., 185.5'),
-                h.Value(form.weight),
-                h.OnInput((value) => ChangedWeightValue({ value })),
-              ]),
-            ]
-          ),
-          h.div(
-            [h.Class('mb-5')],
-            [
-              h.label([h.For('weight-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
-              h.textarea(
-                [
-                  h.Class(input({ class: 'h-auto' })),
-                  h.Id('weight-notes'),
-                  h.Rows(2),
-                  h.Placeholder('e.g., Morning weigh-in, after workout, fasted...'),
-                  h.Value(form.notes),
-                  h.OnInput((value) => ChangedWeightNotes({ value })),
-                ],
-                []
-              ),
-            ]
-          ),
-          form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),
-          h.div(
-            [h.Class('flex justify-end gap-3')],
-            [
-              h.button(
-                [h.Class(button({ variant: 'outline' })), h.Type('button'), h.OnClick(ClickedCancelWeightForm())],
-                ['Cancel']
-              ),
-              h.button(
-                [h.Class(button()), h.Type('submit'), h.Disabled(form.submitting || form.weight === '')],
-                [submitLabel]
-              ),
-            ]
-          ),
-        ]
-      ),
-    ]
-  )
-}
+const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMessage>) => {
+  const viewForm = (form: WeightForm, unit: WeightUnit) => {
+    const submitLabel = weightSubmitLabel(form)
+    return h.div(
+      [h.Class('mb-6 p-6 rounded-lg border bg-card text-card-foreground shadow-sm')],
+      [
+        h.form(
+          [h.OnSubmit(SubmittedWeightForm({ unit }))],
+          [
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label(
+                  [h.For('weight-datetime'), h.Class('mb-2 block text-sm font-medium')],
+                  ['Date & Time ', h.span([h.Class('text-destructive')], ['*'])]
+                ),
+                h.input([
+                  h.Class(input()),
+                  h.Type('datetime-local'),
+                  h.Id('weight-datetime'),
+                  h.Value(form.datetime),
+                  h.Max(form.maxDatetime),
+                  h.OnInput((value) => ChangedWeightDatetime({ value })),
+                ]),
+              ]
+            ),
+            h.div(
+              [h.Class('mb-4')],
+              [
+                h.label(
+                  [h.For('weight-value'), h.Class('mb-2 block text-sm font-medium')],
+                  [`Weight (${unit}) `, h.span([h.Class('text-destructive')], ['*'])]
+                ),
+                h.input([
+                  h.Class(input()),
+                  h.Type('number'),
+                  h.Id('weight-value'),
+                  h.Step('0.1'),
+                  h.Min('0'),
+                  h.Max('1000'),
+                  h.Placeholder(unit === 'kg' ? 'e.g., 84.0' : 'e.g., 185.5'),
+                  h.Value(form.weight),
+                  h.OnInput((value) => ChangedWeightValue({ value })),
+                ]),
+              ]
+            ),
+            h.div(
+              [h.Class('mb-5')],
+              [
+                h.label([h.For('weight-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
+                h.textarea(
+                  [
+                    h.Class(input({ class: 'h-auto' })),
+                    h.Id('weight-notes'),
+                    h.Rows(2),
+                    h.Placeholder('e.g., Morning weigh-in, after workout, fasted...'),
+                    h.Value(form.notes),
+                    h.OnInput((value) => ChangedWeightNotes({ value })),
+                  ],
+                  []
+                ),
+              ]
+            ),
+            form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),
+            h.div(
+              [h.Class('flex justify-end gap-3')],
+              [
+                h.button(
+                  [h.Class(button({ variant: 'outline' })), h.Type('button'), h.OnClick(ClickedCancelWeightForm())],
+                  ['Cancel']
+                ),
+                h.button(
+                  [h.Class(button()), h.Type('submit'), h.Disabled(form.submitting || form.weight === '')],
+                  [submitLabel]
+                ),
+              ]
+            ),
+          ]
+        ),
+      ]
+    )
+  }
 
-const viewDeleteConfirm = () =>
-  h.div(
-    [h.Class('mb-6 p-4 rounded-lg border border-destructive/40 bg-card shadow-sm')],
-    [
-      h.div(
-        [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
-        [
-          h.p([h.Class('text-sm')], ['Delete this entry?']),
-          h.div(
-            [h.Class('flex gap-2')],
-            [
-              h.button(
-                [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(CancelledDeleteWeight())],
-                ['Cancel']
-              ),
-              h.button(
-                [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(ConfirmedDeleteWeight())],
-                ['Delete']
-              ),
-            ]
-          ),
-        ]
-      ),
-    ]
-  )
+  const viewDeleteConfirm = () =>
+    h.div(
+      [h.Class('mb-6 p-4 rounded-lg border border-destructive/40 bg-card shadow-sm')],
+      [
+        h.div(
+          [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
+          [
+            h.p([h.Class('text-sm')], ['Delete this entry?']),
+            h.div(
+              [h.Class('flex gap-2')],
+              [
+                h.button(
+                  [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(CancelledDeleteWeight())],
+                  ['Cancel']
+                ),
+                h.button(
+                  [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(ConfirmedDeleteWeight())],
+                  ['Delete']
+                ),
+              ]
+            ),
+          ]
+        ),
+      ]
+    )
 
-const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: WeightUnit, timezone: IanaTimezone) => {
-  const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const page = Math.min(model.page, pageCount - 1)
-  const rows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  return h.div(
-    [],
-    [
-      h.div(
-        [h.Class('rounded-md border overflow-x-auto')],
-        [
-          h.table(
-            [h.Class('w-full caption-bottom text-sm')],
-            [
-              h.thead(
-                [h.Class('border-b')],
-                [
-                  h.tr(
-                    [h.Class('text-muted-foreground')],
-                    [
-                      h.th(
-                        [h.Class('h-10 px-3 text-left align-middle')],
-                        [
-                          headerButton(
-                            h,
-                            `Date${sortIndicator(model, 'datetime')}`,
-                            ClickedWeightSort({ column: 'datetime' })
-                          ),
-                        ]
-                      ),
-                      h.th(
-                        [h.Class('h-10 px-3 text-left align-middle')],
-                        [
-                          headerButton(
-                            h,
-                            `Weight (${unit})${sortIndicator(model, 'weight')}`,
-                            ClickedWeightSort({ column: 'weight' })
-                          ),
-                        ]
-                      ),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Notes']),
-                      h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Actions']),
-                    ]
-                  ),
-                ]
-              ),
-              h.tbody(
-                [],
-                rows.map((log) =>
-                  h.keyed('tr')(
-                    log.id,
-                    [h.Class('border-b transition-colors hover:bg-muted/50')],
-                    [
-                      h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
-                      h.td([h.Class('p-3 font-mono font-medium')], [formatWeight(unit, log.weight)]),
-                      h.td(
-                        [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
-                        [log.notes ?? '-']
-                      ),
-                      h.td(
-                        [h.Class('p-3')],
-                        [
-                          h.div(
-                            [h.Class('flex gap-2')],
-                            [
-                              h.button(
-                                [
-                                  h.Class(button({ size: 'sm', variant: 'ghost' })),
-                                  h.OnClick(ClickedEditWeight({ log })),
-                                ],
-                                ['Edit']
-                              ),
-                              h.button(
-                                [
-                                  h.Class(button({ size: 'sm', variant: 'destructive' })),
-                                  h.OnClick(RequestedDeleteWeight({ id: log.id })),
-                                ],
-                                ['Delete']
-                              ),
-                            ]
-                          ),
-                        ]
-                      ),
-                    ]
+  const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: WeightUnit, timezone: IanaTimezone) => {
+    const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
+    const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+    const page = Math.min(model.page, pageCount - 1)
+    const rows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+    return h.div(
+      [],
+      [
+        h.div(
+          [h.Class('rounded-md border overflow-x-auto')],
+          [
+            h.table(
+              [h.Class('w-full caption-bottom text-sm')],
+              [
+                h.thead(
+                  [h.Class('border-b')],
+                  [
+                    h.tr(
+                      [h.Class('text-muted-foreground')],
+                      [
+                        h.th(
+                          [h.Class('h-10 px-3 text-left align-middle')],
+                          [
+                            headerButton(
+                              h,
+                              `Date${sortIndicator(model, 'datetime')}`,
+                              ClickedWeightSort({ column: 'datetime' })
+                            ),
+                          ]
+                        ),
+                        h.th(
+                          [h.Class('h-10 px-3 text-left align-middle')],
+                          [
+                            headerButton(
+                              h,
+                              `Weight (${unit})${sortIndicator(model, 'weight')}`,
+                              ClickedWeightSort({ column: 'weight' })
+                            ),
+                          ]
+                        ),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Notes']),
+                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Actions']),
+                      ]
+                    ),
+                  ]
+                ),
+                h.tbody(
+                  [],
+                  rows.map((log) =>
+                    h.keyed('tr')(
+                      log.id,
+                      [h.Class('border-b transition-colors hover:bg-muted/50')],
+                      [
+                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
+                        h.td([h.Class('p-3 font-mono font-medium')], [formatWeight(unit, log.weight)]),
+                        h.td(
+                          [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
+                          [log.notes ?? '-']
+                        ),
+                        h.td(
+                          [h.Class('p-3')],
+                          [
+                            h.div(
+                              [h.Class('flex gap-2')],
+                              [
+                                h.button(
+                                  [
+                                    h.Class(button({ size: 'sm', variant: 'ghost' })),
+                                    h.OnClick(ClickedEditWeight({ log })),
+                                  ],
+                                  ['Edit']
+                                ),
+                                h.button(
+                                  [
+                                    h.Class(button({ size: 'sm', variant: 'destructive' })),
+                                    h.OnClick(RequestedDeleteWeight({ id: log.id })),
+                                  ],
+                                  ['Delete']
+                                ),
+                              ]
+                            ),
+                          ]
+                        ),
+                      ]
+                    )
                   )
-                )
-              ),
-            ]
-          ),
-        ]
-      ),
-      h.div(
-        [h.Class('flex items-center justify-end gap-2 py-4')],
-        [
-          h.button(
-            [
-              h.Class(button({ size: 'sm', variant: 'outline' })),
-              h.Disabled(page === 0),
-              h.OnClick(ClickedWeightPage({ delta: -1 })),
-            ],
-            ['Previous']
-          ),
-          h.button(
-            [
-              h.Class(button({ size: 'sm', variant: 'outline' })),
-              h.Disabled(page >= pageCount - 1),
-              h.OnClick(ClickedWeightPage({ delta: 1 })),
-            ],
-            ['Next']
-          ),
-        ]
-      ),
-    ]
-  )
+                ),
+              ]
+            ),
+          ]
+        ),
+        h.div(
+          [h.Class('flex items-center justify-end gap-2 py-4')],
+          [
+            h.button(
+              [
+                h.Class(button({ size: 'sm', variant: 'outline' })),
+                h.Disabled(page === 0),
+                h.OnClick(ClickedWeightPage({ delta: -1 })),
+              ],
+              ['Previous']
+            ),
+            h.button(
+              [
+                h.Class(button({ size: 'sm', variant: 'outline' })),
+                h.Disabled(page >= pageCount - 1),
+                h.OnClick(ClickedWeightPage({ delta: 1 })),
+              ],
+              ['Next']
+            ),
+          ]
+        ),
+      ]
+    )
+  }
+
+  return (model: WeightModel, unit: WeightUnit, timezone: IanaTimezone) =>
+    h.div(
+      [],
+      [
+        h.div(
+          [h.Class('flex justify-between items-center mb-6')],
+          [
+            h.h2([h.Class('text-xl font-semibold tracking-tight')], ['Weight Log']),
+            h.button([h.Class(button()), h.OnClick(ClickedAddWeight())], ['Add Entry']),
+          ]
+        ),
+        model.form === null ? h.empty : viewForm(model.form, unit),
+        model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
+        AsyncData.match(model.logs, {
+          onFailure: () =>
+            h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
+          onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
+          onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
+          onRefreshing: (data) => viewTable(model, data, unit, timezone),
+          onStale: ({ data }) => viewTable(model, data, unit, timezone),
+          onSuccess: (data) =>
+            Arr.isReadonlyArrayNonEmpty(data)
+              ? viewTable(model, data, unit, timezone)
+              : h.div(
+                  [h.Class('text-center py-12 text-muted-foreground')],
+                  ['No entries yet. Add your first weight log.']
+                ),
+        }),
+      ]
+    )
 }
 
-export const viewWeight = (model: WeightModel, unit: WeightUnit, timezone: IanaTimezone) =>
-  h.div(
-    [],
-    [
-      h.div(
-        [h.Class('flex justify-between items-center mb-6')],
-        [
-          h.h2([h.Class('text-xl font-semibold tracking-tight')], ['Weight Log']),
-          h.button([h.Class(button()), h.OnClick(ClickedAddWeight())], ['Add Entry']),
-        ]
-      ),
-      model.form === null ? h.empty : viewForm(model.form, unit),
-      model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
-      AsyncData.match(model.logs, {
-        onFailure: () =>
-          h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-        onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-        onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-        onRefreshing: (data) => viewTable(model, data, unit, timezone),
-        onStale: ({ data }) => viewTable(model, data, unit, timezone),
-        onSuccess: (data) =>
-          Arr.isReadonlyArrayNonEmpty(data)
-            ? viewTable(model, data, unit, timezone)
-            : h.div(
-                [h.Class('text-center py-12 text-muted-foreground')],
-                ['No entries yet. Add your first weight log.']
-              ),
-      }),
-    ]
-  )
+export const viewWeight = <ParentMessage>(
+  model: WeightModel,
+  unit: WeightUnit,
+  timezone: IanaTimezone,
+  h: HtmlBuilder<ParentMessage | WeightMessage>
+) => makeViewWeight(h)(model, unit, timezone)
