@@ -46,7 +46,12 @@
           # Bun 1.3.x can hang indefinitely with isolated installs in this
           # workspace monorepo under Nix. Hoisted installs still use the
           # bun2nix-provided cache, but avoid the isolated-linker deadlock.
-          bunInstallFlags = "--linker=hoisted";
+          # Darwin also needs copied cache entries because its default
+          # clonefile backend cannot write through Nix store permissions.
+          bunInstallFlags =
+            if pkgs.stdenv.hostPlatform.isDarwin
+            then ["--linker=hoisted" "--backend=copyfile"]
+            else ["--linker=hoisted"];
 
           dontUseBunBuild = true;
           dontUseBunCheck = true;
