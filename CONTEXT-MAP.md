@@ -22,7 +22,7 @@ This is the authoritative router for bounded contexts in `garage`. Match every c
 | Subq | `apps/subq/**` | `apps/subq/AGENTS.md` | `apps/subq/CONTEXT.md` | None currently; system-wide `docs/adr/` | `apps/subq/README.md`, `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Track personal weight, injections, schedules, goals, and statistics in one deployed web application. |
 | Repository Engineering | Root repository/tooling files, `.changeset/**`, `.claude/**`, `.github/**`, `.vscode/**`, `.zed/**`, `docs/**`, `rules/**`, `rule-tests/**`, `scripts/**` | `docs/repository-engineering/AGENTS.md` | `docs/repository-engineering/CONTEXT.md` | System-wide `docs/adr/` | `CONTRIBUTING.md`, `docs/reference/conventions.md`, `docs/guardrails/` | Own the shared harness: validation, static policy, builds, Nix, CI, releases, contributor and agent documentation. |
 
-`README.md` and `VISION.md` describe the Garage CLI product family; they do not create an additional bounded context. `repos/**`, generated output, dependency directories, and untracked build residue are not first-party contexts.
+`README.md` and `VISION.md` describe Garage's repository-wide purpose; they do not create an additional bounded context. `repos/**`, generated output, dependency directories, and untracked build residue are not first-party contexts.
 
 ## Changes spanning contexts
 
