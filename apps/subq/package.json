@@ -15,7 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "seed:demo": "bun scripts/seed-demo.ts",
     "seed:demo:local": "BETTER_AUTH_URL=http://localhost:1337 bun scripts/seed-demo.ts",
-    "typecheck": "tsgo --noEmit && tsgo --noEmit --project web/tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project web/tsconfig.json",
     "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/ web/src/ web/test/ scripts/",
     "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/ web/src/ web/test/ scripts/",
     "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ web/src/ web/test/ scripts/ package.json tsconfig.json web/vite.config.ts vitest.config.ts",

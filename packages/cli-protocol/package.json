@@ -9,8 +9,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "bun run clean && tsgo -p tsconfig.build.json",
-    "typecheck": "tsgo --noEmit",
+    "build": "bun run clean && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/",
     "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/",
     "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",

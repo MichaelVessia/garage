@@ -12,7 +12,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "bun run clean && bun build src/main.ts --compile --outfile dist/prowlarr",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/",
     "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/",
     "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
