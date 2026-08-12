@@ -26,7 +26,7 @@ ignores:
 note: |
   When the body of an `Effect.fn` is `return yield* Effect.gen(...).pipe(...)`,
   the inner generator and pipe operators should be hoisted into `Effect.fn`'s
-  trailing args slot. (See repos/effect-smol/LLMS.md.)
+  trailing args slot. (See repos/effect/LLMS.md.)
 
   ```ts
   // Avoid

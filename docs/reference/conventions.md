@@ -119,10 +119,10 @@ Judgment the lints cannot check (where layers are provided, what a service
 requires, what the tests prove) lives in
 [docs/guardrails/](../guardrails/README.md).
 
-For exact Effect v4 API behavior, read the vendored source at `repos/effect-smol/`
-(start at `LLMS.md`, then `ai-docs/`, then `packages/effect/src/`). Cite it as
-`repos/effect-smol/<path>:<line>`. Never edit or import from `repos/`; refresh
-the subtree only with `bun run vendor:update`.
+For exact Effect v4 API behavior, read the vendored source at `repos/effect/`,
+which tracks `Effect-TS/effect` `main` (start at `LLMS.md`, then `ai-docs/`, then
+`packages/effect/src/`). Cite it as `repos/effect/<path>:<line>`. Never edit or
+import from `repos/`; refresh the subtree only with `bun run vendor:update`.
 
 ## Paired integration responsibilities
 

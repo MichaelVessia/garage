@@ -21,7 +21,7 @@ files:
 
 note: |
   Effect.fn gives every call a traced span named after the function; an arrow
-  wrapping Effect.gen gives nothing. (See repos/effect-smol/LLMS.md: "Avoid
+  wrapping Effect.gen gives nothing. (See repos/effect/LLMS.md: "Avoid
   creating functions that return an Effect.gen, use Effect.fn instead.")
 
   The oxlint plugin's prefer-effect-fn catches `const x = Effect.gen(...)`;

@@ -17,8 +17,8 @@
     "validate:fast": "bun run typecheck && bun run lint && bun run format && bun run ast-grep && bun run ast-grep:test && bun run test",
     "validate": "bun run validate:fast",
     "validate:release": "bun run validate:fast && bun run build && bash scripts/cli-smoke.sh && bash scripts/nix-smoke.sh",
-    "vendor:update": "bun run vendor:update:effect-smol",
-    "vendor:update:effect-smol": "git subtree pull --prefix=repos/effect-smol https://github.com/Effect-TS/effect-smol main --squash",
+    "vendor:update": "bun run vendor:update:effect",
+    "vendor:update:effect": "git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash",
     "postinstall": "effect-tsgo patch --typescript --oxlint",
     "prepare": "lefthook install"
   },

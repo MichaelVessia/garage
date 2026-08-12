@@ -128,7 +128,7 @@ spans across all layers.
 
 ## References
 
-- `repos/effect-smol/ai-docs/src/01_effect/02_services/` — services, references,
+- `repos/effect/ai-docs/src/01_effect/03_services/` — services, references,
   layer composition, and `Layer.unwrap`.
-- `repos/effect-smol/ai-docs/src/09_testing/` — Effect test layers.
-- `repos/effect-smol/ai-docs/src/50_http-client/` — `HttpClient` composition.
+- `repos/effect/ai-docs/src/09_testing/` — Effect test layers.
+- `repos/effect/ai-docs/src/50_http-client/` — `HttpClient` composition.
