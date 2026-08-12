@@ -6,3 +6,4 @@ nix flake show --no-write-lock-file
 # before the next begins instead of doubling peak temporary disk usage.
 nix build --no-link .#sonarr
 nix build --no-link .#tailscale
+nix build --no-link .#pi-extensions

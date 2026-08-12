@@ -23,6 +23,13 @@
         config.allowUnfree = true;
       };
       bun2nix' = bun2nix.packages.${system}.default;
+      bunDeps = bun2nix'.fetchBunDeps {
+        bunNix = ./bun.nix;
+      };
+      bunInstallFlags =
+        if pkgs.stdenv.hostPlatform.isDarwin
+        then ["--linker=hoisted" "--backend=copyfile"]
+        else ["--linker=hoisted"];
       mkBunCli = {
         name,
         entrypoint,
@@ -39,19 +46,7 @@
             pkgs.bun
           ];
 
-          bunDeps = bun2nix'.fetchBunDeps {
-            bunNix = ./bun.nix;
-          };
-
-          # Bun 1.3.x can hang indefinitely with isolated installs in this
-          # workspace monorepo under Nix. Hoisted installs still use the
-          # bun2nix-provided cache, but avoid the isolated-linker deadlock.
-          # Darwin also needs copied cache entries because its default
-          # clonefile backend cannot write through Nix store permissions.
-          bunInstallFlags =
-            if pkgs.stdenv.hostPlatform.isDarwin
-            then ["--linker=hoisted" "--backend=copyfile"]
-            else ["--linker=hoisted"];
+          inherit bunDeps bunInstallFlags;
 
           dontUseBunBuild = true;
           dontUseBunCheck = true;
@@ -77,6 +72,48 @@
             runHook postInstall
           '';
         };
+      piExtensionsPackageJson = builtins.fromJSON (builtins.readFile ./packages/pi-extensions/package.json);
+      piExtensions = pkgs.stdenv.mkDerivation {
+        pname = "garage-pi-extensions";
+        version = piExtensionsPackageJson.version;
+        src = ./.;
+
+        nativeBuildInputs = [
+          bun2nix'.hook
+          pkgs.bun
+        ];
+
+        inherit bunDeps bunInstallFlags;
+
+        dontUseBunBuild = true;
+        dontUseBunCheck = true;
+        dontUseBunInstall = true;
+        dontRunLifecycleScripts = true;
+
+        buildPhase = ''
+          runHook preBuild
+
+          bun build \
+            packages/pi-extensions/extensions/gpt-fast-mode.ts \
+            packages/pi-extensions/extensions/prompt-stash.ts \
+            --outdir dist/pi-extensions/extensions \
+            --target node \
+            --external @earendil-works/pi-coding-agent \
+            --external @earendil-works/pi-tui
+
+          runHook postBuild
+        '';
+
+        installPhase = ''
+          runHook preInstall
+
+          install -Dm644 packages/pi-extensions/package.json "$out/package.json"
+          mkdir -p "$out/extensions"
+          cp dist/pi-extensions/extensions/*.js "$out/extensions/"
+
+          runHook postInstall
+        '';
+      };
     in {
       packages = rec {
         sonarr = mkBunCli {
@@ -138,6 +175,8 @@
           name = "tailscale";
           entrypoint = "apps/tailscale-cli/src/main.ts";
         };
+
+        pi-extensions = piExtensions;
 
         default = sonarr;
       };

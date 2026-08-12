@@ -1,0 +1,29 @@
+{
+  "name": "@garage/pi-extensions",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./extensions"]
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "bun run clean && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ extensions/ test/",
+    "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ extensions/ test/",
+    "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ extensions/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
+    "format:fix": "oxfmt --config ../../oxfmt.config.mjs src/ extensions/ test/ package.json tsconfig.json tsconfig.build.json vitest.config.ts",
+    "test": "vitest run && pi -e . --list-models >/dev/null",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.103",
+    "effect": "4.0.0-beta.103"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  }
+}
