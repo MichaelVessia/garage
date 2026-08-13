@@ -23,7 +23,7 @@ import {
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { RadarrError } from './errors.js'
-import type { MovieLookupResult, RadarrConfigValue } from './model.js'
+import type { AddMovieApiOptions, MovieLookupResult, RadarrConfigValue } from './model.js'
 import { RadarrApi, RadarrConfig } from './services.js'
 
 const applyAuth = (config: RadarrConfigValue) =>
@@ -39,6 +39,20 @@ const httpClientFor = (client: HttpClient.HttpClient, config: RadarrConfigValue)
     applyAuth: applyAuth(config),
     errors: { httpError, unreachable, decodeError },
   })
+
+const addMovieBody = (lookup: MovieLookupResult, options: AddMovieApiOptions) => {
+  const body = {
+    title: lookup.title,
+    tmdbId: lookup.tmdbId,
+    qualityProfileId: options.qualityProfileId,
+    rootFolderPath: options.rootFolderPath,
+    monitored: true,
+    minimumAvailability: 'released',
+    addOptions: { searchForMovie: options.searchForMovie },
+  }
+  const withSlug = lookup.titleSlug === undefined ? body : { ...body, titleSlug: lookup.titleSlug }
+  return lookup.year === undefined ? withSlug : { ...withSlug, year: lookup.year }
+}
 
 const lookupByTmdbId = Effect.fn('radarr.lookupByTmdbId')(function* (
   http: JsonClient<RadarrError>,
@@ -84,19 +98,7 @@ export const RadarrApiLive = Layer.effect(
             .pipe(Effect.map((records) => Option.fromUndefinedOr(records[0])))
         ),
       addMovie: (lookup, options) =>
-        withConfig((http) =>
-          http.postJson('/api/v3/movie', MovieRecordSchema, {
-            title: lookup.title,
-            titleSlug: lookup.titleSlug,
-            year: lookup.year,
-            tmdbId: lookup.tmdbId,
-            qualityProfileId: options.qualityProfileId,
-            rootFolderPath: options.rootFolderPath,
-            monitored: true,
-            minimumAvailability: 'released',
-            addOptions: { searchForMovie: options.searchForMovie },
-          })
-        ),
+        withConfig((http) => http.postJson('/api/v3/movie', MovieRecordSchema, addMovieBody(lookup, options))),
       removeMovie: (movieId, options) =>
         withConfig((http) =>
           http

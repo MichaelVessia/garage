@@ -51,7 +51,7 @@ import {
   serverStatsCommandTemplate,
   versionCommandTemplate,
 } from './command-tree.js'
-import type { RootResult } from './command-tree.js'
+import type { RootHealth, RootResult } from './command-tree.js'
 
 export type SabnzbdCliResult =
   | RootResult
@@ -80,11 +80,16 @@ const root = (
     envMissingCode: 'SABNZBD_ENV_MISSING',
     envNextAction,
     showCommandsAction,
-    onReachable: (result) => ({
-      configured: true,
-      ...(result.version === undefined ? {} : { version: result.version }),
-      ...(result.paused === undefined ? {} : { paused: result.paused }),
-    }),
+    onReachable: (result) => {
+      let health: RootHealth = { configured: true }
+      if (result.version !== undefined) {
+        health = { ...health, version: result.version }
+      }
+      if (result.paused !== undefined) {
+        health = { ...health, paused: result.paused }
+      }
+      return health
+    },
   })
 
 const limitFromArgs = (

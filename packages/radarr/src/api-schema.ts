@@ -1,4 +1,5 @@
 import { JsonObject as BaseJsonObject } from '@garage/cli-protocol'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as SchemaGetter from 'effect/SchemaGetter'
 
@@ -27,6 +28,15 @@ import type {
   RootFolder,
   SystemStatus,
 } from './model.js'
+
+type MutablePartial<T> = { -readonly [K in keyof T]?: T[K] }
+type MutableFields<T, Required extends keyof T> = Pick<T, Required> & MutablePartial<Omit<T, Required>>
+
+const setIfDefined = <T, K extends keyof T>(target: MutablePartial<T>, key: K, value: Option.Option<T[K]>): void => {
+  if (Option.isSome(value)) {
+    target[key] = value.value
+  }
+}
 
 const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
 const NullableNumber = Schema.NullOr(Schema.Number).pipe(Schema.optional)
@@ -414,50 +424,37 @@ const queueIdFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<Queue
 }
 
 const queueMovieFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
-  const movieTitle = fromNullable(record.movie?.title)
-  const year = fromNullable(record.movie?.year)
-
-  return {
-    ...(movieTitle === undefined ? {} : { movieTitle }),
-    ...(year === undefined ? {} : { year }),
-  }
+  const fields: MutablePartial<QueueRecord> = {}
+  setIfDefined(fields, 'movieTitle', Option.fromUndefinedOr(fromNullable(record.movie?.title)))
+  setIfDefined(fields, 'year', Option.fromUndefinedOr(fromNullable(record.movie?.year)))
+  return fields
 }
 
 const queueStatusFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
-  const trackedDownloadStatus = fromNullable(record.trackedDownloadStatus)
-  const trackedDownloadState = fromNullable(record.trackedDownloadState)
+  const fields: MutablePartial<QueueRecord> = {}
+  setIfDefined(fields, 'statusMessages', Option.some(statusMessages(record.statusMessages)))
+  setIfDefined(fields, 'trackedDownloadStatus', Option.fromUndefinedOr(fromNullable(record.trackedDownloadStatus)))
+  setIfDefined(fields, 'trackedDownloadState', Option.fromUndefinedOr(fromNullable(record.trackedDownloadState)))
   const errorMessage = fromNullable(record.errorMessage)
-
-  return {
-    ...(trackedDownloadStatus === undefined ? {} : { trackedDownloadStatus }),
-    ...(trackedDownloadState === undefined ? {} : { trackedDownloadState }),
-    statusMessages: statusMessages(record.statusMessages),
-    // oxlint-disable-next-line effect/no-length-comparison -- `errorMessage` is a string; checking for an empty string, not an array
-    ...(errorMessage === undefined || errorMessage.length === 0 ? {} : { errorMessage }),
+  // oxlint-disable-next-line effect/no-length-comparison -- `errorMessage` is a string; checking for an empty string, not an array
+  if (errorMessage !== undefined && errorMessage.length > 0) {
+    fields.errorMessage = errorMessage
   }
+  return fields
 }
 
 const queueTransferFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
-  const size = fromNullable(record.size)
-  const sizeleft = fromNullable(record.sizeleft)
-  const timeleft = fromNullable(record.timeleft)
-  const estimatedCompletionTime = fromNullable(record.estimatedCompletionTime)
-  const protocol = fromNullable(record.protocol)
-  const downloadClient = fromNullable(record.downloadClient)
-  const indexer = fromNullable(record.indexer)
-  const outputPath = fromNullable(record.outputPath)
-
-  return {
-    ...(record.quality?.quality?.name === undefined ? {} : { quality: record.quality.quality.name }),
-    ...(size === undefined ? {} : { size }),
-    ...(sizeleft === undefined ? {} : { sizeleft }),
-    ...(timeleft === undefined ? {} : { timeleft }),
-    ...(estimatedCompletionTime === undefined ? {} : { estimatedCompletionTime }),
-    ...(protocol === undefined ? {} : { protocol }),
-    ...(downloadClient === undefined ? {} : { downloadClient }),
-    ...(indexer === undefined ? {} : { indexer }),
-    ...(outputPath === undefined ? {} : { outputPath }),
-  }
+  const fields: MutablePartial<QueueRecord> = {}
+  setIfDefined(fields, 'quality', Option.fromUndefinedOr(record.quality?.quality?.name))
+  setIfDefined(fields, 'size', Option.fromUndefinedOr(fromNullable(record.size)))
+  setIfDefined(fields, 'sizeleft', Option.fromUndefinedOr(fromNullable(record.sizeleft)))
+  setIfDefined(fields, 'timeleft', Option.fromUndefinedOr(fromNullable(record.timeleft)))
+  setIfDefined(fields, 'estimatedCompletionTime', Option.fromUndefinedOr(fromNullable(record.estimatedCompletionTime)))
+  setIfDefined(fields, 'protocol', Option.fromUndefinedOr(fromNullable(record.protocol)))
+  setIfDefined(fields, 'downloadClient', Option.fromUndefinedOr(fromNullable(record.downloadClient)))
+  setIfDefined(fields, 'indexer', Option.fromUndefinedOr(fromNullable(record.indexer)))
+  setIfDefined(fields, 'outputPath', Option.fromUndefinedOr(fromNullable(record.outputPath)))
+  return fields
 }
 
 const queueRecordFromApi = (record: typeof QueueRecordApi.Type): QueueRecord => ({
@@ -499,21 +496,20 @@ const QueueRecordSchema = QueueRecordApi.pipe(
   })
 )
 
-const movieReleaseRecordFromApi = (movie: typeof MovieReleaseApi.Type): MovieReleaseRecord => ({
-  ...(fromNullable(movie.id) === undefined ? {} : { id: fromNullable(movie.id) }),
-  title: movie.title,
-  ...(fromNullable(movie.year) === undefined ? {} : { year: fromNullable(movie.year) }),
-  ...(fromNullable(movie.tmdbId) === undefined ? {} : { tmdbId: fromNullable(movie.tmdbId) }),
-  ...(fromNullable(movie.inCinemas) === undefined ? {} : { inCinemas: fromNullable(movie.inCinemas) }),
-  ...(fromNullable(movie.physicalRelease) === undefined
-    ? {}
-    : { physicalRelease: fromNullable(movie.physicalRelease) }),
-  ...(fromNullable(movie.digitalRelease) === undefined ? {} : { digitalRelease: fromNullable(movie.digitalRelease) }),
-  ...(fromNullable(movie.hasFile) === undefined ? {} : { hasFile: fromNullable(movie.hasFile) }),
-  ...(fromNullable(movie.monitored) === undefined ? {} : { monitored: fromNullable(movie.monitored) }),
-  ...(fromNullable(movie.status) === undefined ? {} : { status: fromNullable(movie.status) }),
-  ...(fromNullable(movie.isAvailable) === undefined ? {} : { isAvailable: fromNullable(movie.isAvailable) }),
-})
+const movieReleaseRecordFromApi = (movie: typeof MovieReleaseApi.Type): MovieReleaseRecord => {
+  const result: MutableFields<MovieReleaseRecord, 'title'> = { title: movie.title }
+  setIfDefined(result, 'id', Option.fromUndefinedOr(fromNullable(movie.id)))
+  setIfDefined(result, 'year', Option.fromUndefinedOr(fromNullable(movie.year)))
+  setIfDefined(result, 'tmdbId', Option.fromUndefinedOr(fromNullable(movie.tmdbId)))
+  setIfDefined(result, 'inCinemas', Option.fromUndefinedOr(fromNullable(movie.inCinemas)))
+  setIfDefined(result, 'physicalRelease', Option.fromUndefinedOr(fromNullable(movie.physicalRelease)))
+  setIfDefined(result, 'digitalRelease', Option.fromUndefinedOr(fromNullable(movie.digitalRelease)))
+  setIfDefined(result, 'hasFile', Option.fromUndefinedOr(fromNullable(movie.hasFile)))
+  setIfDefined(result, 'monitored', Option.fromUndefinedOr(fromNullable(movie.monitored)))
+  setIfDefined(result, 'status', Option.fromUndefinedOr(fromNullable(movie.status)))
+  setIfDefined(result, 'isAvailable', Option.fromUndefinedOr(fromNullable(movie.isAvailable)))
+  return result
+}
 
 const movieReleaseRecordToApi = (movie: MovieReleaseRecord): typeof MovieReleaseApi.Type => ({
   id: movie.id,
@@ -537,31 +533,31 @@ export const MovieReleaseSchema = MovieReleaseApi.pipe(
 )
 
 const historyDataFieldsFromApi = (record: typeof HistoryRecordApi.Type): Partial<HistoryRecord> => {
-  const size = parseOptionalNumber(record.data?.size)
-
-  return {
-    ...(fromNullable(record.data?.downloadClientName) === undefined &&
-    fromNullable(record.data?.downloadClient) === undefined
-      ? {}
-      : { downloadClient: fromNullable(record.data?.downloadClientName) ?? fromNullable(record.data?.downloadClient) }),
-    ...(fromNullable(record.data?.releaseGroup) === undefined
-      ? {}
-      : { releaseGroup: fromNullable(record.data?.releaseGroup) }),
-    ...(size === undefined ? {} : { size }),
-    ...(fromNullable(record.downloadId) === undefined ? {} : { downloadId: fromNullable(record.downloadId) }),
-  }
+  const fields: MutablePartial<HistoryRecord> = {}
+  setIfDefined(
+    fields,
+    'downloadClient',
+    Option.fromUndefinedOr(fromNullable(record.data?.downloadClientName) ?? fromNullable(record.data?.downloadClient))
+  )
+  setIfDefined(fields, 'releaseGroup', Option.fromUndefinedOr(fromNullable(record.data?.releaseGroup)))
+  setIfDefined(fields, 'size', Option.fromUndefinedOr(parseOptionalNumber(record.data?.size)))
+  setIfDefined(fields, 'downloadId', Option.fromUndefinedOr(fromNullable(record.downloadId)))
+  return fields
 }
 
-const historyRecordFromApi = (record: typeof HistoryRecordApi.Type): HistoryRecord => ({
-  ...(fromNullable(record.id) === undefined ? {} : { id: fromNullable(record.id) }),
-  ...(fromNullable(record.date) === undefined ? {} : { date: fromNullable(record.date) }),
-  eventType: record.eventType,
-  ...(fromNullable(record.sourceTitle) === undefined ? {} : { sourceTitle: fromNullable(record.sourceTitle) }),
-  ...(fromNullable(record.movie?.title) === undefined ? {} : { movieTitle: fromNullable(record.movie?.title) }),
-  ...(fromNullable(record.movie?.year) === undefined ? {} : { year: fromNullable(record.movie?.year) }),
-  ...(record.quality?.quality?.name === undefined ? {} : { quality: record.quality.quality.name }),
-  ...historyDataFieldsFromApi(record),
-})
+const historyRecordFromApi = (record: typeof HistoryRecordApi.Type): HistoryRecord => {
+  const result: MutableFields<HistoryRecord, 'eventType'> = {
+    eventType: record.eventType,
+    ...historyDataFieldsFromApi(record),
+  }
+  setIfDefined(result, 'id', Option.fromUndefinedOr(fromNullable(record.id)))
+  setIfDefined(result, 'date', Option.fromUndefinedOr(fromNullable(record.date)))
+  setIfDefined(result, 'sourceTitle', Option.fromUndefinedOr(fromNullable(record.sourceTitle)))
+  setIfDefined(result, 'movieTitle', Option.fromUndefinedOr(fromNullable(record.movie?.title)))
+  setIfDefined(result, 'year', Option.fromUndefinedOr(fromNullable(record.movie?.year)))
+  setIfDefined(result, 'quality', Option.fromUndefinedOr(record.quality?.quality?.name))
+  return result
+}
 
 const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApi.Type => ({
   id: record.id,

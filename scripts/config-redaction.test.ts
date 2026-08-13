@@ -17,11 +17,8 @@ import { TubearchivistConfig, TubearchivistConfigLive } from '../packages/tubear
 
 const envLayer = (env: Readonly<Record<string, string>>) => ConfigProvider.layer(ConfigProvider.fromEnv({ env }))
 
-const assertRedactedValue = (actual: unknown, expected: string): void => {
+const assertRedactedValue = (actual: Redacted.Redacted, expected: string): void => {
   assert.isTrue(Redacted.isRedacted(actual))
-  if (!Redacted.isRedacted(actual)) {
-    assert.fail('expected a redacted value')
-  }
   assert.strictEqual(Redacted.value(actual), expected)
 }
 

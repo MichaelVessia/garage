@@ -58,7 +58,7 @@ export const makeUnreachable =
     fix: string
   ): ((message: string, cause?: unknown) => E) =>
   (message, cause) =>
-    new Ctor({ code, message, fix, ...(cause === undefined ? {} : { cause }) })
+    cause === undefined ? new Ctor({ code, message, fix }) : new Ctor({ code, message, fix, cause })
 
 export const makeHttpError =
   <const Code extends string, E extends { readonly code: Code }>(
@@ -77,4 +77,4 @@ export const makeDecodeError =
     fix: string
   ): ((message: string, cause?: unknown) => E) =>
   (message, cause) =>
-    new Ctor({ code, message, fix, ...(cause === undefined ? {} : { cause }) })
+    cause === undefined ? new Ctor({ code, message, fix }) : new Ctor({ code, message, fix, cause })

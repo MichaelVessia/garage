@@ -7,6 +7,19 @@ import * as Ref from 'effect/Ref'
 
 import { SonarrConfig, SonarrConfigLive } from '../src/index.js'
 
+const fixtureValue = (key: string): string | undefined => {
+  if (key === 'SONARR_URL') {
+    return 'http://sonarr.test'
+  }
+  if (key === 'SONARR_API_KEY') {
+    return 'secret'
+  }
+  if (key === 'SONARR_DEFAULT_QUALITY_PROFILE') {
+    return '7'
+  }
+  return undefined
+}
+
 const assertConfig = (actual: {
   readonly url: string
   readonly apiKey: Redacted.Redacted
@@ -20,15 +33,10 @@ const assertConfig = (actual: {
 it.effect('SonarrConfigLive caches resolved configuration values per layer instance', () =>
   Effect.gen(function* () {
     const reads = yield* Ref.make(0)
-    const env: Readonly<Record<string, string>> = {
-      SONARR_URL: 'http://sonarr.test',
-      SONARR_API_KEY: 'secret',
-      SONARR_DEFAULT_QUALITY_PROFILE: '7',
-    }
     const provider = ConfigProvider.make((path) =>
       Ref.update(reads, (count) => count + 1).pipe(
         Effect.map(() => {
-          const value = env[path.join('_')]
+          const value = fixtureValue(path.join('_'))
           return value === undefined ? undefined : ConfigProvider.makeValue(value)
         })
       )

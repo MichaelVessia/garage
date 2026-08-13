@@ -15,6 +15,7 @@
         "@effect/tsgo": "0.31.0",
         "@effect/vitest": "4.0.0-beta.103",
         "@mpsuesser/oxlint-plugin-effect": "^0.4.3",
+        "@oxlint/plugins": "1.77.0",
         "@types/bun": "1.3.14",
         "effect": "4.0.0-beta.103",
         "lefthook": "^2.1.10",
@@ -28,7 +29,7 @@
     },
     "apps/adguard-cli": {
       "name": "@garage/adguard-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "adguard": "dist/adguard",
       },
@@ -41,7 +42,7 @@
     },
     "apps/autocaliweb-cli": {
       "name": "@garage/autocaliweb-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "autocaliweb": "dist/autocaliweb",
       },
@@ -54,7 +55,7 @@
     },
     "apps/caddy-cli": {
       "name": "@garage/caddy-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "caddy": "dist/caddy",
       },
@@ -67,7 +68,7 @@
     },
     "apps/immich-cli": {
       "name": "@garage/immich-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "immich": "dist/immich",
       },
@@ -80,7 +81,7 @@
     },
     "apps/jellyfin-cli": {
       "name": "@garage/jellyfin-cli",
-      "version": "0.0.16",
+      "version": "0.0.17",
       "bin": {
         "jellyfin": "dist/jellyfin",
       },
@@ -93,7 +94,7 @@
     },
     "apps/jellyseerr-cli": {
       "name": "@garage/jellyseerr-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "jellyseerr": "dist/jellyseerr",
       },
@@ -106,7 +107,7 @@
     },
     "apps/prowlarr-cli": {
       "name": "@garage/prowlarr-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "prowlarr": "dist/prowlarr",
       },
@@ -119,7 +120,7 @@
     },
     "apps/radarr-cli": {
       "name": "@garage/radarr-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "radarr": "dist/radarr",
       },
@@ -132,7 +133,7 @@
     },
     "apps/sabnzbd-cli": {
       "name": "@garage/sabnzbd-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "sabnzbd": "dist/sabnzbd",
       },
@@ -145,7 +146,7 @@
     },
     "apps/sonarr-cli": {
       "name": "@garage/sonarr-cli",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "bin": {
         "sonarr": "dist/sonarr",
       },
@@ -184,7 +185,7 @@
     },
     "apps/tailscale-cli": {
       "name": "@garage/tailscale-cli",
-      "version": "0.0.14",
+      "version": "0.0.15",
       "bin": {
         "tailscale": "dist/tailscale",
       },
@@ -197,7 +198,7 @@
     },
     "apps/tubearchivist-cli": {
       "name": "@garage/tubearchivist-cli",
-      "version": "0.0.16",
+      "version": "0.0.17",
       "bin": {
         "tubearchivist": "dist/tubearchivist",
       },
@@ -974,7 +975,7 @@
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.77.0", "", { "os": "win32", "cpu": "x64" }, "sha512-+teyvPDZ2RjUvo+SuCqS/UhaJl1QtdW5fWT5NJTV61V5MIuIS90Db9LixmtEGvXixyttiK62P96MSu3UlpviBw=="],
 
-    "@oxlint/plugins": ["@oxlint/plugins@1.72.0", "", {}, "sha512-TF6+ruuIwUpT64deU2JvoDs78m1QjYuMB7IP9AZ2p05fkUesumy+3aqKERE5sYd1C8CmL+yt0swwfXlR3/YluQ=="],
+    "@oxlint/plugins": ["@oxlint/plugins@1.77.0", "", {}, "sha512-6KtPXskPgpt+0Kyl2nNSxNnYXt7lbkxW1C7vi2L7xwtq/AisZlsmV+hnzOTEyM5tU1TxPv1GpTqpUBbZfPzBLg=="],
 
     "@prisma/debug": ["@prisma/debug@7.2.0", "", {}, "sha512-YSGTiSlBAVJPzX4ONZmMotL+ozJwQjRmZweQNIq/ER0tQJKJynNkRB3kyvt37eOfsbMCXk3gnLF6J9OJ4QWftw=="],
 
@@ -2228,6 +2229,8 @@
 
     "@manypkg/get-packages/fs-extra": ["fs-extra@8.1.0", "", { "dependencies": { "graceful-fs": "^4.2.0", "jsonfile": "^4.0.0", "universalify": "^0.1.0" } }, "sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g=="],
 
+    "@mpsuesser/oxlint-plugin-effect/@oxlint/plugins": ["@oxlint/plugins@1.72.0", "", {}, "sha512-TF6+ruuIwUpT64deU2JvoDs78m1QjYuMB7IP9AZ2p05fkUesumy+3aqKERE5sYd1C8CmL+yt0swwfXlR3/YluQ=="],
+
     "@mpsuesser/oxlint-plugin-effect/effect": ["effect@4.0.0-beta.100", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.9.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.4", "multipasta": "^0.2.8", "toml": "^4.1.2", "uuid": "^14.0.1", "yaml": "^2.9.0" } }, "sha512-K4ed+BS3HyE+NoAZ8pJss2DpuK41mb856IO7ZlPfnwBXbq8oTtAAurrsVnwe2hzPamIuaZp/Pq4/xp9qORYv8Q=="],
 
     "@prisma/dev/std-env": ["std-env@3.10.0", "", {}, "sha512-5GS12FdOZNliM5mAOxFRg7Ir0pWz8MdpYm6AY6VPkGpbA7ZzmbzNcBJQ0GPvvyWgcY7QAhCgf9Uy89I03faLkg=="],
@@ -2269,6 +2272,8 @@
     "d3-dsv/commander": ["commander@7.2.0", "", {}, "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw=="],
 
     "d3-dsv/iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
+
+    "effect-oxlint/@oxlint/plugins": ["@oxlint/plugins@1.72.0", "", {}, "sha512-TF6+ruuIwUpT64deU2JvoDs78m1QjYuMB7IP9AZ2p05fkUesumy+3aqKERE5sYd1C8CmL+yt0swwfXlR3/YluQ=="],
 
     "eslint/ajv": ["ajv@6.15.0", "", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw=="],
 

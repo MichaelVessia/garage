@@ -101,11 +101,10 @@ export const commandString = (rootCommand: string, args: ReadonlyArray<string>):
 
 const commandDescription = <CliResult, Error extends CliEnvelopeError, Context>(
   definition: CommandDefinition<CliResult, Error, Context>
-): CommandDescription => ({
-  command: definition.command,
-  description: definition.description,
-  ...(definition.flags === undefined ? {} : { flags: definition.flags }),
-})
+): CommandDescription =>
+  definition.flags === undefined
+    ? { command: definition.command, description: definition.description }
+    : { command: definition.command, description: definition.description, flags: definition.flags }
 
 export const commandDescriptions = <CliResult, Error extends CliEnvelopeError, Context>(
   rootDescription: CommandDescription,

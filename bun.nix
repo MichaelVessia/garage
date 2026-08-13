@@ -1448,6 +1448,10 @@
     url = "https://registry.npmjs.org/@oxlint/plugins/-/plugins-1.72.0.tgz";
     hash = "sha512-TF6+ruuIwUpT64deU2JvoDs78m1QjYuMB7IP9AZ2p05fkUesumy+3aqKERE5sYd1C8CmL+yt0swwfXlR3/YluQ==";
   };
+  "@oxlint/plugins@1.77.0" = fetchurl {
+    url = "https://registry.npmjs.org/@oxlint/plugins/-/plugins-1.77.0.tgz";
+    hash = "sha512-6KtPXskPgpt+0Kyl2nNSxNnYXt7lbkxW1C7vi2L7xwtq/AisZlsmV+hnzOTEyM5tU1TxPv1GpTqpUBbZfPzBLg==";
+  };
   "@prisma/debug@7.2.0" = fetchurl {
     url = "https://registry.npmjs.org/@prisma/debug/-/debug-7.2.0.tgz";
     hash = "sha512-YSGTiSlBAVJPzX4ONZmMotL+ozJwQjRmZweQNIq/ER0tQJKJynNkRB3kyvt37eOfsbMCXk3gnLF6J9OJ4QWftw==";

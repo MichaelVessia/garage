@@ -161,10 +161,6 @@ const navigationFromEntry = (baseUrl: string, entry: Element): CatalogEntry => {
 
 const parseDocument = (xml: string): Document => new DOMParser().parseFromString(xml, 'application/xml')
 
-const messageFromUnknown = (error: unknown): string =>
-  // oxlint-disable-next-line effect/avoid-untagged-errors -- diagnostic message extraction from an unknown thrown DOM parser defect
-  error instanceof Error ? error.message : String(error)
-
 const feedNextHref = (document: Document): Option.Option<string> =>
   Option.fromNullishOr(document.documentElement).pipe(
     Option.flatMap((root) =>
@@ -173,7 +169,15 @@ const feedNextHref = (document: Document): Option.Option<string> =>
   )
 
 export const parseOpdsFeed = (baseUrl: string, xml: string): Effect.Effect<OpdsFeed, AutocaliwebError> =>
-  Effect.try({ try: () => parseDocument(xml), catch: (error) => decodeError(messageFromUnknown(error), error) }).pipe(
+  Effect.try({
+    try: () => parseDocument(xml),
+    catch: (error) =>
+      decodeError(
+        // oxlint-disable-next-line effect/avoid-untagged-errors -- diagnostic message extraction from an unknown thrown DOM parser defect
+        error instanceof Error ? error.message : String(error),
+        error
+      ),
+  }).pipe(
     Effect.map((document) => {
       const atomEntries = elements(document, 'entry')
       const bookEntries = atomEntries.filter(isBookEntry)

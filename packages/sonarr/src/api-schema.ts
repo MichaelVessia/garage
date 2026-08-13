@@ -16,6 +16,15 @@ import {
 } from './model.js'
 import type { EpisodeRecord, HistoryRecord, ListResult, QueueRecord, RootFolder, SeriesLookupResult } from './model.js'
 
+type MutablePartial<T> = { -readonly [K in keyof T]?: T[K] }
+type MutableFields<T, Required extends keyof T> = Pick<T, Required> & MutablePartial<Omit<T, Required>>
+
+const setIfDefined = <T, K extends keyof T>(target: MutablePartial<T>, key: K, value: Option.Option<T[K]>): void => {
+  if (Option.isSome(value)) {
+    target[key] = value.value
+  }
+}
+
 const StatusApi = Schema.Struct({
   appName: Schema.String,
   version: Schema.String,
@@ -271,44 +280,57 @@ export const RootFolderSchema = RootFolderApi.pipe(
   })
 )
 
-const queueEpisodeFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => ({
-  ...(record.seasonNumber === undefined ? {} : { seasonNumber: record.seasonNumber }),
-  ...(record.episode?.episodeNumber === undefined ? {} : { episodeNumber: record.episode.episodeNumber }),
-  ...(record.episode?.title === undefined ? {} : { episodeTitle: record.episode.title }),
-})
+const queueEpisodeFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
+  const fields: MutablePartial<QueueRecord> = {}
+  setIfDefined(fields, 'seasonNumber', Option.fromUndefinedOr(record.seasonNumber))
+  setIfDefined(fields, 'episodeNumber', Option.fromUndefinedOr(record.episode?.episodeNumber))
+  setIfDefined(fields, 'episodeTitle', Option.fromUndefinedOr(record.episode?.title))
+  return fields
+}
 
-const queueStatusFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => ({
-  ...(record.trackedDownloadStatus === undefined ? {} : { trackedDownloadStatus: record.trackedDownloadStatus }),
-  ...(record.trackedDownloadState === undefined ? {} : { trackedDownloadState: record.trackedDownloadState }),
-  statusMessages: statusMessages(Option.fromUndefinedOr(record.statusMessages)),
+const queueStatusFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
+  const fields: MutablePartial<QueueRecord> = {}
+  setIfDefined(
+    fields,
+    'statusMessages',
+    Option.fromUndefinedOr(record.statusMessages).pipe(statusMessages, Option.some)
+  )
+  setIfDefined(fields, 'trackedDownloadStatus', Option.fromUndefinedOr(record.trackedDownloadStatus))
+  setIfDefined(fields, 'trackedDownloadState', Option.fromUndefinedOr(record.trackedDownloadState))
   // oxlint-disable-next-line effect/no-length-comparison -- errorMessage is a string; checking for an empty wire value, not an array
-  ...(record.errorMessage === undefined || record.errorMessage.length === 0
-    ? {}
-    : { errorMessage: record.errorMessage }),
-})
+  if (record.errorMessage !== undefined && record.errorMessage.length > 0) {
+    fields.errorMessage = record.errorMessage
+  }
+  return fields
+}
 
-const queueTransferFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => ({
-  ...(record.quality?.quality?.name === undefined ? {} : { quality: record.quality.quality.name }),
-  languages: languageNames(Option.fromUndefinedOr(record.languages)),
-  ...(record.size === undefined ? {} : { size: record.size }),
-  ...(record.sizeleft === undefined ? {} : { sizeleft: record.sizeleft }),
-  ...(record.timeleft === undefined ? {} : { timeleft: record.timeleft }),
-  ...(record.estimatedCompletionTime === undefined ? {} : { estimatedCompletionTime: record.estimatedCompletionTime }),
-  ...(record.protocol === undefined ? {} : { protocol: record.protocol }),
-  ...(record.downloadClient === undefined ? {} : { downloadClient: record.downloadClient }),
-  ...(record.indexer === undefined ? {} : { indexer: record.indexer }),
-  ...(record.outputPath === undefined ? {} : { outputPath: record.outputPath }),
-})
+const queueTransferFieldsFromApi = (record: typeof QueueRecordApi.Type): Partial<QueueRecord> => {
+  const fields: MutablePartial<QueueRecord> = {}
+  setIfDefined(fields, 'languages', Option.fromUndefinedOr(record.languages).pipe(languageNames, Option.some))
+  setIfDefined(fields, 'quality', Option.fromUndefinedOr(record.quality?.quality?.name))
+  setIfDefined(fields, 'size', Option.fromUndefinedOr(record.size))
+  setIfDefined(fields, 'sizeleft', Option.fromUndefinedOr(record.sizeleft))
+  setIfDefined(fields, 'timeleft', Option.fromUndefinedOr(record.timeleft))
+  setIfDefined(fields, 'estimatedCompletionTime', Option.fromUndefinedOr(record.estimatedCompletionTime))
+  setIfDefined(fields, 'protocol', Option.fromUndefinedOr(record.protocol))
+  setIfDefined(fields, 'downloadClient', Option.fromUndefinedOr(record.downloadClient))
+  setIfDefined(fields, 'indexer', Option.fromUndefinedOr(record.indexer))
+  setIfDefined(fields, 'outputPath', Option.fromUndefinedOr(record.outputPath))
+  return fields
+}
 
-const queueRecordFromApi = (record: typeof QueueRecordApi.Type): QueueRecord => ({
-  ...(record.id === undefined ? {} : { id: record.id }),
-  title: record.title,
-  seriesTitle: record.series?.title ?? 'Unknown Series',
-  ...queueEpisodeFieldsFromApi(record),
-  status: record.status,
-  ...queueStatusFieldsFromApi(record),
-  ...queueTransferFieldsFromApi(record),
-})
+const queueRecordFromApi = (record: typeof QueueRecordApi.Type): QueueRecord => {
+  const result: MutableFields<QueueRecord, 'title' | 'seriesTitle' | 'status'> = {
+    title: record.title,
+    seriesTitle: record.series?.title ?? 'Unknown Series',
+    status: record.status,
+    ...queueEpisodeFieldsFromApi(record),
+    ...queueStatusFieldsFromApi(record),
+    ...queueTransferFieldsFromApi(record),
+  }
+  setIfDefined(result, 'id', Option.fromUndefinedOr(record.id))
+  return result
+}
 
 const queueRecordToApi = (record: QueueRecord): typeof QueueRecordApi.Type => ({
   id: record.id,
@@ -343,19 +365,22 @@ const QueueRecordSchema = QueueRecordApi.pipe(
   })
 )
 
-const episodeRecordFromApi = (record: typeof EpisodeRecordApi.Type): EpisodeRecord => ({
-  ...(record.id === undefined ? {} : { id: record.id }),
-  title: record.title,
-  seriesTitle: record.series.title,
-  ...(record.seasonNumber === undefined ? {} : { seasonNumber: record.seasonNumber }),
-  ...(record.episodeNumber === undefined ? {} : { episodeNumber: record.episodeNumber }),
-  ...(record.airDateUtc === undefined ? {} : { airDateUtc: record.airDateUtc }),
-  ...(record.hasFile === undefined ? {} : { hasFile: record.hasFile }),
-  ...(record.monitored === undefined ? {} : { monitored: record.monitored }),
-  ...(record.series.status === undefined ? {} : { seriesStatus: record.series.status }),
-  ...(record.series.network === undefined ? {} : { network: record.series.network }),
-  ...(record.overview === undefined ? {} : { overview: record.overview }),
-})
+const episodeRecordFromApi = (record: typeof EpisodeRecordApi.Type): EpisodeRecord => {
+  const result: MutableFields<EpisodeRecord, 'title' | 'seriesTitle'> = {
+    title: record.title,
+    seriesTitle: record.series.title,
+  }
+  setIfDefined(result, 'id', Option.fromUndefinedOr(record.id))
+  setIfDefined(result, 'seasonNumber', Option.fromUndefinedOr(record.seasonNumber))
+  setIfDefined(result, 'episodeNumber', Option.fromUndefinedOr(record.episodeNumber))
+  setIfDefined(result, 'airDateUtc', Option.fromUndefinedOr(record.airDateUtc))
+  setIfDefined(result, 'hasFile', Option.fromUndefinedOr(record.hasFile))
+  setIfDefined(result, 'monitored', Option.fromUndefinedOr(record.monitored))
+  setIfDefined(result, 'seriesStatus', Option.fromUndefinedOr(record.series.status))
+  setIfDefined(result, 'network', Option.fromUndefinedOr(record.series.network))
+  setIfDefined(result, 'overview', Option.fromUndefinedOr(record.overview))
+  return result
+}
 
 const episodeRecordToApi = (record: EpisodeRecord): typeof EpisodeRecordApi.Type => ({
   id: record.id,
@@ -376,20 +401,23 @@ export const EpisodeRecordSchema = EpisodeRecordApi.pipe(
   })
 )
 
-const missingRecordFromApi = (record: typeof MissingRecordApi.Type): EpisodeRecord => ({
-  ...(record.id === undefined ? {} : { id: record.id }),
-  title: record.title,
-  seriesTitle: record.series?.title ?? 'Unknown Series',
-  ...(record.seasonNumber === undefined ? {} : { seasonNumber: record.seasonNumber }),
-  ...(record.episodeNumber === undefined ? {} : { episodeNumber: record.episodeNumber }),
-  ...(record.airDateUtc === undefined ? {} : { airDateUtc: record.airDateUtc }),
-  ...(record.hasFile === undefined ? {} : { hasFile: record.hasFile }),
-  ...(record.monitored === undefined ? {} : { monitored: record.monitored }),
-  ...(record.series?.status === undefined ? {} : { seriesStatus: record.series.status }),
-  ...(record.series?.network === undefined ? {} : { network: record.series.network }),
-  ...(record.lastSearchTime === undefined ? {} : { lastSearchTime: record.lastSearchTime }),
-  ...(record.overview === undefined ? {} : { overview: record.overview }),
-})
+const missingRecordFromApi = (record: typeof MissingRecordApi.Type): EpisodeRecord => {
+  const result: MutableFields<EpisodeRecord, 'title' | 'seriesTitle'> = {
+    title: record.title,
+    seriesTitle: record.series?.title ?? 'Unknown Series',
+  }
+  setIfDefined(result, 'id', Option.fromUndefinedOr(record.id))
+  setIfDefined(result, 'seasonNumber', Option.fromUndefinedOr(record.seasonNumber))
+  setIfDefined(result, 'episodeNumber', Option.fromUndefinedOr(record.episodeNumber))
+  setIfDefined(result, 'airDateUtc', Option.fromUndefinedOr(record.airDateUtc))
+  setIfDefined(result, 'hasFile', Option.fromUndefinedOr(record.hasFile))
+  setIfDefined(result, 'monitored', Option.fromUndefinedOr(record.monitored))
+  setIfDefined(result, 'seriesStatus', Option.fromUndefinedOr(record.series?.status))
+  setIfDefined(result, 'network', Option.fromUndefinedOr(record.series?.network))
+  setIfDefined(result, 'lastSearchTime', Option.fromUndefinedOr(record.lastSearchTime))
+  setIfDefined(result, 'overview', Option.fromUndefinedOr(record.overview))
+  return result
+}
 
 const missingRecordToApi = (record: EpisodeRecord): typeof MissingRecordApi.Type => ({
   id: record.id,
@@ -411,36 +439,41 @@ const MissingRecordSchema = MissingRecordApi.pipe(
   })
 )
 
-const historyEpisodeFieldsFromApi = (record: typeof HistoryRecordApi.Type): Partial<HistoryRecord> => ({
-  ...(record.episode?.seasonNumber === undefined ? {} : { seasonNumber: record.episode.seasonNumber }),
-  ...(record.episode?.episodeNumber === undefined ? {} : { episodeNumber: record.episode.episodeNumber }),
-  ...(record.episode?.title === undefined ? {} : { episodeTitle: record.episode.title }),
-})
-
-const historyDataFieldsFromApi = (record: typeof HistoryRecordApi.Type): Partial<HistoryRecord> => {
-  const size = parseOptionalNumber(Option.fromUndefinedOr(record.data?.size))
-
-  return {
-    ...(record.data?.downloadClientName === undefined && record.data?.downloadClient === undefined
-      ? {}
-      : { downloadClient: record.data.downloadClientName ?? record.data.downloadClient }),
-    ...(record.data?.releaseGroup === undefined ? {} : { releaseGroup: record.data.releaseGroup }),
-    ...Option.match(size, { onNone: () => ({}), onSome: (value) => ({ size: value }) }),
-    ...(record.downloadId === undefined ? {} : { downloadId: record.downloadId }),
-  }
+const historyEpisodeFieldsFromApi = (record: typeof HistoryRecordApi.Type): Partial<HistoryRecord> => {
+  const fields: MutablePartial<HistoryRecord> = {}
+  setIfDefined(fields, 'seasonNumber', Option.fromUndefinedOr(record.episode?.seasonNumber))
+  setIfDefined(fields, 'episodeNumber', Option.fromUndefinedOr(record.episode?.episodeNumber))
+  setIfDefined(fields, 'episodeTitle', Option.fromUndefinedOr(record.episode?.title))
+  return fields
 }
 
-const historyRecordFromApi = (record: typeof HistoryRecordApi.Type): HistoryRecord => ({
-  ...(record.id === undefined ? {} : { id: record.id }),
-  ...(record.date === undefined ? {} : { date: record.date }),
-  eventType: record.eventType,
-  ...(record.sourceTitle === undefined ? {} : { sourceTitle: record.sourceTitle }),
-  seriesTitle: record.series?.title ?? 'Unknown Series',
-  ...historyEpisodeFieldsFromApi(record),
-  ...(record.quality?.quality?.name === undefined ? {} : { quality: record.quality.quality.name }),
-  languages: languageNames(Option.fromUndefinedOr(record.languages)),
-  ...historyDataFieldsFromApi(record),
-})
+const historyDataFieldsFromApi = (record: typeof HistoryRecordApi.Type): Partial<HistoryRecord> => {
+  const fields: MutablePartial<HistoryRecord> = {}
+  setIfDefined(
+    fields,
+    'downloadClient',
+    Option.fromUndefinedOr(record.data?.downloadClientName ?? record.data?.downloadClient)
+  )
+  setIfDefined(fields, 'releaseGroup', Option.fromUndefinedOr(record.data?.releaseGroup))
+  setIfDefined(fields, 'size', Option.fromUndefinedOr(record.data?.size).pipe(parseOptionalNumber))
+  setIfDefined(fields, 'downloadId', Option.fromUndefinedOr(record.downloadId))
+  return fields
+}
+
+const historyRecordFromApi = (record: typeof HistoryRecordApi.Type): HistoryRecord => {
+  const result: MutableFields<HistoryRecord, 'eventType' | 'seriesTitle'> = {
+    eventType: record.eventType,
+    seriesTitle: record.series?.title ?? 'Unknown Series',
+    languages: languageNames(Option.fromUndefinedOr(record.languages)),
+    ...historyEpisodeFieldsFromApi(record),
+    ...historyDataFieldsFromApi(record),
+  }
+  setIfDefined(result, 'id', Option.fromUndefinedOr(record.id))
+  setIfDefined(result, 'date', Option.fromUndefinedOr(record.date))
+  setIfDefined(result, 'sourceTitle', Option.fromUndefinedOr(record.sourceTitle))
+  setIfDefined(result, 'quality', Option.fromUndefinedOr(record.quality?.quality?.name))
+  return result
+}
 
 const historyRecordToApi = (record: HistoryRecord): typeof HistoryRecordApi.Type => ({
   id: record.id,

@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import type { RpcClientError } from 'effect/unstable/rpc/RpcClientError'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import { m } from 'foldkit/message'
@@ -15,7 +16,7 @@ import {
   kgToLbs,
   lbsToKg,
 } from '#shared'
-import type { WeightUnit } from '#shared'
+import type { Unauthorized, WeightUnit } from '#shared'
 
 import { Api } from '../api.js'
 
@@ -35,7 +36,9 @@ export const FailedFetchSettings = m('FailedFetchSettings', {
   requestGeneration: Schema.Number,
 })
 
-export const settingsLoadErrorMessage = (error: unknown): string => {
+type SettingsLoadError = RpcClientError | SettingsDatabaseError | SettingsTemporalMigrationError | Unauthorized
+
+export const settingsLoadErrorMessage = (error: SettingsLoadError): string => {
   if (Schema.is(SettingsTemporalMigrationError)(error)) {
     return `Timezone migration could not convert ${error.entity} record '${error.recordId}', field '${error.field}', value '${error.value}'. Correct the stored value and retry.`
   }

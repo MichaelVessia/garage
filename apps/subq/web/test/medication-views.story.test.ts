@@ -30,7 +30,7 @@ interface ViewNode {
   readonly sel: string | undefined
   readonly data:
     | {
-        readonly props?: Readonly<Record<string, unknown>>
+        readonly props?: { readonly id?: string; readonly type?: string; readonly value?: string }
       }
     | undefined
   readonly children: ReadonlyArray<ViewNode | string> | undefined

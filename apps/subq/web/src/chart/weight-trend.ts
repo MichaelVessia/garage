@@ -1,5 +1,6 @@
 import * as d3 from 'd3'
 import * as Arr from 'effect/Array'
+import * as HashMap from 'effect/HashMap'
 import * as HashSet from 'effect/HashSet'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
@@ -47,14 +48,14 @@ export interface SchedulePeriod {
 // Colors (ported from chart-colors.ts)
 // ============================================
 
-const DOSE_COLORS: Record<string, string> = {
-  '2.5': '#64748b',
-  '5': '#0891b2',
-  '7.5': '#0d9488',
-  '10': '#059669',
-  '12.5': '#7c3aed',
-  '15': '#be185d',
-}
+const DOSE_COLORS = HashMap.make(
+  ['2.5', '#64748b'],
+  ['5', '#0891b2'],
+  ['7.5', '#0d9488'],
+  ['10', '#059669'],
+  ['12.5', '#7c3aed'],
+  ['15', '#be185d']
+)
 
 const FALLBACK_COLORS = ['#0891b2', '#059669', '#7c3aed', '#be185d', '#f59e0b', '#10b981', '#6366f1', '#ec4899']
 
@@ -62,9 +63,9 @@ export const getDoseColor = (keyOrDose: string | number): string => {
   const key = String(keyOrDose)
   const parts = key.split('::')
   const doseMg = parts.length === 2 ? (parts[1] ?? key) : key
-  const mapped = DOSE_COLORS[doseMg]
-  if (mapped !== undefined) {
-    return mapped
+  const mapped = HashMap.get(DOSE_COLORS, doseMg)
+  if (Option.isSome(mapped)) {
+    return mapped.value
   }
   const hash = Arr.reduce(
     Array.from(key, (char) => char.codePointAt(0) ?? 0),
@@ -208,6 +209,18 @@ interface Pill {
   readonly row: number
 }
 
+interface PillPlacement {
+  readonly maxRow: number
+  readonly placed: ReadonlyArray<Pill>
+}
+
+interface PillLayout {
+  readonly pills: ReadonlyArray<Pill>
+  readonly maxRow: number
+}
+
+const emptyPillPlacement = (): PillPlacement => ({ maxRow: 0, placed: [] })
+
 const bySortedDate = <T extends { readonly date: Date }>(items: ReadonlyArray<T>): Array<T> =>
   [...items].toSorted((a, b) => a.date.getTime() - b.date.getTime())
 
@@ -261,7 +274,7 @@ const computePills = (
   allInjections: ReadonlyArray<InjectionPoint>,
   zoom: Option.Option<{ readonly start: Date; readonly end: Date }>,
   xScale: d3.ScaleTime<number, number>
-): { readonly pills: ReadonlyArray<Pill>; readonly maxRow: number } => {
+): PillLayout => {
   const sortedInjections = bySortedDate(allInjections)
   const visible = Option.match(zoom, {
     onNone: () => sortedInjections,
@@ -328,8 +341,7 @@ const computePills = (
     })
     return { pills, prevDose: inj.doseMg }
   })
-  const placementInitial: { readonly maxRow: number; readonly placed: ReadonlyArray<Pill> } = { maxRow: 0, placed: [] }
-  const placement = Arr.reduce(built.pills, placementInitial, (acc, pill) => {
+  const placement = Arr.reduce(built.pills, emptyPillPlacement(), (acc, pill) => {
     const occupied = HashSet.fromIterable(
       acc.placed.filter((prev) => Math.abs(pill.x - prev.x) < PILL.WIDTH + PILL.MIN_GAP_X).map((prev) => prev.row)
     )

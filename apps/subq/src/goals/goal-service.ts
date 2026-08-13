@@ -21,6 +21,16 @@ import { mapDbError } from '../shared/common/db-error.js'
 import { WeightLogRepo } from '../weight/weight-log-repo.js'
 import { GoalRepo } from './goal-repo.js'
 
+interface RecomputedGoalUpdate {
+  id: UserGoalUpdate['id']
+  startingWeight: NonNullable<UserGoalUpdate['startingWeight']>
+  startingDate: NonNullable<UserGoalUpdate['startingDate']>
+  goalWeight?: UserGoalUpdate['goalWeight']
+  targetDate?: UserGoalUpdate['targetDate']
+  notes?: UserGoalUpdate['notes']
+  isActive?: UserGoalUpdate['isActive']
+}
+
 export class GoalService extends Context.Service<
   GoalService,
   {
@@ -177,15 +187,24 @@ export const GoalServiceLive = Layer.effect(
       if (Option.isNone(weight)) {
         return data
       }
-      return new UserGoalUpdate({
+      const update: RecomputedGoalUpdate = {
         id: data.id,
-        ...(data.goalWeight === undefined ? {} : { goalWeight: data.goalWeight }),
         startingWeight: Weight.make(weight.value),
         startingDate: data.startingDate,
-        ...(data.targetDate === undefined ? {} : { targetDate: data.targetDate }),
-        ...(data.notes === undefined ? {} : { notes: data.notes }),
-        ...(data.isActive === undefined ? {} : { isActive: data.isActive }),
-      })
+      }
+      if (data.goalWeight !== undefined) {
+        update.goalWeight = data.goalWeight
+      }
+      if (data.targetDate !== undefined) {
+        update.targetDate = data.targetDate
+      }
+      if (data.notes !== undefined) {
+        update.notes = data.notes
+      }
+      if (data.isActive !== undefined) {
+        update.isActive = data.isActive
+      }
+      return new UserGoalUpdate(update)
     })
 
     const updateGoal = Effect.fn('GoalService.updateGoal')(function* (userId: string, data: UserGoalUpdate) {

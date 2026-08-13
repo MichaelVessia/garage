@@ -340,13 +340,13 @@ describe('frequencyToDays Property Tests', () => {
   /**
    * Expected mappings for all frequency variants.
    */
-  const expectedDays: Record<typeof Frequency.Type, number> = {
+  const expectedDays = {
     daily: 1,
     every_3_days: 3,
     weekly: 7,
     every_2_weeks: 14,
     monthly: 30,
-  }
+  } satisfies Record<typeof Frequency.Type, number>
 
   it.effect('returns positive integers for all frequency variants (property test)', () =>
     Effect.sync(() => {

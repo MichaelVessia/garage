@@ -4,14 +4,21 @@ import * as Layer from 'effect/Layer'
 import * as Logger from 'effect/Logger'
 import * as Option from 'effect/Option'
 import * as References from 'effect/References'
+import * as Schema from 'effect/Schema'
 
 import { notFound, SonarrApi, status } from '../src/index.js'
 
+const LogAnnotations = Schema.Record(Schema.String, Schema.String)
+const decodeAnnotations = Schema.decodeUnknownOption(LogAnnotations)
+
 it.effect('annotates operation logs with package and operation', () =>
   Effect.gen(function* () {
-    const annotations: Array<Record<string, unknown>> = []
+    const annotations: Array<typeof LogAnnotations.Type> = []
     const logger = Logger.make((options) => {
-      annotations.push({ ...options.fiber.getRef(References.CurrentLogAnnotations) })
+      const decoded = decodeAnnotations(options.fiber.getRef(References.CurrentLogAnnotations))
+      if (Option.isSome(decoded)) {
+        annotations.push(decoded.value)
+      }
     })
 
     const ApiLayer = Layer.succeed(

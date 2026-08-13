@@ -12,7 +12,10 @@ export default defineConfig({
   ignorePatterns: ['dist/**/*', 'node_modules/**/*', 'repos/**/*'],
   // Registered via jsPlugins (rather than `extends`) so the plugin's private
   // config type does not leak into this module's default-export type.
-  jsPlugins: [{ name: 'effect', specifier: '@mpsuesser/oxlint-plugin-effect' }],
+  jsPlugins: [
+    { name: 'effect', specifier: '@mpsuesser/oxlint-plugin-effect' },
+    { name: 'anti-slop', specifier: './tools/oxlint/anti-slop/index.ts' },
+  ],
   overrides: [
     {
       files: ['**/services/**/*.ts'],
@@ -67,6 +70,16 @@ export default defineConfig({
     // All Effect-plugin rules at error; targeted opt-outs live below and in the
     // overrides above.
     ...effect.configs.recommended.rules,
+    'anti-slop/no-chained-type-assertions': 'error',
+    'anti-slop/no-conditional-empty-object-spread': 'error',
+    'anti-slop/no-known-value-widening': 'error',
+    'anti-slop/no-object-parameters': 'error',
+    'anti-slop/no-runtime-typeof': 'error',
+    'anti-slop/no-shape-in-symbol-names': 'error',
+    'anti-slop/no-unknown-parameters': 'error',
+    'anti-slop/no-unknown-type-aliases': 'error',
+    'anti-slop/no-unsafe-dictionary-type': 'error',
+    'anti-slop/no-widen-then-assert': 'error',
     'no-unused-vars': 'warn',
     '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/no-non-null-assertion': 'error',

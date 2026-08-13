@@ -17,10 +17,15 @@ export interface RecordingHttpResponse {
   readonly headers?: Headers
 }
 
+interface MutableResponseInit {
+  status: number
+  headers?: Headers
+}
+
 const toWebResponse = (response: RecordingHttpResponse): Response => {
-  const init: ResponseInit = {
-    status: response.status,
-    ...(response.headers === undefined ? {} : { headers: response.headers }),
+  const init: MutableResponseInit = { status: response.status }
+  if (response.headers !== undefined) {
+    init.headers = response.headers
   }
   if (response.status === 204 || response.body === undefined) {
     return new Response(null, init)

@@ -23,7 +23,7 @@ import type {
 import * as Effect from 'effect/Effect'
 
 import { installNextAction, limitFlag, rootCommand, showCommandsAction } from './command-tree.js'
-import type { RootResult } from './command-tree.js'
+import type { RootHealth, RootResult } from './command-tree.js'
 
 export type TailscaleCliResult =
   | RootResult
@@ -67,14 +67,21 @@ const root = (
             name: 'tailscale',
             description: 'Agent-first Tailscale CLI',
             commands: commandTree,
-            health: {
-              configured: true,
-              reachable: result.backendState === 'Running',
-              peerCount: result.peerCount,
-              exitNodeCount: result.exitNodeCount,
-              ...(result.backendState === undefined ? {} : { backendState: result.backendState }),
-              ...(exitNodeName === undefined ? {} : { currentExitNode: exitNodeName }),
-            },
+            health: (() => {
+              let health: RootHealth = {
+                configured: true,
+                reachable: result.backendState === 'Running',
+                peerCount: result.peerCount,
+                exitNodeCount: result.exitNodeCount,
+              }
+              if (result.backendState !== undefined) {
+                health = { ...health, backendState: result.backendState }
+              }
+              if (exitNodeName !== undefined) {
+                health = { ...health, currentExitNode: exitNodeName }
+              }
+              return health
+            })(),
           },
         })
       },

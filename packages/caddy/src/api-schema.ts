@@ -52,11 +52,13 @@ const PkiCaApi = Schema.Struct({
 })
 type PkiCaApi = typeof PkiCaApi.Type
 
-const isJsonObject = (value: unknown): value is JsonObject =>
-  P.isObject(value) && value !== null && !Array.isArray(value)
+const JsonArray = Schema.Array(Schema.Json)
+const isJsonArray = Schema.is(JsonArray)
+const isJsonObject = (value: Schema.Json): value is Schema.JsonObject =>
+  P.isObject(value) && value !== null && !isJsonArray(value)
 
-const collectUpstreams = (value: unknown): ReadonlyArray<string> => {
-  if (Array.isArray(value)) {
+const collectUpstreams = (value: Schema.Json): ReadonlyArray<string> => {
+  if (isJsonArray(value)) {
     return value.flatMap(collectUpstreams)
   }
 
@@ -65,7 +67,7 @@ const collectUpstreams = (value: unknown): ReadonlyArray<string> => {
   }
 
   const direct =
-    value.handler === 'reverse_proxy' && Array.isArray(value.upstreams)
+    value.handler === 'reverse_proxy' && value.upstreams !== undefined && isJsonArray(value.upstreams)
       ? value.upstreams.flatMap((upstream) =>
           isJsonObject(upstream) && P.isString(upstream.dial) ? [upstream.dial] : []
         )
@@ -94,12 +96,18 @@ const routeSummariesFromApi = (config: RoutesConfigApi): ListResult<RouteSummary
   return listResult(records)
 }
 
+const routeRecordToApi = (route: RouteRecord): JsonObject =>
+  route.match === undefined ? { upstreams: route.upstreams } : { match: route.match, upstreams: route.upstreams }
+
+const routeSummaryToApi = (record: RouteSummary) => {
+  const routes = record.routes.map(routeRecordToApi)
+  return record.listen === undefined ? { routes } : { listen: record.listen, routes }
+}
+
 const routeSummariesToApi = (result: ListResult<RouteSummary>): RoutesConfigApi => ({
   apps: {
     http: {
-      servers: R.fromEntries(
-        result.records.map((record) => [record.server, { listen: record.listen, routes: record.routes }])
-      ),
+      servers: R.fromEntries(result.records.map((record) => [record.server, routeSummaryToApi(record)])),
     },
   },
 })

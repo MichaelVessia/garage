@@ -32,7 +32,7 @@ const FastModeSettings = Schema.Struct({
   ),
 })
 
-const JsonObject = Schema.Record(Schema.String, Schema.Unknown)
+const JsonObject = Schema.Record(Schema.String, Schema.Json)
 const decodeSettings = Schema.decodeUnknownOption(Schema.fromJsonString(FastModeSettings))
 const decodeJsonObject = Schema.decodeUnknownOption(JsonObject)
 
@@ -72,10 +72,10 @@ export const loadConfiguredDefault = Effect.fn('PiExtensions.GptFastMode.loadCon
 
 /** Add the priority service tier when fast-mode request policy permits it. */
 export const applyFastMode = (
-  payload: unknown,
+  payload: Schema.Json,
   model: Option.Option<SelectedModel>,
   enabled: boolean
-): Option.Option<Readonly<Record<string, unknown>>> => {
+): Option.Option<Schema.JsonObject> => {
   if (!enabled || !isFastModeSupported(model)) {
     return Option.none()
   }

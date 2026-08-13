@@ -7,6 +7,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Ref from 'effect/Ref'
+import * as Schema from 'effect/Schema'
 
 import type { SelectedModel } from '../src/gpt-fast-mode.js'
 import { applyFastMode, isFastModeSupported, loadConfiguredDefault } from '../src/gpt-fast-mode.js'
@@ -101,7 +102,10 @@ export default function gptFastMode(pi: ExtensionAPI): void {
       enabled.pipe(
         Ref.get,
         Effect.map((isEnabled) =>
-          applyFastMode(event.payload, selectedModel(ctx), isEnabled).pipe(Option.getOrUndefined)
+          Schema.decodeUnknownOption(Schema.Json)(event.payload).pipe(
+            Option.flatMap((payload) => applyFastMode(payload, selectedModel(ctx), isEnabled)),
+            Option.getOrUndefined
+          )
         )
       )
     )

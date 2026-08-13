@@ -61,11 +61,10 @@ const root = (
     envMissingCode: 'AUTOCALIWEB_ENV_MISSING',
     envNextAction,
     showCommandsAction,
-    onReachable: (result) => ({
-      configured: true,
-      ...(result.title === undefined ? {} : { title: result.title }),
-      books: result.stats.books,
-    }),
+    onReachable: (result) =>
+      result.title === undefined
+        ? { configured: true, books: result.stats.books }
+        : { configured: true, title: result.title, books: result.stats.books },
   })
 
 const limitCommand = <Result extends AutocaliwebCliResult>(

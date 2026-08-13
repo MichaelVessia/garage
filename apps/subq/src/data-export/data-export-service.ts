@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
 import { SqlClient } from 'effect/unstable/sql'
+import type { SqlConnection } from 'effect/unstable/sql'
 
 import type { DataImportResult, InjectionSchedule } from '#shared'
 import {
@@ -63,7 +64,7 @@ export const DataExportServiceLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const decodeSchedule = Effect.fn('DataExportService.decodeSchedule')(function* (row: unknown) {
+    const decodeSchedule = Effect.fn('DataExportService.decodeSchedule')(function* (row: SqlConnection.Row) {
       const r = yield* Schema.decodeUnknownEffect(ScheduleRow)(row)
 
       // Fetch phases for this schedule

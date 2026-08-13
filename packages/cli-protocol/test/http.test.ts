@@ -20,8 +20,10 @@ type TestError =
 
 const testErrors: JsonClientErrors<TestError> = {
   httpError: (status) => ({ kind: 'http', status }),
-  unreachable: (message, cause) => ({ kind: 'unreachable', message, ...(cause === undefined ? {} : { cause }) }),
-  decodeError: (message, cause) => ({ kind: 'decode', message, ...(cause === undefined ? {} : { cause }) }),
+  unreachable: (message, cause) =>
+    cause === undefined ? { kind: 'unreachable', message } : { kind: 'unreachable', message, cause },
+  decodeError: (message, cause) =>
+    cause === undefined ? { kind: 'decode', message } : { kind: 'decode', message, cause },
 }
 
 const ItemSchema = Schema.Struct({ name: Schema.String })
@@ -148,22 +150,6 @@ it.effect('sends a JSON body for postJson and putJson, and no body for getJson/d
     assert.deepStrictEqual(yield* bodyOf(1), { name: 'updated-thing' })
     assert.strictEqual(yield* bodyOf(2), 'Empty')
     assert.strictEqual(yield* bodyOf(3), 'Empty')
-  })
-)
-
-it.effect('maps request body encoding failures to decodeError', () =>
-  Effect.gen(function* () {
-    const { client } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
-    const jsonClient = makeJsonClient<TestError>({
-      client,
-      baseUrl: 'http://encode.test',
-      applyAuth: (request) => request,
-      errors: testErrors,
-    })
-
-    const error = yield* jsonClient.postJson('/things', ItemSchema, { value: 10n }).pipe(Effect.flip)
-
-    assert.strictEqual(error.kind, 'decode')
   })
 )
 

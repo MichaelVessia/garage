@@ -21,7 +21,7 @@ import {
 } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
 import type { SonarrError } from './errors.js'
-import type { SeriesLookupResult, SonarrConfigValue } from './model.js'
+import type { AddSeriesApiOptions, SeriesLookupResult, SonarrConfigValue } from './model.js'
 import { SonarrApi, SonarrConfig } from './services.js'
 
 const applyAuth = (config: SonarrConfigValue) =>
@@ -37,6 +37,18 @@ const httpClientFor = (client: HttpClient.HttpClient, config: SonarrConfigValue)
     applyAuth: applyAuth(config),
     errors: { httpError, unreachable, decodeError },
   })
+
+const addSeriesBody = (lookup: SeriesLookupResult, options: AddSeriesApiOptions) => {
+  const body = {
+    title: lookup.title,
+    tvdbId: lookup.tvdbId,
+    qualityProfileId: options.qualityProfileId,
+    rootFolderPath: options.rootFolderPath,
+    monitored: true,
+    addOptions: { searchForMissingEpisodes: options.searchForMissingEpisodes },
+  }
+  return lookup.titleSlug === undefined ? body : { ...body, titleSlug: lookup.titleSlug }
+}
 
 const lookupByTvdbId = Effect.fn('sonarr.lookupByTvdbId')(function* (
   http: JsonClient<SonarrError>,
@@ -84,17 +96,7 @@ export const SonarrApiLive = Layer.effect(
             .pipe(Effect.map((records) => Option.fromUndefinedOr(records.find((record) => record.tvdbId === tvdbId))))
         ),
       addSeries: (lookup, options) =>
-        withConfig((http) =>
-          http.postJson('/api/v3/series', SeriesRecordSchema, {
-            title: lookup.title,
-            titleSlug: lookup.titleSlug,
-            tvdbId: lookup.tvdbId,
-            qualityProfileId: options.qualityProfileId,
-            rootFolderPath: options.rootFolderPath,
-            monitored: true,
-            addOptions: { searchForMissingEpisodes: options.searchForMissingEpisodes },
-          })
-        ),
+        withConfig((http) => http.postJson('/api/v3/series', SeriesRecordSchema, addSeriesBody(lookup, options))),
       removeSeries: (seriesId, options) =>
         withConfig((http) =>
           http

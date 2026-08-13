@@ -156,12 +156,19 @@ const getJson = Effect.fn('tubearchivist.authenticatedGet')(function* <A, I, RD,
   )
 })
 
+interface SubscriptionRequestBody {
+  readonly data: ReadonlyArray<{
+    readonly channel_id: string
+    readonly channel_subscribed: boolean
+  }>
+}
+
 const postJson = Effect.fn('tubearchivist.authenticatedPost')(function* <A, I, RD, RE>(
   client: HttpClient.HttpClient,
   config: TubearchivistConfigValue,
   cache: TubearchivistSessionCacheService,
   path: string,
-  body: unknown,
+  body: SubscriptionRequestBody,
   schema: Schema.Codec<A, I, RD, RE>
 ): Effect.fn.Return<A, TubearchivistError, RD> {
   const current = yield* session(client, config, cache)
@@ -192,7 +199,7 @@ const postJson = Effect.fn('tubearchivist.authenticatedPost')(function* <A, I, R
   )
 })
 
-const subscriptionBody = (options: SubscriptionOptions, subscribed: boolean) => ({
+const subscriptionBody = (options: SubscriptionOptions, subscribed: boolean): SubscriptionRequestBody => ({
   data: [{ channel_id: options.target, channel_subscribed: subscribed }],
 })
 

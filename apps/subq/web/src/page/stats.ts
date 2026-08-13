@@ -1147,12 +1147,12 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
       ]
     )
 
-  const PACE_BADGES: Record<GoalProgress['paceStatus'], { readonly label: string; readonly classes: string }> = {
+  const PACE_BADGES = {
     ahead: { classes: 'bg-green-100 text-green-800', label: 'Ahead of pace' },
     behind: { classes: 'bg-yellow-100 text-yellow-800', label: 'Behind pace' },
     not_losing: { classes: 'bg-gray-100 text-gray-800', label: 'Not losing' },
     on_track: { classes: 'bg-blue-100 text-blue-800', label: 'On track' },
-  }
+  } satisfies Record<GoalProgress['paceStatus'], { readonly label: string; readonly classes: string }>
 
   const paceBadge = (status: GoalProgress['paceStatus']) => {
     const config = PACE_BADGES[status]

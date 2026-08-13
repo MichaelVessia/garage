@@ -1,5 +1,5 @@
-import { makeJsonClient } from '@garage/cli-protocol'
-import type { JsonClient } from '@garage/cli-protocol'
+import { JsonObject, makeJsonClient } from '@garage/cli-protocol'
+import type { JsonClient, JsonObject as JsonObjectValue } from '@garage/cli-protocol'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
@@ -38,7 +38,7 @@ const httpClientFor = (client: HttpClient.HttpClient, config: ProwlarrConfigValu
 const postIndexerTest = Effect.fn('prowlarr.postIndexerTest')(function* (
   http: JsonClient<ProwlarrError>,
   indexerId: number,
-  body: unknown
+  body: JsonObjectValue
 ): Effect.fn.Return<
   { readonly indexerId: number; readonly passed: boolean; readonly httpStatus: number },
   ProwlarrError
@@ -94,7 +94,7 @@ export const ProwlarrApiLive = Layer.effect(
       testIndexer: (indexerId) =>
         withConfig(
           Effect.fn('ProwlarrApi.testIndexer.configured')(function* (http) {
-            const indexer = yield* http.getJson(`/api/v1/indexer/${indexerId}`, Schema.Unknown)
+            const indexer = yield* http.getJson(`/api/v1/indexer/${indexerId}`, JsonObject)
             return yield* postIndexerTest(http, indexerId, indexer)
           })
         ),

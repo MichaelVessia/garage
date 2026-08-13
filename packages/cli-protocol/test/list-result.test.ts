@@ -24,12 +24,17 @@ it('listResult derives the count from the given records', () => {
   assert.deepStrictEqual(listResult([]), { count: 0, records: [] })
 })
 
-it('JsonObject decodes any string-keyed record', () => {
-  const decoded = Schema.decodeUnknownSync(JsonObject)({ a: 1, b: 'x', c: null })
-  assert.deepStrictEqual(decoded, { a: 1, b: 'x', c: null })
+it('JsonObject decodes recursive JSON objects and arrays', () => {
+  const decoded = Schema.decodeUnknownSync(JsonObject)({
+    a: 1,
+    b: ['x', { nested: true }],
+    c: null,
+  })
+  assert.deepStrictEqual(decoded, { a: 1, b: ['x', { nested: true }], c: null })
 })
 
-it('JsonObject fails to decode non-record values', () => {
-  const result = Schema.decodeUnknownResult(JsonObject)(42)
-  assert.strictEqual(Result.isFailure(result), true)
+it('JsonObject rejects non-record and non-JSON values', () => {
+  assert.strictEqual(Result.isFailure(Schema.decodeUnknownResult(JsonObject)(42)), true)
+  assert.strictEqual(Result.isFailure(Schema.decodeUnknownResult(JsonObject)({ value: 10n })), true)
+  assert.strictEqual(Result.isFailure(Schema.decodeUnknownResult(JsonObject)({ value: () => 'not-json' })), true)
 })

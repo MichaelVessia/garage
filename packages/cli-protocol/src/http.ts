@@ -31,7 +31,7 @@ export interface JsonClientConfig<E> {
 }
 
 export interface RequestStatusOptions {
-  readonly body?: unknown
+  readonly body?: Schema.Json
   readonly query?: QueryParams
 }
 
@@ -47,13 +47,13 @@ export interface JsonClient<E> {
   readonly postJson: <A, I, RD, RE>(
     path: string,
     schema: Schema.Codec<A, I, RD, RE>,
-    body?: unknown,
+    body?: Schema.Json,
     query?: QueryParams
   ) => Effect.Effect<A, E, RD>
   readonly putJson: <A, I, RD, RE>(
     path: string,
     schema: Schema.Codec<A, I, RD, RE>,
-    body?: unknown,
+    body?: Schema.Json,
     query?: QueryParams
   ) => Effect.Effect<A, E, RD>
   readonly deleteJson: <A, I, RD, RE>(
@@ -72,12 +72,12 @@ const normalizeBaseUrl = (baseUrl: string): string => {
 const queryString = (params: QueryParams): string =>
   params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join('&')
 
-const methodBuilders: Record<HttpMethod, (url: string) => HttpClientRequest.HttpClientRequest> = {
+const methodBuilders = {
   get: HttpClientRequest.get,
   post: HttpClientRequest.post,
   put: HttpClientRequest.put,
   delete: HttpClientRequest.delete,
-}
+} satisfies Record<HttpMethod, (url: string) => HttpClientRequest.HttpClientRequest>
 
 export const makeJsonClient = <E>(config: JsonClientConfig<E>): JsonClient<E> => {
   const basePath = config.basePath ?? ''
@@ -134,10 +134,10 @@ export const makeJsonClient = <E>(config: JsonClientConfig<E>): JsonClient<E> =>
     <A, I, RD, RE>(
       path: string,
       schema: Schema.Codec<A, I, RD, RE>,
-      body?: unknown,
+      body?: Schema.Json,
       query: QueryParams = []
     ): Effect.Effect<A, E, RD> =>
-      buildRequest(method, path, { body, query }).pipe(
+      buildRequest(method, path, body === undefined ? { query } : { body, query }).pipe(
         Effect.flatMap(execute),
         Effect.flatMap((response) => decodeBody(response, schema))
       )

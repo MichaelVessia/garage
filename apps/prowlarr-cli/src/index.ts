@@ -35,8 +35,11 @@ import type {
   ListResult,
   ProwlarrApi,
   ProwlarrError,
+  MovieSearchOptions,
+  SearchOptions,
   SearchProtocol,
   SearchResult,
+  TvSearchOptions,
   SystemStatus,
 } from '@garage/prowlarr'
 import * as Effect from 'effect/Effect'
@@ -202,14 +205,18 @@ const searchCommand = ({ args, parseFlags, parsePositiveInteger, recover, usageE
       const [protocol] = yield* searchProtocol(parsed, usageError)
       const type = parsed.values.get(typeFlag)
 
-      return yield* wrap(
-        search(query, {
-          limit,
-          ...(protocol === undefined ? {} : { protocol }),
-          ...(category === undefined ? {} : { category }),
-          ...(type === undefined ? {} : { type }),
-        })
-      )
+      let options: SearchOptions = { limit }
+      if (protocol !== undefined) {
+        options = { ...options, protocol }
+      }
+      if (category !== undefined) {
+        options = { ...options, category }
+      }
+      if (type !== undefined) {
+        options = { ...options, type }
+      }
+
+      return yield* wrap(search(query, options))
     })
   )
 
@@ -226,14 +233,15 @@ const tvSearchCommand = ({ args, parseFlags, parsePositiveInteger, recover, wrap
       const season = seasonValue === undefined ? undefined : yield* parsePositiveInteger(seasonValue, 'season')
       const episode = episodeValue === undefined ? undefined : yield* parsePositiveInteger(episodeValue, 'episode')
 
-      return yield* wrap(
-        tvSearch({
-          tvdbId,
-          limit,
-          ...(season === undefined ? {} : { season }),
-          ...(episode === undefined ? {} : { episode }),
-        })
-      )
+      let options: TvSearchOptions = { tvdbId, limit }
+      if (season !== undefined) {
+        options = { ...options, season }
+      }
+      if (episode !== undefined) {
+        options = { ...options, episode }
+      }
+
+      return yield* wrap(tvSearch(options))
     })
   )
 
@@ -257,13 +265,15 @@ const movieSearchCommand = ({
         return yield* wrap(Effect.fail(usageError('movie-search requires --imdb or --tmdb')))
       }
 
-      return yield* wrap(
-        movieSearch({
-          limit,
-          ...(imdbId === undefined ? {} : { imdbId }),
-          ...(tmdbId === undefined ? {} : { tmdbId }),
-        })
-      )
+      let options: MovieSearchOptions = { limit }
+      if (imdbId !== undefined) {
+        options = { ...options, imdbId }
+      }
+      if (tmdbId !== undefined) {
+        options = { ...options, tmdbId }
+      }
+
+      return yield* wrap(movieSearch(options))
     })
   )
 

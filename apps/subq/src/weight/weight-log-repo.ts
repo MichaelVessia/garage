@@ -7,6 +7,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
+import type { SqlConnection } from 'effect/unstable/sql'
 
 import {
   calendarDaysBetween,
@@ -54,7 +55,8 @@ export const rowToDomain = (row: typeof WeightLogRow.Type): WeightLog =>
   })
 
 // Decode and transform raw DB row
-const decodeAndTransform = (raw: unknown) => Effect.map(decodeRow(raw), rowToDomain)
+const decodeAndTransform = (raw: Option.Option<SqlConnection.Row>) =>
+  raw.pipe(Option.getOrUndefined, decodeRow, Effect.map(rowToDomain))
 
 // ============================================
 // Repository Service Definition
@@ -109,7 +111,10 @@ export const WeightLogRepoLive = Layer.effect(
           LIMIT ${params.limit}
           OFFSET ${params.offset}
         `
-        return yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+        return yield* Effect.all(
+          rows.map((row) => decodeAndTransform(Option.some(row))),
+          { concurrency: 1 }
+        )
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )
@@ -122,7 +127,10 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE user_id = ${userId}
           ORDER BY datetime ASC
         `
-        return yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+        return yield* Effect.all(
+          rows.map((row) => decodeAndTransform(Option.some(row))),
+          { concurrency: 1 }
+        )
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )
@@ -137,7 +145,7 @@ export const WeightLogRepoLive = Layer.effect(
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
-        const decoded = yield* decodeAndTransform(rows[0])
+        const decoded = yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
         return Option.some(decoded)
       },
       mapDbError(WeightLogDatabaseError, 'query')
@@ -155,7 +163,7 @@ export const WeightLogRepoLive = Layer.effect(
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
-        const decoded = yield* decodeAndTransform(rows[0])
+        const decoded = yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
         return Option.some(decoded)
       },
       mapDbError(WeightLogDatabaseError, 'query')
@@ -169,7 +177,10 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE user_id = ${userId}
           ORDER BY datetime ASC
         `
-        const entries = yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+        const entries = yield* Effect.all(
+          rows.map((row) => decodeAndTransform(Option.some(row))),
+          { concurrency: 1 }
+        )
         return Arr.reduce(
           entries,
           Option.none<{ readonly distance: number; readonly entry: WeightLog }>(),
@@ -204,7 +215,7 @@ export const WeightLogRepoLive = Layer.effect(
           FROM weight_logs
           WHERE id = ${id}
         `
-        return yield* decodeAndTransform(rows[0])
+        return yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
       },
       mapDbError(WeightLogDatabaseError, 'insert')
     )
@@ -242,7 +253,9 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(mapDbError(WeightLogDatabaseError, 'query'))
 
-      return yield* decodeAndTransform(rows[0]).pipe(mapDbError(WeightLogDatabaseError, 'update'))
+      return yield* decodeAndTransform(Option.fromUndefinedOr(rows[0])).pipe(
+        mapDbError(WeightLogDatabaseError, 'update')
+      )
     })
 
     const del = Effect.fn('WeightLogRepo.delete')(

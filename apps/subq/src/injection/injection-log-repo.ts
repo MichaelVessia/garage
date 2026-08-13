@@ -7,6 +7,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { SqlClient } from 'effect/unstable/sql'
+import type { SqlConnection } from 'effect/unstable/sql'
 
 import {
   DoseMg,
@@ -71,7 +72,8 @@ export const rowToDomain = (row: typeof InjectionLogRow.Type): InjectionLog =>
     updatedAt: DateTime.makeUnsafe(row.updated_at),
   })
 
-const decodeAndTransform = (raw: unknown) => Effect.map(decodeRow(raw), rowToDomain)
+const decodeAndTransform = (raw: Option.Option<SqlConnection.Row>) =>
+  raw.pipe(Option.getOrUndefined, decodeRow, Effect.map(rowToDomain))
 
 // ============================================
 // Repository Service Definition
@@ -132,7 +134,10 @@ export const InjectionLogRepoLive = Layer.effect(
           LIMIT ${params.limit}
           OFFSET ${params.offset}
         `
-        const results = yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+        const results = yield* Effect.all(
+          rows.map((row) => decodeAndTransform(Option.some(row))),
+          { concurrency: 1 }
+        )
         return results
       },
       mapDbError(InjectionLogDatabaseError, 'query')
@@ -148,7 +153,7 @@ export const InjectionLogRepoLive = Layer.effect(
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
-        const decoded = yield* decodeAndTransform(rows[0])
+        const decoded = yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
         return Option.some(decoded)
       },
       mapDbError(InjectionLogDatabaseError, 'query')
@@ -175,7 +180,7 @@ export const InjectionLogRepoLive = Layer.effect(
           FROM injection_logs
           WHERE id = ${id}
         `
-        return yield* decodeAndTransform(rows[0])
+        return yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
       },
       mapDbError(InjectionLogDatabaseError, 'insert')
     )
@@ -221,7 +226,9 @@ export const InjectionLogRepoLive = Layer.effect(
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(mapDbError(InjectionLogDatabaseError, 'query'))
 
-      return yield* decodeAndTransform(rows[0]).pipe(mapDbError(InjectionLogDatabaseError, 'update'))
+      return yield* decodeAndTransform(Option.fromUndefinedOr(rows[0])).pipe(
+        mapDbError(InjectionLogDatabaseError, 'update')
+      )
     })
 
     const del = Effect.fn('InjectionLogRepo.delete')(
@@ -276,7 +283,10 @@ export const InjectionLogRepoLive = Layer.effect(
           WHERE schedule_id = ${scheduleId} AND user_id = ${userId}
           ORDER BY datetime ASC
         `
-        const results = yield* Effect.all(rows.map(decodeAndTransform), { concurrency: 1 })
+        const results = yield* Effect.all(
+          rows.map((row) => decodeAndTransform(Option.some(row))),
+          { concurrency: 1 }
+        )
         return results
       },
       mapDbError(InjectionLogDatabaseError, 'query')
