@@ -96,6 +96,7 @@
           bun build \
             packages/pi-extensions/extensions/gpt-fast-mode.ts \
             packages/pi-extensions/extensions/prompt-stash.ts \
+            packages/pi-extensions/extensions/session-model-default.ts \
             --outdir dist/pi-extensions/extensions \
             --target node \
             --external @earendil-works/pi-coding-agent \

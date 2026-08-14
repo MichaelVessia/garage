@@ -5,6 +5,7 @@ import * as Effect from 'effect/Effect'
 const extensionPaths = [
   new URL('../extensions/gpt-fast-mode.ts', import.meta.url).pathname,
   new URL('../extensions/prompt-stash.ts', import.meta.url).pathname,
+  new URL('../extensions/session-model-default.ts', import.meta.url).pathname,
 ]
 
 const loadAdapters = Effect.tryPromise(() =>
@@ -16,13 +17,14 @@ describe('Pi extension adapters', () => {
     Effect.gen(function* () {
       const loaded = yield* loadAdapters
       assert.deepStrictEqual(loaded.errors, [])
-      assert.strictEqual(loaded.extensions.length, 2)
+      assert.strictEqual(loaded.extensions.length, 3)
 
       const fastMode = loaded.extensions.find(({ path }) => path.endsWith('gpt-fast-mode.ts'))
       const promptStash = loaded.extensions.find(({ path }) => path.endsWith('prompt-stash.ts'))
+      const sessionModelDefault = loaded.extensions.find(({ path }) => path.endsWith('session-model-default.ts'))
 
-      if (fastMode === undefined || promptStash === undefined) {
-        return assert.fail('expected both Garage Pi extension adapters to load')
+      if (fastMode === undefined || promptStash === undefined || sessionModelDefault === undefined) {
+        return assert.fail('expected all Garage Pi extension adapters to load')
       }
 
       assert.isTrue(fastMode.commands.has('fast'))
@@ -32,7 +34,9 @@ describe('Pi extension adapters', () => {
         'model_select',
         'session_start',
       ])
-      assert.deepStrictEqual([...promptStash.handlers.keys()].toSorted(), ['input', 'session_start'])
+      assert.isTrue(promptStash.shortcuts.has('ctrl+s'))
+      assert.deepStrictEqual([...promptStash.handlers.keys()], ['input'])
+      assert.deepStrictEqual([...sessionModelDefault.handlers.keys()].toSorted(), ['model_select', 'session_start'])
     })
   )
 })
