@@ -1,5 +1,11 @@
 # @garage/autocaliweb-cli
 
+## 0.0.19
+
+### Patch Changes
+
+- Automatic CLI release for changed artifact inputs.
+
 ## 0.0.18
 
 ### Patch Changes

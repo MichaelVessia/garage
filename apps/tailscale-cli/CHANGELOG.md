@@ -1,5 +1,11 @@
 # @garage/tailscale-cli
 
+## 0.0.18
+
+### Patch Changes
+
+- Automatic CLI release for changed artifact inputs.
+
 ## 0.0.17
 
 ### Patch Changes
