@@ -16,7 +16,7 @@ This context packages Michael's Garage-maintained Pi customizations as tested, E
 
 ## Responsibilities
 
-- Package Garage-owned Pi extensions for local development and repository-pinned Nix installation.
+- Package Garage-owned Pi extensions for local development and direct Git installation through Pi.
 - Parse extension settings and provider payloads at their boundaries.
 - Own prompt-stash state, GPT fast-mode policy, and session-only model cycling policy.
 - Adapt policy to Pi lifecycle events and TUI behavior.
@@ -25,7 +25,7 @@ This context packages Michael's Garage-maintained Pi customizations as tested, E
 
 - It does not own Pi itself or third-party Pi packages such as Powerbar.
 - It does not own Herdr's generated Pi integration.
-- It does not own machine-level installation or Home Manager wiring; `nixos-config` selects the pinned Garage flake output.
+- It does not own machine-level installation; Pi installs the package directly from Garage's Git repository.
 - It does not turn every Pi callback into an Effect service.
 
 ## Invariants and compatibility contracts
