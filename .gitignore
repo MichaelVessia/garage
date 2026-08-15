@@ -14,6 +14,7 @@ docs/plans/
 .claude/*
 !.claude/settings.json
 .codex/
+.pi-subagents/
 .ralph/
 tmp/
 .lefthook-local.yml
