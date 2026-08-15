@@ -5,7 +5,6 @@ Garage-maintained custom extensions for [Pi](https://github.com/earendil-works/p
 ## Extensions
 
 - **GPT fast mode** — `/fast` and `Ctrl+Alt+M` toggle OpenAI's `priority` service tier for explicitly supported GPT models.
-- **Prompt stash** — `Ctrl+S` temporarily stashes the current editor prompt; submitting another prompt restores it.
 - **Session-only model cycling** — `Ctrl+P` and `Shift+Ctrl+P` change the active model without replacing the configured default for future sessions.
 
 ## Install
