@@ -1,4 +1,5 @@
 import { assert, it } from '@effect/vitest'
+import { AutocaliwebApi, unreachable as autocaliwebUnreachable } from '@garage/autocaliweb'
 import { SabnzbdApi, envMissing, unreachable } from '@garage/sabnzbd'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
@@ -100,9 +101,31 @@ const makeApiLayer = (statusEffect: SabnzbdApi['Service']['status']) =>
     })
   )
 
-const ReadyApiLayer = makeApiLayer(() =>
+const makeAutocaliwebLayer = (statusEffect: AutocaliwebApi['Service']['status']) =>
+  Layer.succeed(
+    AutocaliwebApi,
+    AutocaliwebApi.of({
+      status: statusEffect,
+      stats: () => Effect.succeed({ books: 1, authors: 1, categories: 1, series: 0 }),
+      catalog: () => Effect.succeed({ count: 1, records: [{ title: 'Books' }] }),
+      books: () => Effect.succeed({ count: 0, records: [] }),
+      recent: () => Effect.succeed({ count: 0, records: [] }),
+      search: ({ query }) => Effect.succeed({ query, total: 0, count: 0, records: [] }),
+      bookInfo: ({ uuid }) =>
+        Effect.succeed({ uuid, authors: [], languages: [], categories: [], downloads: [], formats: [], tags: [] }),
+      shelves: () => Effect.succeed({ count: 0, records: [] }),
+    })
+  )
+
+const ReadyAutocaliwebLayer = makeAutocaliwebLayer(() =>
+  Effect.succeed({ catalogCount: 1, stats: { books: 1, authors: 1, categories: 1, series: 0 } })
+)
+
+const ReadySabnzbdLayer = makeApiLayer(() =>
   Effect.succeed({ version: '4.5.3', uptime: '1d', paused: false, haveWarnings: false })
 )
+
+const ReadyApiLayer = Layer.merge(ReadyAutocaliwebLayer, ReadySabnzbdLayer)
 
 const post = (
   handler: (request: Request) => Promise<Response>,
@@ -130,7 +153,7 @@ const post = (
 const responseJson = (response: Response) => Effect.tryPromise(() => response.json())
 
 const withInitializedHandler = <A, E>(
-  apiLayer: Layer.Layer<SabnzbdApi>,
+  apiLayer: Layer.Layer<AutocaliwebApi | SabnzbdApi>,
   use: (handler: (request: Request) => Promise<Response>, sessionId: string) => Effect.Effect<A, E>
 ) =>
   Effect.acquireUseRelease(
@@ -157,7 +180,7 @@ const withInitializedHandler = <A, E>(
     ({ dispose }) => Effect.tryPromise(() => dispose())
   )
 
-it.effect('discovers SABnzbd tools with bounded schemas and accurate safety annotations', () =>
+it.effect('discovers consolidated tools with bounded schemas and accurate safety annotations', () =>
   withInitializedHandler(ReadyApiLayer, (handler, sessionId) =>
     Effect.gen(function* () {
       const response = yield* post(
@@ -178,9 +201,21 @@ it.effect('discovers SABnzbd tools with bounded schemas and accurate safety anno
           'sabnzbd_pause',
           'sabnzbd_resume',
           'sabnzbd_delete',
+          'autocaliweb_status',
+          'autocaliweb_version',
+          'autocaliweb_stats',
+          'autocaliweb_catalog',
+          'autocaliweb_books',
+          'autocaliweb_recent',
+          'autocaliweb_search',
+          'autocaliweb_book_info',
+          'autocaliweb_shelves',
         ]
       )
-      for (const tool of body.result.tools.slice(0, 5)) {
+      for (const tool of [
+        ...body.result.tools.slice(0, 5),
+        ...body.result.tools.filter((candidate) => candidate.name.startsWith('autocaliweb_')),
+      ]) {
         assert.deepInclude(tool.annotations, {
           readOnlyHint: true,
           destructiveHint: false,
@@ -252,7 +287,10 @@ it.effect('encodes successful structured results through HTTP MCP', () =>
 
 it.effect('represents expected package failures without sensitive request data', () =>
   withInitializedHandler(
-    makeApiLayer(() => Effect.fail(envMissing('SABNZBD_API_KEY'))),
+    Layer.merge(
+      ReadyAutocaliwebLayer,
+      makeApiLayer(() => Effect.fail(envMissing('SABNZBD_API_KEY')))
+    ),
     (handler, sessionId) =>
       Effect.gen(function* () {
         const response = yield* post(
@@ -283,10 +321,13 @@ it.effect('represents expected package failures without sensitive request data',
 
 it.effect('redacts credential-bearing transport failures from MCP results', () =>
   withInitializedHandler(
-    makeApiLayer(() =>
-      Effect.fail(
-        unreachable(
-          'Transport error for http://sabnzbd.example.test/api?apikey=sentinel-api-key&output=json&mode=fullstatus'
+    Layer.merge(
+      ReadyAutocaliwebLayer,
+      makeApiLayer(() =>
+        Effect.fail(
+          unreachable(
+            'Transport error for http://sabnzbd.example.test/api?apikey=sentinel-api-key&output=json&mode=fullstatus'
+          )
         )
       )
     ),
@@ -314,6 +355,46 @@ it.effect('redacts credential-bearing transport failures from MCP results', () =
         assert.notInclude(content.text, 'sentinel-api-key')
         assert.notInclude(content.text, 'apikey=')
         assert.notInclude(content.text, 'sabnzbd.example.test')
+      })
+  )
+)
+
+it.effect('redacts AutoCaliWeb Basic-auth transport failures from MCP results', () =>
+  withInitializedHandler(
+    Layer.merge(
+      makeAutocaliwebLayer(() =>
+        Effect.fail(
+          autocaliwebUnreachable(
+            'Transport error for http://fixture-user:sentinel-password@autocaliweb.example.test/opds'
+          )
+        )
+      ),
+      ReadySabnzbdLayer
+    ),
+    (handler, sessionId) =>
+      Effect.gen(function* () {
+        const response = yield* post(
+          handler,
+          {
+            jsonrpc: '2.0',
+            id: 5,
+            method: 'tools/call',
+            params: { name: 'autocaliweb_status', arguments: {} },
+          },
+          { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
+        )
+        const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolCallResponse)))
+        const [content] = body.result.content
+        if (content === undefined) {
+          return assert.fail('expected redacted AutoCaliWeb error content')
+        }
+        const failure = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(McpFailure))(content.text)
+
+        assert.strictEqual(body.result.isError, true)
+        assert.strictEqual(failure.code, 'AUTOCALIWEB_UNREACHABLE')
+        assert.notInclude(content.text, 'sentinel-password')
+        assert.notInclude(content.text, 'fixture-user')
+        assert.notInclude(content.text, 'autocaliweb.example.test')
       })
   )
 )

@@ -2,18 +2,20 @@
 
 Garage MCP is the consolidated HTTP MCP delivery edge for Garage integration packages. It exposes domain-shaped tools without duplicating each package's external adapter.
 
-The initial slice delegates to `@garage/sabnzbd` and exposes eight tools:
+The server currently delegates to two integration packages:
 
-- read-only: `sabnzbd_status`, `sabnzbd_version`, `sabnzbd_queue`, `sabnzbd_history`, `sabnzbd_server_stats`
-- queue control: `sabnzbd_pause`, `sabnzbd_resume`
-- destructive: `sabnzbd_delete`
+- `@garage/sabnzbd`: `sabnzbd_status`, `sabnzbd_version`, `sabnzbd_queue`, `sabnzbd_history`, `sabnzbd_server_stats`, `sabnzbd_pause`, `sabnzbd_resume`, and `sabnzbd_delete`
+- `@garage/autocaliweb`: `autocaliweb_status`, `autocaliweb_version`, `autocaliweb_stats`, `autocaliweb_catalog`, `autocaliweb_books`, `autocaliweb_recent`, `autocaliweb_search`, `autocaliweb_book_info`, and `autocaliweb_shelves`
 
-Deletion is marked destructive for MCP policy. Deleting downloaded data also requires both `deleteFiles: true` and `confirmDeleteFiles: true`.
+All AutoCaliWeb tools are read-only and cover only its API/catalog surface; file ingestion is deliberately excluded. SABnzbd deletion is marked destructive for MCP policy. Deleting downloaded data also requires both `deleteFiles: true` and `confirmDeleteFiles: true`.
 
 ## Configuration
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
+| `AUTOCALIWEB_URL` | yes | none | AutoCaliWeb base URL |
+| `AUTOCALIWEB_USERNAME` | yes | none | AutoCaliWeb Basic-auth username |
+| `AUTOCALIWEB_PASSWORD` | yes | none | Redacted AutoCaliWeb Basic-auth password |
 | `SABNZBD_URL` | yes | none | SABnzbd base URL |
 | `SABNZBD_API_KEY` | yes | none | Redacted SABnzbd API credential |
 | `GARAGE_MCP_PORT` | no | `3000` | HTTP listen port |
@@ -27,7 +29,7 @@ The current Executor deployment uses the MCP integration's `none` authentication
 - MCP: `POST /mcp`
 - readiness: `GET /health`
 
-The readiness endpoint proves that the process and HTTP router are available. It does not contact SABnzbd; tool calls represent configuration or upstream failures through the MCP error result.
+The readiness endpoint proves that the process and HTTP router are available. It does not contact upstream services; tool calls represent configuration or upstream failures through the MCP error result.
 
 ## Development
 

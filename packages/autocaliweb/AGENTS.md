@@ -1,6 +1,6 @@
 # AutoCaliWeb Instructions
 
-This context owns `packages/autocaliweb` and `apps/autocaliweb-cli` as one read-only ebook-catalog integration.
+This context owns `packages/autocaliweb`, `apps/autocaliweb-cli`, and the AutoCaliWeb tools under `apps/garage-mcp` as one read-only ebook-catalog integration.
 
 ## Read first
 
@@ -12,9 +12,11 @@ This context owns `packages/autocaliweb` and `apps/autocaliweb-cli` as one read-
 
 - Keep OPDS XML parsing and JSON wire translation in the package.
 - Preserve book-versus-navigation classification and relative-link normalization.
-- Keep argv parsing, next actions, envelopes, and live composition in the CLI app.
-- Preserve the shared CLI envelope, stdout/stderr, represented-failure, and exit-status contract.
-- Use `@garage/autocaliweb` across the workspace boundary.
+- Keep argv parsing, next actions, envelopes, and CLI composition in the CLI app while it exists.
+- Keep MCP tool names, bounded input schemas, truthful annotations, and safe public error mapping in `apps/garage-mcp`.
+- Do not expose file ingestion through the AutoCaliWeb MCP adapter.
+- Preserve the shared CLI envelope, stdout/stderr, represented-failure, and exit-status contract while the CLI exists.
+- Use `@garage/autocaliweb` across workspace boundaries.
 
 ## Validation
 

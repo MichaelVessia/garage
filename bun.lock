@@ -29,7 +29,7 @@
     },
     "apps/adguard-cli": {
       "name": "@garage/adguard-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "adguard": "dist/adguard",
       },
@@ -42,7 +42,7 @@
     },
     "apps/autocaliweb-cli": {
       "name": "@garage/autocaliweb-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "autocaliweb": "dist/autocaliweb",
       },
@@ -55,7 +55,7 @@
     },
     "apps/caddy-cli": {
       "name": "@garage/caddy-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "caddy": "dist/caddy",
       },
@@ -71,13 +71,14 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-bun": "4.0.0-beta.103",
+        "@garage/autocaliweb": "workspace:*",
         "@garage/sabnzbd": "workspace:*",
         "effect": "4.0.0-beta.103",
       },
     },
     "apps/immich-cli": {
       "name": "@garage/immich-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "immich": "dist/immich",
       },
@@ -90,7 +91,7 @@
     },
     "apps/jellyfin-cli": {
       "name": "@garage/jellyfin-cli",
-      "version": "0.0.22",
+      "version": "0.0.23",
       "bin": {
         "jellyfin": "dist/jellyfin",
       },
@@ -103,7 +104,7 @@
     },
     "apps/jellyseerr-cli": {
       "name": "@garage/jellyseerr-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "jellyseerr": "dist/jellyseerr",
       },
@@ -116,7 +117,7 @@
     },
     "apps/prowlarr-cli": {
       "name": "@garage/prowlarr-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "prowlarr": "dist/prowlarr",
       },
@@ -129,7 +130,7 @@
     },
     "apps/radarr-cli": {
       "name": "@garage/radarr-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "radarr": "dist/radarr",
       },
@@ -142,7 +143,7 @@
     },
     "apps/sonarr-cli": {
       "name": "@garage/sonarr-cli",
-      "version": "0.0.21",
+      "version": "0.0.22",
       "bin": {
         "sonarr": "dist/sonarr",
       },
@@ -181,7 +182,7 @@
     },
     "apps/tailscale-cli": {
       "name": "@garage/tailscale-cli",
-      "version": "0.0.20",
+      "version": "0.0.21",
       "bin": {
         "tailscale": "dist/tailscale",
       },
@@ -194,7 +195,7 @@
     },
     "apps/tubearchivist-cli": {
       "name": "@garage/tubearchivist-cli",
-      "version": "0.0.22",
+      "version": "0.0.23",
       "bin": {
         "tubearchivist": "dist/tubearchivist",
       },

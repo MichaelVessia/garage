@@ -1,3 +1,4 @@
+import type { AutocaliwebError } from '@garage/autocaliweb'
 import type { SabnzbdError } from '@garage/sabnzbd'
 import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
@@ -29,6 +30,40 @@ export const garageMcpToolError = (failure: GarageMcpFailure): GarageMcpToolErro
     fix: failure.fix,
     message: encodeFailure(failure),
   })
+
+/** Convert an AutoCaliWeb package error into a deployment-appropriate, credential-free MCP failure. */
+export const autocaliwebToolError = (error: AutocaliwebError): GarageMcpToolError =>
+  Match.value(error.code).pipe(
+    Match.when('AUTOCALIWEB_ENV_MISSING', (code) =>
+      garageMcpToolError({
+        code,
+        message: 'Garage MCP is missing required AutoCaliWeb configuration.',
+        fix: 'Provision AUTOCALIWEB_URL, AUTOCALIWEB_USERNAME, and AUTOCALIWEB_PASSWORD through the Garage MCP secret environment, then restart the service.',
+      })
+    ),
+    Match.when('AUTOCALIWEB_UNREACHABLE', (code) =>
+      garageMcpToolError({
+        code,
+        message: 'Garage MCP could not reach AutoCaliWeb.',
+        fix: 'Verify the private network path and the provisioned AUTOCALIWEB_URL, then retry.',
+      })
+    ),
+    Match.when('AUTOCALIWEB_HTTP_ERROR', (code) =>
+      garageMcpToolError({
+        code,
+        message: 'AutoCaliWeb rejected the Garage MCP request.',
+        fix: 'Verify the provisioned Basic auth credentials and inspect AutoCaliWeb logs without exposing credentials.',
+      })
+    ),
+    Match.when('AUTOCALIWEB_DECODE_ERROR', (code) =>
+      garageMcpToolError({
+        code,
+        message: 'AutoCaliWeb returned a response that Garage MCP could not decode.',
+        fix: 'Update the AutoCaliWeb OPDS or JSON schema for the running server version.',
+      })
+    ),
+    Match.exhaustive
+  )
 
 /** Convert a SABnzbd package error into a deployment-appropriate, credential-free MCP failure. */
 export const sabnzbdToolError = (error: SabnzbdError): GarageMcpToolError =>

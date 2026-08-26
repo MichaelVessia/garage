@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This context provides typed, read-only discovery of an AutoCaliWeb ebook library through OPDS Atom feeds and selected JSON metadata endpoints, exposed by the `autocaliweb` CLI.
+This context provides typed, read-only discovery of an AutoCaliWeb ebook library through OPDS Atom feeds and selected JSON metadata endpoints, exposed through Garage MCP and, during migration, the `autocaliweb` CLI.
 
 ## Ubiquitous language
 
@@ -18,7 +18,7 @@ This context provides typed, read-only discovery of an AutoCaliWeb ebook library
 - Parse OPDS XML, distinguish books from navigation entries, normalize relative links, and identify acquisition/cover links.
 - Follow OPDS pagination for bounded book and recent-book reads.
 - Decode catalog statistics, book metadata, shelves, and search results.
-- Own Basic-authenticated OPDS/JSON HTTP requests and present read operations through the CLI.
+- Own Basic-authenticated OPDS/JSON HTTP requests and present read operations through Garage MCP or another delivery edge.
 
 ## Non-responsibilities
 
@@ -45,9 +45,11 @@ This context provides typed, read-only discovery of an AutoCaliWeb ebook library
 
 `packages/autocaliweb` owns OPDS/JSON anti-corruption, domain values, errors, operations, and HTTP. Live configuration requires `AUTOCALIWEB_URL`, `AUTOCALIWEB_USERNAME`, and redacted `AUTOCALIWEB_PASSWORD`. It depends on Effect, `@garage/cli-protocol`, and `@xmldom/xmldom`. The remote boundary exposes both Atom XML and JSON.
 
-## Package and app relationship
+## Package and delivery relationship
 
-`apps/autocaliweb-cli` is the thin executable: it validates limits, joins multi-word search queries, requires a book UUID where needed, composes Bun HTTP, and delegates domain work to `@garage/autocaliweb`.
+`apps/garage-mcp/src/tools/autocaliweb.ts` owns the MCP names, bounded input schemas, read-only annotations, and safe error translation while delegating protocol work to `@garage/autocaliweb`. File ingestion is outside this adapter.
+
+During CLI retirement, `apps/autocaliweb-cli` remains a temporary thin executable that validates limits, joins multi-word search queries, requires a book UUID where needed, composes Bun HTTP, and delegates domain work to the package.
 
 ## Known ambiguities
 
