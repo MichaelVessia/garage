@@ -945,7 +945,6 @@
   "@garage/radarr" = copyPathToStore ./packages/radarr;
   "@garage/radarr-cli" = copyPathToStore ./apps/radarr-cli;
   "@garage/sabnzbd" = copyPathToStore ./packages/sabnzbd;
-  "@garage/sabnzbd-cli" = copyPathToStore ./apps/sabnzbd-cli;
   "@garage/sonarr" = copyPathToStore ./packages/sonarr;
   "@garage/sonarr-cli" = copyPathToStore ./apps/sonarr-cli;
   "@garage/subq" = copyPathToStore ./apps/subq;

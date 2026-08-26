@@ -170,11 +170,6 @@
           entrypoint = "apps/prowlarr-cli/src/main.ts";
         };
 
-        sabnzbd = mkBunCli {
-          name = "sabnzbd";
-          entrypoint = "apps/sabnzbd-cli/src/main.ts";
-        };
-
         jellyseerr = mkBunCli {
           name = "jellyseerr";
           entrypoint = "apps/jellyseerr-cli/src/main.ts";

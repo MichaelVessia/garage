@@ -19,7 +19,6 @@ import { executeJellyfin } from '../apps/jellyfin-cli/src/index.js'
 import { executeJellyseerr } from '../apps/jellyseerr-cli/src/index.js'
 import { executeProwlarr } from '../apps/prowlarr-cli/src/index.js'
 import { executeRadarr } from '../apps/radarr-cli/src/index.js'
-import { executeSabnzbd } from '../apps/sabnzbd-cli/src/index.js'
 import { executeSonarr } from '../apps/sonarr-cli/src/index.js'
 import { executeTubearchivist } from '../apps/tubearchivist-cli/src/index.js'
 import { AdguardApiLive, AdguardConfigLive } from '../packages/adguard/src/index.js'
@@ -31,7 +30,6 @@ import { JellyfinApiLive, JellyfinConfigLive } from '../packages/jellyfin/src/in
 import { JellyseerrApiLive, JellyseerrConfigLive } from '../packages/jellyseerr/src/index.js'
 import { ProwlarrApiLive, ProwlarrConfigLive } from '../packages/prowlarr/src/index.js'
 import { RadarrApiLive, RadarrConfigLive } from '../packages/radarr/src/index.js'
-import { SabnzbdApiLive, SabnzbdConfigLive } from '../packages/sabnzbd/src/index.js'
 import { SonarrApiLive, SonarrConfigLive } from '../packages/sonarr/src/index.js'
 import {
   TubearchivistApiLive,
@@ -76,10 +74,6 @@ const ProwlarrLive = ProwlarrApiLive.pipe(
 )
 const RadarrLive = RadarrApiLive.pipe(
   Layer.provideMerge(Layer.mergeAll(RadarrConfigLive, BunHttpClient.layer)),
-  Layer.provideMerge(ObservabilityLive)
-)
-const SabnzbdLive = SabnzbdApiLive.pipe(
-  Layer.provideMerge(Layer.mergeAll(SabnzbdConfigLive, BunHttpClient.layer)),
   Layer.provideMerge(ObservabilityLive)
 )
 const SonarrLive = SonarrApiLive.pipe(
@@ -173,7 +167,6 @@ it.effect('HTTP CLI root commands render missing-env envelopes with real live la
     )
     assertMissingEnvRoot(yield* executeProwlarr([]).pipe(Effect.provide(Layer.mergeAll(EmptyEnvLayer, ProwlarrLive))))
     assertMissingEnvRoot(yield* executeRadarr([]).pipe(Effect.provide(Layer.mergeAll(EmptyEnvLayer, RadarrLive))))
-    assertMissingEnvRoot(yield* executeSabnzbd([]).pipe(Effect.provide(Layer.mergeAll(EmptyEnvLayer, SabnzbdLive))))
     assertMissingEnvRoot(yield* executeSonarr([]).pipe(Effect.provide(Layer.mergeAll(EmptyEnvLayer, SonarrLive))))
     assertMissingEnvRoot(
       yield* executeTubearchivist([]).pipe(Effect.provide(Layer.mergeAll(EmptyEnvLayer, TubearchivistLive)))
@@ -182,7 +175,7 @@ it.effect('HTTP CLI root commands render missing-env envelopes with real live la
 )
 
 // Each assertion cold-spawns `bun <entrypoint>` (transpile + load all layers).
-// Eleven sequential spawns can exceed vitest's default 5s timeout when the full
+// Ten sequential spawns can exceed vitest's default 5s timeout when the full
 // `validate` run saturates the machine, so this subprocess test gets a generous
 // budget.
 it.effect('CLI entrypoints preserve JSON error envelopes and zero exit status for usage errors', () =>
@@ -213,7 +206,6 @@ it.effect(
       yield* assertMainRendersMissingEnvRoot('apps/jellyseerr-cli/src/main.ts')
       yield* assertMainRendersMissingEnvRoot('apps/prowlarr-cli/src/main.ts')
       yield* assertMainRendersMissingEnvRoot('apps/radarr-cli/src/main.ts')
-      yield* assertMainRendersMissingEnvRoot('apps/sabnzbd-cli/src/main.ts')
       yield* assertMainRendersMissingEnvRoot('apps/sonarr-cli/src/main.ts')
       yield* assertMainRendersMissingEnvRoot('apps/tubearchivist-cli/src/main.ts')
     }).pipe(Effect.provide(BunServices.layer)),

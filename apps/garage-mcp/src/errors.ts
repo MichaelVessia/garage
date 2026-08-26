@@ -61,12 +61,5 @@ export const sabnzbdToolError = (error: SabnzbdError): GarageMcpToolError =>
         fix: 'Update the SABnzbd wire schema for the running server version.',
       })
     ),
-    Match.when('SABNZBD_DELETE_CONFIRMATION_REQUIRED', (code) =>
-      garageMcpToolError({
-        code,
-        message: 'Deleting downloaded data requires explicit confirmation.',
-        fix: 'Set confirmDeleteFiles only after confirming that downloaded data should be removed from disk.',
-      })
-    ),
     Match.exhaustive
   )

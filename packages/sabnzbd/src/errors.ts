@@ -11,7 +11,7 @@ import {
 import * as Schema from 'effect/Schema'
 
 export const envFix =
-  'Open a fresh shell so sops-nix exports SABNZBD_URL and SABNZBD_API_KEY from modules/programs/shell.nix.'
+  "Provision SABNZBD_URL and SABNZBD_API_KEY through the consuming application's secret environment."
 
 export class SabnzbdEnvMissingError extends Schema.TaggedErrorClass<SabnzbdEnvMissingError>()(
   'SabnzbdEnvMissingError',
@@ -33,21 +33,11 @@ export class SabnzbdDecodeError extends Schema.TaggedErrorClass<SabnzbdDecodeErr
   decodeErrorFields('SABNZBD_DECODE_ERROR')
 ) {}
 
-export class SabnzbdDeleteConfirmationRequiredError extends Schema.TaggedErrorClass<SabnzbdDeleteConfirmationRequiredError>()(
-  'SabnzbdDeleteConfirmationRequiredError',
-  {
-    code: Schema.Literal('SABNZBD_DELETE_CONFIRMATION_REQUIRED'),
-    message: Schema.String,
-    fix: Schema.String,
-  }
-) {}
-
 export const SabnzbdError = Schema.Union([
   SabnzbdEnvMissingError,
   SabnzbdUnreachableError,
   SabnzbdHttpError,
   SabnzbdDecodeError,
-  SabnzbdDeleteConfirmationRequiredError,
 ])
 export type SabnzbdError = typeof SabnzbdError.Type
 export type SabnzbdErrorCode = SabnzbdError['code']
@@ -72,10 +62,3 @@ export const decodeError = makeDecodeError(
   'SABNZBD_DECODE_ERROR',
   'Update the SABnzbd schemas to match the API response shape.'
 )
-
-export const deleteConfirmationRequired = (): SabnzbdDeleteConfirmationRequiredError =>
-  new SabnzbdDeleteConfirmationRequiredError({
-    code: 'SABNZBD_DELETE_CONFIRMATION_REQUIRED',
-    message: 'Deleting downloaded files requires --confirm-delete-files',
-    fix: 'Re-run with --confirm-delete-files only if you intend to delete downloaded files from disk.',
-  })

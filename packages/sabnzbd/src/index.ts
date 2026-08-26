@@ -1,12 +1,10 @@
 export {
   SabnzbdDecodeError,
-  SabnzbdDeleteConfirmationRequiredError,
   SabnzbdEnvMissingError,
   SabnzbdError,
   SabnzbdHttpError,
   SabnzbdUnreachableError,
   decodeError,
-  deleteConfirmationRequired,
   envFix,
   envMissing,
   httpError,

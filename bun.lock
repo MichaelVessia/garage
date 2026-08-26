@@ -140,19 +140,6 @@
         "effect": "4.0.0-beta.103",
       },
     },
-    "apps/sabnzbd-cli": {
-      "name": "@garage/sabnzbd-cli",
-      "version": "0.0.21",
-      "bin": {
-        "sabnzbd": "dist/sabnzbd",
-      },
-      "dependencies": {
-        "@effect/platform-bun": "4.0.0-beta.103",
-        "@garage/cli-protocol": "workspace:*",
-        "@garage/sabnzbd": "workspace:*",
-        "effect": "4.0.0-beta.103",
-      },
-    },
     "apps/sonarr-cli": {
       "name": "@garage/sonarr-cli",
       "version": "0.0.21",
@@ -725,8 +712,6 @@
     "@garage/radarr-cli": ["@garage/radarr-cli@workspace:apps/radarr-cli"],
 
     "@garage/sabnzbd": ["@garage/sabnzbd@workspace:packages/sabnzbd"],
-
-    "@garage/sabnzbd-cli": ["@garage/sabnzbd-cli@workspace:apps/sabnzbd-cli"],
 
     "@garage/sonarr": ["@garage/sonarr@workspace:packages/sonarr"],
 
