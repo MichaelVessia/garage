@@ -30,11 +30,12 @@
         if pkgs.stdenv.hostPlatform.isDarwin
         then ["--linker=hoisted" "--backend=copyfile"]
         else ["--linker=hoisted"];
-      mkBunCli = {
+      mkBunExecutable = {
         name,
+        workspace,
         entrypoint,
       }: let
-        packageJson = builtins.fromJSON (builtins.readFile (./. + "/apps/${name}-cli/package.json"));
+        packageJson = builtins.fromJSON (builtins.readFile (./. + "/apps/${workspace}/package.json"));
       in
         pkgs.stdenv.mkDerivation {
           pname = name;
@@ -53,7 +54,7 @@
           dontUseBunInstall = true;
           dontRunLifecycleScripts = true;
           # Bun --compile appends the JS bundle to the executable; stripping it
-          # leaves a plain Bun runtime that cannot dispatch CLI subcommands.
+          # leaves a plain Bun runtime that cannot dispatch the compiled program.
           dontStrip = true;
 
           buildPhase = ''
@@ -72,6 +73,44 @@
             runHook postInstall
           '';
         };
+      mkBunCli = {
+        name,
+        entrypoint,
+      }:
+        mkBunExecutable {
+          inherit name entrypoint;
+          workspace = "${name}-cli";
+        };
+      garageMcp = mkBunExecutable {
+        name = "garage-mcp";
+        workspace = "garage-mcp";
+        entrypoint = "apps/garage-mcp/src/main.ts";
+      };
+      garageMcpImage = pkgs.dockerTools.buildLayeredImage {
+        name = "garage-mcp";
+        tag = garageMcp.version;
+        contents = [
+          garageMcp
+          pkgs.busybox
+          pkgs.cacert
+        ];
+        config = {
+          Cmd = ["${garageMcp}/bin/garage-mcp"];
+          User = "65532:65532";
+          Env = [
+            "GARAGE_MCP_PORT=3000"
+            "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+          ];
+          ExposedPorts = {"3000/tcp" = {};};
+          Healthcheck = {
+            Test = ["CMD" "${pkgs.busybox}/bin/wget" "--quiet" "--spider" "http://127.0.0.1:3000/health"];
+            Interval = 30000000000;
+            Timeout = 5000000000;
+            Retries = 3;
+            StartPeriod = 5000000000;
+          };
+        };
+      };
       piExtensionsPackageJson = builtins.fromJSON (builtins.readFile ./packages/pi-extensions/package.json);
       piExtensions = pkgs.stdenv.mkDerivation {
         pname = "garage-pi-extensions";
@@ -175,6 +214,9 @@
           name = "tailscale";
           entrypoint = "apps/tailscale-cli/src/main.ts";
         };
+
+        garage-mcp = garageMcp;
+        garage-mcp-image = garageMcpImage;
 
         pi-extensions = piExtensions;
 

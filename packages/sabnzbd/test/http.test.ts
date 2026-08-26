@@ -28,7 +28,7 @@ it.effect('SabnzbdApiLive sends query-authenticated status requests', () =>
           speedlimit: '0',
           speedlimit_abs: '0',
           diskspace1_norm: '1 TB',
-          have_warnings: false,
+          have_warnings: '0',
           warnings: [],
         },
       },
@@ -39,6 +39,7 @@ it.effect('SabnzbdApiLive sends query-authenticated status requests', () =>
     const requests = (yield* Ref.get(fake.requests)).map((request) => ({ method: request.method, url: request.url }))
 
     assert.strictEqual(result.version, '4.5.3')
+    assert.strictEqual(result.haveWarnings, false)
     assert.deepStrictEqual(requests, [
       {
         method: 'GET',

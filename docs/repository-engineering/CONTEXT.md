@@ -17,6 +17,7 @@ Repository Engineering is the supporting context that makes independently owned 
 ## Responsibilities
 
 - Root Bun workspace, TypeScript, lint, format, test, ast-grep, hook, and commit configuration.
+- Shared Garage MCP HTTP server composition, packaging, readiness, and protocol behavior; integration contexts own their tool semantics.
 - Cross-workspace architecture and compatibility tests under `scripts/`.
 - CI, release impact calculation, Changesets, CLI tagging, and validated-SHA release workflows.
 - Bun and Nix deliverable construction and smoke testing.
@@ -24,7 +25,7 @@ Repository Engineering is the supporting context that makes independently owned 
 
 ## Non-responsibilities
 
-- It does not own an integration's upstream vocabulary, operations, command semantics, or adapter mapping.
+- It does not own an integration's upstream vocabulary, operations, CLI command semantics, MCP tool semantics, or external adapter mapping.
 - It does not own the CLI envelope implementation; `packages/cli-protocol` does.
 - It does not own Subq's health-tracking model or deployment behavior.
 - It does not turn `repos/`, generated output, or dependency directories into first-party workspaces.
@@ -35,7 +36,7 @@ Repository Engineering is the supporting context that makes independently owned 
 - Effect version pins and strict TypeScript diagnostics.
 - Oxlint rules, ast-grep rules, fixtures, and snapshots.
 - Validation jobs, release-impact path classes, Changesets, and Git tags.
-- Bun-compiled binaries and Nix flake outputs.
+- Bun-compiled binaries, the consolidated Garage MCP container image, and Nix flake outputs.
 
 ## Invariants and compatibility contracts
 
@@ -55,6 +56,7 @@ Repository Engineering governs every workspace through root configuration and CI
 
 - `rules/` defines structural policy; `rule-tests/` proves each rule.
 - `scripts/` holds cross-workspace tests, smoke checks, and release/versioning logic.
+- `apps/garage-mcp` composes context-owned MCP tool adapters into one private HTTP delivery edge.
 - `.github/workflows/` runs the validation and release lifecycle.
 - `docs/reference/` holds normative conventions; `docs/guardrails/` holds engineering judgment; `docs/agents/` holds agent workflow setup; `docs/adr/` holds system-wide decisions.
 

@@ -29,7 +29,7 @@
     },
     "apps/adguard-cli": {
       "name": "@garage/adguard-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "adguard": "dist/adguard",
       },
@@ -42,7 +42,7 @@
     },
     "apps/autocaliweb-cli": {
       "name": "@garage/autocaliweb-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "autocaliweb": "dist/autocaliweb",
       },
@@ -55,7 +55,7 @@
     },
     "apps/caddy-cli": {
       "name": "@garage/caddy-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "caddy": "dist/caddy",
       },
@@ -66,9 +66,18 @@
         "effect": "4.0.0-beta.103",
       },
     },
+    "apps/garage-mcp": {
+      "name": "@garage/mcp",
+      "version": "0.0.0",
+      "dependencies": {
+        "@effect/platform-bun": "4.0.0-beta.103",
+        "@garage/sabnzbd": "workspace:*",
+        "effect": "4.0.0-beta.103",
+      },
+    },
     "apps/immich-cli": {
       "name": "@garage/immich-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "immich": "dist/immich",
       },
@@ -81,7 +90,7 @@
     },
     "apps/jellyfin-cli": {
       "name": "@garage/jellyfin-cli",
-      "version": "0.0.17",
+      "version": "0.0.22",
       "bin": {
         "jellyfin": "dist/jellyfin",
       },
@@ -94,7 +103,7 @@
     },
     "apps/jellyseerr-cli": {
       "name": "@garage/jellyseerr-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "jellyseerr": "dist/jellyseerr",
       },
@@ -107,7 +116,7 @@
     },
     "apps/prowlarr-cli": {
       "name": "@garage/prowlarr-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "prowlarr": "dist/prowlarr",
       },
@@ -120,7 +129,7 @@
     },
     "apps/radarr-cli": {
       "name": "@garage/radarr-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "radarr": "dist/radarr",
       },
@@ -133,7 +142,7 @@
     },
     "apps/sabnzbd-cli": {
       "name": "@garage/sabnzbd-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "sabnzbd": "dist/sabnzbd",
       },
@@ -146,7 +155,7 @@
     },
     "apps/sonarr-cli": {
       "name": "@garage/sonarr-cli",
-      "version": "0.0.16",
+      "version": "0.0.21",
       "bin": {
         "sonarr": "dist/sonarr",
       },
@@ -185,7 +194,7 @@
     },
     "apps/tailscale-cli": {
       "name": "@garage/tailscale-cli",
-      "version": "0.0.15",
+      "version": "0.0.20",
       "bin": {
         "tailscale": "dist/tailscale",
       },
@@ -198,7 +207,7 @@
     },
     "apps/tubearchivist-cli": {
       "name": "@garage/tubearchivist-cli",
-      "version": "0.0.17",
+      "version": "0.0.22",
       "bin": {
         "tubearchivist": "dist/tubearchivist",
       },
@@ -702,6 +711,8 @@
     "@garage/jellyseerr": ["@garage/jellyseerr@workspace:packages/jellyseerr"],
 
     "@garage/jellyseerr-cli": ["@garage/jellyseerr-cli@workspace:apps/jellyseerr-cli"],
+
+    "@garage/mcp": ["@garage/mcp@workspace:apps/garage-mcp"],
 
     "@garage/pi-extensions": ["@garage/pi-extensions@workspace:packages/pi-extensions"],
 

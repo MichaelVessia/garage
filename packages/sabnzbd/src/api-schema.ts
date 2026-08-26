@@ -22,6 +22,13 @@ import type {
 const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
 const NullableNumber = Schema.NullOr(Schema.Number).pipe(Schema.optional)
 const NullableBoolean = Schema.NullOr(Schema.Boolean).pipe(Schema.optional)
+const BooleanFlag = Schema.Union([Schema.Boolean, Schema.Literals(['0', '1'])]).pipe(
+  Schema.decodeTo(Schema.Boolean, {
+    decode: SchemaGetter.transform((value: boolean | '0' | '1') => value === true || value === '1'),
+    encode: SchemaGetter.transform((value: boolean) => value),
+  })
+)
+const NullableBooleanFlag = Schema.NullOr(BooleanFlag).pipe(Schema.optional)
 const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 const ActionStatusApi = Schema.Union([Schema.Boolean, Schema.String]).pipe(Schema.NullOr, Schema.optional)
 
@@ -34,7 +41,7 @@ const StatusApi = Schema.Struct({
   speedlimit_abs: NullableString,
   diskspace1_norm: NullableString,
   diskspace2_norm: NullableString,
-  have_warnings: NullableBoolean,
+  have_warnings: NullableBooleanFlag,
   warnings: NullableStringArray,
   new_release: NullableString,
 })

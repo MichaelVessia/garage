@@ -938,6 +938,7 @@
   "@garage/jellyfin-cli" = copyPathToStore ./apps/jellyfin-cli;
   "@garage/jellyseerr" = copyPathToStore ./packages/jellyseerr;
   "@garage/jellyseerr-cli" = copyPathToStore ./apps/jellyseerr-cli;
+  "@garage/mcp" = copyPathToStore ./apps/garage-mcp;
   "@garage/pi-extensions" = copyPathToStore ./packages/pi-extensions;
   "@garage/prowlarr" = copyPathToStore ./packages/prowlarr;
   "@garage/prowlarr-cli" = copyPathToStore ./apps/prowlarr-cli;
