@@ -5,7 +5,7 @@
 
 ## Context
 
-Garage integration packages already own typed models, domain operations, external adapters, errors, and safety policy. Their CLI apps are useful executable edges, but agent access is moving to an Executor gateway that can consume OpenAPI and MCP tools. Some self-hosted APIs, especially SABnzbd's query-based protocol, do not map cleanly to OpenAPI.
+Garage integration packages own typed models, domain operations, external adapters, errors, and safety policy where a custom adapter remains necessary. Agent access uses an Executor gateway that can consume OpenAPI and MCP tools. Some self-hosted APIs, especially SABnzbd's query-based protocol and AutoCaliWeb's mixed OPDS/XML and JSON surface, do not map cleanly to imported OpenAPI.
 
 Creating an MCP server per integration would duplicate deployment, authentication, observability, and lifecycle work. Reimplementing external API calls in MCP handlers would create competing protocol owners and weaken the existing package boundaries.
 
@@ -13,9 +13,9 @@ Creating an MCP server per integration would duplicate deployment, authenticatio
 
 Garage will have one consolidated HTTP MCP delivery application under `apps/garage-mcp`. Tool adapters use workspace package names and delegate to existing integration package interfaces. They own only MCP names, schemas, annotations, result mapping, and server composition.
 
-The MCP application starts with five read-only SABnzbd tools plus pause, resume, and delete. Mutation tools carry truthful MCP safety annotations, explicit Executor approval policy, and domain-level confirmation for downloaded-file deletion. Conventional APIs may remain direct Executor OpenAPI integrations instead of being duplicated in Garage MCP.
+The MCP application started with five read-only SABnzbd tools plus pause, resume, and delete, and now also exposes nine read-only AutoCaliWeb API/catalog tools. Mutation tools carry truthful MCP safety annotations, explicit Executor approval policy, and domain-level confirmation where appropriate. Conventional APIs remain direct Executor OpenAPI integrations instead of being duplicated in Garage MCP.
 
-CLI retirement is evidence-gated and separate. Integration packages remain even when their CLI delivery edge is removed.
+Garage's agent-first service CLIs have been retired. Integration packages remain only when Garage MCP or another production consumer needs their protocol ownership.
 
 ## Consequences
 

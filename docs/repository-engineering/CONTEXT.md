@@ -7,11 +7,11 @@ Repository Engineering is the supporting context that makes independently owned 
 ## Ubiquitous language
 
 - **Workspace**: an independently owned package or app under `packages/*` or `apps/*`.
-- **Workspace archetype**: paired integration package + CLI, standalone/local CLI, shared/library package, or deployed application/worker/web app.
+- **Workspace archetype**: Executor-only integration, integration package plus Garage MCP adapter, shared/library package, or deployed application/worker/web app.
 - **Validation gate**: `bun run validate`, the fast pre-commit sequence of typecheck, lint, format check, ast-grep, rule tests, and Vitest.
-- **Release-grade validation**: `bun run validate:release`, which adds builds and compiled CLI/Nix smoke tests.
+- **Release-grade validation**: `bun run validate:release`, which adds deliverable builds and Nix smoke tests.
 - **Structural rule**: an ast-grep policy under `rules/` with executable fixtures under `rule-tests/`.
-- **Artifact input**: a root file whose change can alter every compiled CLI, including locks, Nix inputs, and shared TypeScript configuration.
+- **Artifact input**: a root file whose change can alter multiple workspace or Nix deliverables, including locks and shared TypeScript configuration.
 - **Vendored reference**: read-only third-party source under `repos/`, used for evidence but never imported or edited.
 
 ## Responsibilities
@@ -19,14 +19,14 @@ Repository Engineering is the supporting context that makes independently owned 
 - Root Bun workspace, TypeScript, lint, format, test, ast-grep, hook, and commit configuration.
 - Shared Garage MCP HTTP server composition, packaging, readiness, and protocol behavior; integration contexts own their tool semantics.
 - Cross-workspace architecture and compatibility tests under `scripts/`.
-- CI, release impact calculation, Changesets, CLI tagging, and validated-SHA release workflows.
+- CI and validated deliverable build/smoke workflows.
 - Bun and Nix deliverable construction and smoke testing.
 - Repository-wide contribution, agent-routing, conventions, guardrail, how-to, and ADR documentation.
 
 ## Non-responsibilities
 
-- It does not own an integration's upstream vocabulary, operations, CLI command semantics, MCP tool semantics, or external adapter mapping.
-- It does not own the CLI envelope implementation; `packages/cli-protocol` does.
+- It does not own an integration's upstream vocabulary, operations, MCP tool semantics, or external adapter mapping.
+- It does not own the retained transport utilities or legacy CLI surface in `packages/cli-protocol`.
 - It does not own Subq's health-tracking model or deployment behavior.
 - It does not turn `repos/`, generated output, or dependency directories into first-party workspaces.
 
@@ -35,18 +35,18 @@ Repository Engineering is the supporting context that makes independently owned 
 - Root workspace scripts and workspace filters.
 - Effect version pins and strict TypeScript diagnostics.
 - Oxlint rules, ast-grep rules, fixtures, and snapshots.
-- Validation jobs, release-impact path classes, Changesets, and Git tags.
-- Bun-compiled binaries, the consolidated Garage MCP container image, and Nix flake outputs.
+- Validation jobs and deliverable smoke policy.
+- Bun-compiled applications, the consolidated Garage MCP container image, and Nix flake outputs.
 
 ## Invariants and compatibility contracts
 
 - First-party Effect runtime packages share one exact beta version.
 - Every structural rule has a matching rule test; ast-grep must not duplicate an oxlint Effect-plugin rule.
 - The fast validation gate runs before release-grade deliverable checks.
-- Releases consume the exact successfully validated `master` SHA and must not race or recurse on automation commits.
-- A production change to `packages/cli-protocol` or a root artifact input conservatively affects every CLI release.
+- Deployments and releases consume validated source and must not race.
+- A production change to `packages/cli-protocol` or a root artifact input is treated as a cross-workspace risk.
 - `bun.nix` is generated from `bun.lock`; `repos/` is read-only.
-- Conventional commits are enforced, and CLI behavior changes require a changeset.
+- Conventional commits are enforced.
 
 ## Boundaries and dependencies
 
@@ -55,7 +55,7 @@ Repository Engineering governs every workspace through root configuration and CI
 ## Relationships
 
 - `rules/` defines structural policy; `rule-tests/` proves each rule.
-- `scripts/` holds cross-workspace tests, smoke checks, and release/versioning logic.
+- `scripts/` holds cross-workspace tests and smoke checks.
 - `apps/garage-mcp` composes context-owned MCP tool adapters into one private HTTP delivery edge.
 - `.github/workflows/` runs the validation and release lifecycle.
 - `docs/reference/` holds normative conventions; `docs/guardrails/` holds engineering judgment; `docs/agents/` holds agent workflow setup; `docs/adr/` holds system-wide decisions.

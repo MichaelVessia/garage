@@ -60,8 +60,5 @@ jobs:
       - name: Build deliverables
         run: bun run build
 
-      - name: Smoke compiled CLIs
-        run: bash scripts/cli-smoke.sh
-
       - name: Smoke Nix deliverables
         run: bash scripts/nix-smoke.sh

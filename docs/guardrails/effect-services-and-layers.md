@@ -5,11 +5,7 @@ Infrastructure stays visible at application boundaries, external adapters are
 testable without a live system, and wiring tests prove the composition users
 actually run. The goal is not maximal indirection.
 
-The paired integration package + CLI is the most common workspace archetype,
-not a universal repository taxonomy. Standalone/local CLIs, shared packages,
-and deployed applications may use boundaries appropriate to their ownership.
-HTTP, process execution, filesystem access, and browser APIs are adapter
-variants within those shapes.
+An integration package plus a thin Garage MCP adapter is one workspace archetype, not a universal repository taxonomy. Conventional APIs may live only in Executor, while shared packages and deployed applications use boundaries appropriate to their ownership. HTTP, XML, process execution, filesystem access, and browser APIs are adapter variants within those shapes.
 
 ## Default stance
 
@@ -23,16 +19,9 @@ variants within those shapes.
 
 ## Composition ownership
 
-For a CLI, app `main.ts` selects and composes domain, configuration, and
-platform layers. Keep platform requirements visible there rather than hiding
-`BunHttpClient.layer`, filesystem, or process services inside a domain layer.
-Choosing an implementation based on configuration also belongs at this
-boundary; `Layer.unwrap` is appropriate when selecting a layer effectfully.
+A deployed app's `main.ts` selects and composes domain, configuration, platform, and server layers. Keep platform requirements visible there rather than hiding `BunHttpClient.layer`, filesystem, or process services inside a domain layer. Choosing an implementation based on configuration also belongs at this boundary; `Layer.unwrap` is appropriate when selecting a layer effectfully.
 
-`runCliMain` in `@garage/cli-protocol` owns the shared executable boundary:
-observability setup, argv and stdio, one-line JSON envelope rendering, and the
-Bun Effect runtime. App entrypoints call it rather than duplicating runtime or
-output behavior.
+Garage MCP tool modules own names, schemas, annotations, and safe error translation. The Garage MCP composition root owns HTTP and Bun runtime wiring; integration packages remain unaware of MCP transport.
 
 Composing owned domain dependencies differs from sealing infrastructure.
 `Layer.provide` or `Layer.provideMerge` may join services in `main.ts`, while the
@@ -54,13 +43,7 @@ These responsibilities do not require every filename in every archetype.
 Struct keys in wire schemas follow upstream payloads; decode unknown input with
 `Schema.decodeUnknown` rather than asserting a type.
 
-Most integrations have one HTTP adapter as the sole live `HttpClient` owner.
-Tailscale is intentionally process-backed: `TailscaleProcess` owns executable
-invocation and `TailscaleApiLive` maps that process protocol to the API seam.
-TubeArchivist is intentionally stateful: its live HTTP adapter requires a
-session cache in addition to config and `HttpClient`. The CLI supplies the
-filesystem-backed cache, while a memory cache is honest because it implements
-the same session semantics.
+Retained integrations have one HTTP adapter as the sole live `HttpClient` owner. AutoCaliWeb additionally owns OPDS/XML parsing, while SABnzbd owns its query-RPC response mapping. Garage MCP delegates to both rather than duplicating either protocol.
 
 ## Testing strategy
 
@@ -78,9 +61,7 @@ that proves the behavior under test:
 3. **Wiring tests:** drive a representative command through the actual live
    adapter with canned infrastructure, then assert the complete envelope and
    external request or invocation.
-4. **Memory layers:** export `layerMemory` only when an in-memory implementation
-   has real semantics worth reusing (for example TubeArchivist's session
-   cache), not merely because tests need a stub.
+4. **Memory layers:** export `layerMemory` only when an in-memory implementation has real semantics worth reusing, not merely because tests need a stub.
 
 A hand-written API fake proves operation composition, while a canned
 infrastructure client proves live mapping. Neither substitutes for the other.

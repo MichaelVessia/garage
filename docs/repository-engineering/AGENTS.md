@@ -1,6 +1,6 @@
 # Repository Engineering Instructions
 
-This context owns root tooling and manifests, `scripts/`, `rules/`, `rule-tests/`, `.github/`, `.changeset/`, and repository-wide engineering documentation.
+This context owns root tooling and manifests, `scripts/`, `rules/`, `rule-tests/`, `.github/`, and repository-wide engineering documentation.
 
 ## Read first
 
@@ -15,8 +15,8 @@ This context owns root tooling and manifests, `scripts/`, `rules/`, `rule-tests/
 - Never edit `repos/` or generated dependency/build output; refresh the vendored subtree only with `bun run vendor:update`.
 - Do not add an ast-grep rule that duplicates an oxlint Effect-plugin rule; every structural rule needs fixtures.
 - Regenerate `bun.nix` from `bun.lock` using the documented Nix procedure; do not hand-edit it.
-- Preserve exact-SHA validation, bot-loop prevention, and serialization in release workflows.
-- Treat root artifact inputs and `packages/cli-protocol` production changes as all-CLI release risks.
+- Preserve exact-SHA validation and concurrency safety in deployment or release workflows.
+- Treat root artifact inputs and `packages/cli-protocol` production changes as cross-workspace risks.
 
 ## Validation
 
@@ -25,4 +25,4 @@ This context owns root tooling and manifests, `scripts/`, `rules/`, `rule-tests/
 - Repository gate: `bun run validate`
 - Build, dependency, Nix, or release changes: `bun run validate:release`
 
-Use conventional commits. Add a changeset only when public CLI behavior changes.
+Use conventional commits.

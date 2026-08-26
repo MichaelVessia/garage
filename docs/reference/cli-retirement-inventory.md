@@ -1,52 +1,56 @@
-# Garage CLI retirement inventory
+# Garage CLI retirement record
 
-- Status: current migration inventory
+- Status: implemented; deployment and workstation activation tracked separately
 - Audited: 2026-08-26
 - Related decision: [ADR 0002](../adr/0002-consolidated-garage-mcp-delivery-edge.md)
 
-Garage paths are relative to this repository. Paths beginning with `modules/programs/agents/` or `modules/programs/shell.nix` are relative to `/home/michaelvessia/nixos-config`.
+## Outcome
 
-## Executive disposition
+Executor is the supported agent interface for homelab service APIs. Garage no longer ships agent-first service CLIs or their Nix/release machinery.
 
-Executor is the preferred agent interface for service APIs. Curated CLI projections, compatibility scripts, and multi-system skill workflows are no longer prerequisites for retiring a Garage CLI: preserve only the API behavior available through Executor, document intentionally dropped workflow behavior, and solve valuable higher-level automation separately. Keep reusable `packages/<service>` packages when Garage MCP or another production consumer still needs them.
+| Service | Supported agent path | Retirement disposition |
+| --- | --- | --- |
+| AdGuard Home | Executor OpenAPI connection `adguard.user.adguardHomelab` | CLI app and unused integration package removed; skill now uses Executor. |
+| AutoCaliWeb | Executor → `garage-mcp.user.garageMcpHomelab` | Nine read-only API/catalog tools added to Garage MCP; CLI removed. File ingestion is unsupported. |
+| Caddy | Executor OpenAPI connection `caddy.user.homelab` | CLI app and unused integration package removed; local-file diff/reload convenience is unsupported. |
+| Immich | Executor OpenAPI connection `immich.user.immichHomelab` | Read-oriented skill migrated; CLI app and unused integration package removed. |
+| Jellyfin | Executor OpenAPI connection `jellyfin.user.jellyfinHomelab` | CLI app and unused integration package removed; skill now uses Executor. |
+| Jellyseerr | Executor OpenAPI connection `jellyseerr.user.jellyseerrHomelab` | CLI app and unused integration package removed; skill now uses Executor. |
+| Prowlarr | Executor OpenAPI connection `prowlarr.user.prowlarrHomelab` | CLI app and unused integration package removed; curated search projections are unsupported. |
+| Radarr | Executor OpenAPI connection `radarr.user.radarrHomelab` | CLI app and unused integration package removed; opinionated add/remove defaults are unsupported. |
+| SABnzbd | Executor → `garage-mcp.user.garageMcpHomelab` | Eight Garage MCP tools retained with the reusable `@garage/sabnzbd` protocol package. |
+| Sonarr | Executor OpenAPI connection `sonarr.user.sonarrHomelab` | CLI app and unused integration package removed; opinionated add/remove defaults are unsupported. |
+| Tailscale | Native NixOS service/client only | Garage wrapper, package, and agent skill removed without Executor replacement. |
+| TubeArchivist | Executor OpenAPI connection `tubearchivist.user.tubearchivistHomelab` | CLI app and unused integration package removed; curated cross-system import workflow is unsupported. |
 
-- **Completed first retirement:** SABnzbd uses Garage MCP for all eight former CLI operations. Its agent skill uses Executor, mutation policies match the exact saved-connection tool addresses, and the local CLI, shim, credential exports, and release output have been removed.
-- **Consolidated retirement wave:** retire AdGuard, Caddy, Immich, Jellyfin, Jellyseerr, Prowlarr, Radarr, Sonarr, and TubeArchivist against their existing Executor integrations. Verify representative reads and exact-address approval policies, but do not retain a CLI solely for richer projections or bespoke skill workflows.
-- **AutoCaliWeb:** first add API/catalog-only tools to the consolidated Garage MCP, then retire its CLI. Proxmox/file ingestion remains explicitly out of scope and becomes separate follow-up work.
-- **Tailscale:** retire the Garage wrapper and remove its agent skill without replacement. Keep the native NixOS Tailscale service/client for manual host administration; no Executor or MCP integration is planned.
+## Safety policy
 
-## Per-CLI inventory
+Executor uses exact saved-connection addresses rather than ineffective wildcard approximations.
 
-| CLI | Current command / mutation surface | Executor or MCP parity | nixos-config dependency and local credentials | Other coupling | Recommendation |
-| --- | --- | --- | --- | --- | --- |
-| **adguard** | Status/version/stats, query log/search, clients, filters/rules, DNS/DHCP config; confirmed global protection toggle. Evidence: `modules/programs/agents/shared/skills/adguard/SKILL.md:26-43,67-76`; confirmation enforcement: `apps/adguard-cli/src/index.ts:121-133,217-220`. | Healthy AdGuard OpenAPI connection exists. Treat semantic parity as provisional until query-log projections and protection-toggle approval are exercised through Executor. | Skill explicitly calls installed CLI and keeps `scripts/adguard.sh`; URL/username/password exported at `modules/programs/shell.nix:88-90`. | Raw compatibility shim and reference curl recipes remain under `skills/adguard/`. | **Retire in the consolidated wave.** Require exact-address approval for protection changes; richer query projections are not a blocker. |
-| **autocaliweb** | Status/version/stats/catalog/books/recent/search/book-info/shelves; separate ingest workflow copies a local file or URL into CT 101. Evidence: `skills/autocaliweb/SKILL.md:25-39,71-83`; `skills/autocaliweb/scripts/add-book.sh:1-24,51-66,105-178`. | No Executor integration yet. Its API combines Basic-auth JSON and OPDS XML, which fits a Garage MCP adapter better than direct OpenAPI import. | Skill calls installed CLI. URL/username/password plus Proxmox host, CTID, and ingest directory exported at `modules/programs/shell.nix:78-84`. | `add-book.sh` performs URL download, collision checks, SSH + `pct exec`, file copy, chmod/chown; this is deliberately outside the API adapter scope. | **Add API/catalog Garage MCP tools, then retire.** Drop the ingest workflow from this retirement and track any replacement separately. |
-| **caddy** | Active config, projected routes, upstream health, local PKI; confirmed full config replacement from a local JSON file. Evidence: `skills/caddy/SKILL.md:27-36,44-70`; app file/read-confirmation path: `apps/caddy-cli/src/index.ts:56-74,80-98`. | Healthy unauthenticated Caddy OpenAPI connection exists; reload must use an exact-address approval policy. Raw OpenAPI does not automatically replace the CLI's local-file parsing and curated route projection. | Skill calls CLI and retains `scripts/caddy.sh`; only Caddy URL exported at `modules/programs/shell.nix:75`. | Compatibility shim/reference curl recipes remain. | **Retire in the consolidated wave.** Keep reload approval; local-file diff/review convenience becomes separate automation. |
-| **immich** | Read-only status/stats/storage/users/me/albums/album detail/search/recent/people/person/jobs/tags. Evidence: `skills/immich/SKILL.md:28-46,55-64`. | Healthy Immich OpenAPI connection exists and the CLI has no mutation surface. Verify representative discovery and search calls. | Skill calls CLI and retains `scripts/immich.sh`; URL/API key exported at `modules/programs/shell.nix:91-92`. | Raw curl is explicitly suggested for individual assets; compatibility shim remains. | **Retire in the consolidated wave.** Curated projections and smart-search fallback are not blockers. |
-| **jellyfin** | Status/users/libraries/sessions/now-playing/recent/search/counts/tasks; confirmed scheduled-task start. Evidence: `skills/jellyfin/SKILL.md:27-41,50-66`; app confirmation: `apps/jellyfin-cli/src/index.ts:110-122,189-192`. | Healthy Jellyfin OpenAPI connection exists. Verify representative user-scoped reads and the scheduled-task policy. | Skill calls CLI and retains `scripts/jellyfin.sh`; URL/API key exported at `modules/programs/shell.nix:76-77`. | Compatibility shim and troubleshooting recipes call the script directly. | **Retire in the consolidated wave.** Require exact-address approval for scheduled-task start. |
-| **jellyseerr** | Status/requests/counts/search/media/recent/users/issues; confirmed approve, decline, and destructive request deletion. Evidence: `skills/jellyseerr/SKILL.md:25-42,51-70`; app confirmation adapter: `apps/jellyseerr-cli/src/index.ts:147-175,231-266`. | Healthy Jellyseerr OpenAPI connection exists. Mutation tools must have explicit approval/block policy; delete is irreversible. | Skill calls CLI and retains `scripts/jellyseerr.sh`; URL/API key exported at `modules/programs/shell.nix:73-74`. | Compatibility shim/reference recipes remain. | **Retire in the consolidated wave** after exact-address approval/block policy checks; bespoke moderation guidance is not a blocker. |
-| **prowlarr** | Status/health/indexers/stats/general, TV and movie searches/test/apps/history; confirmed application-indexer sync. Evidence: `skills/prowlarr/SKILL.md:25-44,53-73`; app sync confirmation: `apps/prowlarr-cli/src/index.ts:288-302,408-412`. | Healthy Prowlarr OpenAPI connection exists. Verify representative searches and require exact-address approval for app sync. | Skill calls CLI and retains `scripts/prowlarr.sh`; URL/API key exported at `modules/programs/shell.nix:69-70`. | Shim and README recipes directly call raw shell script. | **Retire in the consolidated wave.** Specialized search projections are not blockers. |
-| **radarr** | Search/exists/add/add without search, collection inspect/confirmed collection add, remove/optional separately confirmed file deletion, config/queue/calendar/missing/history/status. Evidence: `skills/radarr/SKILL.md:26-46,55-74`; app mutation policy: `apps/radarr-cli/src/index.ts:201-245,261-278,359-400`. | Healthy Radarr OpenAPI connection exists. Raw tools do not preserve the CLI's add defaults, collection workflow, or dual file-deletion confirmation. | Skill calls CLI and retains `scripts/radarr.sh`; URL/API key exported at `modules/programs/shell.nix:67-68`. | Compatibility shim/reference recipes remain. | **Retire in the consolidated wave.** Protect mutations with exact-address policies; recreate opinionated add/remove workflows separately if still valuable. |
-| **sabnzbd** | Former CLI surface was status/version/queue/history/server stats, pause/resume, queue-item delete, and optional downloaded-file deletion with second confirmation. | Garage MCP exposes exact tools `status`, `version`, `queue`, `history`, `server_stats`, `pause`, `resume`, and `delete`; all reads passed through Executor. Exact-address `require_approval` policies were exercised and cancelled for pause/resume/delete; file deletion also requires `confirmDeleteFiles`. | The skill now calls Executor/Garage MCP. The compatibility shim, local URL/API-key exports, Nix package installation, and local sops declarations are removed. | `packages/sabnzbd` remains the domain/protocol owner consumed by Garage MCP. | **Retired.** Do not recreate the CLI or bypass Executor with raw API calls. |
-| **sonarr** | Search/exists/add/add without search, remove/optional separately confirmed file deletion, config/queue/calendar/missing/history/status. Evidence: `skills/sonarr/SKILL.md:26-43,52-60`; app safety: `apps/sonarr-cli/src/index.ts:165-200,280-300`. | Healthy Sonarr OpenAPI connection exists. Raw operations do not preserve add defaults or dual file-deletion confirmation. | Skill calls CLI and retains `scripts/sonarr.sh`; URL/API key exported at `modules/programs/shell.nix:65-66`. | Compatibility shim/reference recipes remain. | **Retire in the consolidated wave.** Protect mutations with exact-address policies; recreate opinionated workflows separately if needed. |
-| **tailscale** | Read-only local status/peers/exit nodes/current exit/DNS/IP/whois/ping. Evidence: `skills/tailscale/SKILL.md:15-40`; no secrets. | No appropriate Executor remote integration. Garage MCP in CT 121 would inspect CT 121, not the intended workstation/gateway authority. | Skill explicitly depends on installed Garage wrapper and `/run/current-system/sw/bin/tailscale`; no service credential exports. | Tailscale remains a real NixOS service and native system client; do not remove either when removing the Garage wrapper. | **Retire without replacement.** Remove the Garage wrapper and agent skill; retain only the native NixOS service/client for manual administration. |
-| **tubearchivist** | Status/channels/channel detail/subscribe/confirmed unsubscribe/videos/video detail/downloads/playlists/tasks/search. Evidence: `skills/tubearchivist/SKILL.md:41-57,67,126-136`; app mutation paths: `apps/tubearchivist-cli/src/index.ts:102-122,170-180`. | Healthy v0.5.10 TubeArchivist OpenAPI connection exposes 88 tools. Catalog parity intentionally excludes the curated multi-system ingestion workflow. | Skill calls CLI and retains `scripts/tubearchivist.sh`; URL/username/password exported at `modules/programs/shell.nix:85-87`. | `scripts/add-youtube-channel.sh:1-25,76-118,145-240` combines remote yt-dlp in CT 120, TubeArchivist session/CSRF APIs, queueing, Jellyfin scanning, and filesystem rename/lock; it also consumes Jellyfin credentials. | **Retire in the consolidated wave.** Drop the curated ingestion workflow from this change and track any replacement separately. |
+- SABnzbd pause, resume, and delete remain approval gated.
+- AdGuard global protection changes are approval gated.
+- Caddy full configuration reload is approval gated.
+- Jellyfin scheduled-task start, stop, and update are approval gated.
+- Jellyseerr request create, update/status, retry, and delete are approval gated.
+- Prowlarr command execution is approval gated.
+- Radarr movie create, update, delete, and command execution are approval gated.
+- Sonarr series create, update, delete, and command execution are approval gated.
+- TubeArchivist channel subscription changes, download queue mutations, and task execution are approval gated.
 
-## Shared blockers and change surface
+Representative AdGuard, Caddy, Jellyfin, Jellyseerr, Prowlarr, Radarr, Sonarr, and TubeArchivist mutations were allowed to reach Executor's approval pause and then cancelled before invocation.
 
-1. **nixos-config installation is centralized.** `modules/programs/common.nix` names the remaining 11 CLIs, overrides each Garage flake package with regenerated Bun deps, and installs them on Linux. `modules/programs/garage-bun.nix:1-4,813-838` is generated and contains each app/package path. Remove entries only after skill migration; regenerate rather than hand-edit `garage-bun.nix`.
-2. **Every skill remains installed.** `modules/programs/agents/shared.nix:18-34` includes these skills. Removing a CLI without rewriting its `SKILL.md`, README/references, and compatibility scripts leaves broken agent instructions.
-3. **`@garage/cli-protocol` is not deletable with the apps.** Its owned responsibilities include config readers, JSON/list schemas, service-error helpers, JSON HTTP decode/error behavior, and recording test infrastructure (`packages/cli-protocol/CONTEXT.md:20-27,45-63`). Integration packages import these helpers directly, e.g. `packages/sabnzbd/src/http.ts:1-2`, `packages/sonarr/src/http.ts:1-2`, and analogous imports across all HTTP packages. Retain it initially or separately extract/rename non-CLI runtime capabilities before deleting CLI-only envelope/parser/runtime code.
-4. **Garage release/build coupling is broad.** The remaining CLI outputs are defined in `flake.nix`; root release validation runs compiled CLI and Nix smoke checks; `scripts/cli-smoke.sh` checks executable envelope behavior; `scripts/live-cli-missing-env.test.ts` imports/runs the apps; and `scripts/cli-versioning.ts` plus `.github/workflows/release-cli-versions.yml` discovers, versions, and tags CLIs. The consolidated retirement must update flake outputs, smoke tests, missing-env tests, versioning/release assumptions, docs/context map, lock/Nix artifacts, and generated outputs.
-5. **No evidence of unrelated non-skill CLI automation was found** outside the Nix installation, Garage release/test harness, and the skill/script trees. Human ad-hoc use cannot be proven absent; keep a rollback window or confirm before final package deletion.
+## Removed delivery surface
 
-## Consolidated retirement sequence
+- All `apps/*-cli` workspaces and compiled CLI smoke tests.
+- Unused direct-integration packages for services delivered by Executor OpenAPI.
+- CLI Nix flake outputs, workstation package installation, and generated Garage CLI Bun dependencies.
+- Local service URL/credential shell exports, sops declarations, and encrypted entries.
+- Compatibility scripts, raw API references, and bespoke workflows coupled to local credentials.
+- Automatic CLI Changesets/versioning/tagging workflow.
 
-1. Add AutoCaliWeb API/catalog tools to Garage MCP and verify representative calls through Executor; do not include file ingestion.
-2. Inventory exact saved-connection tool addresses for every mutation across the existing Executor integrations. Add `require_approval` or `block` policies and exercise the approval pause without performing destructive operations.
-3. Rewrite remaining service skills to prefer Executor, or remove them when they only preserve deprecated CLI/shim behavior. Richer projections and multi-system workflows may be intentionally dropped and tracked separately.
-4. Remove all remaining Garage CLI names from `garageCliNames` while preserving unrelated nixos-config work. Remove local service credential exports after repository-wide searches identify and intentionally resolve remaining consumers.
-5. Remove the remaining `apps/<service>-cli` workspaces, the Garage Tailscale wrapper, and the Tailscale agent skill. Retain integration packages needed by Garage MCP or other production consumers; keep only the native Tailscale service/client for manual administration.
-6. Update Garage flake outputs, scripts/tests, release automation, lock/Nix generated artifacts, documentation/context routing, and changesets as required. Reassess and extract the non-CLI responsibilities still living in `packages/cli-protocol` after the apps are gone.
-7. Run focused checks, `bun run validate`, and `bun run validate:release`; run nixos-config formatting, flake evaluation, and host build checks.
-8. Commit the AutoCaliWeb MCP addition separately from the bulk CLI-removal commit so deployment and rollback remain clear, even if the retirements are executed in one coordinated wave.
+## Retained boundaries
+
+- `apps/garage-mcp` is the private deployed MCP delivery edge for AutoCaliWeb and SABnzbd.
+- `packages/autocaliweb` and `packages/sabnzbd` retain external protocol ownership.
+- `packages/cli-protocol` remains because those integration packages still use its transport-neutral configuration, HTTP, schema, error, and test utilities. Extracting or renaming those responsibilities is a separate cleanup.
+- The native NixOS Tailscale service and client remain unchanged.

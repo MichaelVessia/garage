@@ -47,10 +47,7 @@ bun run validate
 canonical pre-PR gate. It runs, in order: typecheck, lint, format check,
 ast-grep scan, ast-grep rule tests, and vitest. CI runs this fast gate first.
 
-`bun run validate:release` adds all workspace builds, compiled CLI smoke tests,
-and Nix flake/build smoke tests. Run it for shared runtime, dependency, build,
-Nix, and release-automation changes. CI runs the deliverable checks only after
-the fast gate succeeds, avoiding a second validation pass.
+`bun run validate:release` adds all workspace builds and Nix flake/build smoke tests. Run it for shared runtime, dependency, build, Nix, and deployment changes. CI runs the deliverable checks only after the fast gate succeeds, avoiding a second validation pass.
 
 ### Focused vs. full validation
 
@@ -70,40 +67,15 @@ pre-PR gate is non-negotiable.
 
 ## Choosing a workspace shape
 
-New work starts by choosing an archetype: paired integration package + CLI,
-standalone/local CLI, shared/library package, or deployed
-application/worker/web app. HTTP, process, and file access are adapter choices,
-not workspace types. Existing integrations remain paired; new work only splits
-when separate reusable ownership is useful. See
-[the workspace how-to](docs/how-to/add-a-workspace.md).
-
-## CLI contract
-
-A normal CLI invocation emits exactly one newline-terminated JSON envelope on
-stdout and leaves stderr empty. Both success and represented failure—including
-usage errors—exit 0. See
-[the conventions reference](docs/reference/conventions.md#cli-compatibility) for
-the complete fields. Unexpected runtime defects may exit non-zero.
-
-## Building a CLI
-
-Each CLI compiles to a standalone binary:
-
-```sh
-bun run --filter '@garage/<svc>-cli' build   # produces apps/<svc>-cli/dist/<svc>
-```
+New work starts by choosing an archetype: integration package plus Garage MCP adapter, shared/library package, or deployed application/worker/web app. Conventional service APIs should normally be imported directly into Executor instead of duplicated in Garage. HTTP, process, and file access are adapter choices, not workspace types. See [the workspace how-to](docs/how-to/add-a-workspace.md).
 
 ## Committing
 
-Use [conventional commits](https://www.conventionalcommits.org/). Scopes are
-optional and map to workspaces (`feat(radarr): ...`, `fix(cli-protocol): ...`);
-commitlint validates the format. Add a changeset (`bunx changeset`) when a CLI's
-behavior changes so it gets a version on release.
+Use [conventional commits](https://www.conventionalcommits.org/). Scopes are optional and map to workspaces (`feat(mcp): ...`, `fix(cli-protocol): ...`); commitlint validates the format.
 
 ## Going deeper
 
-- [docs/how-to/add-a-workspace.md](docs/how-to/add-a-workspace.md) — add a new
-  service package and CLI.
+- [docs/how-to/add-a-workspace.md](docs/how-to/add-a-workspace.md) — add a new workspace or service adapter.
 - [docs/reference/conventions.md](docs/reference/conventions.md) — repo-wide
   conventions.
 - [docs/guardrails/](docs/guardrails/README.md) — judgment the lints cannot

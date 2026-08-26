@@ -5,8 +5,8 @@
 Garage is my software workshop.
 
 My dad is a mechanic who was always working in his garage. This repository is
-my version of that space: one place to build side projects, CLI tools, and
-anything else I want to make.
+my version of that space: one place to build side projects, service adapters,
+and anything else I want to make.
 
 Garage is a strictly typed Bun and TypeScript monorepo. Its projects share one
 engineering system and reusable packages, including Effect utilities, so each

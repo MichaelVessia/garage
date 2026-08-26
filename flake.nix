@@ -73,14 +73,6 @@
             runHook postInstall
           '';
         };
-      mkBunCli = {
-        name,
-        entrypoint,
-      }:
-        mkBunExecutable {
-          inherit name entrypoint;
-          workspace = "${name}-cli";
-        };
       garageMcp = mkBunExecutable {
         name = "garage-mcp";
         workspace = "garage-mcp";
@@ -155,67 +147,12 @@
       };
     in {
       packages = rec {
-        sonarr = mkBunCli {
-          name = "sonarr";
-          entrypoint = "apps/sonarr-cli/src/main.ts";
-        };
-
-        radarr = mkBunCli {
-          name = "radarr";
-          entrypoint = "apps/radarr-cli/src/main.ts";
-        };
-
-        prowlarr = mkBunCli {
-          name = "prowlarr";
-          entrypoint = "apps/prowlarr-cli/src/main.ts";
-        };
-
-        jellyseerr = mkBunCli {
-          name = "jellyseerr";
-          entrypoint = "apps/jellyseerr-cli/src/main.ts";
-        };
-
-        jellyfin = mkBunCli {
-          name = "jellyfin";
-          entrypoint = "apps/jellyfin-cli/src/main.ts";
-        };
-
-        immich = mkBunCli {
-          name = "immich";
-          entrypoint = "apps/immich-cli/src/main.ts";
-        };
-
-        adguard = mkBunCli {
-          name = "adguard";
-          entrypoint = "apps/adguard-cli/src/main.ts";
-        };
-
-        caddy = mkBunCli {
-          name = "caddy";
-          entrypoint = "apps/caddy-cli/src/main.ts";
-        };
-
-        autocaliweb = mkBunCli {
-          name = "autocaliweb";
-          entrypoint = "apps/autocaliweb-cli/src/main.ts";
-        };
-
-        tubearchivist = mkBunCli {
-          name = "tubearchivist";
-          entrypoint = "apps/tubearchivist-cli/src/main.ts";
-        };
-
-        tailscale = mkBunCli {
-          name = "tailscale";
-          entrypoint = "apps/tailscale-cli/src/main.ts";
-        };
-
         garage-mcp = garageMcp;
         garage-mcp-image = garageMcpImage;
 
         pi-extensions = piExtensions;
 
-        default = sonarr;
+        default = garage-mcp;
       };
 
       devShells.default = pkgs.mkShell {

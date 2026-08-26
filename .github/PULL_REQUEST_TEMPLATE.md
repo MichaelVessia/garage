@@ -12,9 +12,9 @@ Keep the diff narrow and the intent clear. Delete sections that don't apply.
 
 ## Change class
 
-<!-- service domain | CLI surface | shared protocol (cli-protocol) | docs | automation -->
+<!-- service domain | Garage MCP | shared runtime (cli-protocol) | docs | automation -->
 
-- Compatibility impact on the CLI JSON envelope / exit codes: none | <describe>
+- Compatibility or deployment impact: none | <describe>
 
 ## Validation
 
@@ -22,7 +22,6 @@ Keep the diff narrow and the intent clear. Delete sections that don't apply.
 - [ ] `bun run validate:release` passes for shared runtime, dependency, build,
       Nix, or release-automation changes
 - [ ] Added or updated tests for behavior changes
-- [ ] Added a changeset (`bunx changeset`) if a CLI's behavior changed
 - [ ] Updated docs (README / CONTEXT / guardrails / workspace README) if domain
       language, public behavior, or policy changed
 

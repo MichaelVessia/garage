@@ -11,7 +11,7 @@ import {
 import * as Schema from 'effect/Schema'
 
 export const envFix =
-  'Open a fresh shell so AUTOCALIWEB_URL, AUTOCALIWEB_USERNAME, and AUTOCALIWEB_PASSWORD are exported.'
+  'Provision AUTOCALIWEB_URL, AUTOCALIWEB_USERNAME, and AUTOCALIWEB_PASSWORD in the application environment.'
 
 export class AutocaliwebEnvMissingError extends Schema.TaggedErrorClass<AutocaliwebEnvMissingError>()(
   'AutocaliwebEnvMissingError',

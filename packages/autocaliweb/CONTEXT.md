@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This context provides typed, read-only discovery of an AutoCaliWeb ebook library through OPDS Atom feeds and selected JSON metadata endpoints, exposed through Garage MCP and, during migration, the `autocaliweb` CLI.
+This context provides typed, read-only discovery of an AutoCaliWeb ebook library through OPDS Atom feeds and selected JSON metadata endpoints exposed through Garage MCP.
 
 ## Ubiquitous language
 
@@ -38,8 +38,7 @@ This context provides typed, read-only discovery of an AutoCaliWeb ebook library
 - Relative feed links resolve against the configured base URL.
 - Only OPDS acquisition relations become download links.
 - Book/recent reads stop at the requested limit, the last page, or a missing `next` link.
-- `version` currently aliases status; changing that is observable CLI behavior.
-- All invocations obey the shared one-envelope stdout contract.
+- `version` currently aliases status; changing that is observable MCP behavior.
 
 ## Boundaries and dependencies
 
@@ -48,8 +47,6 @@ This context provides typed, read-only discovery of an AutoCaliWeb ebook library
 ## Package and delivery relationship
 
 `apps/garage-mcp/src/tools/autocaliweb.ts` owns the MCP names, bounded input schemas, read-only annotations, and safe error translation while delegating protocol work to `@garage/autocaliweb`. File ingestion is outside this adapter.
-
-During CLI retirement, `apps/autocaliweb-cli` remains a temporary thin executable that validates limits, joins multi-word search queries, requires a book UUID where needed, composes Bun HTTP, and delegates domain work to the package.
 
 ## Known ambiguities
 
@@ -61,5 +58,5 @@ During CLI retirement, `apps/autocaliweb-cli` remains a temporary thin executabl
 ## References
 
 - [Effect services and layers guardrail](../../docs/guardrails/effect-services-and-layers.md)
-- [CLI and workspace conventions](../../docs/reference/conventions.md)
+- [Workspace conventions](../../docs/reference/conventions.md)
 - Evidence: `src/model.ts`, `src/opds.ts`, `src/http.ts`, and package/app tests.
