@@ -1,7 +1,7 @@
 {
   "name": "@garage/adguard-cli",
   "private": true,
-  "version": "0.0.21",
+  "version": "0.0.22",
   "type": "module",
   "bin": {
     "adguard": "dist/adguard"
