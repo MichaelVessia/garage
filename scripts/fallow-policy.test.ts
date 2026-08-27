@@ -21,7 +21,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       'packages/pi-extensions/extensions/*.ts',
     ],
     dynamicallyLoaded: ['tools/oxlint/anti-slop/index.ts'],
-    ignorePatterns: ['repos/**', 'packages/booklore/**'],
+    ignorePatterns: ['repos/**'],
     ignoreDependencies: ['@earendil-works/pi-tui', '@effect/vitest', '@oxlint/plugins'],
     ignoreExports: [
       { file: '**/*.config.{js,mjs,ts}', exports: ['default'] },

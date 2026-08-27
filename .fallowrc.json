@@ -7,7 +7,7 @@
     "packages/pi-extensions/extensions/*.ts"
   ],
   "dynamicallyLoaded": ["tools/oxlint/anti-slop/index.ts"],
-  "ignorePatterns": ["repos/**", "packages/booklore/**"],
+  "ignorePatterns": ["repos/**"],
   "ignoreDependencies": ["@earendil-works/pi-tui", "@effect/vitest", "@oxlint/plugins"],
   "ignoreExports": [
     {
