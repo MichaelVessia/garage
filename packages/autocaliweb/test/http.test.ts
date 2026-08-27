@@ -282,6 +282,32 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
   })
 )
 
+it.effect('preserves a configured base-path prefix for OPDS requests', () =>
+  Effect.gen(function* () {
+    const prefixedConfigLayer = Layer.succeed(AutocaliwebConfig, {
+      get: () =>
+        Effect.succeed({
+          url: 'http://autocaliweb.example.test/calibre-web/',
+          username: 'fixture-user',
+          password: Redacted.make('secret'),
+        }),
+    })
+    const fake = yield* makeRecordingHttpClient(() => atomResponse(secondBooksPage))
+    const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(prefixedConfigLayer, fake.layer)))
+
+    yield* books({ limit: 1 }).pipe(Effect.provide(layer))
+
+    assert.deepStrictEqual(withAuth(yield* Ref.get(fake.requests)), [
+      {
+        method: 'GET',
+        url: 'http://autocaliweb.example.test/calibre-web/opds/books/letter/00',
+        authorization: basicAuth,
+        accept: 'application/atom+xml',
+      },
+    ])
+  })
+)
+
 it.effect('rejects cross-origin OPDS pagination before forwarding Basic auth', () =>
   Effect.gen(function* () {
     const hostileFeed = feedWithEntries(

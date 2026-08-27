@@ -32,8 +32,9 @@ const feedUrl = Effect.fn('autocaliweb.feedUrl')(function* (config: AutocaliwebC
   const candidate = yield* Effect.try({
     try: () =>
       new URL(
-        path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/') ? path : `/${path}`,
-        baseUrl
+        path.startsWith('http://') || path.startsWith('https://')
+          ? path
+          : `${normalizeBaseUrl(config.url)}${path.startsWith('/') ? path : `/${path}`}`
       ),
     catch: (cause) => decodeError('AutoCaliWeb returned an invalid OPDS pagination URL.', cause),
   })
