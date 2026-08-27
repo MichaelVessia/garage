@@ -42,7 +42,7 @@ This context provides typed, read-only discovery of an AutoCaliWeb ebook library
 
 ## Boundaries and dependencies
 
-`packages/autocaliweb` owns OPDS/JSON anti-corruption, domain values, errors, operations, and HTTP. Live configuration requires `AUTOCALIWEB_URL`, `AUTOCALIWEB_USERNAME`, and redacted `AUTOCALIWEB_PASSWORD`. It depends on Effect, `@garage/cli-protocol`, and `@xmldom/xmldom`. The remote boundary exposes both Atom XML and JSON.
+`packages/autocaliweb` owns OPDS/JSON anti-corruption, domain values, list-result modeling, errors, operations, and HTTP. Live configuration requires `AUTOCALIWEB_URL`, `AUTOCALIWEB_USERNAME`, and redacted `AUTOCALIWEB_PASSWORD`. It depends on Effect, `@garage/integration-http`, and `@xmldom/xmldom`. The remote boundary exposes both Atom XML and JSON.
 
 ## Package and delivery relationship
 

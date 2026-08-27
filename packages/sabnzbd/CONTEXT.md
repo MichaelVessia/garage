@@ -43,7 +43,7 @@ This context observes and controls one SABnzbd download client through its query
 
 ## Boundaries and dependencies
 
-`packages/sabnzbd` owns SABnzbd API translation, operations, errors, and configuration. Live configuration requires `SABNZBD_URL` and redacted `SABNZBD_API_KEY`. It depends on Effect and `@garage/cli-protocol`; Bun HTTP enters only through the application composition root.
+`packages/sabnzbd` owns SABnzbd API translation, operations, errors, and configuration. Live configuration requires `SABNZBD_URL` and redacted `SABNZBD_API_KEY`. It depends on Effect and `@garage/integration-http`; Bun HTTP enters only through the application composition root.
 
 ## Package and app relationship
 

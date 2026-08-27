@@ -37,7 +37,7 @@ HTTP, XML, process, session, or file access is an adapter choice rather than rep
 - **Model**: an exported Effect `Schema` value and decoded type.
 - **External adapter**: the sole module that contacts an external system.
 - **Domain operation**: a deterministic typed Effect built over the package API service.
-- **CLI Protocol**: the legacy-named package that still owns transport-neutral HTTP/config/schema/test utilities used by retained integrations; its CLI-only surface awaits separate extraction.
+- **Integration HTTP**: the shared package owning typed configuration, error, JSON HTTP, and recording-test infrastructure used by retained integration packages.
 - **Tagged error**: a schema-tagged value in an Effect error channel.
 - **Validation gate**: `bun run validate`.
 - **Workspace**: an independently owned package or app.

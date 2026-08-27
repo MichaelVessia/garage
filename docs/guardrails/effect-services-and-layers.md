@@ -55,7 +55,7 @@ that proves the behavior under test:
    speculative repository-wide `ApiTest` abstraction.
 2. **Live adapter tests:** provide canned infrastructure to the unsealed live
    layer. HTTP integrations use `makeRecordingHttpClient` from
-   `@garage/cli-protocol/testing` to assert method, URL, body, ordering, status
+   `@garage/integration-http/testing` to assert method, URL, ordering, status
    mapping, and decoding. Process adapters provide a canned
    `ChildProcessSpawner`; filesystem adapters provide test filesystem services.
 3. **Wiring tests:** drive a representative command through the actual live

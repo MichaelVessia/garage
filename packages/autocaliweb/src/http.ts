@@ -1,5 +1,5 @@
-import { listResult as toListResult, makeJsonClient } from '@garage/cli-protocol'
-import type { JsonClient } from '@garage/cli-protocol'
+import { makeJsonClient } from '@garage/integration-http'
+import type { JsonClient } from '@garage/integration-http'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
@@ -81,6 +81,11 @@ const getFeed = (
 const loadStats = (http: JsonClient<AutocaliwebError>) => http.getJson('/opds/stats', StatsSchema)
 
 const withQuery = (path: string, query: string): string => `${path}?query=${encodeURIComponent(query)}`
+
+const toListResult = <Record>(records: ReadonlyArray<Record>): ListResult<Record> => ({
+  count: records.length,
+  records,
+})
 
 const collectBookFeed = (
   http: JsonClient<AutocaliwebError>,

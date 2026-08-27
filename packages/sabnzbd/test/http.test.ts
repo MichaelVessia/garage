@@ -1,5 +1,5 @@
 import { assert, it } from '@effect/vitest'
-import { makeRecordingHttpClient } from '@garage/cli-protocol/testing'
+import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'

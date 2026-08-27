@@ -2,10 +2,9 @@ import { assert, it } from '@effect/vitest'
 import * as Schema from 'effect/Schema'
 
 import { BookInfoRecord } from '../packages/autocaliweb/src/index.js'
-import { CliEnvelope, successEnvelope } from '../packages/cli-protocol/src/index.js'
 import { ActionResult, DeleteOptions } from '../packages/sabnzbd/src/index.js'
 
-it('exports public schemas for retained normalized models and envelopes', () => {
+it('exports public schemas for retained normalized models', () => {
   assert.deepStrictEqual(
     Schema.decodeUnknownSync(BookInfoRecord)({
       authors: [],
@@ -29,10 +28,6 @@ it('exports public schemas for retained normalized models and envelopes', () => 
     ok: true,
     deleteFiles: false,
   })
-  assert.deepStrictEqual(
-    Schema.decodeUnknownSync(CliEnvelope(Schema.String))(successEnvelope({ command: 'test', result: 'ok' })),
-    { ok: true, command: 'test', result: 'ok', next_actions: [] }
-  )
 })
 
 it('rejects invalid retained public options at runtime', () => {

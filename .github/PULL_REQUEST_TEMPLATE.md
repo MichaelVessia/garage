@@ -12,7 +12,7 @@ Keep the diff narrow and the intent clear. Delete sections that don't apply.
 
 ## Change class
 
-<!-- service domain | Garage MCP | shared runtime (cli-protocol) | docs | automation -->
+<!-- service domain | Garage MCP | shared runtime (integration-http) | docs | automation -->
 
 - Compatibility or deployment impact: none | <describe>
 

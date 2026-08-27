@@ -1,4 +1,4 @@
-import { makeConfigReaders } from '@garage/cli-protocol'
+import { makeConfigReaders } from '@garage/integration-http'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'

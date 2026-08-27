@@ -66,16 +66,15 @@
       "name": "@garage/autocaliweb",
       "version": "0.0.0",
       "dependencies": {
-        "@garage/cli-protocol": "workspace:*",
+        "@garage/integration-http": "workspace:*",
         "@xmldom/xmldom": "^0.9.10",
         "effect": "4.0.0-beta.103",
       },
     },
-    "packages/cli-protocol": {
-      "name": "@garage/cli-protocol",
+    "packages/integration-http": {
+      "name": "@garage/integration-http",
       "version": "0.0.0",
       "dependencies": {
-        "@effect/platform-bun": "4.0.0-beta.103",
         "effect": "4.0.0-beta.103",
       },
     },
@@ -95,7 +94,7 @@
       "name": "@garage/sabnzbd",
       "version": "0.0.0",
       "dependencies": {
-        "@garage/cli-protocol": "workspace:*",
+        "@garage/integration-http": "workspace:*",
         "effect": "4.0.0-beta.103",
       },
     },
@@ -418,7 +417,7 @@
 
     "@garage/autocaliweb": ["@garage/autocaliweb@workspace:packages/autocaliweb"],
 
-    "@garage/cli-protocol": ["@garage/cli-protocol@workspace:packages/cli-protocol"],
+    "@garage/integration-http": ["@garage/integration-http@workspace:packages/integration-http"],
 
     "@garage/mcp": ["@garage/mcp@workspace:apps/garage-mcp"],
 

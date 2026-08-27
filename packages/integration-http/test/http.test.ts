@@ -10,8 +10,8 @@ import type { JsonClientErrors } from '../src/index.js'
 import { makeRecordingHttpClient } from '../src/testing.js'
 
 // Direct tests for the shared HTTP-adapter pipeline: URL building, auth
-// application, request-body encoding, and the transport/status/decode error
-// mapping every service package's JsonClient relies on.
+// application, and the transport/status/decode error mapping retained
+// integration packages rely on.
 
 type TestError =
   | { readonly kind: 'unreachable'; readonly message: string; readonly cause?: unknown }
@@ -94,7 +94,7 @@ it.effect('omits the query string entirely when there are no query params', () =
   })
 )
 
-it.effect('applies auth to every HTTP verb and to requestStatus', () =>
+it.effect('applies integration-owned authentication to JSON requests', () =>
   Effect.gen(function* () {
     const { client, requests } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
     const jsonClient = makeJsonClient<TestError>({
@@ -104,52 +104,13 @@ it.effect('applies auth to every HTTP verb and to requestStatus', () =>
       errors: testErrors,
     })
 
-    yield* jsonClient.getJson('/a', ItemSchema)
-    yield* jsonClient.postJson('/b', ItemSchema, { name: 'ok' })
-    yield* jsonClient.putJson('/c', ItemSchema, { name: 'ok' })
-    yield* jsonClient.deleteJson('/d', ItemSchema)
-    yield* jsonClient.requestStatus('post', '/e')
+    yield* jsonClient.getJson('/item', ItemSchema)
 
     const recorded = yield* Ref.get(requests)
-    assert.strictEqual(recorded.length, 5)
     assert.deepStrictEqual(
       recorded.map((request) => authHeaderOf(request.raw)),
-      ['yes', 'yes', 'yes', 'yes', 'yes']
+      ['yes']
     )
-  })
-)
-
-it.effect('sends a JSON body for postJson and putJson, and no body for getJson/deleteJson', () =>
-  Effect.gen(function* () {
-    const { client, requests } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
-    const jsonClient = makeJsonClient<TestError>({
-      client,
-      baseUrl: 'http://body.test',
-      applyAuth: (request) => request,
-      errors: testErrors,
-    })
-
-    yield* jsonClient.postJson('/things', ItemSchema, { name: 'new-thing' })
-    yield* jsonClient.putJson('/things/1', ItemSchema, { name: 'updated-thing' })
-    yield* jsonClient.getJson('/things/1', ItemSchema)
-    yield* jsonClient.deleteJson('/things/1', ItemSchema)
-
-    const recorded = yield* Ref.get(requests)
-    const decodeJsonBody = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))
-    const bodyOf = (index: number) =>
-      Effect.gen(function* () {
-        const record = recorded[index]
-        if (record === undefined) {
-          return 'missing'
-        }
-        const { body } = record.raw
-        return body._tag === 'Uint8Array' ? yield* decodeJsonBody(new TextDecoder().decode(body.body)) : body._tag
-      })
-
-    assert.deepStrictEqual(yield* bodyOf(0), { name: 'new-thing' })
-    assert.deepStrictEqual(yield* bodyOf(1), { name: 'updated-thing' })
-    assert.strictEqual(yield* bodyOf(2), 'Empty')
-    assert.strictEqual(yield* bodyOf(3), 'Empty')
   })
 )
 
@@ -257,28 +218,5 @@ it.effect('execute runs a caller-built request through the same transport/status
       .execute(HttpClientRequest.get('http://execute.test/custom'))
       .pipe(Effect.flip)
     assert.strictEqual(unreachableErr.kind, 'unreachable')
-  })
-)
-
-it.effect('requestStatus returns the raw status code without decoding the body', () =>
-  Effect.gen(function* () {
-    const { client, requests } = yield* clientFrom(() => ({ status: 204 }))
-    const jsonClient = makeJsonClient<TestError>({
-      client,
-      baseUrl: 'http://status.test',
-      applyAuth: (request) => request,
-      errors: testErrors,
-    })
-
-    const status = yield* jsonClient.requestStatus('post', '/things', {
-      body: { name: 'ok' },
-      query: [['dry-run', true]],
-    })
-
-    assert.strictEqual(status, 204)
-    assert.deepStrictEqual(
-      (yield* Ref.get(requests)).map((request) => ({ method: request.method, url: request.url })),
-      [{ method: 'POST', url: 'http://status.test/things?dry-run=true' }]
-    )
   })
 )

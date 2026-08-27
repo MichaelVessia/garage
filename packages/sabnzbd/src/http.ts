@@ -1,5 +1,5 @@
-import { makeJsonClient } from '@garage/cli-protocol'
-import type { JsonClient } from '@garage/cli-protocol'
+import { makeJsonClient } from '@garage/integration-http'
+import type { JsonClient } from '@garage/integration-http'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'

@@ -26,7 +26,7 @@ Repository Engineering is the supporting context that makes independently owned 
 ## Non-responsibilities
 
 - It does not own an integration's upstream vocabulary, operations, MCP tool semantics, or external adapter mapping.
-- It does not own the retained transport utilities or legacy CLI surface in `packages/cli-protocol`.
+- It does not own the shared HTTP-adapter infrastructure in `packages/integration-http`.
 - It does not own Subq's health-tracking model or deployment behavior.
 - It does not turn `repos/`, generated output, or dependency directories into first-party workspaces.
 
@@ -44,13 +44,13 @@ Repository Engineering is the supporting context that makes independently owned 
 - Every structural rule has a matching rule test; ast-grep must not duplicate an oxlint Effect-plugin rule.
 - The fast validation gate runs before release-grade deliverable checks.
 - Deployments and releases consume validated source and must not race.
-- A production change to `packages/cli-protocol` or a root artifact input is treated as a cross-workspace risk.
+- A production change to `packages/integration-http` or a root artifact input is treated as a cross-workspace risk.
 - `bun.nix` is generated from `bun.lock`; `repos/` is read-only.
 - Conventional commits are enforced.
 
 ## Boundaries and dependencies
 
-Repository Engineering governs every workspace through root configuration and CI but does not participate in runtime dependency graphs. It consumes context-owned tests and builds as evidence. Protocol compatibility tests intentionally cross the CLI Protocol and integration contexts.
+Repository Engineering governs every workspace through root configuration and CI but does not participate in runtime dependency graphs. It consumes context-owned tests and builds as evidence. Shared-adapter compatibility tests intentionally cross the Integration HTTP and integration contexts.
 
 ## Relationships
 
@@ -64,7 +64,7 @@ Repository Engineering governs every workspace through root configuration and CI
 
 - **Validation** is not synonymous with build: the fast gate omits deliverable builds by design.
 - **CI** is the hosted execution of repository gates, not a substitute name for a local check.
-- **Shared** does not mean unowned; every shared rule or helper still belongs to this context or CLI Protocol.
+- **Shared** does not mean unowned; every shared rule or helper still belongs to this context or Integration HTTP.
 - Historical date-prefixed plans describe prior intent and are not current policy unless a durable document adopts it.
 
 ## References

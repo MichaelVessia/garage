@@ -37,7 +37,7 @@ const toWebResponse = (response: RecordingHttpResponse): Response => {
     : Response.json(response.body, init)
 }
 
-export const makeRecordingHttpClient = Effect.fn('cli-protocol.makeRecordingHttpClient')(function* (
+export const makeRecordingHttpClient = Effect.fn('integration-http.makeRecordingHttpClient')(function* (
   respond: (method: string, url: URL, request: HttpClientRequest.HttpClientRequest) => RecordingHttpResponse
 ) {
   const requests = yield* Ref.make<ReadonlyArray<RecordedHttpRequest>>([])

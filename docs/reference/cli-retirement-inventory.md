@@ -52,5 +52,5 @@ Representative AdGuard, Caddy, Jellyfin, Jellyseerr, Prowlarr, Radarr, Sonarr, a
 
 - `apps/garage-mcp` is the private deployed MCP delivery edge for AutoCaliWeb and SABnzbd.
 - `packages/autocaliweb` and `packages/sabnzbd` retain external protocol ownership.
-- `packages/cli-protocol` remains because those integration packages still use its transport-neutral configuration, HTTP, schema, error, and test utilities. Extracting or renaming those responsibilities is a separate cleanup.
+- `packages/integration-http` retains only the typed configuration, error, JSON HTTP, and recording-test infrastructure shared by those integration packages; the former CLI protocol/runtime surface has been removed.
 - The native NixOS Tailscale service and client remain unchanged.

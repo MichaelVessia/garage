@@ -71,7 +71,7 @@ New work starts by choosing an archetype: integration package plus Garage MCP ad
 
 ## Committing
 
-Use [conventional commits](https://www.conventionalcommits.org/). Scopes are optional and map to workspaces (`feat(mcp): ...`, `fix(cli-protocol): ...`); commitlint validates the format.
+Use [conventional commits](https://www.conventionalcommits.org/). Scopes are optional and map to workspaces (`feat(mcp): ...`, `fix(integration-http): ...`); commitlint validates the format.
 
 ## Going deeper
 

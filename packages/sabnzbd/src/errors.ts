@@ -7,7 +7,7 @@ import {
   makeHttpError,
   makeUnreachable,
   unreachableFields,
-} from '@garage/cli-protocol'
+} from '@garage/integration-http'
 import * as Schema from 'effect/Schema'
 
 export const envFix =

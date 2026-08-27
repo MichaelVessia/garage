@@ -854,7 +854,7 @@
     hash = "sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==";
   };
   "@garage/autocaliweb" = copyPathToStore ./packages/autocaliweb;
-  "@garage/cli-protocol" = copyPathToStore ./packages/cli-protocol;
+  "@garage/integration-http" = copyPathToStore ./packages/integration-http;
   "@garage/mcp" = copyPathToStore ./apps/garage-mcp;
   "@garage/pi-extensions" = copyPathToStore ./packages/pi-extensions;
   "@garage/sabnzbd" = copyPathToStore ./packages/sabnzbd;

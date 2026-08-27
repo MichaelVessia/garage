@@ -1,5 +1,5 @@
 {
-  "name": "@garage/cli-protocol",
+  "name": "@garage/integration-http",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -19,7 +19,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0-beta.103",
     "effect": "4.0.0-beta.103"
   }
 }

@@ -1,11 +1,5 @@
 import * as Schema from 'effect/Schema'
 
-export class CliUsageError extends Schema.TaggedErrorClass<CliUsageError>()('CliUsageError', {
-  code: Schema.String,
-  message: Schema.String,
-  fix: Schema.String,
-}) {}
-
 // Shared field shapes for the four error kinds every service package defines
 // (EnvMissing, Unreachable, HttpError, DecodeError). Each package still
 // declares its own `class FooBarError extends Schema.TaggedErrorClass<FooBarError>()(...)`

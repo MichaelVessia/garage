@@ -18,7 +18,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@garage/cli-protocol": "workspace:*",
+    "@garage/integration-http": "workspace:*",
     "effect": "4.0.0-beta.103"
   }
 }
