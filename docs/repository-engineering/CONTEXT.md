@@ -8,7 +8,7 @@ Repository Engineering is the supporting context that makes independently owned 
 
 - **Workspace**: an independently owned package or app under `packages/*` or `apps/*`.
 - **Workspace archetype**: Executor-only integration, integration package plus Garage MCP adapter, shared/library package, or deployed application/worker/web app.
-- **Validation gate**: `bun run validate`, the fast pre-commit sequence of typecheck, lint, format check, ast-grep, rule tests, and Vitest.
+- **Validation gate**: `bun run validate`, the fast pre-commit sequence of typecheck, lint, Fallow dead-code analysis, format check, ast-grep, rule tests, and Vitest.
 - **Release-grade validation**: `bun run validate:release`, which adds deliverable builds and Nix smoke tests.
 - **Structural rule**: an ast-grep policy under `rules/` with executable fixtures under `rule-tests/`.
 - **Artifact input**: a root file whose change can alter multiple workspace or Nix deliverables, including locks and shared TypeScript configuration.
@@ -16,7 +16,7 @@ Repository Engineering is the supporting context that makes independently owned 
 
 ## Responsibilities
 
-- Root Bun workspace, TypeScript, lint, format, test, ast-grep, hook, and commit configuration.
+- Root Bun workspace, TypeScript, lint, dead-code, format, test, ast-grep, hook, and commit configuration.
 - Shared Garage MCP HTTP server composition, packaging, readiness, and protocol behavior; integration contexts own their tool semantics.
 - Cross-workspace architecture and compatibility tests under `scripts/`.
 - CI and validated deliverable build/smoke workflows.
@@ -42,6 +42,7 @@ Repository Engineering is the supporting context that makes independently owned 
 
 - First-party Effect runtime packages share one exact beta version.
 - Every structural rule has a matching rule test; ast-grep must not duplicate an oxlint Effect-plugin rule.
+- Fallow runs without an issue baseline: the whole repository receives graph/dependency checks, and private reusable/delivery workspaces also receive type-aware production API checks.
 - The fast validation gate runs before release-grade deliverable checks.
 - Deployments and releases consume validated source and must not race.
 - A production change to `packages/integration-http` or a root artifact input is treated as a cross-workspace risk.

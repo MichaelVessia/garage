@@ -12,7 +12,7 @@ import type {
   SearchResult,
   StatsResult,
   StatusResult,
-} from './index.js'
+} from './model.js'
 import { AutocaliwebApi } from './services.js'
 
 export const defaultLimit = 50
@@ -80,32 +80,34 @@ export const recent: (
   })
 )
 
-export const search = Effect.fn('autocaliweb.search')(
-  function* (options: SearchOptions): Effect.fn.Return<SearchResult, AutocaliwebError, AutocaliwebApi> {
-    yield* Effect.annotateCurrentSpan({
-      'autocaliweb.query_length': options.query.length,
-      'autocaliweb.limit': options.limit,
-    })
-    const api = yield* AutocaliwebApi
-    return yield* api.search(options)
-  },
-  Effect.annotateLogs({ package: '@garage/autocaliweb', operation: 'search' })
-)
+export const search: (options: SearchOptions) => Effect.Effect<SearchResult, AutocaliwebError, AutocaliwebApi> =
+  Effect.fn('autocaliweb.search')(
+    function* (options: SearchOptions): Effect.fn.Return<SearchResult, AutocaliwebError, AutocaliwebApi> {
+      yield* Effect.annotateCurrentSpan({
+        'autocaliweb.query_length': options.query.length,
+        'autocaliweb.limit': options.limit,
+      })
+      const api = yield* AutocaliwebApi
+      return yield* api.search(options)
+    },
+    Effect.annotateLogs({ package: '@garage/autocaliweb', operation: 'search' })
+  )
 
-export const bookInfo = Effect.fn('autocaliweb.bookInfo')(
-  function* (options: BookInfoOptions): Effect.fn.Return<BookInfoRecord, AutocaliwebError, AutocaliwebApi> {
-    yield* Effect.annotateCurrentSpan({
-      // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
-      'autocaliweb.book_uuid_present': options.uuid.length > 0,
+export const bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecord, AutocaliwebError, AutocaliwebApi> =
+  Effect.fn('autocaliweb.bookInfo')(
+    function* (options: BookInfoOptions): Effect.fn.Return<BookInfoRecord, AutocaliwebError, AutocaliwebApi> {
+      yield* Effect.annotateCurrentSpan({
+        // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
+        'autocaliweb.book_uuid_present': options.uuid.length > 0,
+      })
+      const api = yield* AutocaliwebApi
+      return yield* api.bookInfo(options)
+    },
+    Effect.annotateLogs({
+      package: '@garage/autocaliweb',
+      operation: 'bookInfo',
     })
-    const api = yield* AutocaliwebApi
-    return yield* api.bookInfo(options)
-  },
-  Effect.annotateLogs({
-    package: '@garage/autocaliweb',
-    operation: 'bookInfo',
-  })
-)
+  )
 
 export const shelves: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError, AutocaliwebApi> = Effect.gen(
   function* () {

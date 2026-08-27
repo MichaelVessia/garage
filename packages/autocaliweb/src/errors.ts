@@ -10,37 +10,36 @@ import {
 } from '@garage/integration-http'
 import * as Schema from 'effect/Schema'
 
-export const envFix =
+const envFix =
   'Provision AUTOCALIWEB_URL, AUTOCALIWEB_USERNAME, and AUTOCALIWEB_PASSWORD in the application environment.'
 
-export class AutocaliwebEnvMissingError extends Schema.TaggedErrorClass<AutocaliwebEnvMissingError>()(
+class AutocaliwebEnvMissingError extends Schema.TaggedErrorClass<AutocaliwebEnvMissingError>()(
   'AutocaliwebEnvMissingError',
   envMissingFields('AUTOCALIWEB_ENV_MISSING')
 ) {}
 
-export class AutocaliwebUnreachableError extends Schema.TaggedErrorClass<AutocaliwebUnreachableError>()(
+class AutocaliwebUnreachableError extends Schema.TaggedErrorClass<AutocaliwebUnreachableError>()(
   'AutocaliwebUnreachableError',
   unreachableFields('AUTOCALIWEB_UNREACHABLE')
 ) {}
 
-export class AutocaliwebHttpError extends Schema.TaggedErrorClass<AutocaliwebHttpError>()(
+class AutocaliwebHttpError extends Schema.TaggedErrorClass<AutocaliwebHttpError>()(
   'AutocaliwebHttpError',
   httpErrorFields('AUTOCALIWEB_HTTP_ERROR')
 ) {}
 
-export class AutocaliwebDecodeError extends Schema.TaggedErrorClass<AutocaliwebDecodeError>()(
+class AutocaliwebDecodeError extends Schema.TaggedErrorClass<AutocaliwebDecodeError>()(
   'AutocaliwebDecodeError',
   decodeErrorFields('AUTOCALIWEB_DECODE_ERROR')
 ) {}
 
-export const AutocaliwebError = Schema.Union([
+const AutocaliwebError = Schema.Union([
   AutocaliwebEnvMissingError,
   AutocaliwebUnreachableError,
   AutocaliwebHttpError,
   AutocaliwebDecodeError,
 ])
 export type AutocaliwebError = typeof AutocaliwebError.Type
-export type AutocaliwebErrorCode = AutocaliwebError['code']
 
 export const envMissing = makeEnvMissing(AutocaliwebEnvMissingError, 'AUTOCALIWEB_ENV_MISSING', envFix)
 

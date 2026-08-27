@@ -67,7 +67,7 @@ const readToolAnnotations = <
     .annotate(Tool.OpenWorld, false)
 
 /** Return the AutoCaliWeb catalog status and aggregate statistics. */
-export const AutocaliwebStatusTool = readToolAnnotations(
+const AutocaliwebStatusTool = readToolAnnotations(
   Tool.make('autocaliweb_status', {
     description: 'Return AutoCaliWeb catalog metadata and aggregate library statistics.',
     success: StatusResult,
@@ -78,7 +78,7 @@ export const AutocaliwebStatusTool = readToolAnnotations(
 )
 
 /** Return the AutoCaliWeb status representation used as its version response. */
-export const AutocaliwebVersionTool = readToolAnnotations(
+const AutocaliwebVersionTool = readToolAnnotations(
   Tool.make('autocaliweb_version', {
     description: 'Return the AutoCaliWeb status representation currently used for version discovery.',
     success: StatusResult,
@@ -89,7 +89,7 @@ export const AutocaliwebVersionTool = readToolAnnotations(
 )
 
 /** Return AutoCaliWeb library statistics. */
-export const AutocaliwebStatsTool = readToolAnnotations(
+const AutocaliwebStatsTool = readToolAnnotations(
   Tool.make('autocaliweb_stats', {
     description: 'Return AutoCaliWeb book, author, category, and series counts.',
     success: StatsResult,
@@ -100,7 +100,7 @@ export const AutocaliwebStatsTool = readToolAnnotations(
 )
 
 /** Return top-level AutoCaliWeb catalog navigation entries. */
-export const AutocaliwebCatalogTool = readToolAnnotations(
+const AutocaliwebCatalogTool = readToolAnnotations(
   Tool.make('autocaliweb_catalog', {
     description: 'Return top-level AutoCaliWeb OPDS catalog navigation entries.',
     success: ListResult(CatalogEntry),
@@ -111,7 +111,7 @@ export const AutocaliwebCatalogTool = readToolAnnotations(
 )
 
 /** Return a bounded list of books from the AutoCaliWeb catalog. */
-export const AutocaliwebBooksTool = readToolAnnotations(
+const AutocaliwebBooksTool = readToolAnnotations(
   Tool.make('autocaliweb_books', {
     description: 'Return up to 100 books from the AutoCaliWeb OPDS catalog.',
     parameters: LimitParameters,
@@ -123,7 +123,7 @@ export const AutocaliwebBooksTool = readToolAnnotations(
 )
 
 /** Return a bounded list of recently updated AutoCaliWeb books. */
-export const AutocaliwebRecentTool = readToolAnnotations(
+const AutocaliwebRecentTool = readToolAnnotations(
   Tool.make('autocaliweb_recent', {
     description: 'Return up to 100 recently updated books from AutoCaliWeb.',
     parameters: LimitParameters,
@@ -135,7 +135,7 @@ export const AutocaliwebRecentTool = readToolAnnotations(
 )
 
 /** Search the AutoCaliWeb catalog with a bounded result set. */
-export const AutocaliwebSearchTool = readToolAnnotations(
+const AutocaliwebSearchTool = readToolAnnotations(
   Tool.make('autocaliweb_search', {
     description: 'Search AutoCaliWeb books by title or author and return up to 100 matches.',
     parameters: SearchParameters,
@@ -147,7 +147,7 @@ export const AutocaliwebSearchTool = readToolAnnotations(
 )
 
 /** Return detailed metadata for one AutoCaliWeb book UUID. */
-export const AutocaliwebBookInfoTool = readToolAnnotations(
+const AutocaliwebBookInfoTool = readToolAnnotations(
   Tool.make('autocaliweb_book_info', {
     description: 'Return detailed AutoCaliWeb metadata for one book UUID.',
     parameters: BookInfoParameters,
@@ -159,7 +159,7 @@ export const AutocaliwebBookInfoTool = readToolAnnotations(
 )
 
 /** Return AutoCaliWeb shelf navigation entries. */
-export const AutocaliwebShelvesTool = readToolAnnotations(
+const AutocaliwebShelvesTool = readToolAnnotations(
   Tool.make('autocaliweb_shelves', {
     description: 'Return AutoCaliWeb OPDS shelf navigation entries.',
     success: ListResult(CatalogEntry),

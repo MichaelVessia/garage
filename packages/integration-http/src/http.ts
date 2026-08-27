@@ -9,7 +9,7 @@ import type { HttpClient } from 'effect/unstable/http'
 // authentication, execute, map failures to the caller's error type, and decode
 // JSON through the caller's schema.
 
-export type QueryParams = ReadonlyArray<readonly [string, string | number | boolean]>
+type QueryParams = ReadonlyArray<readonly [string, string | number | boolean]>
 
 export interface JsonClientErrors<E> {
   readonly httpError: (status: number) => E
@@ -17,7 +17,7 @@ export interface JsonClientErrors<E> {
   readonly decodeError: (message: string, cause?: unknown) => E
 }
 
-export interface JsonClientConfig<E> {
+interface JsonClientConfig<E> {
   readonly client: HttpClient.HttpClient
   readonly baseUrl: string
   readonly basePath?: string

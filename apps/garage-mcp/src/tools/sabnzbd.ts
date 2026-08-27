@@ -89,7 +89,7 @@ const readToolAnnotations = <
   toolAnnotations(tool, { title, readOnly: true, destructive: false, idempotent: true })
 
 /** Return the SABnzbd application's full status summary. */
-export const SabnzbdStatusTool = readToolAnnotations(
+const SabnzbdStatusTool = readToolAnnotations(
   Tool.make('sabnzbd_status', {
     description: 'Return SABnzbd application status, pause state, storage, speed limits, and warnings.',
     success: SystemStatus,
@@ -100,7 +100,7 @@ export const SabnzbdStatusTool = readToolAnnotations(
 )
 
 /** Return the SABnzbd application version. */
-export const SabnzbdVersionTool = readToolAnnotations(
+const SabnzbdVersionTool = readToolAnnotations(
   Tool.make('sabnzbd_version', {
     description: 'Return the running SABnzbd application version.',
     success: VersionResult,
@@ -111,7 +111,7 @@ export const SabnzbdVersionTool = readToolAnnotations(
 )
 
 /** Return a bounded window of active SABnzbd queue slots. */
-export const SabnzbdQueueTool = readToolAnnotations(
+const SabnzbdQueueTool = readToolAnnotations(
   Tool.make('sabnzbd_queue', {
     description: 'Return up to 100 active SABnzbd queue slots and queue totals.',
     parameters: QueueParameters,
@@ -123,7 +123,7 @@ export const SabnzbdQueueTool = readToolAnnotations(
 )
 
 /** Return a bounded window of recent SABnzbd history slots. */
-export const SabnzbdHistoryTool = readToolAnnotations(
+const SabnzbdHistoryTool = readToolAnnotations(
   Tool.make('sabnzbd_history', {
     description: 'Return up to 100 recent SABnzbd history slots and history totals.',
     parameters: HistoryParameters,
@@ -135,7 +135,7 @@ export const SabnzbdHistoryTool = readToolAnnotations(
 )
 
 /** Return SABnzbd usage totals grouped by configured news server. */
-export const SabnzbdServerStatsTool = readToolAnnotations(
+const SabnzbdServerStatsTool = readToolAnnotations(
   Tool.make('sabnzbd_server_stats', {
     description: 'Return SABnzbd download totals by day, week, month, and configured news server.',
     success: ServerStats,
@@ -146,7 +146,7 @@ export const SabnzbdServerStatsTool = readToolAnnotations(
 )
 
 /** Pause the global SABnzbd queue. */
-export const SabnzbdPauseTool = toolAnnotations(
+const SabnzbdPauseTool = toolAnnotations(
   Tool.make('sabnzbd_pause', {
     description: 'Pause the global SABnzbd download queue.',
     success: ActionResult,
@@ -157,7 +157,7 @@ export const SabnzbdPauseTool = toolAnnotations(
 )
 
 /** Resume the global SABnzbd queue. */
-export const SabnzbdResumeTool = toolAnnotations(
+const SabnzbdResumeTool = toolAnnotations(
   Tool.make('sabnzbd_resume', {
     description: 'Resume the global SABnzbd download queue.',
     success: ActionResult,
@@ -168,7 +168,7 @@ export const SabnzbdResumeTool = toolAnnotations(
 )
 
 /** Delete one SABnzbd queue item, optionally with its downloaded data. */
-export const SabnzbdDeleteTool = toolAnnotations(
+const SabnzbdDeleteTool = toolAnnotations(
   Tool.make('sabnzbd_delete', {
     description:
       'Delete one SABnzbd queue item. Deleting downloaded data additionally requires deleteFiles and confirmDeleteFiles.',

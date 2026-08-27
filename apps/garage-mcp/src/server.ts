@@ -10,7 +10,7 @@ import { AutocaliwebToolkit, AutocaliwebToolkitHandlers } from './tools/autocali
 import { SabnzbdToolkit, SabnzbdToolkitHandlers } from './tools/sabnzbd.js'
 
 /** MCP server metadata advertised during protocol initialization. */
-export const serverInfo = {
+const serverInfo = {
   name: 'garage-mcp',
   version: packageJson.version,
 } as const

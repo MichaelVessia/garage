@@ -63,7 +63,10 @@ export const resume: Effect.Effect<ActionResult, SabnzbdError, SabnzbdApi> = Eff
   return yield* api.resume()
 }).pipe(Effect.withSpan('sabnzbd.resume'), Effect.annotateLogs({ package: '@garage/sabnzbd', operation: 'resume' }))
 
-export const deleteQueueItem = Effect.fn('sabnzbd.deleteQueueItem')(
+export const deleteQueueItem: (
+  nzoId: string,
+  options: DeleteOptions
+) => Effect.Effect<ActionResult, SabnzbdError, SabnzbdApi> = Effect.fn('sabnzbd.deleteQueueItem')(
   function* (nzoId: string, options: DeleteOptions): Effect.fn.Return<ActionResult, SabnzbdError, SabnzbdApi> {
     yield* Effect.annotateCurrentSpan({ 'sabnzbd.nzo_id': nzoId, 'sabnzbd.delete_files': options.deleteFiles })
     const api = yield* SabnzbdApi

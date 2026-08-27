@@ -4,7 +4,7 @@ const OptionalString = Schema.optional(Schema.String)
 const OptionalNumber = Schema.optional(Schema.Number)
 const StringArray = Schema.Array(Schema.String)
 
-export const AutocaliwebConfigValue = Schema.Struct({
+const AutocaliwebConfigValue = Schema.Struct({
   url: Schema.String,
   username: Schema.String,
   password: Schema.RedactedFromValue(Schema.String),
@@ -35,7 +35,7 @@ export const CatalogEntry = Schema.Struct({
 })
 export type CatalogEntry = typeof CatalogEntry.Type
 
-export const DownloadLink = Schema.Struct({
+const DownloadLink = Schema.Struct({
   href: Schema.String,
   format: OptionalString,
   mediaType: OptionalString,
@@ -78,16 +78,16 @@ export const SearchResult = Schema.Struct({
 })
 export type SearchResult = typeof SearchResult.Type
 
-export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+const LimitOptions = Schema.Struct({ limit: Schema.Number })
 export type LimitOptions = typeof LimitOptions.Type
 
-export const SearchOptions = Schema.Struct({
+const SearchOptions = Schema.Struct({
   limit: Schema.Number,
   query: Schema.String,
 })
 export type SearchOptions = typeof SearchOptions.Type
 
-export const BookInfoOptions = Schema.Struct({ uuid: Schema.String })
+const BookInfoOptions = Schema.Struct({ uuid: Schema.String })
 export type BookInfoOptions = typeof BookInfoOptions.Type
 
 export const ListResult = <Record>(record: Schema.Codec<Record>) =>

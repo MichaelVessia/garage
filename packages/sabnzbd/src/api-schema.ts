@@ -157,13 +157,6 @@ const systemStatusToApi = (status: SystemStatus): typeof StatusApi.Type => ({
   new_release: status.newRelease,
 })
 
-export const StatusSchema = StatusApi.pipe(
-  Schema.decodeTo(DomainSystemStatus, {
-    decode: SchemaGetter.transform(systemStatusFromApi),
-    encode: SchemaGetter.transform(systemStatusToApi),
-  })
-)
-
 const fullStatusFromApi = (response: typeof FullStatusResponseApi.Type): SystemStatus =>
   systemStatusFromApi(response.status)
 

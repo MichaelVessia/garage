@@ -10,4 +10,4 @@ export {
   unreachableFields,
 } from './errors'
 export { makeJsonClient } from './http'
-export type { JsonClient, JsonClientConfig, JsonClientErrors, QueryParams } from './http'
+export type { JsonClient, JsonClientErrors } from './http'

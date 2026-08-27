@@ -10,37 +10,35 @@ import {
 } from '@garage/integration-http'
 import * as Schema from 'effect/Schema'
 
-export const envFix =
-  "Provision SABNZBD_URL and SABNZBD_API_KEY through the consuming application's secret environment."
+const envFix = "Provision SABNZBD_URL and SABNZBD_API_KEY through the consuming application's secret environment."
 
-export class SabnzbdEnvMissingError extends Schema.TaggedErrorClass<SabnzbdEnvMissingError>()(
+class SabnzbdEnvMissingError extends Schema.TaggedErrorClass<SabnzbdEnvMissingError>()(
   'SabnzbdEnvMissingError',
   envMissingFields('SABNZBD_ENV_MISSING')
 ) {}
 
-export class SabnzbdUnreachableError extends Schema.TaggedErrorClass<SabnzbdUnreachableError>()(
+class SabnzbdUnreachableError extends Schema.TaggedErrorClass<SabnzbdUnreachableError>()(
   'SabnzbdUnreachableError',
   unreachableFields('SABNZBD_UNREACHABLE')
 ) {}
 
-export class SabnzbdHttpError extends Schema.TaggedErrorClass<SabnzbdHttpError>()(
+class SabnzbdHttpError extends Schema.TaggedErrorClass<SabnzbdHttpError>()(
   'SabnzbdHttpError',
   httpErrorFields('SABNZBD_HTTP_ERROR')
 ) {}
 
-export class SabnzbdDecodeError extends Schema.TaggedErrorClass<SabnzbdDecodeError>()(
+class SabnzbdDecodeError extends Schema.TaggedErrorClass<SabnzbdDecodeError>()(
   'SabnzbdDecodeError',
   decodeErrorFields('SABNZBD_DECODE_ERROR')
 ) {}
 
-export const SabnzbdError = Schema.Union([
+const SabnzbdError = Schema.Union([
   SabnzbdEnvMissingError,
   SabnzbdUnreachableError,
   SabnzbdHttpError,
   SabnzbdDecodeError,
 ])
 export type SabnzbdError = typeof SabnzbdError.Type
-export type SabnzbdErrorCode = SabnzbdError['code']
 
 export const envMissing = makeEnvMissing(SabnzbdEnvMissingError, 'SABNZBD_ENV_MISSING', envFix)
 

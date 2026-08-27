@@ -853,6 +853,38 @@
     url = "https://registry.npmjs.org/@eslint/plugin-kit/-/plugin-kit-0.7.2.tgz";
     hash = "sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==";
   };
+  "@fallow-cli/darwin-arm64@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/darwin-arm64/-/darwin-arm64-3.19.0.tgz";
+    hash = "sha512-jMKEAov6FOdKxoBjjn3UWwX2AqLwH+k7WNgw1AH0h/5N7rRUb6zTSInJi7egh35y99xe8BA2XwjYNmTrQRINyw==";
+  };
+  "@fallow-cli/darwin-x64@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/darwin-x64/-/darwin-x64-3.19.0.tgz";
+    hash = "sha512-3z9wemsC3TRdPA6TtbIafLyWUHgOCeWBbileojpOk7OvmrHXo7DtemhxpNK0lMBN3hrIpzpmteFpI+mXiEz8XA==";
+  };
+  "@fallow-cli/linux-arm64-gnu@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/linux-arm64-gnu/-/linux-arm64-gnu-3.19.0.tgz";
+    hash = "sha512-I8H7HPQSQvmFI1CK8h10qxbYUyIl3gMFsNv1p2+NdfllLMcv26aQGrWkA3wlV9yA2v8AEH8ReDDAwHME9PEh1A==";
+  };
+  "@fallow-cli/linux-arm64-musl@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/linux-arm64-musl/-/linux-arm64-musl-3.19.0.tgz";
+    hash = "sha512-zcEehLVdrVII75MLjO6jq1gbnSrtFVrjq+7u3gH1PjX8laeiIP2xVk3yGW/Qp3kV72k6375Dbqo8EiHxSCvC9A==";
+  };
+  "@fallow-cli/linux-x64-gnu@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/linux-x64-gnu/-/linux-x64-gnu-3.19.0.tgz";
+    hash = "sha512-CkvQz9l4TwVGQkmlFqOJlPVR9bK6UPgyIaz/kuh4f7xfYoxgjQpI1Kv7eyInP8u9m8ZhreVlhX/GsL1zedw40Q==";
+  };
+  "@fallow-cli/linux-x64-musl@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/linux-x64-musl/-/linux-x64-musl-3.19.0.tgz";
+    hash = "sha512-EMlGT90rgbpjkp31w8BhbeSOsQxXFShDVy6zeEIPUA85h+HJCAztiDqs+joLB6J1rw4nINfxJKJDT6un+qiajA==";
+  };
+  "@fallow-cli/win32-arm64-msvc@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/win32-arm64-msvc/-/win32-arm64-msvc-3.19.0.tgz";
+    hash = "sha512-Pno7H0ylKb7Bxcqc5IxmGB8eTvplJT383qPW16QvJ8hMTiS88rdrZ8WxM3OludRBIMHQU3/QEMPbLBVr5d1uDA==";
+  };
+  "@fallow-cli/win32-x64-msvc@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/@fallow-cli/win32-x64-msvc/-/win32-x64-msvc-3.19.0.tgz";
+    hash = "sha512-N9Hwxylu6kq+mCs1lvAlC02L5wIiOddXh8dnUT5hoC6irwssAX0w3DXwIgC82N1KyX+9KA5n5Cxxgwuh9ptepw==";
+  };
   "@garage/autocaliweb" = copyPathToStore ./packages/autocaliweb;
   "@garage/integration-http" = copyPathToStore ./packages/integration-http;
   "@garage/mcp" = copyPathToStore ./apps/garage-mcp;
@@ -2542,6 +2574,14 @@
   "extend@3.0.2" = fetchurl {
     url = "https://registry.npmjs.org/extend/-/extend-3.0.2.tgz";
     hash = "sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==";
+  };
+  "fallow-type-aware@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/fallow-type-aware/-/fallow-type-aware-3.19.0.tgz";
+    hash = "sha512-/LlmR1qNNcNf8Vv1l3FmwkaenfJLd9PBcE1FCebf4MUWeyy+UTqZfc61139/EwgpuHzBdjOMVpyhgCSEjuHx8Q==";
+  };
+  "fallow@3.19.0" = fetchurl {
+    url = "https://registry.npmjs.org/fallow/-/fallow-3.19.0.tgz";
+    hash = "sha512-iM44GldeupBOvJLR2BZSEridMVbsKJpjEfrYjzW7kpBZLRXLRQh/g7RoCseCMlWK+4hDIuQWu+lAmXe9MDllQQ==";
   };
   "fast-check@4.9.0" = fetchurl {
     url = "https://registry.npmjs.org/fast-check/-/fast-check-4.9.0.tgz";

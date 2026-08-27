@@ -4,7 +4,7 @@ import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
 
 /** Safe, structured representation of an expected Garage MCP tool failure. */
-export const GarageMcpFailure = Schema.Struct({
+const GarageMcpFailure = Schema.Struct({
   code: Schema.String,
   message: Schema.String,
   fix: Schema.String,

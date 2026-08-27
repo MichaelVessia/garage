@@ -5,7 +5,7 @@ const OptionalNumber = Schema.optional(Schema.Number)
 const OptionalBoolean = Schema.optional(Schema.Boolean)
 const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
-export const SabnzbdConfigValue = Schema.Struct({
+const SabnzbdConfigValue = Schema.Struct({
   url: Schema.String,
   apiKey: Schema.RedactedFromValue(Schema.String),
 })
@@ -29,7 +29,7 @@ export type SystemStatus = typeof SystemStatus.Type
 export const VersionResult = Schema.Struct({ version: Schema.String })
 export type VersionResult = typeof VersionResult.Type
 
-export const QueueSlot = Schema.Struct({
+const QueueSlot = Schema.Struct({
   nzoId: Schema.String,
   filename: Schema.String,
   status: OptionalString,
@@ -57,7 +57,7 @@ export const QueueResult = Schema.Struct({
 })
 export type QueueResult = typeof QueueResult.Type
 
-export const HistorySlot = Schema.Struct({
+const HistorySlot = Schema.Struct({
   nzoId: Schema.String,
   name: Schema.String,
   status: OptionalString,
@@ -81,7 +81,7 @@ export const HistoryResult = Schema.Struct({
 })
 export type HistoryResult = typeof HistoryResult.Type
 
-export const SabnzbdAction = Schema.Literals(['pause', 'resume', 'delete'])
+const SabnzbdAction = Schema.Literals(['pause', 'resume', 'delete'])
 export type SabnzbdAction = typeof SabnzbdAction.Type
 
 export const ActionResult = Schema.Struct({
@@ -92,7 +92,7 @@ export const ActionResult = Schema.Struct({
 })
 export type ActionResult = typeof ActionResult.Type
 
-export const ServerUsage = Schema.Struct({
+const ServerUsage = Schema.Struct({
   total: OptionalNumber,
   month: OptionalNumber,
   week: OptionalNumber,
@@ -106,7 +106,7 @@ export const ServerStats = Schema.Struct({
 })
 export type ServerStats = typeof ServerStats.Type
 
-export const LimitOptions = Schema.Struct({ limit: Schema.Number })
+const LimitOptions = Schema.Struct({ limit: Schema.Number })
 export type LimitOptions = typeof LimitOptions.Type
 
 export const DeleteOptions = Schema.Struct({ deleteFiles: Schema.Boolean })
