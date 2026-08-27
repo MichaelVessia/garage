@@ -59,7 +59,7 @@ Don't reach for `bun run validate` after every keystroke. Use a tiered loop:
 | Running one workspace's tests       | `bun run --filter '@garage/<svc>' test`         | Only that package's vitest suite    |
 | Targeting a single test file        | `bunx vitest run <file>`                         | Tightest red-green loop             |
 | Before commit / PR (canonical gate) | `bun run validate`                               | typecheck + lint + format + ast-grep + tests |
-| Release-sensitive shared changes    | `bun run validate:release`                       | fast gate + builds + CLI/Nix smoke tests     |
+| Release-sensitive shared changes    | `bun run validate:release`                       | fast gate + builds + Nix smoke tests         |
 
 Use the focused commands as the inner loop while editing; promote to
 `bun run validate` once the change feels done. CI runs the full set, so the

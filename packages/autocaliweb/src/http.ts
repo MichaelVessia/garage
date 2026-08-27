@@ -21,15 +21,29 @@ const normalizeBaseUrl = (baseUrl: string): string => {
 }
 
 // OPDS pagination hands back either a relative path or an absolute
-// `nextHref` URL to follow, so the feed reader needs a URL builder the
-// shared client doesn't expose; it also needs an `application/atom+xml`
-// accept header instead of the shared client's fixed JSON one. Both the
-// plain JSON endpoints (getJson below) and the raw feed fetch share the
-// same error mapping via the client's `execute` escape hatch.
-const feedUrl = (config: AutocaliwebConfigValue, path: string): string =>
-  path.startsWith('http://') || path.startsWith('https://')
-    ? path
-    : `${normalizeBaseUrl(config.url)}${path.startsWith('/') ? path : `/${path}`}`
+// `nextHref` URL to follow. Authorization may only be forwarded to the
+// configured origin; an upstream feed must not redirect Basic auth to another
+// host. Both JSON and raw feed fetches share the client's transport mapping.
+const feedUrl = Effect.fn('autocaliweb.feedUrl')(function* (config: AutocaliwebConfigValue, path: string) {
+  const baseUrl = yield* Effect.try({
+    try: () => new URL(normalizeBaseUrl(config.url)),
+    catch: (cause) => decodeError('AutoCaliWeb base URL is invalid.', cause),
+  })
+  const candidate = yield* Effect.try({
+    try: () =>
+      new URL(
+        path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/') ? path : `/${path}`,
+        baseUrl
+      ),
+    catch: (cause) => decodeError('AutoCaliWeb returned an invalid OPDS pagination URL.', cause),
+  })
+
+  if (candidate.origin !== baseUrl.origin || candidate.username !== '' || candidate.password !== '') {
+    return yield* decodeError('AutoCaliWeb returned a cross-origin OPDS pagination URL.')
+  }
+
+  return candidate.href
+})
 
 const basicAuth = (config: AutocaliwebConfigValue): string =>
   `Basic ${btoa(`${config.username}:${Redacted.value(config.password)}`)}`
@@ -51,16 +65,17 @@ const getFeed = (
   config: AutocaliwebConfigValue,
   path: string
 ): Effect.Effect<OpdsFeed, AutocaliwebError> =>
-  http
-    .execute(
-      HttpClientRequest.get(feedUrl(config, path)).pipe(
-        HttpClientRequest.setHeaders({ accept: 'application/atom+xml', authorization: basicAuth(config) })
+  feedUrl(config, path).pipe(
+    Effect.flatMap((url) =>
+      http.execute(
+        HttpClientRequest.get(url).pipe(
+          HttpClientRequest.setHeaders({ accept: 'application/atom+xml', authorization: basicAuth(config) })
+        )
       )
-    )
-    .pipe(
-      Effect.flatMap(responseText),
-      Effect.flatMap((xml) => parseOpdsFeed(config.url, xml))
-    )
+    ),
+    Effect.flatMap(responseText),
+    Effect.flatMap((xml) => parseOpdsFeed(config.url, xml))
+  )
 
 const loadStats = (http: JsonClient<AutocaliwebError>) => http.getJson('/opds/stats', StatsSchema)
 

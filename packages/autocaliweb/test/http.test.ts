@@ -281,3 +281,27 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
     }).pipe(Effect.provide(layer))
   })
 )
+
+it.effect('rejects cross-origin OPDS pagination before forwarding Basic auth', () =>
+  Effect.gen(function* () {
+    const hostileFeed = feedWithEntries(
+      bookEntry('42', 'uuid-one', 'Fixture Novel One'),
+      '<link rel="next" href="https://attacker.example.test/opds/books" type="application/atom+xml"/>'
+    )
+    const fake = yield* makeRecordingHttpClient(() => atomResponse(hostileFeed))
+    const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
+
+    const failure = yield* books({ limit: 2 }).pipe(Effect.provide(layer), Effect.flip)
+
+    assert.strictEqual(failure.code, 'AUTOCALIWEB_DECODE_ERROR')
+    assert.strictEqual((yield* Ref.get(fake.requests)).length, 1)
+    assert.deepStrictEqual(withAuth(yield* Ref.get(fake.requests)), [
+      {
+        method: 'GET',
+        url: 'http://autocaliweb.example.test/opds/books/letter/00',
+        authorization: basicAuth,
+        accept: 'application/atom+xml',
+      },
+    ])
+  })
+)
