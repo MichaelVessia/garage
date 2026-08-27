@@ -81,6 +81,7 @@ export default defineConfig({
     'anti-slop/no-unsafe-dictionary-type': 'error',
     'anti-slop/no-widen-then-assert': 'error',
     'no-unused-vars': 'warn',
+    complexity: ['error', { max: 20, variant: 'classic' }],
     '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/no-non-null-assertion': 'error',
     '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
