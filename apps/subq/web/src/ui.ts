@@ -32,19 +32,19 @@ export const button = (
 
 export const input = (options: { error?: boolean; class?: string } = {}): string =>
   clsx(
-    'flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:cursor-not-allowed disabled:opacity-50',
+    'border-input bg-background placeholder:text-muted-foreground focus:border-accent focus:ring-accent/10 flex h-9 w-full rounded-md border px-3 py-2 text-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50',
     options.error === true && 'border-destructive focus:border-destructive focus:ring-destructive/15',
     options.class
   )
 
 export const select = (options: { error?: boolean; class?: string } = {}): string =>
-  clsx(input(options), 'appearance-none bg-background')
+  clsx(input(options), 'bg-background appearance-none')
 
 export const card = (options: { class?: string } = {}): string =>
-  clsx('rounded-lg border bg-card text-card-foreground shadow-sm', options.class)
+  clsx('bg-card text-card-foreground rounded-lg border shadow-sm', options.class)
 
 export const navLink = (isActive: boolean): string =>
   clsx(
-    'py-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
-    isActive ? 'text-foreground border-foreground' : 'text-muted-foreground border-transparent hover:text-foreground'
+    'border-b-2 py-1 text-sm font-medium whitespace-nowrap transition-colors',
+    isActive ? 'text-foreground border-foreground' : 'text-muted-foreground hover:text-foreground border-transparent'
   )
