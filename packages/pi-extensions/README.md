@@ -15,6 +15,8 @@ For local development:
 pi install /absolute/path/to/garage/packages/pi-extensions
 ```
 
+Do not install the repository root as a Git Pi package. Pi Git sources do not select a workspace subdirectory, so that would install the entire monorepo instead of this package.
+
 The Garage flake also exposes `packages.<system>.pi-extensions`, a bundled package suitable for repository-pinned Nix and Home Manager installations. It should load after `@juanibiapina/pi-powerbar` if the optional fast-mode status segment is wanted. Machine-level package selection remains in `nixos-config`; this workspace owns extension behavior rather than Home Manager wiring.
 
 ## Develop

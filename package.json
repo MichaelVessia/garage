@@ -2,10 +2,6 @@
   "name": "garage-monorepo",
   "private": true,
   "type": "module",
-  "keywords": ["pi-package"],
-  "pi": {
-    "extensions": ["./packages/pi-extensions/extensions"]
-  },
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "bun run --filter '*' build",
