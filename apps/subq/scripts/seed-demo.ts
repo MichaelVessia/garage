@@ -13,6 +13,7 @@ import * as Arr from 'effect/Array'
 import * as Config from 'effect/Config'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as HashMap from 'effect/HashMap'
 import * as HashSet from 'effect/HashSet'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
@@ -226,23 +227,23 @@ const WEIGH_IN_PATTERNS: Array<{ startDay: number; endDay: number; pattern: 'dai
 const getWeighInPattern = (day: number): 'daily' | 'sparse' | 'moderate' =>
   WEIGH_IN_PATTERNS.find((p) => day >= p.startDay && day <= p.endDay)?.pattern ?? 'moderate'
 
-const MILESTONE_NOTES: Record<number, string> = {
-  0: 'Starting weight - here we go!',
-  30: '1 month in!',
-  90: '3 months - feeling great',
-  180: '6 months - halfway there',
-  270: '9 months - so close to goal',
-  365: '1 YEAR! What a journey',
-}
+const MILESTONE_NOTES = HashMap.make(
+  [0, 'Starting weight - here we go!'],
+  [30, '1 month in!'],
+  [90, '3 months - feeling great'],
+  [180, '6 months - halfway there'],
+  [270, '9 months - so close to goal'],
+  [365, '1 YEAR! What a journey']
+)
 
 const weightNotes = Effect.fn('seed.weightNotes')(function* (
   day: number,
   weight: number,
   crossed: Ref.Ref<HashSet.HashSet<number>>
 ) {
-  const milestone = MILESTONE_NOTES[day]
-  if (milestone !== undefined) {
-    return Option.some(milestone)
+  const milestone = HashMap.get(MILESTONE_NOTES, day)
+  if (Option.isSome(milestone)) {
+    return milestone
   }
   const seen = yield* Ref.get(crossed)
   if (weight < 200 && !HashSet.has(seen, 200)) {
@@ -411,7 +412,13 @@ const generateDemoData = Effect.fn('generateDemoData')(function* () {
 // Auth: create (or reuse) the demo user, return the session cookie
 // ============================================
 
-const postJson = Effect.fn('seed.postJson')(function* (url: string, body: unknown) {
+interface AuthRequestBody {
+  readonly email: string
+  readonly name?: string
+  readonly password: string
+}
+
+const postJson = Effect.fn('seed.postJson')(function* (url: string, body: AuthRequestBody) {
   const client = yield* HttpClient.HttpClient
   const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
   return yield* client.execute(request)

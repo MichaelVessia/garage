@@ -43,5 +43,8 @@
     "ultracite": "7.10.5",
     "vitest": "^4.1.11"
   },
+  "overrides": {
+    "@effect/sql-sqlite-do": "4.0.0-beta.103"
+  },
   "trustedDependencies": ["@ast-grep/cli"]
 }

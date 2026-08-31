@@ -13,3 +13,7 @@ export class UnexpectedRequestSource extends Schema.TaggedErrorClass<UnexpectedR
   'UnexpectedRequestSource',
   { message: Schema.String }
 ) {}
+
+export class AssetRequestError extends Schema.TaggedErrorClass<AssetRequestError>()('AssetRequestError', {
+  cause: Schema.Defect(),
+}) {}

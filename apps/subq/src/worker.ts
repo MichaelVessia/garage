@@ -4,7 +4,9 @@ import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
 import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 
@@ -13,11 +15,12 @@ import { AppRpcs } from '#shared'
 import { BetterAuthApiError } from './auth/better-auth-error.js'
 import { AuthRpcMiddlewareLive, AuthService, makeAuth } from './auth/index.js'
 import { DataExportRpcHandlersLive, DataExportServiceLive } from './data-export/index.js'
-import { UnexpectedRequestSource } from './errors.js'
+import { AssetRequestError, UnexpectedRequestSource } from './errors.js'
 import { GoalRepoLive, GoalRpcHandlersLive, GoalServiceLive } from './goals/index.js'
 import { InjectionLogRepoLive, InjectionRpcHandlersLive, ScheduleAssignmentLive } from './injection/index.js'
 import { ScheduleCadenceServiceLive, ScheduleRepoLive, ScheduleRpcHandlersLive } from './schedule/index.js'
 import { SettingsRepoLive, SettingsRpcHandlersLive } from './settings/index.js'
+import { isSpaNavigationPath } from './spa-routes.js'
 import { StatsRpcHandlersLive, StatsServiceLive } from './stats/index.js'
 import { WeightLogRepoLive, WeightRpcHandlersLive } from './weight/index.js'
 
@@ -47,6 +50,15 @@ const RepositoriesLive = Layer.mergeAll(
   SettingsRepoLive
 )
 
+interface AssetFetcherService {
+  readonly fetch: (request: Request) => Promise<Response>
+}
+
+const AssetFetcher = Schema.declare(
+  (input): input is AssetFetcherService =>
+    P.isObject(input) && P.hasProperty(input, 'fetch') && P.isFunction(input.fetch)
+)
+
 const ServicesLive = Layer.mergeAll(
   StatsServiceLive,
   GoalServiceLive,
@@ -69,14 +81,15 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
     assets: {
       directory: './web/dist',
       htmlHandling: 'auto-trailing-slash',
-      notFoundHandling: 'single-page-application',
-      runWorkerFirst: ['/rpc', '/rpc/*', '/api/*', '/health'],
+      notFoundHandling: 'none',
+      runWorkerFirst: true,
     },
   },
   Effect.gen(function* () {
     // Init phase: runs at plan time (registers bindings) and at runtime.
     // Raw binding access must stay lazy — bindings only exist at runtime.
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
+    const workerEnvironment = yield* Cloudflare.WorkerEnvironment
     const authSecret = yield* Config.redacted('BETTER_AUTH_SECRET')
     const authUrl = yield* Config.string('BETTER_AUTH_URL')
 
@@ -137,7 +150,24 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
         if (url.pathname === '/rpc' || url.pathname === '/rpc/') {
           return yield* rpcApp
         }
-        return HttpServerResponse.empty({ status: 404 })
+
+        const { source } = request
+        if (!(source instanceof Request)) {
+          return yield* Effect.die(new UnexpectedRequestSource({ message: 'expected a web Request source' }))
+        }
+        if (source.method !== 'GET' && source.method !== 'HEAD') {
+          return HttpServerResponse.empty({ status: 404 })
+        }
+
+        const assetRequest = isSpaNavigationPath(url.pathname)
+          ? new Request(new URL('/', source.url).toString(), source)
+          : source
+        const assets = yield* Schema.decodeUnknownEffect(AssetFetcher)(workerEnvironment.ASSETS)
+        const assetResponse = yield* Effect.tryPromise({
+          try: () => assets.fetch(assetRequest),
+          catch: (cause) => AssetRequestError.make({ cause }),
+        })
+        return HttpServerResponse.fromWeb(assetResponse)
       }).pipe(Effect.orDie),
     }
   }).pipe(
