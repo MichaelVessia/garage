@@ -28,6 +28,8 @@ import { WeightLogRepoLive, WeightRpcHandlersLive } from './weight/index.js'
 // time by the resource itself (sorted by numeric prefix, tracked in
 // `drizzle_migrations`).
 export const Database = Cloudflare.D1.Database('Database', {
+  // Prod pins the existing database name so state recovery adopts it instead of creating an empty replacement.
+  name: Config.string('SUBQ_DATABASE_NAME').pipe(Config.option, Config.map(Option.getOrUndefined)),
   migrationsDir: './drizzle',
   migrationsTable: 'drizzle_migrations',
 })
