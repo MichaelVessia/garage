@@ -33,7 +33,7 @@ Subq is a multi-user health-tracking web application for body weight, medication
 - It does not prescribe medication, validate clinical appropriateness, or manage pharmacies/inventory/clinician workflows.
 - It does not model volume, concentration, syringe units, IU, brands, or formulations; dose is a positive finite milligram amount.
 - It is not a Garage service CLI and does not use the CLI JSON envelope contract.
-- It does not provide application OTel; Cloudflare observability covers logging.
+- It does not operate an external telemetry collector or export health-domain payloads through telemetry; Cloudflare owns runtime logs and, once enabled, native trace sampling, persistence, and export.
 - Import is not transactional on D1 and cannot promise atomic replacement.
 
 ## Important entities and value objects
@@ -53,6 +53,7 @@ Entities are `WeightLog`, `InjectionLog`, `InjectionSchedule`, `SchedulePhase`, 
 - Import validates schedule references, replaces only the current user's data, and may leave partial state on failure; rerun is recovery.
 - Goal starting weight resolves explicit value, then nearest weight to the starting date, then most recent weight, otherwise `NoWeightDataError`.
 - Shared Effect schemas define RPC payloads, successes, and typed failures for both worker and browser.
+- Application tracing uses stable `Effect.fn` operation names without user identifiers, record identifiers, health values, or health-derived counts as span attributes.
 - Interim v3 exports use exactly `3.0.0-alpha.2` and carry canonical medication fields, date-only planned values, UTC event/audit instants, and persisted timezone settings.
 
 ## Boundaries and dependencies

@@ -77,7 +77,8 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
     // stay on workers.dev.
     domain: Config.string('SUBQ_DOMAIN').pipe(Config.option, Config.map(Option.getOrUndefined)),
     compatibility: {
-      date: '2026-06-01',
+      // Cloudflare native Effect tracing requires tracing.startActiveSpan (GA from 2026-07-28).
+      date: '2026-07-28',
       flags: ['nodejs_compat'],
     },
     assets: {

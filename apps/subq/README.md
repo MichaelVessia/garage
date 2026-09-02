@@ -46,6 +46,31 @@ Note: `alchemy dev` runs the worker locally in workerd but provisions real
 Cloudflare resources (including D1) for the dev stage — it needs `alchemy login`
 too.
 
+## Observability
+
+The Worker is pinned to compatibility date `2026-07-28`, the minimum runtime
+version exposing `tracing.startActiveSpan`. Backend operations already use
+stable `Effect.fn` names, and span attributes intentionally exclude user and
+record identifiers, health values, and health-derived counts.
+
+Native Effect tracing is not enabled yet because the published Alchemy version
+does not include `Cloudflare.Telemetry()`. After upgrading to the first Alchemy
+release that includes it, activate tracing by merging `Cloudflare.Telemetry()`
+with `Cloudflare.D1.QueryDatabaseBinding` in the Worker init effect's existing
+`Effect.provide`. Cloudflare should own sampling, persistence, and export; do
+not add a second Worker-side OTLP trace exporter. For this low-traffic app,
+start with `headSamplingRate: 1` and `persist: true`, then review trace volume
+before reducing sampling.
+
+The Alchemy upgrade should also bring a workerd version that recognizes the
+prepared compatibility date; until then, prefer the existing validation and
+build commands over `alchemy dev` for this readiness change.
+
+Before production rollout, deploy to a non-production stage and confirm a
+representative RPC trace contains the Worker request, RPC/service/repository
+spans, and automatic D1 spans. Never include authentication material, user or
+record identifiers, health-domain values, or response payloads in native trace attributes.
+
 ## Notes
 
 - The D1 driver has no transactions, so data import

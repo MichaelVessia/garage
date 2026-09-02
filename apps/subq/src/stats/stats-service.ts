@@ -204,7 +204,6 @@ export const StatsServiceLive = Layer.effect(
 
     const getWeightStats = Effect.fn('StatsService.getWeightStats')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
 
@@ -246,7 +245,6 @@ export const StatsServiceLive = Layer.effect(
         }))
 
         const trajectory = calculateWeightTrajectory(points)
-        yield* Effect.annotateCurrentSpan('entryCount', decoded.entry_count)
 
         return {
           data: Option.some(
@@ -266,7 +264,6 @@ export const StatsServiceLive = Layer.effect(
 
     const getWeightTrend = Effect.fn('StatsService.getWeightTrend')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
         const rows = yield* sql`
@@ -295,8 +292,6 @@ export const StatsServiceLive = Layer.effect(
               endWeight: Weight.make(trendLineData.endWeight),
             }),
         })
-        yield* Effect.annotateCurrentSpan('pointCount', points.length)
-
         return { data: new WeightTrendStats({ points, trendLine }), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
@@ -304,7 +299,6 @@ export const StatsServiceLive = Layer.effect(
 
     const getInjectionSiteStats = Effect.fn('StatsService.getInjectionSiteStats')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
         const rows = yield* sql`
@@ -327,7 +321,6 @@ export const StatsServiceLive = Layer.effect(
             })
         )
         const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
-        yield* Effect.annotateCurrentSpan('totalInjections', total)
         return { data: new InjectionSiteStats({ sites, totalInjections: Count.make(total) }), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
@@ -335,7 +328,6 @@ export const StatsServiceLive = Layer.effect(
 
     const getDoseHistory = Effect.fn('StatsService.getDoseHistory')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
         const rows = yield* sql`
@@ -351,7 +343,6 @@ export const StatsServiceLive = Layer.effect(
           drug: row.drug,
           doseMg: row.dose_mg,
         }))
-        yield* Effect.annotateCurrentSpan('pointCount', inputs.length)
         return { data: buildDoseHistoryStats(inputs), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
@@ -359,16 +350,10 @@ export const StatsServiceLive = Layer.effect(
 
     const getInjectionFrequency = Effect.fn('StatsService.getInjectionFrequency')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const datetimes = yield* listInjectionDatetimes(params, userId, timezone)
         const result = buildObservedInjectionFrequency(datetimes, timezone)
 
-        yield* Effect.annotateCurrentSpan(
-          'totalInjections',
-          Option.match(result, { onNone: () => 0, onSome: ({ totalInjections }) => totalInjections })
-        )
-        yield* Effect.annotateCurrentSpan('timezone', timezone)
         return { data: result, timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
@@ -376,7 +361,6 @@ export const StatsServiceLive = Layer.effect(
 
     const getDrugBreakdown = Effect.fn('StatsService.getDrugBreakdown')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
         const rows = yield* sql`
@@ -393,7 +377,6 @@ export const StatsServiceLive = Layer.effect(
           (decoded) => new DrugCount({ drug: decoded.drug, count: Count.make(decoded.count) })
         )
         const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
-        yield* Effect.annotateCurrentSpan('totalInjections', total)
         return { data: new DrugBreakdownStats({ drugs, totalInjections: Count.make(total) }), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
@@ -401,13 +384,10 @@ export const StatsServiceLive = Layer.effect(
 
     const getInjectionByDayOfWeek = Effect.fn('StatsService.getInjectionByDayOfWeek')(
       function* (params: StatsParams, userId: string) {
-        yield* Effect.annotateCurrentSpan('userId', userId)
         const timezone = yield* getTimezone(userId)
         const datetimes = yield* listInjectionDatetimes(params, userId, timezone)
         const result = buildInjectionDayOfWeekStats(datetimes, timezone)
 
-        yield* Effect.annotateCurrentSpan('totalInjections', result.totalInjections)
-        yield* Effect.annotateCurrentSpan('timezone', timezone)
         return { data: result, timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
