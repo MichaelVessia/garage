@@ -114,7 +114,8 @@
           pkgs.bun
         ];
 
-        inherit bunDeps bunInstallFlags;
+        inherit bunDeps;
+        bunInstallFlags = bunInstallFlags ++ ["--filter" "@garage/pi-extensions"];
 
         dontUseBunBuild = true;
         dontUseBunCheck = true;
