@@ -9,13 +9,11 @@ pre-commit:
     format-fix:
       priority: 1
       glob: "*.{ts,tsx,mjs,js,jsx}"
-      exclude: "^tools/oxlint/anti-slop/"
       run: bunx oxfmt --config oxfmt.config.mjs {staged_files}
       stage_fixed: true
     lint-fix:
       priority: 1
       glob: "*.{ts,tsx,mjs,js,jsx}"
-      exclude: "^tools/oxlint/anti-slop/"
       run: bunx oxlint --config oxlint.config.mjs --fix {staged_files}
       stage_fixed: true
     validate:

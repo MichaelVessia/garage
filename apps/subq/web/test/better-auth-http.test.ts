@@ -3,6 +3,7 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Layer from 'effect/Layer'
+import * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientError, HttpClientResponse } from 'effect/unstable/http'
 import type { HttpClientRequest } from 'effect/unstable/http'
 
@@ -26,11 +27,14 @@ const makeCannedClient = (respond: (request: HttpClientRequest.HttpClientRequest
   return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
 }
 
-const requestJson = (request: HttpClientRequest.HttpClientRequest): unknown => {
+const RequestBody = Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Boolean]))
+type RequestBody = typeof RequestBody.Type
+
+const requestJson = (request: HttpClientRequest.HttpClientRequest): RequestBody | undefined => {
   if (request.body._tag !== 'Uint8Array') {
     return undefined
   }
-  return JSON.parse(new TextDecoder().decode(request.body.body))
+  return Schema.decodeUnknownSync(Schema.fromJsonString(RequestBody))(new TextDecoder().decode(request.body.body))
 }
 
 const user = { email: 'person@example.com', id: 'user-1', name: 'Person' }
