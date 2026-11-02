@@ -43,10 +43,8 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('runs a bounded queue request through the SABnzbd package operation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers))
-    const results = yield* toolkit
-      .handle('sabnzbd_queue', { limit: 5 })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+    const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers.pipe(Layer.provide(fake.layer))))
+    const results = yield* toolkit.handle('sabnzbd_queue', { limit: 5 }).pipe(Effect.flatMap(Stream.runCollect))
 
     assert.deepStrictEqual(yield* Ref.get(fake.queueLimits), [5])
     assert.strictEqual(results.length, 1)
@@ -62,17 +60,17 @@ it.effect('runs a bounded queue request through the SABnzbd package operation', 
 it.effect('adapts pause, resume, and confirmed deletion without bypassing file safety', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers))
+    const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers.pipe(Layer.provide(fake.layer))))
 
-    yield* toolkit.handle('sabnzbd_pause', {}).pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    yield* toolkit.handle('sabnzbd_resume', {}).pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+    yield* toolkit.handle('sabnzbd_pause', {}).pipe(Effect.flatMap(Stream.runCollect))
+    yield* toolkit.handle('sabnzbd_resume', {}).pipe(Effect.flatMap(Stream.runCollect))
     const unsafeDelete = yield* toolkit
       .handle('sabnzbd_delete', {
         nzoId: 'SABnzbd_nzo_unsafe',
         deleteFiles: true,
         confirmDeleteFiles: false,
       })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer), Effect.flip)
+      .pipe(Effect.flatMap(Stream.runCollect), Effect.flip)
 
     assert.deepStrictEqual(yield* Ref.get(fake.mutations), ['pause', 'resume'])
     if (unsafeDelete._tag !== 'GarageMcpToolError') {
@@ -86,7 +84,7 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
         deleteFiles: true,
         confirmDeleteFiles: true,
       })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+      .pipe(Effect.flatMap(Stream.runCollect))
 
     assert.deepStrictEqual(yield* Ref.get(fake.mutations), ['pause', 'resume', 'delete:SABnzbd_nzo_confirmed:true'])
   })
@@ -95,19 +93,13 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
 it.effect('adapts every read tool to its SABnzbd package operation', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers))
-    const statusResults = yield* toolkit
-      .handle('sabnzbd_status', {})
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    const versionResults = yield* toolkit
-      .handle('sabnzbd_version', {})
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+    const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers.pipe(Layer.provide(fake.layer))))
+    const statusResults = yield* toolkit.handle('sabnzbd_status', {}).pipe(Effect.flatMap(Stream.runCollect))
+    const versionResults = yield* toolkit.handle('sabnzbd_version', {}).pipe(Effect.flatMap(Stream.runCollect))
     const historyResults = yield* toolkit
       .handle('sabnzbd_history', { limit: 25 })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    const statsResults = yield* toolkit
-      .handle('sabnzbd_server_stats', {})
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+      .pipe(Effect.flatMap(Stream.runCollect))
+    const statsResults = yield* toolkit.handle('sabnzbd_server_stats', {}).pipe(Effect.flatMap(Stream.runCollect))
 
     assert.deepStrictEqual(statusResults[0]?.encodedResult, {
       version: '4.5.3',

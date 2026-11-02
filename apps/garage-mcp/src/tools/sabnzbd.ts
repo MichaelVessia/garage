@@ -1,3 +1,4 @@
+import type { SabnzbdError } from '@garage/sabnzbd'
 import {
   ActionResult,
   HistoryResult,
@@ -17,10 +18,10 @@ import {
   status,
   version,
 } from '@garage/sabnzbd'
+import * as Tool from 'effect/ai/Tool'
+import * as Toolkit from 'effect/ai/Toolkit'
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
-import * as Tool from 'effect/unstable/ai/Tool'
-import * as Toolkit from 'effect/unstable/ai/Toolkit'
 
 import { GarageMcpToolError, garageMcpToolError, sabnzbdToolError } from '../errors.js'
 
@@ -94,7 +95,6 @@ const SabnzbdStatusTool = readToolAnnotations(
     description: 'Return SABnzbd application status, pause state, storage, speed limits, and warnings.',
     success: SystemStatus,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   'SABnzbd Status'
 )
@@ -105,7 +105,6 @@ const SabnzbdVersionTool = readToolAnnotations(
     description: 'Return the running SABnzbd application version.',
     success: VersionResult,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   'SABnzbd Version'
 )
@@ -117,7 +116,6 @@ const SabnzbdQueueTool = readToolAnnotations(
     parameters: QueueParameters,
     success: QueueResult,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   'SABnzbd Queue'
 )
@@ -129,7 +127,6 @@ const SabnzbdHistoryTool = readToolAnnotations(
     parameters: HistoryParameters,
     success: HistoryResult,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   'SABnzbd History'
 )
@@ -140,7 +137,6 @@ const SabnzbdServerStatsTool = readToolAnnotations(
     description: 'Return SABnzbd download totals by day, week, month, and configured news server.',
     success: ServerStats,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   'SABnzbd Server Statistics'
 )
@@ -151,7 +147,6 @@ const SabnzbdPauseTool = toolAnnotations(
     description: 'Pause the global SABnzbd download queue.',
     success: ActionResult,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   { title: 'Pause SABnzbd Queue', readOnly: false, destructive: false, idempotent: true }
 )
@@ -162,7 +157,6 @@ const SabnzbdResumeTool = toolAnnotations(
     description: 'Resume the global SABnzbd download queue.',
     success: ActionResult,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   { title: 'Resume SABnzbd Queue', readOnly: false, destructive: false, idempotent: true }
 )
@@ -175,7 +169,6 @@ const SabnzbdDeleteTool = toolAnnotations(
     parameters: DeleteParameters,
     success: ActionResult,
     failure: GarageMcpToolError,
-    dependencies: [SabnzbdApi],
   }),
   { title: 'Delete SABnzbd Queue Item', readOnly: false, destructive: true, idempotent: false }
 )
@@ -194,23 +187,29 @@ export const SabnzbdToolkit = Toolkit.make(
 
 /** Handler layer adapting SABnzbd MCP tools to package domain operations. */
 export const SabnzbdToolkitHandlers = SabnzbdToolkit.toLayer(
-  SabnzbdToolkit.of({
-    sabnzbd_status: () => status.pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_version: () => version.pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_queue: ({ limit }) => queue({ limit }).pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_history: ({ limit }) => history({ limit }).pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_server_stats: () => serverStats.pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_pause: () => pause.pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_resume: () => resume.pipe(Effect.mapError(sabnzbdToolError)),
-    sabnzbd_delete: ({ nzoId, deleteFiles, confirmDeleteFiles }) =>
-      deleteFiles && !confirmDeleteFiles
-        ? Effect.fail(
-            garageMcpToolError({
-              code: 'SABNZBD_DELETE_CONFIRMATION_REQUIRED',
-              message: 'Deleting downloaded data requires confirmDeleteFiles to be true.',
-              fix: 'Set confirmDeleteFiles only after confirming that downloaded data should be removed from disk.',
-            })
-          )
-        : deleteQueueItem(nzoId, { deleteFiles }).pipe(Effect.mapError(sabnzbdToolError)),
+  Effect.gen(function* () {
+    const api = yield* SabnzbdApi
+    const run = <A>(operation: Effect.Effect<A, SabnzbdError, SabnzbdApi>) =>
+      operation.pipe(Effect.provideService(SabnzbdApi, api), Effect.mapError(sabnzbdToolError))
+
+    return SabnzbdToolkit.of({
+      sabnzbd_status: () => run(status),
+      sabnzbd_version: () => run(version),
+      sabnzbd_queue: ({ limit }) => run(queue({ limit })),
+      sabnzbd_history: ({ limit }) => run(history({ limit })),
+      sabnzbd_server_stats: () => run(serverStats),
+      sabnzbd_pause: () => run(pause),
+      sabnzbd_resume: () => run(resume),
+      sabnzbd_delete: ({ nzoId, deleteFiles, confirmDeleteFiles }) =>
+        deleteFiles && !confirmDeleteFiles
+          ? Effect.fail(
+              garageMcpToolError({
+                code: 'SABNZBD_DELETE_CONFIRMATION_REQUIRED',
+                message: 'Deleting downloaded data requires confirmDeleteFiles to be true.',
+                fix: 'Set confirmDeleteFiles only after confirming that downloaded data should be removed from disk.',
+              })
+            )
+          : run(deleteQueueItem(nzoId, { deleteFiles })),
+    })
   })
 )

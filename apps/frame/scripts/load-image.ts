@@ -3,8 +3,8 @@ import * as BunServices from '@effect/platform-bun/BunServices'
 import * as Config from 'effect/Config'
 import * as Console from 'effect/Console'
 import * as Effect from 'effect/Effect'
+import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import * as Schema from 'effect/Schema'
-import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
 
 import { ImageLoadFailed } from './errors.js'
 
@@ -14,7 +14,7 @@ const Arguments = Schema.Tuple([Schema.NonEmptyString])
 // container's image is a plain tag that Alchemy can diff and replace.
 const loadImage = Effect.fn('frame.loadImage')(function* () {
   const [tag] = yield* Schema.decodeUnknownEffect(Arguments)(process.argv.slice(2))
-  const dockerHost = yield* Config.nonEmptyString('FRAME_DOCKER_HOST')
+  const dockerHost = yield* Config.NonEmptyString('FRAME_DOCKER_HOST')
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
   const imageRef = `garage-frame:${tag}`
 

@@ -2,12 +2,12 @@ import { assert, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import type { RecordedHttpRequest, RecordingHttpResponse } from '@garage/integration-http/testing'
 import * as Effect from 'effect/Effect'
+import { Headers as HttpHeaders } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 import type * as Schema from 'effect/Schema'
-import { Headers as HttpHeaders } from 'effect/unstable/http'
 
 import { AutocaliwebApiLive, AutocaliwebConfig, bookInfo, books, catalog, search, status } from '../src/index.js'
 

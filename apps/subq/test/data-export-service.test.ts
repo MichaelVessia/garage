@@ -3,8 +3,8 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Schema from 'effect/Schema'
+import { SqlClient } from 'effect/sql'
 import { TestClock } from 'effect/testing'
-import { SqlClient } from 'effect/unstable/sql'
 
 import {
   DataExport,

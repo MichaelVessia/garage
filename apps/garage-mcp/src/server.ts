@@ -1,9 +1,9 @@
+import * as McpProtocol from 'effect/ai/McpProtocol'
+import * as McpServer from 'effect/ai/McpServer'
+import * as Toolkit from 'effect/ai/Toolkit'
+import * as HttpRouter from 'effect/http/HttpRouter'
+import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
-import * as McpProtocol from 'effect/unstable/ai/McpProtocol'
-import * as McpServer from 'effect/unstable/ai/McpServer'
-import * as Toolkit from 'effect/unstable/ai/Toolkit'
-import * as HttpRouter from 'effect/unstable/http/HttpRouter'
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse'
 
 import packageJson from '../package.json' with { type: 'json' }
 import { AutocaliwebToolkit, AutocaliwebToolkitHandlers } from './tools/autocaliweb.js'

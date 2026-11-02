@@ -1,9 +1,9 @@
 import * as Effect from 'effect/Effect'
+import { HttpClient, HttpClientResponse } from 'effect/http'
+import type { HttpClientRequest } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as P from 'effect/Predicate'
 import * as Ref from 'effect/Ref'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
-import type { HttpClientRequest } from 'effect/unstable/http'
 
 export interface RecordedHttpRequest {
   readonly method: string

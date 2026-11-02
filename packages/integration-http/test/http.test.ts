@@ -1,9 +1,9 @@
 import { assert, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
+import { Headers, HttpClient, HttpClientError, HttpClientRequest } from 'effect/http'
 import * as Option from 'effect/Option'
 import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
-import { Headers, HttpClient, HttpClientError, HttpClientRequest } from 'effect/unstable/http'
 
 import { makeJsonClient } from '../src/index.js'
 import type { JsonClientErrors } from '../src/index.js'

@@ -25,19 +25,20 @@
   },
   "dependencies": {
     "@cloudflare/workers-types": "^5.20260829.1",
-    "@effect/platform-browser": "4.0.0-beta.103",
-    "@effect/sql-d1": "4.0.0-beta.103",
+    "@effect/platform-browser": "4.1.2",
+    "@effect/sql-d1": "4.1.2",
     "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
-    "effect": "4.0.0-beta.103",
-    "foldkit": "^0.138.0"
+    "effect": "4.1.2",
+    "foldkit": "^0.170.0"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-beta.103",
-    "@effect/sql-sqlite-bun": "4.0.0-beta.103",
+    "@effect/platform-node": "4.1.2",
+    "@effect/sql-sqlite-bun": "4.1.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/d3": "^7.4.3",
-    "alchemy": "2.0.0-beta.70",
+    "@alchemy.run/cloudflare": "2.0.0-beta.84",
+    "alchemy": "2.0.0-beta.84",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
     "drizzle-kit": "^0.31.10",

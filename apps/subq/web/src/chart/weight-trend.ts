@@ -6,8 +6,8 @@ import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import type { IanaTimezone, TrendLine } from '#shared'
 
@@ -107,19 +107,19 @@ export const initialChartState: ChartState = { filter: null, tooltip: null, zoom
 // Chart messages
 // ============================================
 
-export const HoveredChartTooltip = m('HoveredChartTooltip', {
+export const HoveredChartTooltip = taggedStruct('HoveredChartTooltip', {
   x: Schema.Number,
   y: Schema.Number,
   title: Schema.String,
   lines: Schema.Array(Schema.String),
 })
-export const ClearedChartTooltip = m('ClearedChartTooltip')
-export const ClickedChartPill = m('ClickedChartPill', { drug: Schema.String, doseMg: Schema.Number })
-export const ClearedChartFilter = m('ClearedChartFilter')
-export const StartedChartZoom = m('StartedChartZoom', { ms: Schema.Number })
-export const HoveredChartZoom = m('HoveredChartZoom', { ms: Schema.Number })
-export const EndedChartZoom = m('EndedChartZoom')
-export const CancelledChartZoom = m('CancelledChartZoom')
+export const ClearedChartTooltip = taggedStruct('ClearedChartTooltip')
+export const ClickedChartPill = taggedStruct('ClickedChartPill', { drug: Schema.String, doseMg: Schema.Number })
+export const ClearedChartFilter = taggedStruct('ClearedChartFilter')
+export const StartedChartZoom = taggedStruct('StartedChartZoom', { ms: Schema.Number })
+export const HoveredChartZoom = taggedStruct('HoveredChartZoom', { ms: Schema.Number })
+export const EndedChartZoom = taggedStruct('EndedChartZoom')
+export const CancelledChartZoom = taggedStruct('CancelledChartZoom')
 
 export const ChartMessage = Schema.Union([
   HoveredChartTooltip,
@@ -141,11 +141,11 @@ export const updateChart = (
   Match.value(message).pipe(
     Match.withReturnType<readonly [ChartState, Option.Option<{ readonly startMs: number; readonly endMs: number }>]>(),
     Match.tagsExhaustive({
-      CancelledChartZoom: () => [evo(state, { zoomDrag: () => null }), Option.none()],
-      ClearedChartFilter: () => [evo(state, { filter: () => null }), Option.none()],
-      ClearedChartTooltip: () => [evo(state, { tooltip: () => null }), Option.none()],
+      CancelledChartZoom: () => [modifyFields(state, { zoomDrag: () => null }), Option.none()],
+      ClearedChartFilter: () => [modifyFields(state, { filter: () => null }), Option.none()],
+      ClearedChartTooltip: () => [modifyFields(state, { tooltip: () => null }), Option.none()],
       ClickedChartPill: ({ doseMg, drug }) => [
-        evo(state, {
+        modifyFields(state, {
           filter: (filter) =>
             filter !== null && filter.drug === drug && filter.doseMg === doseMg ? null : { doseMg, drug },
           tooltip: () => null,
@@ -157,23 +157,26 @@ export const updateChart = (
           return [state, Option.none()]
         }
         const { hoverMs, startMs } = state.zoomDrag
-        const next = evo(state, { zoomDrag: () => null })
+        const next = modifyFields(state, { zoomDrag: () => null })
         if (Math.abs(hoverMs - startMs) < 1000 * 60 * 60 * 24) {
           return [next, Option.none()]
         }
         return [next, Option.some({ endMs: Math.max(startMs, hoverMs), startMs: Math.min(startMs, hoverMs) })]
       },
       HoveredChartTooltip: ({ lines, title, x, y }) => [
-        evo(state, { tooltip: () => ({ lines, title, x, y }) }),
+        modifyFields(state, { tooltip: () => ({ lines, title, x, y }) }),
         Option.none(),
       ],
       HoveredChartZoom: ({ ms }) => [
-        evo(state, {
-          zoomDrag: (drag) => (drag === null ? null : evo(drag, { hoverMs: () => ms })),
+        modifyFields(state, {
+          zoomDrag: (drag) => (drag === null ? null : modifyFields(drag, { hoverMs: () => ms })),
         }),
         Option.none(),
       ],
-      StartedChartZoom: ({ ms }) => [evo(state, { zoomDrag: () => ({ hoverMs: ms, startMs: ms }) }), Option.none()],
+      StartedChartZoom: ({ ms }) => [
+        modifyFields(state, { zoomDrag: () => ({ hoverMs: ms, startMs: ms }) }),
+        Option.none(),
+      ],
     })
   )
 

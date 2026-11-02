@@ -2,9 +2,9 @@ import * as Schema from 'effect/Schema'
 
 // Shared field shapes for the four error kinds every service package defines
 // (EnvMissing, Unreachable, HttpError, DecodeError). Each package still
-// declares its own `class FooBarError extends Schema.TaggedErrorClass<FooBarError>()(...)`
+// declares its own `class FooBarError extends Schema.TaggedError<FooBarError>()(...)`
 // so the `_tag` stays a distinct literal per package - tsgo cannot print a
-// declaration for a TaggedErrorClass instance returned from a shared generic
+// declaration for a TaggedError instance returned from a shared generic
 // factory (it fails with TS4023 trying to name Effect's internal
 // NodeInspectSymbol), so only the schema fields and constructor bodies are
 // centralized here, not the classes themselves.

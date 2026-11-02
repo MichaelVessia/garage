@@ -94,7 +94,7 @@ describe('stats page update', () => {
     }
     Scene.scene(
       {
-        update: (model: WeightTrendProps, _message: ChartMessage) => [model, []],
+        update: (model: WeightTrendProps, _message: ChartMessage) => ({ model }),
         view: viewWeightTrend,
       },
       Scene.given(props),
@@ -149,7 +149,7 @@ describe('stats page update', () => {
   })
 
   it('syncStatsFetch fetches when the range key changes and dedupes otherwise', () => {
-    const [loading, commands] = syncStatsFetch(initialStatsModel, range, timezone)
+    const { model: loading, commands = [] } = syncStatsFetch(initialStatsModel, range, timezone)
     expect(AsyncData.isLoading(loading.data)).toBe(true)
     expect(loading.fetchedRange).toBe(rangeKey(range))
     expect(loading.fetchedTimezone).toBe(timezone)
@@ -161,11 +161,11 @@ describe('stats page update', () => {
       timezone,
     })
 
-    const [same, none] = syncStatsFetch(loading, range, timezone)
+    const { model: same, commands: none = [] } = syncStatsFetch(loading, range, timezone)
     expect(none).toHaveLength(0)
     expect(same).toBe(loading)
 
-    const [, refetch] = syncStatsFetch(loading, { end: Option.none(), start: Option.none() }, timezone)
+    const { commands: refetch = [] } = syncStatsFetch(loading, { end: Option.none(), start: Option.none() }, timezone)
     expect(refetch).toHaveLength(1)
   })
 
@@ -183,7 +183,7 @@ describe('stats page update', () => {
       },
     }
 
-    const [submitting, commands] = updateStats(editing, SubmittedGoalForm({ unit: 'lbs' }), timezone)
+    const { model: submitting, commands = [] } = updateStats(editing, SubmittedGoalForm({ unit: 'lbs' }), timezone)
 
     expect(submitting.goalForm?.submitting).toBe(true)
     expect(commands).toHaveLength(1)
@@ -199,24 +199,24 @@ describe('stats page update', () => {
 
   it('custom range only navigates when both dates are set and ordered', () => {
     const base: StatsModel = { ...initialStatsModel }
-    const [withStart] = updateStats(base, ChangedCustomStart({ value: '2026-07-01' }), timezone)
-    const [, noNav] = updateStats(withStart, CommittedCustomRange(), timezone)
+    const { model: withStart } = updateStats(base, ChangedCustomStart({ value: '2026-07-01' }), timezone)
+    const { commands: noNav = [] } = updateStats(withStart, CommittedCustomRange(), timezone)
     expect(noNav).toHaveLength(0)
 
-    const [withBoth] = updateStats(withStart, ChangedCustomEnd({ value: '2026-06-01' }), timezone)
-    const [, invalid] = updateStats(withBoth, CommittedCustomRange(), timezone)
+    const { model: withBoth } = updateStats(withStart, ChangedCustomEnd({ value: '2026-06-01' }), timezone)
+    const { commands: invalid = [] } = updateStats(withBoth, CommittedCustomRange(), timezone)
     expect(invalid).toHaveLength(0)
 
-    const [withValid] = updateStats(withBoth, ChangedCustomEnd({ value: '2026-07-02' }), timezone)
-    const [, nav] = updateStats(withValid, CommittedCustomRange(), timezone)
+    const { model: withValid } = updateStats(withBoth, ChangedCustomEnd({ value: '2026-07-02' }), timezone)
+    const { commands: nav = [] } = updateStats(withValid, CommittedCustomRange(), timezone)
     expect(nav).toHaveLength(1)
   })
 
   it('rejects an old-zone response while the current timezone request is loading', () => {
     const currentTimezone = IanaTimezone.make('Pacific/Auckland')
-    const [loading] = syncStatsFetch(initialStatsModel, range, currentTimezone)
+    const { model: loading } = syncStatsFetch(initialStatsModel, range, currentTimezone)
 
-    const [afterStale] = updateStats(
+    const { model: afterStale } = updateStats(
       loading,
       FailedFetchStats({
         key: rangeKey(range),
@@ -227,7 +227,7 @@ describe('stats page update', () => {
       currentTimezone
     )
 
-    const [afterStaleSuccess] = updateStats(
+    const { model: afterStaleSuccess } = updateStats(
       loading,
       SucceededFetchStats({
         bundle: emptyBundle,
@@ -254,8 +254,8 @@ describe('stats page update', () => {
   })
 
   it('rejects a mixed bundle and reconciles authoritative settings instead of retrying the stale zone', () => {
-    const [loading] = syncStatsFetch(initialStatsModel, range, timezone)
-    const [, commands] = updateStats(
+    const { model: loading } = syncStatsFetch(initialStatsModel, range, timezone)
+    const { commands = [] } = updateStats(
       loading,
       RejectedFetchStats({
         key: rangeKey(range),
@@ -273,13 +273,13 @@ describe('stats page update', () => {
 
   it('rejects an ABA late response using the monotonic request generation', () => {
     const timezoneB = IanaTimezone.make('Pacific/Auckland')
-    const [loadingA1] = syncStatsFetch(initialStatsModel, range, timezone)
-    const [loadingB] = syncStatsFetch(loadingA1, range, timezoneB)
-    const [loadingA2] = syncStatsFetch(loadingB, range, timezone)
+    const { model: loadingA1 } = syncStatsFetch(initialStatsModel, range, timezone)
+    const { model: loadingB } = syncStatsFetch(loadingA1, range, timezoneB)
+    const { model: loadingA2 } = syncStatsFetch(loadingB, range, timezone)
 
     expect(loadingA2.requestGeneration).toBe(3)
 
-    const [afterLateA] = updateStats(
+    const { model: afterLateA } = updateStats(
       loadingA2,
       SucceededFetchStats({
         bundle: emptyBundle,
@@ -292,7 +292,7 @@ describe('stats page update', () => {
     )
     expect(AsyncData.isLoading(afterLateA.data)).toBe(true)
 
-    const [afterLatestA] = updateStats(
+    const { model: afterLatestA } = updateStats(
       loadingA2,
       SucceededFetchStats({
         bundle: emptyBundle,
@@ -307,10 +307,10 @@ describe('stats page update', () => {
   })
 
   it('preserves timezone when goal changes refetch the current range', () => {
-    const [loading] = syncStatsFetch(initialStatsModel, range, timezone)
+    const { model: loading } = syncStatsFetch(initialStatsModel, range, timezone)
 
-    const [, saveCommands] = updateStats(loading, SucceededSaveGoal(), timezone)
-    const [, deleteCommands] = updateStats(loading, SucceededDeleteGoal(), timezone)
+    const { commands: saveCommands = [] } = updateStats(loading, SucceededSaveGoal(), timezone)
+    const { commands: deleteCommands = [] } = updateStats(loading, SucceededDeleteGoal(), timezone)
 
     expect(saveCommands[0]?.args).toEqual({
       end: '2026-07-03',

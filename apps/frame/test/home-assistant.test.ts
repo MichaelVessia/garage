@@ -2,12 +2,12 @@ import { assert, describe, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
+import type { HttpClientRequest } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
-import type { HttpClientRequest } from 'effect/unstable/http'
 
 import { CalendarDate, IanaTimezone, MediaActionRejected, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 

@@ -1,8 +1,8 @@
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import { FetchHttpClient } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
-import { FetchHttpClient } from 'effect/unstable/http'
 import { Runtime } from 'foldkit'
 
 import { ApiLive } from './api.js'

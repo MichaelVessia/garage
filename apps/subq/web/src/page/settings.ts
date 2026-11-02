@@ -1,14 +1,15 @@
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import type { HttpClient } from 'effect/http'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import type { HttpClient } from 'effect/unstable/http'
 import { Command } from 'foldkit'
+import type { Update } from 'foldkit'
 import * as File from 'foldkit/file'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   DataExport,
@@ -78,34 +79,34 @@ export const initialSettingsModel: SettingsModel = {
 // Messages
 // ============================================
 
-export const ClickedSettingsWeightUnit = m('ClickedSettingsWeightUnit', {
+export const ClickedSettingsWeightUnit = taggedStruct('ClickedSettingsWeightUnit', {
   unit: Schema.Literals(['lbs', 'kg']),
 })
-export const ChangedSettingsTimezone = m('ChangedSettingsTimezone', { value: Schema.String })
-export const SubmittedSettingsTimezone = m('SubmittedSettingsTimezone')
-export const SucceededUpdateSettingsPreference = m('SucceededUpdateSettingsPreference')
-export const FailedUpdateSettingsPreference = m('FailedUpdateSettingsPreference', {
+export const ChangedSettingsTimezone = taggedStruct('ChangedSettingsTimezone', { value: Schema.String })
+export const SubmittedSettingsTimezone = taggedStruct('SubmittedSettingsTimezone')
+export const SucceededUpdateSettingsPreference = taggedStruct('SucceededUpdateSettingsPreference')
+export const FailedUpdateSettingsPreference = taggedStruct('FailedUpdateSettingsPreference', {
   message: Schema.String,
 })
-export const ChangedSettingsCurrentPassword = m('ChangedSettingsCurrentPassword', {
+export const ChangedSettingsCurrentPassword = taggedStruct('ChangedSettingsCurrentPassword', {
   value: Schema.String,
 })
-export const ChangedSettingsNewPassword = m('ChangedSettingsNewPassword', { value: Schema.String })
-export const ChangedSettingsConfirmPassword = m('ChangedSettingsConfirmPassword', {
+export const ChangedSettingsNewPassword = taggedStruct('ChangedSettingsNewPassword', { value: Schema.String })
+export const ChangedSettingsConfirmPassword = taggedStruct('ChangedSettingsConfirmPassword', {
   value: Schema.String,
 })
-export const SubmittedSettingsPassword = m('SubmittedSettingsPassword')
-export const ClickedExportData = m('ClickedExportData')
-export const SucceededExportData = m('SucceededExportData')
-export const FailedExportData = m('FailedExportData', { message: Schema.String })
-export const ClickedSelectImportFile = m('ClickedSelectImportFile')
-export const SelectedImportFile = m('SelectedImportFile', { file: File.File })
-export const CancelledSelectImportFile = m('CancelledSelectImportFile')
-export const PreparedImportData = m('PreparedImportData', { data: DataExport })
-export const ConfirmedImportData = m('ConfirmedImportData')
-export const CancelledImportData = m('CancelledImportData')
-export const SucceededImportData = m('SucceededImportData', { result: DataImportResult })
-export const FailedImportData = m('FailedImportData', { message: Schema.String })
+export const SubmittedSettingsPassword = taggedStruct('SubmittedSettingsPassword')
+export const ClickedExportData = taggedStruct('ClickedExportData')
+export const SucceededExportData = taggedStruct('SucceededExportData')
+export const FailedExportData = taggedStruct('FailedExportData', { message: Schema.String })
+export const ClickedSelectImportFile = taggedStruct('ClickedSelectImportFile')
+export const SelectedImportFile = taggedStruct('SelectedImportFile', { file: File.File })
+export const CancelledSelectImportFile = taggedStruct('CancelledSelectImportFile')
+export const PreparedImportData = taggedStruct('PreparedImportData', { data: DataExport })
+export const ConfirmedImportData = taggedStruct('ConfirmedImportData')
+export const CancelledImportData = taggedStruct('CancelledImportData')
+export const SucceededImportData = taggedStruct('SucceededImportData', { result: DataImportResult })
+export const FailedImportData = taggedStruct('FailedImportData', { message: Schema.String })
 
 export const SettingsPageMessage = Schema.Union([
   ClickedSettingsWeightUnit,
@@ -159,7 +160,7 @@ const UpdateTimezone = Command.define('UpdateSettingsTimezone', {
     }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update timezone')),
 })
 
-const ExportData = Command.define('ExportData', {
+export const ExportData = Command.define('ExportData', {
   messages: [SucceededExportData, FailedExportData],
   execute: Effect.gen(function* () {
     const result = yield* Effect.gen(function* () {
@@ -186,7 +187,7 @@ const ExportData = Command.define('ExportData', {
   }),
 })
 
-const SelectImportFile = Command.define('SelectImportFile', {
+export const SelectImportFile = Command.define('SelectImportFile', {
   messages: [SelectedImportFile, CancelledSelectImportFile],
   execute: File.select(['.json', 'application/json']).pipe(
     Effect.map(
@@ -202,7 +203,7 @@ const SelectImportFile = Command.define('SelectImportFile', {
   ),
 })
 
-const ReadImportFile = Command.define('ReadImportFile', {
+export const ReadImportFile = Command.define('ReadImportFile', {
   args: { file: File.File },
   messages: [PreparedImportData, FailedImportData],
   execute: ({ file }) =>
@@ -243,18 +244,15 @@ type SettingsCommandMessage =
   | typeof SucceededFetchSettings.Type
   | typeof FailedFetchSettings.Type
 
-type UpdateReturn = readonly [
-  SettingsModel,
-  ReadonlyArray<Command.Command<SettingsCommandMessage, never, Api | HttpClient.HttpClient>>,
-]
+type UpdateReturn = Update.Return<SettingsModel, SettingsCommandMessage, Api | HttpClient.HttpClient>
 
 const passwordError =
   (message: string) =>
   (form: PasswordForm): PasswordForm =>
-    evo(form, { error: () => message, submitting: () => false, success: () => false })
+    modifyFields(form, { error: () => message, submitting: () => false, success: () => false })
 
 export const settingsPasswordSucceeded = (model: SettingsModel): SettingsModel =>
-  evo(model, {
+  modifyFields(model, {
     password: () => ({
       confirmPassword: '',
       currentPassword: '',
@@ -266,7 +264,7 @@ export const settingsPasswordSucceeded = (model: SettingsModel): SettingsModel =
   })
 
 export const settingsPasswordFailed = (model: SettingsModel, message: string): SettingsModel =>
-  evo(model, { password: (form) => passwordError(message)(form) })
+  modifyFields(model, { password: (form) => passwordError(message)(form) })
 
 const importSummary = (data: DataExport): string => {
   const records = data.data
@@ -286,148 +284,146 @@ export const updateSettingsPage = (
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      CancelledImportData: () => [evo(model, { importConfirm: () => null, importStatus: () => 'idle' }), []],
-      CancelledSelectImportFile: () => [evo(model, { importStatus: () => 'idle' }), []],
-      ChangedSettingsTimezone: ({ value }) => [
-        evo(model, { preferenceError: () => null, timezoneInput: () => value }),
-        [],
-      ],
-      ChangedSettingsConfirmPassword: ({ value }) => [
-        evo(model, {
-          password: (form) => evo(form, { confirmPassword: () => value, success: () => false }),
+      CancelledImportData: () => ({
+        model: modifyFields(model, { importConfirm: () => null, importStatus: () => 'idle' }),
+      }),
+      CancelledSelectImportFile: () => ({ model: modifyFields(model, { importStatus: () => 'idle' }) }),
+      ChangedSettingsTimezone: ({ value }) => ({
+        model: modifyFields(model, { preferenceError: () => null, timezoneInput: () => value }),
+      }),
+      ChangedSettingsConfirmPassword: ({ value }) => ({
+        model: modifyFields(model, {
+          password: (form) => modifyFields(form, { confirmPassword: () => value, success: () => false }),
         }),
-        [],
-      ],
-      ChangedSettingsCurrentPassword: ({ value }) => [
-        evo(model, {
-          password: (form) => evo(form, { currentPassword: () => value, success: () => false }),
+      }),
+      ChangedSettingsCurrentPassword: ({ value }) => ({
+        model: modifyFields(model, {
+          password: (form) => modifyFields(form, { currentPassword: () => value, success: () => false }),
         }),
-        [],
-      ],
-      ChangedSettingsNewPassword: ({ value }) => [
-        evo(model, {
-          password: (form) => evo(form, { newPassword: () => value, success: () => false }),
+      }),
+      ChangedSettingsNewPassword: ({ value }) => ({
+        model: modifyFields(model, {
+          password: (form) => modifyFields(form, { newPassword: () => value, success: () => false }),
         }),
-        [],
-      ],
-      ClickedExportData: () => [
-        evo(model, {
+      }),
+      ClickedExportData: () => ({
+        model: modifyFields(model, {
           dataError: () => null,
           dataSuccess: () => null,
           exportStatus: () => 'exporting',
         }),
-        [ExportData()],
-      ],
-      ClickedSelectImportFile: () => [
-        evo(model, {
+        commands: [ExportData()],
+      }),
+      ClickedSelectImportFile: () => ({
+        model: modifyFields(model, {
           dataError: () => null,
           dataSuccess: () => null,
           importConfirm: () => null,
           importStatus: () => 'reading',
         }),
-        [SelectImportFile()],
-      ],
-      ClickedSettingsWeightUnit: ({ unit }) => [
-        evo(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
-        [UpdateWeightUnit({ unit })],
-      ],
+        commands: [SelectImportFile()],
+      }),
+      ClickedSettingsWeightUnit: ({ unit }) => ({
+        model: modifyFields(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
+        commands: [UpdateWeightUnit({ unit })],
+      }),
       ConfirmedImportData: () =>
         model.importConfirm === null
-          ? [model, []]
-          : [
-              evo(model, {
+          ? { model }
+          : {
+              model: modifyFields(model, {
                 dataError: () => null,
                 dataSuccess: () => null,
                 importStatus: () => 'importing',
               }),
-              [ImportData({ data: model.importConfirm })],
-            ],
-      FailedExportData: ({ message: error }) => [
-        evo(model, { dataError: () => error, exportStatus: () => 'idle' }),
-        [],
-      ],
-      FailedImportData: ({ message: error }) => [
-        evo(model, {
+              commands: [ImportData({ data: model.importConfirm })],
+            },
+      FailedExportData: ({ message: error }) => ({
+        model: modifyFields(model, { dataError: () => error, exportStatus: () => 'idle' }),
+      }),
+      FailedImportData: ({ message: error }) => ({
+        model: modifyFields(model, {
           dataError: () => error,
           importConfirm: () => null,
           importStatus: () => 'idle',
         }),
-        [],
-      ],
-      FailedUpdateSettingsPreference: ({ message: error }) => [
-        evo(model, { preferenceError: () => error, preferenceSubmitting: () => false }),
-        [],
-      ],
-      PreparedImportData: ({ data }) => [
-        evo(model, {
+      }),
+      FailedUpdateSettingsPreference: ({ message: error }) => ({
+        model: modifyFields(model, { preferenceError: () => error, preferenceSubmitting: () => false }),
+      }),
+      PreparedImportData: ({ data }) => ({
+        model: modifyFields(model, {
           importConfirm: () => data,
           importStatus: () => 'idle',
         }),
-        [],
-      ],
-      SelectedImportFile: ({ file }) => [model, [ReadImportFile({ file })]],
+      }),
+      SelectedImportFile: ({ file }) => ({ model, commands: [ReadImportFile({ file })] }),
       SubmittedSettingsTimezone: () => {
         const candidate = model.timezoneInput === '' ? currentTimezone : model.timezoneInput
         const timezone = Schema.decodeUnknownOption(IanaTimezone)(candidate)
         return Option.match(timezone, {
-          onNone: (): UpdateReturn => [evo(model, { preferenceError: () => 'Enter a valid IANA timezone' }), []],
-          onSome: (validTimezone): UpdateReturn => [
-            evo(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
-            [UpdateTimezone({ timezone: validTimezone })],
-          ],
+          onNone: (): UpdateReturn => ({
+            model: modifyFields(model, { preferenceError: () => 'Enter a valid IANA timezone' }),
+          }),
+          onSome: (validTimezone): UpdateReturn => ({
+            model: modifyFields(model, { preferenceError: () => null, preferenceSubmitting: () => true }),
+            commands: [UpdateTimezone({ timezone: validTimezone })],
+          }),
         })
       },
       SubmittedSettingsPassword: () => {
         if (model.password.currentPassword === '') {
-          return [evo(model, { password: passwordError('Current password is required') }), []]
+          return { model: modifyFields(model, { password: passwordError('Current password is required') }) }
         }
         if (model.password.newPassword.length < 8) {
-          return [
-            evo(model, {
+          return {
+            model: modifyFields(model, {
               password: passwordError('Password must be at least 8 characters'),
             }),
-            [],
-          ]
+          }
         }
         if (model.password.newPassword !== model.password.confirmPassword) {
-          return [evo(model, { password: passwordError('Passwords do not match') }), []]
+          return { model: modifyFields(model, { password: passwordError('Passwords do not match') }) }
         }
-        return [
-          evo(model, {
-            password: (form) => evo(form, { error: () => null, submitting: () => true, success: () => false }),
+        return {
+          model: modifyFields(model, {
+            password: (form) => modifyFields(form, { error: () => null, submitting: () => true, success: () => false }),
           }),
-          [
+          commands: [
             ChangePassword({
               currentPassword: model.password.currentPassword,
               newPassword: model.password.newPassword,
             }),
           ],
-        ]
+        }
       },
-      SucceededExportData: () => [
-        evo(model, {
+      SucceededExportData: () => ({
+        model: modifyFields(model, {
           dataSuccess: () => 'Data exported successfully',
           exportStatus: () => 'idle',
         }),
-        [],
-      ],
-      SucceededImportData: ({ result }) => [
-        evo(model, {
+      }),
+      SucceededImportData: ({ result }) => ({
+        model: modifyFields(model, {
           dataSuccess: () => importResultMessage(result),
           importConfirm: () => null,
           importStatus: () => 'idle',
         }),
-        [
+        commands: [
           FetchSettings({
             detectedTimezone: result.settingsUpdated ? currentTimezone : detectedTimezone,
             requestGeneration: settingsRequestGeneration,
           }),
         ],
-      ],
-      SucceededUpdateSettingsPreference: () => [
-        evo(model, { preferenceError: () => null, preferenceSubmitting: () => false, timezoneInput: () => '' }),
-        [FetchSettings({ detectedTimezone: currentTimezone, requestGeneration: settingsRequestGeneration })],
-      ],
+      }),
+      SucceededUpdateSettingsPreference: () => ({
+        model: modifyFields(model, {
+          preferenceError: () => null,
+          preferenceSubmitting: () => false,
+          timezoneInput: () => '',
+        }),
+        commands: [FetchSettings({ detectedTimezone: currentTimezone, requestGeneration: settingsRequestGeneration })],
+      }),
     })
   )
 

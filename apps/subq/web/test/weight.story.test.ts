@@ -73,10 +73,13 @@ describe('weight page update', () => {
 
   it('preserves sub-minute UTC precision for a note-only edit', () => {
     const preciseLog = weightAt('log-precise', '2026-07-01T08:00:45.123Z')
-    const [opening] = update(initialWeightModel, ClickedEditWeight({ log: preciseLog }))
-    const [opened] = update(opening, CompletedOpenWeightForm({ log: preciseLog, nowLocal: '2026-07-03T10:00' }))
-    const [noted] = update(opened, ChangedWeightNotes({ value: 'updated note' }))
-    const [, commands] = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
+    const { model: opening } = update(initialWeightModel, ClickedEditWeight({ log: preciseLog }))
+    const { model: opened } = update(
+      opening,
+      CompletedOpenWeightForm({ log: preciseLog, nowLocal: '2026-07-03T10:00' })
+    )
+    const { model: noted } = update(opened, ChangedWeightNotes({ value: 'updated note' }))
+    const { commands = [] } = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
     const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
 
     expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
@@ -90,9 +93,12 @@ describe('weight page update', () => {
 
     for (const [index, instant] of overlapInstants.entries()) {
       const log = weightAt(`log-overlap-${index}`, instant)
-      const [opened] = update(initialWeightModel, CompletedOpenWeightForm({ log, nowLocal: '2026-11-02T09:00' }))
-      const [noted] = update(opened, ChangedWeightNotes({ value: `overlap ${index}` }))
-      const [, commands] = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
+      const { model: opened } = update(
+        initialWeightModel,
+        CompletedOpenWeightForm({ log, nowLocal: '2026-11-02T09:00' })
+      )
+      const { model: noted } = update(opened, ChangedWeightNotes({ value: `overlap ${index}` }))
+      const { commands = [] } = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
       const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
 
       expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
@@ -103,10 +109,10 @@ describe('weight page update', () => {
   })
 
   it('reinterprets an edited wall-time field in the persisted timezone', () => {
-    const [opening] = update(initialWeightModel, ClickedEditWeight({ log: sampleLog }))
-    const [opened] = update(opening, CompletedOpenWeightForm({ log: sampleLog, nowLocal: '2026-07-03T10:00' }))
-    const [changed] = update(opened, ChangedWeightDatetime({ value: '2026-07-01T05:15' }))
-    const [, commands] = update(changed, SubmittedWeightForm({ unit: 'lbs' }))
+    const { model: opening } = update(initialWeightModel, ClickedEditWeight({ log: sampleLog }))
+    const { model: opened } = update(opening, CompletedOpenWeightForm({ log: sampleLog, nowLocal: '2026-07-03T10:00' }))
+    const { model: changed } = update(opened, ChangedWeightDatetime({ value: '2026-07-01T05:15' }))
+    const { commands = [] } = update(changed, SubmittedWeightForm({ unit: 'lbs' }))
     const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
 
     expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)

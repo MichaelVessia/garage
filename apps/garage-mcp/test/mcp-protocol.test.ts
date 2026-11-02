@@ -2,9 +2,9 @@ import { assert, it } from '@effect/vitest'
 import { AutocaliwebApi, unreachable as autocaliwebUnreachable } from '@garage/autocaliweb'
 import { SabnzbdApi, envMissing, unreachable } from '@garage/sabnzbd'
 import * as Effect from 'effect/Effect'
+import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
-import * as HttpRouter from 'effect/unstable/http/HttpRouter'
 
 import { GarageMcpRoutes } from '../src/server.js'
 
@@ -36,13 +36,9 @@ const QueueInputSchema = Schema.Struct({
   properties: Schema.Struct({
     limit: Schema.Struct({
       type: Schema.Literal('integer'),
-      allOf: Schema.Array(
-        Schema.Struct({
-          minimum: Schema.Number,
-          maximum: Schema.Number,
-          description: Schema.String,
-        })
-      ),
+      minimum: Schema.Number,
+      maximum: Schema.Number,
+      description: Schema.String,
     }),
   }),
   additionalProperties: Schema.Boolean,
@@ -253,7 +249,7 @@ it.effect('discovers consolidated tools with bounded schemas and accurate safety
       assert.strictEqual(queueTool.annotations.title, 'SABnzbd Queue')
       const inputSchema = yield* Schema.decodeUnknownEffect(QueueInputSchema)(queueTool.inputSchema)
       const outputSchema = yield* Schema.decodeUnknownEffect(QueueOutputSchema)(queueTool.outputSchema)
-      assert.deepInclude(inputSchema.properties.limit.allOf[0], { minimum: 1, maximum: 100 })
+      assert.deepInclude(inputSchema.properties.limit, { minimum: 1, maximum: 100 })
       assert.sameMembers([...outputSchema.required], ['count', 'totalRecords', 'slots'])
     })
   )

@@ -1,5 +1,5 @@
+import { Rpc, RpcGroup } from 'effect/rpc'
 import * as Schema from 'effect/Schema'
-import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
 import { DbOperation } from '../common/domain.js'

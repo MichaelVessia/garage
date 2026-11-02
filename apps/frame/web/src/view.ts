@@ -23,18 +23,8 @@ import { icon } from './icons.js'
 import type { IconName } from './icons.js'
 import { calendarFrom } from './main.js'
 import type { Model } from './main.js'
-import {
-  ChangedShoppingDraft,
-  ClickedCalendarMode,
-  ClickedMediaAction,
-  ClickedScreen,
-  ClickedShift,
-  ClickedShoppingItem,
-  ClickedToday,
-  Interacted,
-  SubmittedShoppingItem,
-} from './message.js'
-import type { Message, Screen } from './message.js'
+import { Message } from './message.js'
+import type { Screen } from './message.js'
 import {
   clockParts,
   dayOfMonth,
@@ -172,7 +162,7 @@ const viewMore = (h: H, hidden: number) =>
   hidden > 0
     ? [
         h.button(
-          [h.Class('more'), h.Type('button'), h.OnClick(ClickedScreen({ screen: 'calendar' }))],
+          [h.Class('more'), h.Type('button'), h.OnClick(Message.ClickedScreen({ screen: 'calendar' }))],
           [`+${hidden} more`]
         ),
       ]
@@ -239,7 +229,7 @@ const viewRail = (h: H, model: Model) =>
             h.Key(screen),
             h.Class(model.screen === screen ? 'rail-item is-active' : 'rail-item'),
             h.AriaPressed(model.screen === screen ? 'true' : 'false'),
-            h.OnClick(ClickedScreen({ screen })),
+            h.OnClick(Message.ClickedScreen({ screen })),
           ],
           [icon(h, name, 'rail-icon'), h.span([h.Class('rail-label')], [label])]
         )
@@ -414,7 +404,7 @@ const viewCalendarCard = (
 const viewShoppingSummary = (h: H, model: Model) => {
   const open = Option.map(model.shopping.data, (items) => Arr.filter(items, (item) => item.status === 'needs_action'))
   return h.button(
-    [h.Class('card t-shopping'), h.OnClick(ClickedScreen({ screen: 'shopping' }))],
+    [h.Class('card t-shopping'), h.OnClick(Message.ClickedScreen({ screen: 'shopping' }))],
     [
       h.span(
         [h.Class('t-shopping-head')],
@@ -496,9 +486,9 @@ const viewCalendarHeader = (h: H, model: Model, anchor: CalendarDate) => {
       h.div(
         [h.Class('toolbar-nav')],
         [
-          iconButton(h, 'chevronLeft', 'Previous', ClickedShift({ direction: -1 })),
-          h.button([h.Class('btn'), h.Type('button'), h.OnClick(ClickedToday())], ['Today']),
-          iconButton(h, 'chevronRight', 'Next', ClickedShift({ direction: 1 })),
+          iconButton(h, 'chevronLeft', 'Previous', Message.ClickedShift({ direction: -1 })),
+          h.button([h.Class('btn'), h.Type('button'), h.OnClick(Message.ClickedToday())], ['Today']),
+          iconButton(h, 'chevronRight', 'Next', Message.ClickedShift({ direction: 1 })),
         ]
       ),
       h.h1([h.Class('screen-title')], [title]),
@@ -511,7 +501,7 @@ const viewCalendarHeader = (h: H, model: Model, anchor: CalendarDate) => {
               h.Type('button'),
               h.Class(model.calendarMode === mode ? 'seg-item is-active' : 'seg-item'),
               h.AriaPressed(model.calendarMode === mode ? 'true' : 'false'),
-              h.OnClick(ClickedCalendarMode({ mode })),
+              h.OnClick(Message.ClickedCalendarMode({ mode })),
             ],
             [mode === 'day' ? 'Day' : 'Week']
           )
@@ -616,7 +606,7 @@ const viewShoppingItem = (h: H, item: ShoppingItem) => {
           h.Type('button'),
           h.Class(done ? 'shop-item is-done' : 'shop-item'),
           h.AriaPressed(done ? 'true' : 'false'),
-          h.OnClick(ClickedShoppingItem({ uid: item.uid, status: done ? 'needs_action' : 'completed' })),
+          h.OnClick(Message.ClickedShoppingItem({ uid: item.uid, status: done ? 'needs_action' : 'completed' })),
         ],
         [
           h.span([h.Class('check')], done ? [icon(h, 'check', 'check-icon')] : []),
@@ -629,7 +619,7 @@ const viewShoppingItem = (h: H, item: ShoppingItem) => {
 
 const viewShoppingAdd = (h: H, model: Model) =>
   h.form(
-    [h.Class('shop-add'), h.OnSubmit(SubmittedShoppingItem())],
+    [h.Class('shop-add'), h.OnSubmit(Message.SubmittedShoppingItem())],
     [
       h.input([
         h.Class('field'),
@@ -637,7 +627,7 @@ const viewShoppingAdd = (h: H, model: Model) =>
         h.AriaLabel('New item'),
         h.Placeholder('Add an item'),
         h.Value(model.shoppingDraft),
-        h.OnInput((value) => ChangedShoppingDraft({ value })),
+        h.OnInput((value) => Message.ChangedShoppingDraft({ value })),
       ]),
       h.button([h.Class('btn btn-primary'), h.Type('submit')], [icon(h, 'plus'), 'Add']),
     ]
@@ -731,7 +721,7 @@ const mediaButton = (
       h.Type('button'),
       h.AriaLabel(label),
       h.Disabled(options.isDisabled),
-      h.OnClick(ClickedMediaAction({ action })),
+      h.OnClick(Message.ClickedMediaAction({ action })),
     ],
     [icon(h, name)]
   )
@@ -746,8 +736,8 @@ const viewSourceSelect = (h: H, label: string, placeholder: string, player: Medi
       h.OnChange((source) =>
         // The placeholder option has no source to select.
         source === ''
-          ? Interacted()
-          : ClickedMediaAction({ action: { _tag: 'SelectSource', entityId: player.entityId, source } })
+          ? Message.Interacted()
+          : Message.ClickedMediaAction({ action: { _tag: 'SelectSource', entityId: player.entityId, source } })
       ),
     ],
     [
@@ -882,7 +872,7 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
                       [
                         h.Class('btn'),
                         h.Type('button'),
-                        h.OnClick(ClickedMediaAction({ action: { _tag: 'AllZonesOn' } })),
+                        h.OnClick(Message.ClickedMediaAction({ action: { _tag: 'AllZonesOn' } })),
                       ],
                       ['All on']
                     ),
@@ -894,7 +884,7 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
                       [
                         h.Class('btn'),
                         h.Type('button'),
-                        h.OnClick(ClickedMediaAction({ action: { _tag: 'AllZonesOff' } })),
+                        h.OnClick(Message.ClickedMediaAction({ action: { _tag: 'AllZonesOff' } })),
                       ],
                       ['All off']
                     ),
@@ -918,7 +908,7 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
                   h.AriaChecked(zone.isOn),
                   h.Disabled(!zone.isAvailable),
                   h.OnClick(
-                    ClickedMediaAction({
+                    Message.ClickedMediaAction({
                       action: zone.isOn
                         ? { _tag: 'ZoneOff', entityId: zone.entityId }
                         : { _tag: 'ZoneOn', entityId: zone.entityId },

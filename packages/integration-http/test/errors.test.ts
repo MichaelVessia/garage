@@ -18,24 +18,24 @@ import {
 // own classes) to confirm the factories stay parameterised per class rather
 // than leaking state or identity across packages.
 
-class FooEnvMissingError extends Schema.TaggedErrorClass<FooEnvMissingError>()(
+class FooEnvMissingError extends Schema.TaggedError<FooEnvMissingError>()(
   'FooEnvMissingError',
   envMissingFields('FOO_ENV_MISSING')
 ) {}
 
-class FooUnreachableError extends Schema.TaggedErrorClass<FooUnreachableError>()(
+class FooUnreachableError extends Schema.TaggedError<FooUnreachableError>()(
   'FooUnreachableError',
   unreachableFields('FOO_UNREACHABLE')
 ) {}
 
-class FooHttpError extends Schema.TaggedErrorClass<FooHttpError>()('FooHttpError', httpErrorFields('FOO_HTTP_ERROR')) {}
+class FooHttpError extends Schema.TaggedError<FooHttpError>()('FooHttpError', httpErrorFields('FOO_HTTP_ERROR')) {}
 
-class FooDecodeError extends Schema.TaggedErrorClass<FooDecodeError>()(
+class FooDecodeError extends Schema.TaggedError<FooDecodeError>()(
   'FooDecodeError',
   decodeErrorFields('FOO_DECODE_ERROR')
 ) {}
 
-class BarEnvMissingError extends Schema.TaggedErrorClass<BarEnvMissingError>()(
+class BarEnvMissingError extends Schema.TaggedError<BarEnvMissingError>()(
   'BarEnvMissingError',
   envMissingFields('BAR_ENV_MISSING')
 ) {}

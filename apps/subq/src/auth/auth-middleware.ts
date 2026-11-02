@@ -1,9 +1,9 @@
 import * as Effect from 'effect/Effect'
+import type { Headers } from 'effect/http/Headers'
 import * as Layer from 'effect/Layer'
 import * as P from 'effect/Predicate'
 import * as R from 'effect/Record'
 import * as Result from 'effect/Result'
-import type { Headers } from 'effect/unstable/http/Headers'
 
 import { AuthContext, AuthRpcMiddleware, Unauthorized } from '#shared'
 

@@ -99,6 +99,10 @@ export default defineConfig({
     'unicorn/no-array-for-each': 'off',
     'unicorn/no-array-method-this-argument': 'off',
 
+    // `Schema.TaggedError<Self>()(...)` declares an error class; it constructs
+    // nothing, but the rule reads any call ending in `Error` as a missing `new`.
+    'unicorn/throw-new-error': 'off',
+
     // prefer-arr-match fires on every `.length` comparison, not just the
     // array empty/non-empty branching `Arr.match` targets; most hits are
     // early-return guards and string-length checks where it does not fit.

@@ -2,10 +2,10 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
+import { HttpClient, HttpClientError, HttpClientResponse } from 'effect/http'
+import type { HttpClientRequest } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientError, HttpClientResponse } from 'effect/unstable/http'
-import type { HttpClientRequest } from 'effect/unstable/http'
 
 import { changePassword, fetchSession, signIn, signOut, signUp } from '../src/adapter/better-auth-http.js'
 import { SignOut } from '../src/auth.js'

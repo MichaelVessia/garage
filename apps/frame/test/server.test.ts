@@ -2,12 +2,12 @@ import * as BunHttpPlatform from '@effect/platform-bun/BunHttpPlatform'
 import * as BunServices from '@effect/platform-bun/BunServices'
 import { afterAll, assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
+import { HttpClient, HttpClientResponse } from 'effect/http'
+import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
-import * as HttpRouter from 'effect/unstable/http/HttpRouter'
 
 import { IanaTimezone } from '#shared'
 
@@ -103,7 +103,7 @@ const { handler, dispose } = HttpRouter.toWebHandler(
 
 afterAll(() => dispose())
 
-class TestRequestError extends Schema.TaggedErrorClass<TestRequestError>()('TestRequestError', {
+class TestRequestError extends Schema.TaggedError<TestRequestError>()('TestRequestError', {
   cause: Schema.Defect(),
 }) {}
 
