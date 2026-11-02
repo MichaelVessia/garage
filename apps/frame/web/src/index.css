@@ -1,0 +1,691 @@
+/* Layout and type follow Wes Bos's photo-frame-dashboard (MIT). Target: Android System WebView 106,
+   so no nesting, :has(), color-mix(), oklch(), dvh, or 4/8-digit hex colours. */
+:root {
+  --paper: #f2eee6;
+  --paper-2: #e8e2d5;
+  --card: #fbf9f4;
+  --ink: #111111;
+  --ink-2: #3b3934;
+  --mute: #7a756b;
+  --line: #d6cfc0;
+  --family: #2d5bff;
+  --family-soft: rgba(45, 91, 255, 0.12);
+  --sans: 'Roboto Condensed', 'sans-serif-condensed', 'Roboto', system-ui, sans-serif;
+  --serif: 'Noto Serif', Georgia, serif;
+  --r: 18px;
+  --tap: 64px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0b0b;
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 20px;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+h1,
+h2,
+p,
+ul {
+  margin: 0;
+  padding: 0;
+  font-weight: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+.num {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.notice {
+  font-size: 22px;
+  color: var(--mute);
+  padding: 8px 2px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--r);
+  padding: 18px 20px;
+}
+
+.booting {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mute);
+  font-size: 32px;
+}
+
+/* ---------------------------------------------------------------- stage + rail */
+#root {
+  height: 100%;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--paper);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 112px 1fr;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  border-right: 2px solid var(--ink);
+  padding: 8px 0 12px;
+}
+
+.rail-item {
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.rail-item.is-active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.rail-item:active {
+  background: var(--paper-2);
+}
+
+.rail-clock {
+  margin-top: auto;
+  text-align: center;
+  line-height: 1;
+}
+
+.rail-clock b {
+  display: block;
+  font-size: 30px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-clock span {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--mute);
+}
+
+.view {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+}
+
+/* ---------------------------------------------------------------- today */
+.today {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 200px 1fr;
+  gap: 16px 28px;
+}
+
+.t-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-bottom: 3px solid var(--ink);
+  padding-bottom: 8px;
+}
+
+.t-time {
+  font-size: 150px;
+  line-height: 0.8;
+  display: flex;
+  align-items: flex-start;
+}
+
+.t-ampm {
+  font-size: 28px;
+  letter-spacing: 0.06em;
+  margin: 6px 0 0 10px;
+}
+
+.t-date {
+  font-family: var(--serif);
+  font-size: 26px;
+  margin-top: 14px;
+}
+
+.t-date b {
+  font-family: var(--sans);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 22px;
+  margin-right: 8px;
+}
+
+.t-weather {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-bottom: 3px solid var(--ink);
+  padding-bottom: 8px;
+}
+
+.wx-now {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.wx-temp {
+  font-size: 84px;
+  line-height: 0.85;
+}
+
+.wx-cond {
+  font-family: var(--serif);
+  font-size: 28px;
+}
+
+.fc {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin-top: 12px;
+}
+
+.fc-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 16px;
+}
+
+.fc-name {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.fc-cond {
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc-temp {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-wet {
+  color: #1f6feb;
+  font-weight: 700;
+}
+
+.t-day {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.t-side {
+  display: grid;
+  grid-template-rows: 1fr 150px;
+  gap: 16px;
+  min-height: 0;
+}
+
+.t-shopping {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.t-shopping-count {
+  font-size: 56px;
+  line-height: 0.9;
+}
+
+.t-shopping-preview {
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------- agenda rows */
+.agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.ev {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  grid-template-areas: 'time title' 'time where';
+  column-gap: 12px;
+  align-items: baseline;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--family-soft);
+  border-left: 6px solid var(--family);
+}
+
+.ev-time {
+  grid-area: time;
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.ev-title {
+  grid-area: title;
+  font-size: 22px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ev-where {
+  grid-area: where;
+  font-size: 16px;
+  color: var(--mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ev--allday {
+  background: var(--family);
+  color: #ffffff;
+}
+
+.ev--allday .ev-time,
+.ev--allday .ev-where {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.ev.is-now {
+  background: var(--family);
+  color: #ffffff;
+}
+
+.ev.is-now .ev-time {
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ev.is-past {
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------- calendar */
+.cal {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.btn {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.btn:active {
+  background: var(--paper-2);
+}
+
+.cal-title {
+  flex: 1;
+  font-family: var(--serif);
+  font-size: 36px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.seg {
+  display: flex;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.seg button {
+  min-height: 56px;
+  padding: 0 24px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.seg button.is-active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.cal-day {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cal-week {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.wk-day {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-top: 5px solid var(--ink);
+  padding-top: 6px;
+}
+
+.wk-day.is-today {
+  border-top-color: var(--family);
+}
+
+.wk-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wk-head .num {
+  font-size: 32px;
+  line-height: 0.9;
+}
+
+.wk-head b {
+  font-size: 17px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wk-day.is-today .wk-head {
+  color: var(--family);
+}
+
+.wk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.wk-ev {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--family-soft);
+  border-left: 4px solid var(--family);
+}
+
+.wk-ev--allday {
+  background: var(--family);
+  color: #ffffff;
+}
+
+.wk-time {
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.wk-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.wk-ev.is-past {
+  opacity: 0.4;
+}
+
+.wk-ev.is-now {
+  background: var(--family);
+  color: #ffffff;
+}
+
+.wk-ev.is-now .wk-time {
+  color: #ffffff;
+}
+
+/* ---------------------------------------------------------------- shopping */
+.shop {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shop-title {
+  font-family: var(--serif);
+  font-size: 40px;
+}
+
+.shop-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 88px;
+  gap: 12px;
+  align-content: start;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  border-radius: var(--r);
+  background: var(--card);
+  border: 2px solid var(--line);
+  min-width: 0;
+}
+
+.shop-item:active {
+  background: var(--paper-2);
+}
+
+.shop-check {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.shop-name {
+  font-size: 24px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shop-item.is-done {
+  opacity: 0.45;
+}
+
+.shop-item.is-done .shop-check {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.shop-item.is-done .shop-name {
+  text-decoration: line-through;
+}
+
+/* ---------------------------------------------------------------- ambient + night */
+.ambient {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  background: #000000;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 64px 56px;
+  cursor: pointer;
+}
+
+.amb-time {
+  font-size: 230px;
+  line-height: 0.8;
+  display: flex;
+  align-items: flex-start;
+}
+
+.amb-ampm {
+  font-size: 40px;
+  letter-spacing: 0.06em;
+  margin: 12px 0 0 16px;
+}
+
+.amb-date {
+  font-family: var(--serif);
+  font-size: 40px;
+  margin-top: 18px;
+}
+
+.amb-next {
+  align-self: flex-start;
+  margin-top: 26px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.amb-wx {
+  margin-top: 16px;
+  font-size: 26px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.ambient.is-night {
+  color: #c22c1c;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.ambient.is-night .amb-next {
+  align-self: center;
+  background: transparent;
+  color: #a02618;
+}
+
+.ambient.is-night .amb-wx {
+  display: none;
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@garage/frame",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "imports": {
+    "#shared": "./src/shared/index.ts"
+  },
+  "scripts": {
+    "build": "vite build web && bun scripts/check-webview-compat.ts web/dist",
+    "build:server": "bun build src/main.ts --compile --outfile dist/garage-frame",
+    "dev": "bun run src/main.ts",
+    "dev:web": "vite web",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project web/tsconfig.json",
+    "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/ web/src/ web/test/ scripts/",
+    "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/ web/src/ web/test/ scripts/",
+    "format": "oxfmt --config ../../oxfmt.config.mjs --check src/ test/ web/src/ web/test/ scripts/ package.json tsconfig.json web/vite.config.ts vitest.config.ts",
+    "format:fix": "oxfmt --config ../../oxfmt.config.mjs src/ test/ web/src/ web/test/ scripts/ package.json tsconfig.json web/vite.config.ts vitest.config.ts",
+    "test": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.0-beta.103",
+    "@effect/platform-bun": "4.0.0-beta.103",
+    "@garage/integration-http": "workspace:*",
+    "effect": "4.0.0-beta.103",
+    "foldkit": "^0.138.0",
+    "ical.js": "^2.2.1"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.12.0",
+    "vite": "^8.2.2"
+  }
+}

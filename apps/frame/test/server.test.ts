@@ -1,0 +1,141 @@
+import * as BunHttpPlatform from '@effect/platform-bun/BunHttpPlatform'
+import * as BunServices from '@effect/platform-bun/BunServices'
+import { afterAll, assert, describe, it } from '@effect/vitest'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
+import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import * as HttpRouter from 'effect/unstable/http/HttpRouter'
+
+import { IanaTimezone } from '#shared'
+
+import { CalendarFeedLive } from '../src/calendar/http.js'
+import { CalendarConfig } from '../src/calendar/services.js'
+import { FrameHandlersLive } from '../src/handlers.js'
+import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
+import { HomeAssistantConfig } from '../src/home-assistant/services.js'
+import { frameRoutes } from '../src/server.js'
+import { FrameTimezone } from '../src/settings.js'
+import fixture from './fixtures/synthetic.ics?raw'
+
+const webRoot = new URL('fixtures/web', import.meta.url).pathname
+
+const respond = (url: URL): Response => {
+  if (url.hostname === 'calendar.example.test') {
+    return new Response(fixture, { headers: { 'content-type': 'text/calendar' } })
+  }
+  if (url.pathname.endsWith('/get_items')) {
+    return Response.json({
+      service_response: { 'todo.shopping': { items: [{ uid: 'a1', summary: 'Eggs', status: 'needs_action' }] } },
+    })
+  }
+  return new Response(null, { status: 401 })
+}
+
+const upstream = HttpClient.make((request, url) => Effect.succeed(HttpClientResponse.fromWeb(request, respond(url))))
+
+const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
+  Layer.provideMerge(
+    Layer.mergeAll(
+      Layer.succeed(FrameTimezone, { timezone: IanaTimezone.make('America/New_York') }),
+      Layer.succeed(CalendarConfig, { icsUrl: Redacted.make('https://calendar.example.test/private-token/basic.ics') }),
+      Layer.succeed(HomeAssistantConfig, {
+        url: 'http://ha.example.test:8123',
+        token: Redacted.make('ha-token'),
+        weatherEntity: 'weather.home',
+        shoppingEntity: 'todo.shopping',
+      }),
+      Layer.succeed(HttpClient.HttpClient, upstream)
+    )
+  )
+)
+
+const { handler, dispose } = HttpRouter.toWebHandler(
+  frameRoutes(webRoot).pipe(
+    Layer.provide(FrameHandlersLive),
+    Layer.provide(ServicesLayer),
+    Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
+  ),
+  { disableLogger: true }
+)
+
+afterAll(() => dispose())
+
+class TestRequestError extends Schema.TaggedErrorClass<TestRequestError>()('TestRequestError', {
+  cause: Schema.Defect(),
+}) {}
+
+const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))
+
+const send = Effect.fn('test.send')(function* (request: Request) {
+  const response = yield* Effect.tryPromise({
+    try: () => handler(request),
+    catch: (cause) => new TestRequestError({ cause }),
+  })
+  const body = yield* Effect.tryPromise({
+    try: () => response.text(),
+    catch: (cause) => new TestRequestError({ cause }),
+  })
+  return { status: response.status, body }
+})
+
+const rpc = (tag: string, payload: Readonly<Record<string, string>> | null) =>
+  send(
+    new Request('http://frame.test/rpc', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: encodeJson({ _tag: 'Request', id: '1', tag, payload, headers: [] }),
+    })
+  ).pipe(Effect.map((response) => response.body))
+
+const get = (path: string) => send(new Request(`http://frame.test${path}`))
+
+describe('frame server', () => {
+  it.effect('reports readiness', () =>
+    Effect.gen(function* () {
+      const response = yield* get('/health')
+
+      assert.strictEqual(response.status, 200)
+      assert.include(response.body, 'ready')
+    })
+  )
+
+  it.effect('serves calendar occurrences through RPC and the live calendar adapter', () =>
+    Effect.gen(function* () {
+      const body = yield* rpc('GetCalendar', { from: '2026-11-07', to: '2026-11-08' })
+
+      assert.include(body, 'Grandparents visiting')
+      assert.include(body, '"_tag":"Success"')
+    })
+  )
+
+  it.effect('serves shopping items through RPC and the live Home Assistant adapter', () =>
+    Effect.gen(function* () {
+      const body = yield* rpc('GetShopping', null)
+
+      assert.include(body, 'Eggs')
+    })
+  )
+
+  it.effect('returns a credential-free failure when Home Assistant rejects the token', () =>
+    Effect.gen(function* () {
+      const body = yield* rpc('GetWeather', null)
+
+      assert.include(body, 'UpstreamUnavailable')
+      assert.notInclude(body, 'ha-token')
+    })
+  )
+
+  it.effect('serves built assets and falls back to index.html without escaping the web root', () =>
+    Effect.gen(function* () {
+      const asset = yield* get('/assets/app.js')
+      const route = yield* get('/calendar/week')
+      const traversal = yield* get('/../server.test.ts')
+
+      assert.include(asset.body, 'frame-fixture')
+      assert.include(route.body, '<title>frame</title>')
+      assert.include(traversal.body, '<title>frame</title>')
+    })
+  )
+})
