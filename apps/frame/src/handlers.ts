@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
 
 import { FrameRpcs, FrameSettings, UpstreamUnavailable, calendarDateStartUtc } from '#shared'
-import type { CalendarWindow, ShoppingItemUpdate, UpstreamSource } from '#shared'
+import type { CalendarWindow, ShoppingItemAddition, ShoppingItemUpdate, UpstreamSource } from '#shared'
 
 import { CalendarFeed } from './calendar/services.js'
 import type { CalendarError, HomeAssistantError } from './errors.js'
@@ -41,6 +41,10 @@ export const FrameHandlersLive = FrameRpcs.toLayer(
           .pipe(toPublicError('calendar')),
       GetWeather: () => homeAssistant.weather().pipe(toPublicError('home-assistant')),
       GetShopping: () => homeAssistant.shoppingItems().pipe(toPublicError('home-assistant')),
+      AddShoppingItem: (addition: ShoppingItemAddition) =>
+        homeAssistant
+          .addShoppingItem(addition)
+          .pipe(Effect.andThen(homeAssistant.shoppingItems()), toPublicError('home-assistant')),
       UpdateShoppingItem: (update: ShoppingItemUpdate) =>
         homeAssistant
           .updateShoppingItem(update)

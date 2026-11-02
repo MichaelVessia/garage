@@ -5,7 +5,14 @@ import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 import type { RpcClientError } from 'effect/unstable/rpc/RpcClientError'
 import { Command } from 'foldkit'
 
-import { CalendarDate, CalendarWindow, ShoppingItemStatus, ShoppingItemUpdate, addCalendarDays } from '#shared'
+import {
+  CalendarDate,
+  CalendarWindow,
+  ShoppingItemAddition,
+  ShoppingItemStatus,
+  ShoppingItemUpdate,
+  addCalendarDays,
+} from '#shared'
 import type { UpstreamUnavailable } from '#shared'
 
 import { Api } from './api.js'
@@ -141,6 +148,20 @@ export const FetchShopping = Command.define('FetchShopping', {
     Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
     recoverWith((isServerReachable) => FailedFetchShopping({ isServerReachable }))
   ),
+})
+
+export const AddShoppingItem = Command.define('AddShoppingItem', {
+  args: { summary: Schema.String },
+  messages: [SucceededFetchShopping, FailedFetchShopping],
+  execute: ({ summary }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      const items = yield* api.AddShoppingItem(new ShoppingItemAddition({ summary }))
+      return SucceededFetchShopping({ items })
+    }).pipe(
+      Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
+      recoverWith((isServerReachable) => FailedFetchShopping({ isServerReachable }))
+    ),
 })
 
 export const UpdateShoppingItem = Command.define('UpdateShoppingItem', {

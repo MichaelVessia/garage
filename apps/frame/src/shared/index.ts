@@ -16,6 +16,7 @@ export {
   FrameVersion,
   ShoppingItem,
   ShoppingItemStatus,
+  ShoppingItemAddition,
   ShoppingItemUpdate,
   TimedEvent,
   Weather,

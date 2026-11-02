@@ -9,7 +9,15 @@ import type { CalendarDate, CalendarEvent, ForecastDay, IanaTimezone, ShoppingIt
 
 import { calendarFrom } from './main.js'
 import type { Model } from './main.js'
-import { ClickedCalendarMode, ClickedScreen, ClickedShift, ClickedShoppingItem, ClickedToday } from './message.js'
+import {
+  ChangedShoppingDraft,
+  ClickedCalendarMode,
+  ClickedScreen,
+  ClickedShift,
+  ClickedShoppingItem,
+  ClickedToday,
+  SubmittedShoppingItem,
+} from './message.js'
 import type { Message, Screen } from './message.js'
 import {
   clockParts,
@@ -342,11 +350,26 @@ const viewShoppingItem = (h: H, item: ShoppingItem) => {
   )
 }
 
+const viewShoppingAdd = (h: H, model: Model) =>
+  h.form(
+    [h.Class('shop-add'), h.OnSubmit(SubmittedShoppingItem())],
+    [
+      h.input([
+        h.Class('shop-add-input'),
+        h.Type('text'),
+        h.Placeholder('Add an item'),
+        h.Value(model.shoppingDraft),
+        h.OnInput((value) => ChangedShoppingDraft({ value })),
+      ]),
+      h.button([h.Class('shop-add-button'), h.Type('submit')], ['Add']),
+    ]
+  )
+
 const viewShopping = (h: H, model: Model) =>
   h.div(
     [h.Class('shop')],
     [
-      h.h1([h.Class('shop-title')], ['Shopping list']),
+      h.div([h.Class('shop-head')], [h.h1([h.Class('shop-title')], ['Shopping list']), viewShoppingAdd(h, model)]),
       Option.match(model.shopping.data, {
         onNone: () => viewNotice(h, model.shopping.failed ? 'Shopping list unavailable' : 'Loading shopping list…'),
         onSome: (items) => {

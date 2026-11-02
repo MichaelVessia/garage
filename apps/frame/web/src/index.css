@@ -571,9 +571,56 @@ ul {
   gap: 16px;
 }
 
+.shop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
 .shop-title {
   font-family: var(--serif);
   font-size: 40px;
+}
+
+.shop-add {
+  flex: 1;
+  max-width: 640px;
+  display: flex;
+  gap: 12px;
+}
+
+.shop-add-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--tap);
+  padding: 0 20px;
+  border-radius: var(--r);
+  border: 2px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 24px;
+}
+
+.shop-add-input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.shop-add-button {
+  flex: none;
+  height: var(--tap);
+  padding: 0 28px;
+  border-radius: var(--r);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.shop-add-button:active {
+  background: var(--mute);
 }
 
 .shop-grid {

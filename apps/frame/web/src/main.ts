@@ -16,6 +16,7 @@ import type { ShoppingItemStatus } from '#shared'
 import {
   CheckVersion,
   FetchSettings,
+  AddShoppingItem,
   FetchShopping,
   FetchUpcoming,
   FetchWeather,
@@ -59,6 +60,7 @@ export const Model = Schema.Struct({
   week: EventsFeed,
   weather: feed(Weather),
   shopping: feed(ShoppingItem.pipe(Schema.Array)),
+  shoppingDraft: Schema.String,
 })
 export type Model = typeof Model.Type
 
@@ -87,6 +89,7 @@ export const init = (flags: Flags): readonly [Model, Commands] => [
     week: emptyFeed,
     weather: emptyFeed,
     shopping: emptyFeed,
+    shoppingDraft: '',
   },
   [FetchSettings(), FetchWeather(), FetchShopping()],
 ]
@@ -169,6 +172,14 @@ const onShoppingItem = (model: Model, uid: string, status: ShoppingItemStatus): 
   ]
 }
 
+// Blank drafts are ignored; the server trims and length-checks the summary again.
+const onSubmitShoppingItem = (model: Model): UpdateReturn => {
+  const summary = model.shoppingDraft.trim()
+  return summary === ''
+    ? [model, []]
+    : [evo(model, { shoppingDraft: () => '' }), [AddShoppingItem({ summary: summary.slice(0, 200) })]]
+}
+
 const REFRESH = {
   calendar: calendarCommands,
   weather: (): Commands => [FetchWeather()],
@@ -197,6 +208,8 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       return [next, calendarCommands(next)]
     },
     ClickedShoppingItem: ({ uid, status }) => onShoppingItem(model, uid, status),
+    ChangedShoppingDraft: ({ value }): UpdateReturn => [evo(model, { shoppingDraft: () => value }), []],
+    SubmittedShoppingItem: () => onSubmitShoppingItem(model),
     RefreshDue: ({ source }): UpdateReturn => [model, REFRESH[source](model)],
     SucceededFetchSettings: ({ settings }) => onSettings(online(model), settings.timezone),
     FailedFetchSettings: ({ isServerReachable }): UpdateReturn => [

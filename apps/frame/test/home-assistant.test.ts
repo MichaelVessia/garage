@@ -7,7 +7,7 @@ import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
 import type { HttpClientRequest } from 'effect/unstable/http'
 
-import { CalendarDate, IanaTimezone, ShoppingItemUpdate } from '#shared'
+import { CalendarDate, IanaTimezone, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
 import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
 import { HomeAssistantApi, HomeAssistantConfig } from '../src/home-assistant/services.js'
@@ -138,6 +138,28 @@ describe('HomeAssistantApiLive', () => {
             'POST',
             'http://ha.example.test:8123/api/services/todo/get_items?return_response',
             { entity_id: 'todo.shopping' },
+          ],
+        ]
+      )
+    })
+  )
+
+  it.effect('adds a shopping item to the configured list', () =>
+    Effect.gen(function* () {
+      const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: [] }))
+      const api = yield* HomeAssistantApi.pipe(
+        Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
+      )
+
+      yield* api.addShoppingItem(new ShoppingItemAddition({ summary: 'Bread' }))
+
+      assert.deepStrictEqual(
+        (yield* recorded(fake.requests)).map((request) => [request.method, request.url, request.body]),
+        [
+          [
+            'POST',
+            'http://ha.example.test:8123/api/services/todo/add_item',
+            { entity_id: 'todo.shopping', item: 'Bread' },
           ],
         ]
       )

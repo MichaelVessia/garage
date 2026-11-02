@@ -2,7 +2,15 @@ import * as Schema from 'effect/Schema'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { UpstreamUnavailable } from './errors.js'
-import { CalendarEvent, CalendarWindow, FrameSettings, ShoppingItem, ShoppingItemUpdate, Weather } from './model.js'
+import {
+  CalendarEvent,
+  CalendarWindow,
+  FrameSettings,
+  ShoppingItem,
+  ShoppingItemAddition,
+  ShoppingItemUpdate,
+  Weather,
+} from './model.js'
 
 /** The frame's server contract, shared by the Bun server and the browser. */
 export const FrameRpcs = RpcGroup.make(
@@ -19,6 +27,11 @@ export const FrameRpcs = RpcGroup.make(
     error: UpstreamUnavailable,
   }),
   Rpc.make('GetShopping', {
+    success: Schema.Array(ShoppingItem),
+    error: UpstreamUnavailable,
+  }),
+  Rpc.make('AddShoppingItem', {
+    payload: ShoppingItemAddition,
     success: Schema.Array(ShoppingItem),
     error: UpstreamUnavailable,
   }),

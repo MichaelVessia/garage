@@ -10,7 +10,7 @@ import type * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
 import { Weather, calendarDateOf } from '#shared'
-import type { ForecastDay, ShoppingItemUpdate } from '#shared'
+import type { ForecastDay, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
 import { homeAssistantDecodeError, homeAssistantHttpError, homeAssistantUnreachable } from '../errors.js'
 import type { HomeAssistantError } from '../errors.js'
@@ -112,6 +112,14 @@ export const HomeAssistantApiLive = Layer.effect(
         })
       }),
       shoppingItems,
+      addShoppingItem: Effect.fn('frame.home-assistant.addShoppingItem')(function* (addition: ShoppingItemAddition) {
+        yield* http.execute(
+          HttpClientRequest.post(`${baseUrl}/api/services/todo/add_item`).pipe(
+            authorize,
+            HttpClientRequest.bodyJsonUnsafe({ entity_id: config.shoppingEntity, item: addition.summary })
+          )
+        )
+      }),
       updateShoppingItem: Effect.fn('frame.home-assistant.updateShoppingItem')(function* (update: ShoppingItemUpdate) {
         yield* http.execute(
           HttpClientRequest.post(`${baseUrl}/api/services/todo/update_item`).pipe(

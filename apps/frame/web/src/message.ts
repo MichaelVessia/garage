@@ -22,6 +22,8 @@ export const ClickedCalendarMode = m('ClickedCalendarMode', { mode: CalendarMode
 export const ClickedShift = m('ClickedShift', { direction: Schema.Literals([-1, 1]) })
 export const ClickedToday = m('ClickedToday')
 export const ClickedShoppingItem = m('ClickedShoppingItem', { uid: Schema.String, status: ShoppingItemStatus })
+export const ChangedShoppingDraft = m('ChangedShoppingDraft', { value: Schema.String })
+export const SubmittedShoppingItem = m('SubmittedShoppingItem')
 export const RefreshDue = m('RefreshDue', { source: Schema.Literals(['calendar', 'weather', 'shopping', 'version']) })
 
 export const SucceededFetchSettings = m('SucceededFetchSettings', { settings: FrameSettings })
@@ -48,6 +50,8 @@ const Message = Schema.Union([
   ClickedShift,
   ClickedToday,
   ClickedShoppingItem,
+  ChangedShoppingDraft,
+  SubmittedShoppingItem,
   RefreshDue,
   SucceededFetchSettings,
   FailedFetchSettings,

@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Redacted from 'effect/Redacted'
 
-import type { ShoppingItem, ShoppingItemUpdate, Weather } from '#shared'
+import type { ShoppingItem, ShoppingItemAddition, ShoppingItemUpdate, Weather } from '#shared'
 
 import { envMissing } from '../errors.js'
 import type { HomeAssistantError } from '../errors.js'
@@ -27,6 +27,7 @@ export class HomeAssistantApi extends Context.Service<
   {
     readonly weather: () => Effect.Effect<Weather, HomeAssistantError>
     readonly shoppingItems: () => Effect.Effect<ReadonlyArray<ShoppingItem>, HomeAssistantError>
+    readonly addShoppingItem: (addition: ShoppingItemAddition) => Effect.Effect<void, HomeAssistantError>
     readonly updateShoppingItem: (update: ShoppingItemUpdate) => Effect.Effect<void, HomeAssistantError>
   }
 >()('@garage/frame/home-assistant/services/HomeAssistantApi') {}

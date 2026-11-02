@@ -85,3 +85,8 @@ export class ShoppingItemUpdate extends Schema.Class<ShoppingItemUpdate>('Shoppi
   uid: Schema.String,
   status: ShoppingItemStatus,
 }) {}
+
+/** A request to add one item to the shopping list. */
+export class ShoppingItemAddition extends Schema.Class<ShoppingItemAddition>('ShoppingItemAddition')({
+  summary: Schema.Trimmed.check(Schema.isNonEmpty(), Schema.isMaxLength(200)),
+}) {}

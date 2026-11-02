@@ -9,6 +9,7 @@ import { CalendarDate, FrameSettings, IanaTimezone, Weather } from '#shared'
 import type { CalendarEvent } from '#shared'
 
 import {
+  AddShoppingItem,
   CheckVersion,
   FetchShopping,
   FetchUpcoming,
@@ -20,6 +21,7 @@ import {
 import { init, update } from '../src/main.js'
 import type { Model } from '../src/main.js'
 import {
+  ChangedShoppingDraft,
   CheckedVersion,
   ClickedScreen,
   FailedCheckVersion,
@@ -27,6 +29,7 @@ import {
   FailedFetchWeather,
   RefreshDue,
   StartedReload,
+  SubmittedShoppingItem,
   ClickedShift,
   ClickedShoppingItem,
   Interacted,
@@ -138,6 +141,36 @@ describe('frame app', () => {
         UpdateShoppingItem,
         SucceededFetchShopping({ items: [{ uid: 'a1', summary: 'Milk', status: 'completed' }] })
       )
+    )
+  })
+
+  it('adds a typed shopping item and clears the draft', () => {
+    Story.story(
+      update,
+      Story.given({ ...ready, shopping: { data: Option.some(shopping), failed: false } }),
+      Story.message(ChangedShoppingDraft({ value: '  Bread  ' })),
+      Story.message(SubmittedShoppingItem()),
+      Story.model((model) => {
+        expect(model.shoppingDraft).toBe('')
+      }),
+      Story.Command.expectExact(AddShoppingItem({ summary: 'Bread' })),
+      Story.Command.resolve(
+        AddShoppingItem,
+        SucceededFetchShopping({ items: [...shopping, { uid: 'c3', summary: 'Bread', status: 'needs_action' }] })
+      ),
+      Story.model((model) => {
+        expect(Option.getOrThrow(model.shopping.data)).toHaveLength(3)
+      })
+    )
+  })
+
+  it('ignores a blank shopping item', () => {
+    Story.story(
+      update,
+      Story.given(ready),
+      Story.message(ChangedShoppingDraft({ value: '   ' })),
+      Story.message(SubmittedShoppingItem()),
+      Story.Command.expectNone()
     )
   })
 
