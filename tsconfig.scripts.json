@@ -3,7 +3,6 @@
   "include": ["scripts/**/*.ts"],
   "compilerOptions": {
     "declaration": false,
-    "declarationMap": false,
-    "plugins": []
+    "declarationMap": false
   }
 }

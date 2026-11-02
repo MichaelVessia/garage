@@ -1,13 +1,7 @@
 id: no-expect-in-it-effect
 snapshots:
-  ? |
-    it.effect("parses target", () =>
-      Effect.gen(function* () {
-        const result = yield* parse("host:1234");
-        expect(result).toEqual({ host: "host", port: 1234 });
-      }),
-    );
-  : labels:
+  "it.effect(\"parses target\", () =>\n  Effect.gen(function* () {\n    const result = yield* parse(\"host:1234\");\n    expect(result).toEqual({ host: \"host\", port: 1234 });\n  }),\n);\n":
+    labels:
     - source: expect(result)
       style: primary
       start: 111

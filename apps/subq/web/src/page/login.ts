@@ -1,8 +1,9 @@
-import type { HttpClient } from 'effect/http'
+import * as Function from 'effect/Function'
+import type * as HttpClient from 'effect/http/HttpClient'
 import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
 import type { Update } from 'foldkit'
-import type { HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { taggedStruct } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 
@@ -23,6 +24,7 @@ export const LoginModel = Schema.Struct({
   error: Schema.NullOr(Schema.String),
   loading: Schema.Boolean,
 })
+
 export type LoginModel = typeof LoginModel.Type
 
 export const initialLoginModel: LoginModel = {
@@ -53,6 +55,7 @@ export const LoginMessage = Schema.Union([
   SubmittedLogin,
   ClickedDemoLogin,
 ])
+
 export type LoginMessage = typeof LoginMessage.Type
 
 // ============================================
@@ -67,7 +70,10 @@ type AuthCommandMessage =
 
 type UpdateReturn = Update.Return<LoginModel, AuthCommandMessage, HttpClient.HttpClient>
 
-export const updateLogin = (model: LoginModel, message: LoginMessage): UpdateReturn =>
+export const updateLogin: {
+  (message: LoginMessage): (model: LoginModel) => UpdateReturn
+  (model: LoginModel, message: LoginMessage): UpdateReturn
+} = Function.dual(2, (model: LoginModel, message: LoginMessage): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
@@ -93,13 +99,18 @@ export const updateLogin = (model: LoginModel, message: LoginMessage): UpdateRet
       }),
     })
   )
+)
 
 // Results of the auth commands, applied by the parent update.
 export const loginSucceeded = (model: LoginModel): LoginModel =>
   modifyFields(model, { error: () => null, loading: () => false })
 
-export const loginFailed = (model: LoginModel, message: string): LoginModel =>
+export const loginFailed: {
+  (message: string): (model: LoginModel) => LoginModel
+  (model: LoginModel, message: string): LoginModel
+} = Function.dual(2, (model: LoginModel, message: string): LoginModel =>
   modifyFields(model, { error: () => message, loading: () => false })
+)
 
 // ============================================
 // View
@@ -109,12 +120,13 @@ const loginSubmitLabel = (model: LoginModel): string => {
   if (model.loading) {
     return model.mode === 'signup' ? 'Creating account...' : 'Signing in...'
   }
+
   return model.mode === 'signup' ? 'Create Account' : 'Sign In'
 }
 
 const makeViewLogin =
   <ParentMessage>(h: HtmlBuilder<ParentMessage | LoginMessage>) =>
-  (model: LoginModel) => {
+  (model: LoginModel): Html => {
     const submitLabel = loginSubmitLabel(model)
 
     return h.div(
@@ -181,7 +193,12 @@ const makeViewLogin =
     )
   }
 
-export const viewLogin = <ParentMessage>(model: LoginModel, h: HtmlBuilder<ParentMessage | LoginMessage>) =>
-  makeViewLogin(h)(model)
+export const viewLogin = <ParentMessage>({
+  h,
+  model,
+}: {
+  readonly h: HtmlBuilder<ParentMessage | LoginMessage>
+  readonly model: LoginModel
+}): Html => makeViewLogin(h)(model)
 
 export { FailedSignIn, FailedSignUp, SucceededSignIn, SucceededSignUp }

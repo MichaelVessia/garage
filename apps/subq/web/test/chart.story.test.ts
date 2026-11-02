@@ -13,7 +13,7 @@ import {
   StartedChartZoom,
   initialChartState,
   updateChart,
-} from '../src/chart/weight-trend.js'
+} from '../src/chart/state.js'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -37,6 +37,7 @@ describe('weight trend chart state', () => {
       initialChartState,
       HoveredChartTooltip({ lines: ['Jul 1, 2026'], title: '185.5 lbs', x: 100, y: 50 })
     )
+
     expect(shown.tooltip?.title).toBe('185.5 lbs')
 
     const [hidden] = updateChart(shown, ClearedChartTooltip())

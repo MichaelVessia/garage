@@ -1,8 +1,9 @@
 import { assert, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import type { RecordedHttpRequest, RecordingHttpResponse } from '@garage/integration-http/testing'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
-import { Headers as HttpHeaders } from 'effect/http'
+import * as HttpHeaders from 'effect/http/Headers'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
@@ -12,12 +13,11 @@ import type * as Schema from 'effect/Schema'
 import { AutocaliwebApiLive, AutocaliwebConfig, bookInfo, books, catalog, search, status } from '../src/index.js'
 
 const ConfigLayer = Layer.succeed(AutocaliwebConfig, {
-  get: () =>
-    Effect.succeed({
-      url: 'http://autocaliweb.example.test/',
-      username: 'fixture-user',
-      password: Redacted.make('secret'),
-    }),
+  get: Effect.succeed({
+    url: 'http://autocaliweb.example.test/',
+    username: 'fixture-user',
+    password: Redacted.make('secret'),
+  }),
 })
 
 const basicAuth = `Basic ${btoa('fixture-user:secret')}`
@@ -35,7 +35,7 @@ const jsonResponse = (body: Schema.JsonObject): RecordingHttpResponse => ({
 })
 
 const withAuth = (records: ReadonlyArray<RecordedHttpRequest>) =>
-  records.map((request) => ({
+  Arr.map(records, (request) => ({
     method: request.method,
     url: request.url,
     authorization: HttpHeaders.get(request.raw.headers, 'authorization').pipe(Option.getOrUndefined),
@@ -96,8 +96,10 @@ it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =
       if (method === 'GET' && url.pathname === '/opds/stats') {
         return jsonResponse({ books: 2, authors: 1, categories: 1, series: 0 })
       }
+
       return atomResponse(indexFeed)
     })
+
     const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     yield* Effect.gen(function* () {
@@ -155,12 +157,15 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
       if (method === 'GET' && url.pathname === '/opds/books/letter/00' && url.searchParams.get('offset') === '1') {
         return atomResponse(secondBooksPage)
       }
+
       if (method === 'GET' && url.pathname === '/opds/books/letter/00') {
         return atomResponse(firstBooksPage)
       }
+
       if (method === 'GET' && url.pathname === '/opds/search') {
         return atomResponse(searchFeed)
       }
+
       if (method === 'GET' && url.pathname === '/ajax/book/uuid-one') {
         return jsonResponse({
           pubdate: '2026-01-01 00:00:00+00:00',
@@ -180,8 +185,10 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
           other_formats: {},
         })
       }
+
       return atomResponse(indexFeed)
     })
+
     const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     yield* Effect.gen(function* () {
@@ -285,13 +292,13 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
 it.effect('preserves a configured base-path prefix for OPDS requests', () =>
   Effect.gen(function* () {
     const prefixedConfigLayer = Layer.succeed(AutocaliwebConfig, {
-      get: () =>
-        Effect.succeed({
-          url: 'http://autocaliweb.example.test/calibre-web/',
-          username: 'fixture-user',
-          password: Redacted.make('secret'),
-        }),
+      get: Effect.succeed({
+        url: 'http://autocaliweb.example.test/calibre-web/',
+        username: 'fixture-user',
+        password: Redacted.make('secret'),
+      }),
     })
+
     const fake = yield* makeRecordingHttpClient(() => atomResponse(secondBooksPage))
     const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(prefixedConfigLayer, fake.layer)))
 
@@ -314,6 +321,7 @@ it.effect('rejects cross-origin OPDS pagination before forwarding Basic auth', (
       bookEntry('42', 'uuid-one', 'Fixture Novel One'),
       '<link rel="next" href="https://attacker.example.test/opds/books" type="application/atom+xml"/>'
     )
+
     const fake = yield* makeRecordingHttpClient(() => atomResponse(hostileFeed))
     const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 

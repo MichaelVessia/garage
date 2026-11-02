@@ -1,13 +1,13 @@
 import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
+import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
-import { Command } from 'foldkit'
+import { AsyncData, Command } from 'foldkit'
 import type { Update } from 'foldkit'
-import * as AsyncData from 'foldkit/asyncData'
-import type { HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { taggedStruct } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 
@@ -26,12 +26,14 @@ import { card } from '../ui.js'
 // ============================================
 
 export const ScheduleViewData = AsyncData.Schema(Schema.OptionFromNullOr(ScheduleView), Schema.String).schema
+
 export type ScheduleViewData = AsyncData.AsyncData<Option.Option<ScheduleView>, string>
 
 export const ScheduleViewModel = Schema.Struct({
   scheduleId: Schema.NullOr(Schema.String),
   view: ScheduleViewData,
 })
+
 export type ScheduleViewModel = typeof ScheduleViewModel.Type
 
 export const initialScheduleViewModel: ScheduleViewModel = {
@@ -46,9 +48,11 @@ export const initialScheduleViewModel: ScheduleViewModel = {
 export const SucceededFetchScheduleView = taggedStruct('SucceededFetchScheduleView', {
   view: Schema.NullOr(ScheduleView),
 })
+
 export const FailedFetchScheduleView = taggedStruct('FailedFetchScheduleView', { message: Schema.String })
 
 export const ScheduleViewMessage = Schema.Union([SucceededFetchScheduleView, FailedFetchScheduleView])
+
 export type ScheduleViewMessage = typeof ScheduleViewMessage.Type
 
 // ============================================
@@ -62,6 +66,7 @@ const FetchScheduleView = Command.define('FetchScheduleView', {
     Effect.gen(function* () {
       const api = yield* Api
       const view = yield* api.ScheduleGetView({ id: InjectionScheduleId.make(scheduleId) })
+
       return SucceededFetchScheduleView({ view })
     }).pipe(toCommandResult(FailedFetchScheduleView, 'Failed to load schedule')),
 })
@@ -74,7 +79,10 @@ type ScheduleViewCommandMessage = typeof SucceededFetchScheduleView.Type | typeo
 
 type UpdateReturn = Update.Return<ScheduleViewModel, ScheduleViewCommandMessage, Api>
 
-export const fetchScheduleView = (model: ScheduleViewModel, scheduleId: string): UpdateReturn =>
+export const fetchScheduleView: {
+  (scheduleId: string): (model: ScheduleViewModel) => UpdateReturn
+  (model: ScheduleViewModel, scheduleId: string): UpdateReturn
+} = Function.dual(2, (model: ScheduleViewModel, scheduleId: string): UpdateReturn =>
   model.scheduleId !== scheduleId || AsyncData.isIdle(model.view)
     ? {
         model: modifyFields(model, {
@@ -84,8 +92,12 @@ export const fetchScheduleView = (model: ScheduleViewModel, scheduleId: string):
         commands: [FetchScheduleView({ scheduleId })],
       }
     : { model }
+)
 
-export const updateScheduleView = (model: ScheduleViewModel, message: ScheduleViewMessage): UpdateReturn =>
+export const updateScheduleView: {
+  (message: ScheduleViewMessage): (model: ScheduleViewModel) => UpdateReturn
+  (model: ScheduleViewModel, message: ScheduleViewMessage): UpdateReturn
+} = Function.dual(2, (model: ScheduleViewModel, message: ScheduleViewMessage): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
@@ -97,6 +109,7 @@ export const updateScheduleView = (model: ScheduleViewModel, message: ScheduleVi
       }),
     })
   )
+)
 
 // ============================================
 // View
@@ -106,9 +119,11 @@ const phaseCircleClass = (status: SchedulePhaseView['status']): string => {
   if (status === 'completed') {
     return 'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200'
   }
+
   if (status === 'current') {
     return 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
   }
+
   return 'bg-muted text-muted-foreground'
 }
 
@@ -116,9 +131,11 @@ const phaseProgressClass = (status: SchedulePhaseView['status']): string => {
   if (status === 'completed') {
     return 'bg-green-500'
   }
+
   if (status === 'current') {
     return 'bg-blue-500'
   }
+
   return 'bg-muted-foreground/30'
 }
 
@@ -126,9 +143,11 @@ const statusCardClass = (status: SchedulePhaseView['status']): string => {
   if (status === 'completed') {
     return 'bg-green-100 border-green-300 dark:bg-green-900/30 dark:border-green-700'
   }
+
   if (status === 'current') {
     return 'bg-blue-100 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700'
   }
+
   return 'bg-muted border-muted-foreground/20'
 }
 
@@ -150,12 +169,14 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
         ['Completed']
       )
     }
+
     if (status === 'current') {
       return h.span(
         [h.Class('text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded')],
         ['Current']
       )
     }
+
     return h.span([h.Class('text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded')], ['Upcoming'])
   }
 
@@ -200,11 +221,11 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                   [],
                   [
                     `${formatShortDate(phase.startDate)} - ${
-                      phase.endDate !== null ? formatShortDate(phase.endDate) : 'Indefinite'
+                      phase.endDate === null ? 'Indefinite' : formatShortDate(phase.endDate)
                     }`,
                   ]
                 ),
-                h.span([], [phase.durationDays !== null ? `${phase.durationDays} days` : 'Indefinite']),
+                h.span([], [phase.durationDays === null ? 'Indefinite' : `${phase.durationDays} days`]),
               ]
             ),
             h.div(
@@ -218,7 +239,7 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                       [h.Class('font-medium')],
                       [
                         `${phase.completedInjections}${
-                          phase.expectedInjections !== null ? ` / ${phase.expectedInjections}` : ''
+                          phase.expectedInjections === null ? '' : ` / ${phase.expectedInjections}`
                         } injections`,
                       ]
                     ),
@@ -247,7 +268,7 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                     h.h4([h.Class('text-sm font-medium mb-2 flex items-center gap-1')], ['Completed Injections']),
                     h.div(
                       [h.Class('space-y-1')],
-                      phase.injections.map((injection) =>
+                      Arr.map(phase.injections, (injection) =>
                         h.keyed('div')(
                           injection.id,
                           [h.Class('flex items-center justify-between gap-3 text-sm')],
@@ -275,9 +296,10 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
     )
 
   const viewContent = (view: ScheduleView, timezone: IanaTimezone) => {
-    const currentPhase = view.phases.find((phase) => phase.status === 'current')
-    const completedPhases = view.phases.filter((phase) => phase.status === 'completed').length
+    const currentPhase = Arr.findFirst(view.phases, (phase) => phase.status === 'current')
+    const completedPhases = Arr.filter(view.phases, (phase) => phase.status === 'completed').length
     const overallProgress = overallProgressPercent(view)
+
     return h.div(
       [],
       [
@@ -313,7 +335,7 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                     h.p(
                       [h.Class('font-medium')],
                       [
-                        `${formatDate(view.startDate)} - ${view.endDate !== null ? formatDate(view.endDate) : 'Indefinite'}`,
+                        `${formatDate(view.startDate)} - ${view.endDate === null ? 'Indefinite' : formatDate(view.endDate)}`,
                       ]
                     ),
                   ]
@@ -332,9 +354,10 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                     h.p(
                       [h.Class('font-medium')],
                       [
-                        currentPhase !== undefined
-                          ? `Phase ${currentPhase.order} of ${view.phases.length}`
-                          : `${completedPhases}/${view.phases.length} completed`,
+                        Option.match(currentPhase, {
+                          onNone: () => `${completedPhases}/${view.phases.length} completed`,
+                          onSome: (phase) => `Phase ${phase.order} of ${view.phases.length}`,
+                        }),
                       ]
                     ),
                   ]
@@ -347,7 +370,7 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                       [h.Class('font-medium')],
                       [
                         `${view.totalCompletedInjections}${
-                          view.totalExpectedInjections !== null ? ` / ${view.totalExpectedInjections}` : ''
+                          view.totalExpectedInjections === null ? '' : ` / ${view.totalExpectedInjections}`
                         }`,
                       ]
                     ),
@@ -386,7 +409,7 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
         h.h3([h.Class('font-semibold mb-4 flex items-center gap-2')], ['Schedule Phases']),
         h.div(
           [h.Class('space-y-4')],
-          view.phases.map((phase, index) =>
+          Arr.map(view.phases, (phase, index) =>
             h.keyed('div')(phase.id, [], [viewPhaseCard(phase, index === view.phases.length - 1, timezone)])
           )
         ),
@@ -418,8 +441,12 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
     })
 }
 
-export const viewScheduleView = <ParentMessage>(
-  model: ScheduleViewModel,
-  timezone: IanaTimezone,
-  h: HtmlBuilder<ParentMessage | ScheduleViewMessage>
-) => makeViewScheduleView(h)(model, timezone)
+export const viewScheduleView = <ParentMessage>({
+  h,
+  model,
+  timezone,
+}: {
+  readonly model: ScheduleViewModel
+  readonly timezone: IanaTimezone
+  readonly h: HtmlBuilder<ParentMessage | ScheduleViewMessage>
+}): Html => makeViewScheduleView(h)(model, timezone)

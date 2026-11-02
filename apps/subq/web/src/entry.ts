@@ -5,13 +5,14 @@ import { Runtime } from 'foldkit'
 
 import { ApiLive, FetchWithCredentials } from './api.js'
 import { MissingRoot } from './errors.js'
-import { ChangedUrl, ClickedLink, Flags, Model, init, update, view } from './main.js'
-
-import './index.css'
+import { init, update } from './main.js'
+import { ChangedUrl, ClickedLink, Flags, Model } from './model.js'
+import { view } from './view.js'
 
 const container = document.querySelector<HTMLElement>('#root')
+
 if (container === null) {
-  throw new MissingRoot()
+  throw MissingRoot.make({})
 }
 
 const application = Runtime.makeApplication({

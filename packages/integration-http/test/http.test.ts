@@ -1,9 +1,14 @@
 import { assert, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
-import { Headers, HttpClient, HttpClientError, HttpClientRequest } from 'effect/http'
+import * as Headers from 'effect/http/Headers'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientError from 'effect/http/HttpClientError'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as Option from 'effect/Option'
 import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { makeJsonClient } from '../src/index.js'
 import type { JsonClientErrors } from '../src/index.js'
@@ -20,9 +25,9 @@ type TestError =
 
 const testErrors: JsonClientErrors<TestError> = {
   httpError: (status) => ({ kind: 'http', status }),
-  unreachable: (message, cause) =>
+  unreachable: ({ message, cause }) =>
     cause === undefined ? { kind: 'unreachable', message } : { kind: 'unreachable', message, cause },
-  decodeError: (message, cause) =>
+  decodeError: ({ message, cause }) =>
     cause === undefined ? { kind: 'decode', message } : { kind: 'decode', message, cause },
 }
 
@@ -32,6 +37,7 @@ const clientFrom = (respond: Parameters<typeof makeRecordingHttpClient>[0]) =>
   Effect.gen(function* () {
     const fake = yield* makeRecordingHttpClient(respond)
     const client = yield* HttpClient.HttpClient.pipe(Effect.provide(fake.layer))
+
     return { client, requests: fake.requests }
   })
 
@@ -53,6 +59,7 @@ const transportFailureClient = HttpClient.make((request) =>
 it.effect('joins baseUrl, basePath, static query, and per-call query into an encoded URL', () =>
   Effect.gen(function* () {
     const { client, requests } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
+
     const jsonClient = makeJsonClient<TestError>({
       client,
       baseUrl: 'http://x.test/',
@@ -69,7 +76,7 @@ it.effect('joins baseUrl, basePath, static query, and per-call query into an enc
     ])
 
     assert.deepStrictEqual(
-      (yield* Ref.get(requests)).map((request) => request.url),
+      Arr.map(yield* Ref.get(requests), (request) => request.url),
       ['http://x.test/api/foo/bar?token=abc&q=hello%20world&n=5&b=true']
     )
   })
@@ -78,6 +85,7 @@ it.effect('joins baseUrl, basePath, static query, and per-call query into an enc
 it.effect('omits the query string entirely when there are no query params', () =>
   Effect.gen(function* () {
     const { client, requests } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
+
     const jsonClient = makeJsonClient<TestError>({
       client,
       baseUrl: 'http://y.test',
@@ -88,7 +96,7 @@ it.effect('omits the query string entirely when there are no query params', () =
     yield* jsonClient.getJson('/ping', ItemSchema)
 
     assert.deepStrictEqual(
-      (yield* Ref.get(requests)).map((request) => request.url),
+      Arr.map(yield* Ref.get(requests), (request) => request.url),
       ['http://y.test/ping']
     )
   })
@@ -97,6 +105,7 @@ it.effect('omits the query string entirely when there are no query params', () =
 it.effect('applies integration-owned authentication to JSON requests', () =>
   Effect.gen(function* () {
     const { client, requests } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
+
     const jsonClient = makeJsonClient<TestError>({
       client,
       baseUrl: 'http://auth.test',
@@ -108,7 +117,7 @@ it.effect('applies integration-owned authentication to JSON requests', () =>
 
     const recorded = yield* Ref.get(requests)
     assert.deepStrictEqual(
-      recorded.map((request) => authHeaderOf(request.raw)),
+      Arr.map(recorded, (request) => authHeaderOf(request.raw)),
       ['yes']
     )
   })
@@ -117,12 +126,14 @@ it.effect('applies integration-owned authentication to JSON requests', () =>
 const getJsonWithStatus = (status: number) =>
   Effect.gen(function* () {
     const { client } = yield* clientFrom(() => ({ status, body: { name: 'ok' } }))
+
     const jsonClient = makeJsonClient<TestError>({
       client,
       baseUrl: 'http://boundary.test',
       applyAuth: (request) => request,
       errors: testErrors,
     })
+
     return yield* jsonClient.getJson('/item', ItemSchema)
   })
 
@@ -160,8 +171,9 @@ it.effect('maps transport failures to unreachable', () =>
     const error = yield* jsonClient.getJson('/item', ItemSchema).pipe(Effect.flip)
 
     assert.strictEqual(error.kind, 'unreachable')
+
     if (error.kind === 'unreachable') {
-      assert.strictEqual(error.message.includes('connection refused'), true)
+      assert.strictEqual(Str.includes('connection refused')(error.message), true)
     }
   })
 )
@@ -169,6 +181,7 @@ it.effect('maps transport failures to unreachable', () =>
 it.effect('maps malformed response bodies to decodeError', () =>
   Effect.gen(function* () {
     const { client } = yield* clientFrom(() => ({ status: 200, body: { name: 42 } }))
+
     const jsonClient = makeJsonClient<TestError>({
       client,
       baseUrl: 'http://decode.test',
@@ -179,6 +192,7 @@ it.effect('maps malformed response bodies to decodeError', () =>
     const error = yield* jsonClient.getJson('/item', ItemSchema).pipe(Effect.flip)
 
     assert.strictEqual(error.kind, 'decode')
+
     if (error.kind === 'decode') {
       assert.notStrictEqual(error.cause, undefined)
     }
@@ -189,18 +203,21 @@ it.effect('execute runs a caller-built request through the same transport/status
   Effect.gen(function* () {
     const { client: okClient } = yield* clientFrom(() => ({ status: 200, body: { name: 'ok' } }))
     const { client: errClient } = yield* clientFrom(() => ({ status: 500, body: {} }))
+
     const okJsonClient = makeJsonClient<TestError>({
       client: okClient,
       baseUrl: 'http://execute.test',
       applyAuth: (request) => request,
       errors: testErrors,
     })
+
     const errJsonClient = makeJsonClient<TestError>({
       client: errClient,
       baseUrl: 'http://execute.test',
       applyAuth: (request) => request,
       errors: testErrors,
     })
+
     const unreachableJsonClient = makeJsonClient<TestError>({
       client: transportFailureClient,
       baseUrl: 'http://execute.test',
@@ -217,6 +234,7 @@ it.effect('execute runs a caller-built request through the same transport/status
     const unreachableErr = yield* unreachableJsonClient
       .execute(HttpClientRequest.get('http://execute.test/custom'))
       .pipe(Effect.flip)
+
     assert.strictEqual(unreachableErr.kind, 'unreachable')
   })
 )

@@ -61,8 +61,10 @@ boundary-data form specifically.
 
 ## Effect idioms
 
-Effect idioms are enforced mechanically by the oxlint Effect plugin
-(`oxlint.config.mjs`) and the repo-specific `rules/effect/` ast-grep checks.
+Effect idioms are enforced mechanically by the Effect language-service
+diagnostics (`tsconfig.base.json`, all at error), the oxlint Effect plugin and
+native rules (`oxlint.config.mjs`), and the repo-specific `rules/effect/`
+ast-grep checks.
 That tooling is the source of truth for the mechanical idioms; do not add an
 ast-grep rule that duplicates an oxlint plugin rule.
 

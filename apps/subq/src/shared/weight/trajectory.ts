@@ -52,7 +52,7 @@ const neutralWeightTrajectory = (): WeightTrajectory => ({
   trendLine: Option.none(),
 })
 
-export const calculateWeightTrajectory = (points: readonly WeightTrajectoryPoint[]): WeightTrajectory => {
+export const calculateWeightTrajectory = (points: ReadonlyArray<WeightTrajectoryPoint>): WeightTrajectory => {
   if (points.length < 2 || !Arr.isReadonlyArrayNonEmpty(points)) {
     return neutralWeightTrajectory()
   }
@@ -64,8 +64,10 @@ export const calculateWeightTrajectory = (points: readonly WeightTrajectoryPoint
   const epochOffset = firstPoint.date.getTime()
   const pointCount = orderedPoints.length
   const initialSums: RegressionSums = { sumX: 0, sumY: 0, sumXY: 0, sumX2: 0 }
+
   const { sumX, sumY, sumXY, sumX2 } = Arr.reduce(orderedPoints, initialSums, (sums, point) => {
     const x = point.date.getTime() - epochOffset
+
     return {
       sumX: sums.sumX + x,
       sumY: sums.sumY + point.weight,
@@ -75,6 +77,7 @@ export const calculateWeightTrajectory = (points: readonly WeightTrajectoryPoint
   })
 
   const denominator = pointCount * sumX2 - sumX * sumX
+
   if (denominator === 0) {
     return neutralWeightTrajectory()
   }
@@ -109,6 +112,7 @@ export const projectWeightTrajectoryDate = ({
   if (currentWeight <= targetWeight) {
     return Option.some(now)
   }
+
   if (rateOfChange >= 0) {
     return Option.none()
   }
@@ -121,5 +125,6 @@ export const projectWeightTrajectoryDate = ({
   }
 
   const projected = DateTime.makeUnsafe(projectedMillis)
+
   return projected.pipe(DateTime.toDate, Option.some)
 }

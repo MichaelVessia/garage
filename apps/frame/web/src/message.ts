@@ -14,10 +14,12 @@ import {
 
 /** Screens reachable from the rail. */
 export const Screen = Schema.Literals(['today', 'calendar', 'shopping', 'media'])
+
 export type Screen = typeof Screen.Type
 
 /** Calendar layouts. */
 export const CalendarMode = Schema.Literals(['day', 'week'])
+
 export type CalendarMode = typeof CalendarMode.Type
 
 // ============================================
@@ -59,4 +61,5 @@ export const Message = defineMessageUnion({
   FailedCheckVersion: {},
   StartedReload: {},
 })
+
 export type Message = typeof Message.Type

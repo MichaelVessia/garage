@@ -24,7 +24,7 @@ import * as Toolkit from 'effect/ai/Toolkit'
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 
-import { GarageMcpToolError, autocaliwebToolError } from '../errors.js'
+import { GarageMcpToolError, failAutocaliwebTool } from '../errors.js'
 
 const ListLimit = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })).annotate({
   description: 'Maximum number of records to return, from 1 through 100',
@@ -178,8 +178,9 @@ export const AutocaliwebToolkit = Toolkit.make(
 export const AutocaliwebToolkitHandlers = AutocaliwebToolkit.toLayer(
   Effect.gen(function* () {
     const api = yield* AutocaliwebApi
+
     const run = <A>(operation: Effect.Effect<A, AutocaliwebError, AutocaliwebApi>) =>
-      operation.pipe(Effect.provideService(AutocaliwebApi, api), Effect.mapError(autocaliwebToolError))
+      operation.pipe(Effect.provideService(AutocaliwebApi, api), Effect.catch(failAutocaliwebTool))
 
     return AutocaliwebToolkit.of({
       autocaliweb_status: () => run(status),

@@ -1,0 +1,74 @@
+id: no-reprovide-ambient-service
+snapshots:
+  "Effect.gen(function* () {\n  const store = yield* Services.Store\n  return Effect.provideService(Services.Store, store)\n})\n":
+    labels:
+    - source: Effect.provideService(Services.Store, store)
+      style: primary
+      start: 73
+      end: 117
+    - source: const store = yield* Services.Store
+      style: secondary
+      start: 28
+      end: 63
+    - source: |-
+        function* () {
+          const store = yield* Services.Store
+          return Effect.provideService(Services.Store, store)
+        }
+      style: secondary
+      start: 11
+      end: 119
+  "Effect.gen(function* () {\n  const store = yield* Store\n  return Effect.provideService(operation, Store, store)\n})\n":
+    labels:
+    - source: Effect.provideService(operation, Store, store)
+      style: primary
+      start: 64
+      end: 110
+    - source: const store = yield* Store
+      style: secondary
+      start: 28
+      end: 54
+    - source: |-
+        function* () {
+          const store = yield* Store
+          return Effect.provideService(operation, Store, store)
+        }
+      style: secondary
+      start: 11
+      end: 112
+  "Effect.gen(function* () {\n  const store = yield* Store\n  return operation.pipe(Effect.provideService(Store, store))\n})\n":
+    labels:
+    - source: Effect.provideService(Store, store)
+      style: primary
+      start: 79
+      end: 114
+    - source: const store = yield* Store
+      style: secondary
+      start: 28
+      end: 54
+    - source: |-
+        function* () {
+          const store = yield* Store
+          return operation.pipe(Effect.provideService(Store, store))
+        }
+      style: secondary
+      start: 11
+      end: 117
+  "Effect.gen(function* () {\n  const store = yield* Store\n  { return Effect.provideService(Store, store) }\n})\n":
+    labels:
+    - source: Effect.provideService(Store, store)
+      style: primary
+      start: 66
+      end: 101
+    - source: const store = yield* Store
+      style: secondary
+      start: 28
+      end: 54
+    - source: |-
+        function* () {
+          const store = yield* Store
+          { return Effect.provideService(Store, store) }
+        }
+      style: secondary
+      start: 11
+      end: 105

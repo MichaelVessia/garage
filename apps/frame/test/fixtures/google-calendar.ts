@@ -2,6 +2,7 @@ import type { RecordingHttpResponse } from '@garage/integration-http/testing'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 /** Synthetic Google Calendar settings; no real calendar, account, or household detail. */
 export const calendarId = 'family-calendar@group.calendar.example.test'
@@ -9,11 +10,14 @@ export const accessToken = 'synthetic-access-token'
 export const tokenUri = 'https://oauth2.example.test/token'
 export const eventsPath = `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
 
-class TestKeyError extends Schema.TaggedError<TestKeyError>()('TestKeyError', { cause: Schema.Defect() }) {}
+class TestKeyError extends Schema.TaggedError<TestKeyError, { readonly brand: unique symbol }>()('TestKeyError', {
+  cause: Schema.Defect(),
+}) {}
 
 const pem = (pkcs8: ArrayBuffer): string => {
   const base64 = Buffer.from(pkcs8).toString('base64')
-  return `-----BEGIN PRIVATE KEY-----\n${base64.replaceAll(/.{1,64}/gu, '$&\n')}-----END PRIVATE KEY-----\n`
+
+  return `-----BEGIN PRIVATE KEY-----\n${Str.replaceAll(/.{1,64}/gu, '$&\n')(base64)}-----END PRIVATE KEY-----\n`
 }
 
 /** A service account with an RSA key generated for this test run, so no key material is committed. */
@@ -25,12 +29,14 @@ export const makeServiceAccount = Effect.gen(function* () {
         true,
         ['sign', 'verify']
       ),
-    catch: (cause) => new TestKeyError({ cause }),
+    catch: (cause) => TestKeyError.make({ cause }),
   })
+
   const pkcs8 = yield* Effect.tryPromise({
     try: () => crypto.subtle.exportKey('pkcs8', keys.privateKey),
-    catch: (cause) => new TestKeyError({ cause }),
+    catch: (cause) => TestKeyError.make({ cause }),
   })
+
   return {
     clientEmail: 'frame@example-project.iam.example.test',
     privateKey: Redacted.make(pem(pkcs8)),
@@ -86,8 +92,10 @@ export const googleResponse = (url: URL): RecordingHttpResponse => {
   if (url.toString() === tokenUri) {
     return { status: 200, body: { access_token: accessToken, expires_in: 3599, token_type: 'Bearer' } }
   }
+
   if (url.hostname === 'www.googleapis.com' && url.pathname === eventsPath) {
     return { status: 200, body: { kind: 'calendar#events', items: syntheticEvents } }
   }
+
   return { status: 404, body: { error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' } } }
 }

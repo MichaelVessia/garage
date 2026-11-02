@@ -13,6 +13,7 @@ export const AuthErrorResponse = Schema.Struct({
   message: Schema.optional(Schema.String),
   code: Schema.optional(Schema.String),
 })
+
 export type AuthErrorResponse = typeof AuthErrorResponse.Type
 
 /**
@@ -31,4 +32,5 @@ export const AuthSuccessResponse = Schema.Struct({
     })
   ),
 })
+
 export type AuthSuccessResponse = typeof AuthSuccessResponse.Type

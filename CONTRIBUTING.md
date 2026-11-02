@@ -39,9 +39,13 @@ bun run validate
 - TypeScript, Bun, and one exact Effect version across first-party manifests
   (currently `4.1.2`; always copy current manifests).
 - Tests: `vitest` (plus `@effect/vitest` for Effect matchers and `it.effect`).
-- Lint: `oxlint` (with the Effect plugin). Dead-code analysis: `fallow`.
-  Format: `oxfmt`. Structural lint: `ast-grep`. Configs live at the repo root
-  and are inherited by every workspace.
+- Typecheck: `effect-tsgo tsrs --noEmit`, the Effect-patched tsrs checker
+  from `@effect/tsgo`. Every Effect language-service diagnostic is an error.
+- Lint: `oxlint` (type-aware, with the Effect plugin, warnings denied).
+  Dead-code and service-boundary analysis: `fallow`. Format: `oxfmt`.
+  Structural lint: `ast-grep`. Configs live at the repo root and are inherited
+  by every workspace. See
+  [ADR 0003](docs/adr/0003-strict-static-analysis.md) for the policy.
 
 ## The validation gate
 
@@ -72,8 +76,8 @@ pre-PR gate is non-negotiable.
 
 `bun run dead-code` runs two zero-baseline Fallow passes:
 
-1. repository-wide reachability, dependency, import, cycle, boundary, and
-   suppression analysis, including tests; and
+1. repository-wide reachability, dependency, import, cycle, boundary, rule-pack
+   policy, and suppression analysis, including tests; and
 2. type-aware, production-only unused-export and unused-type analysis for
    private packages, Garage MCP, and Pi extensions, where test-only references
    must not keep a public API alive.
@@ -83,6 +87,21 @@ expose intentional test seams throughout one deployed application. Runtime
 entry points and narrow dynamic/test-infrastructure exceptions are declared in
 `.fallowrc.json` and locked by `scripts/fallow-policy.test.ts`; do not add broad
 ignores or issue baselines.
+
+Fallow zones in `.fallowrc.json` protect the integration packages: contracts
+(`services`, `model`, `errors`, `api-schema`) and operations may not import
+adapters (`http`, `opds`), and `fallow/effect-service-boundaries.jsonc` keeps
+them away from concrete runtimes and SDKs.
+
+### Exceptions
+
+Fix the cause of a finding. When a rule is wrong for one line, suppress only
+that line and state the reason in a comment above it:
+`// @effect-diagnostics-next-line <rule>:off`,
+`// oxlint-disable-next-line <rule> -- <reason>`, or
+`// ast-grep-ignore: <rule>`. Unused suppressions fail the lint. To use a new
+unstable Effect module, add it to `allowedUnstableApis` in
+`tsconfig.base.json` in a reviewed change.
 
 ## Choosing a workspace shape
 

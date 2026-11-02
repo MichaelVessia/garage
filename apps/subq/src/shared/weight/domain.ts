@@ -28,6 +28,7 @@ export const kgToLbs = (kg: number): number => kg * LBS_PER_KG
 
 /** UUID identifier for weight log entries */
 export const WeightLogId = Schema.String.pipe(Schema.brand('WeightLogId'))
+
 export type WeightLogId = typeof WeightLogId.Type
 
 // ============================================
@@ -35,30 +36,40 @@ export type WeightLogId = typeof WeightLogId.Type
 // ============================================
 
 /** Weight measurement value (positive number) */
-export const Weight = Schema.Number.check(Schema.isGreaterThan(0)).pipe(Schema.brand('Weight'))
+export const Weight = Schema.Finite.check(Schema.isGreaterThan(0)).pipe(Schema.brand('Weight'))
+
 export type Weight = typeof Weight.Type
 
 /** Percentage value */
-export const Percentage = Schema.Number.pipe(Schema.brand('Percentage'))
+export const Percentage = Schema.Finite.pipe(Schema.brand('Percentage'))
+
 export type Percentage = typeof Percentage.Type
 
 /** Weekly average change value */
-export const WeeklyChange = Schema.Number.pipe(Schema.brand('WeeklyChange'))
+export const WeeklyChange = Schema.Finite.pipe(Schema.brand('WeeklyChange'))
+
 export type WeeklyChange = typeof WeeklyChange.Type
 
 /** Rate of change in lbs per week */
-export const WeightRateOfChange = Schema.Number.pipe(Schema.brand('WeightRateOfChange'))
+export const WeightRateOfChange = Schema.Finite.pipe(Schema.brand('WeightRateOfChange'))
+
 export type WeightRateOfChange = typeof WeightRateOfChange.Type
 
 // ============================================
 // Weight Domain Errors
 // ============================================
 
-export class WeightLogNotFoundError extends Schema.TaggedClass<WeightLogNotFoundError>()('WeightLogNotFoundError', {
+export class WeightLogNotFoundError extends Schema.TaggedClass<
+  WeightLogNotFoundError,
+  { readonly brand: unique symbol }
+>()('WeightLogNotFoundError', {
   id: Schema.String,
 }) {}
 
-export class WeightLogDatabaseError extends Schema.TaggedClass<WeightLogDatabaseError>()('WeightLogDatabaseError', {
+export class WeightLogDatabaseError extends Schema.TaggedClass<
+  WeightLogDatabaseError,
+  { readonly brand: unique symbol }
+>()('WeightLogDatabaseError', {
   operation: DbOperation,
   cause: Schema.Defect(),
 }) {}
@@ -68,6 +79,7 @@ export class WeightLogDatabaseError extends Schema.TaggedClass<WeightLogDatabase
 // ============================================
 
 export const WeightLogError = Schema.Union([WeightLogNotFoundError, WeightLogDatabaseError])
+
 export type WeightLogError = typeof WeightLogError.Type
 
 // ============================================
@@ -78,7 +90,7 @@ export type WeightLogError = typeof WeightLogError.Type
  * A weight log entry represents a single weight measurement.
  * All weights are stored in lbs internally.
  */
-export class WeightLog extends Schema.Class<WeightLog>('WeightLog')({
+export class WeightLog extends Schema.Class<WeightLog, { readonly brand: unique symbol }>('WeightLog')({
   id: WeightLogId,
   datetime: Schema.DateTimeUtc,
   weight: Weight,
@@ -96,7 +108,9 @@ export class WeightLog extends Schema.Class<WeightLog>('WeightLog')({
  * Weight should be in lbs (convert from user's preferred unit before calling).
  * id, createdAt, updatedAt are generated server-side.
  */
-export class WeightLogCreate extends Schema.Class<WeightLogCreate>('WeightLogCreate')({
+export class WeightLogCreate extends Schema.Class<WeightLogCreate, { readonly brand: unique symbol }>(
+  'WeightLogCreate'
+)({
   datetime: Schema.DateTimeUtc,
   weight: Weight,
   notes: Schema.OptionFromOptional(Notes),
@@ -107,7 +121,9 @@ export class WeightLogCreate extends Schema.Class<WeightLogCreate>('WeightLogCre
  * Weight should be in lbs (convert from user's preferred unit before calling).
  * All fields optional - only provided fields are updated.
  */
-export class WeightLogUpdate extends Schema.Class<WeightLogUpdate>('WeightLogUpdate')({
+export class WeightLogUpdate extends Schema.Class<WeightLogUpdate, { readonly brand: unique symbol }>(
+  'WeightLogUpdate'
+)({
   id: WeightLogId,
   datetime: Schema.optional(Schema.DateTimeUtc),
   weight: Schema.optional(Weight),
@@ -117,7 +133,9 @@ export class WeightLogUpdate extends Schema.Class<WeightLogUpdate>('WeightLogUpd
 /**
  * Payload for deleting a weight log entry.
  */
-export class WeightLogDelete extends Schema.Class<WeightLogDelete>('WeightLogDelete')({
+export class WeightLogDelete extends Schema.Class<WeightLogDelete, { readonly brand: unique symbol }>(
+  'WeightLogDelete'
+)({
   id: WeightLogId,
 }) {}
 
@@ -129,7 +147,9 @@ export class WeightLogDelete extends Schema.Class<WeightLogDelete>('WeightLogDel
  * Parameters for listing weight logs.
  * Supports pagination and date filtering.
  */
-export class WeightLogListParams extends Schema.Class<WeightLogListParams>('WeightLogListParams')({
+export class WeightLogListParams extends Schema.Class<WeightLogListParams, { readonly brand: unique symbol }>(
+  'WeightLogListParams'
+)({
   limit: Limit.pipe(Schema.withDecodingDefaultType(Effect.succeed(Limit.make(50)))),
   offset: Offset.pipe(Schema.withDecodingDefaultType(Effect.succeed(Offset.make(0)))),
   startDate: Schema.optional(Schema.DateTimeUtc),

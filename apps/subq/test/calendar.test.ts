@@ -69,10 +69,12 @@ describe('calendar temporal model', () => {
     const parsed = parseDateTimeInputInTimezone('2026-07-04T09:30', timezone)
 
     assert.isTrue(Option.isSome(parsed))
+
     if (Option.isSome(parsed)) {
       assert.strictEqual(DateTime.formatIso(parsed.value), '2026-07-04T13:30:00.000Z')
       assert.strictEqual(formatInstantForDateTimeInput(parsed.value, timezone), '2026-07-04T09:30')
     }
+
     assert.isTrue(Option.isNone(parseDateTimeInputInTimezone('2026-03-08T02:30', timezone)))
     assert.isTrue(Option.isNone(parseDateTimeInputInTimezone('2026-11-01T01:30', timezone)))
     assert.isTrue(Option.isNone(parseDateTimeInputInTimezone('2026-07-04T24:00', timezone)))

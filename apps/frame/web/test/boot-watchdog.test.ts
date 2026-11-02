@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from '@effect/vitest'
 import indexHtml from '../index.html?raw'
 
 // The inline boot watchdog in index.html, run against a page where the app did or did not mount.
-const watchdog = /<script>([\s\S]*?)<\/script>/u.exec(indexHtml)?.[1] ?? ''
+const watchdog = /<script>(?<body>[\s\S]*?)<\/script>/u.exec(indexHtml)?.groups?.body ?? ''
 
 const runWatchdog = () => {
   const script = document.createElement('script')

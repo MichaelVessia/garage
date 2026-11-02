@@ -1,7 +1,7 @@
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
-const OptionalNumber = Schema.optional(Schema.Number)
+const OptionalFinite = Schema.optional(Schema.Finite)
 const StringArray = Schema.Array(Schema.String)
 
 const AutocaliwebConfigValue = Schema.Struct({
@@ -9,22 +9,25 @@ const AutocaliwebConfigValue = Schema.Struct({
   username: Schema.String,
   password: Schema.RedactedFromValue(Schema.String),
 })
+
 export type AutocaliwebConfigValue = typeof AutocaliwebConfigValue.Type
 
 export const StatsResult = Schema.Struct({
-  books: Schema.Number,
-  authors: Schema.Number,
-  categories: Schema.Number,
-  series: Schema.Number,
+  books: Schema.Int,
+  authors: Schema.Int,
+  categories: Schema.Int,
+  series: Schema.Int,
 })
+
 export type StatsResult = typeof StatsResult.Type
 
 export const StatusResult = Schema.Struct({
   title: OptionalString,
   updated: OptionalString,
-  catalogCount: Schema.Number,
+  catalogCount: Schema.Int,
   stats: StatsResult,
 })
+
 export type StatusResult = typeof StatusResult.Type
 
 export const CatalogEntry = Schema.Struct({
@@ -33,14 +36,16 @@ export const CatalogEntry = Schema.Struct({
   href: OptionalString,
   content: OptionalString,
 })
+
 export type CatalogEntry = typeof CatalogEntry.Type
 
 const DownloadLink = Schema.Struct({
   href: Schema.String,
   format: OptionalString,
   mediaType: OptionalString,
-  size: OptionalNumber,
+  size: OptionalFinite,
 })
+
 export type DownloadLink = typeof DownloadLink.Type
 
 export const BookRecord = Schema.Struct({
@@ -57,6 +62,7 @@ export const BookRecord = Schema.Struct({
   coverHref: OptionalString,
   downloads: Schema.Array(DownloadLink),
 })
+
 export type BookRecord = typeof BookRecord.Type
 
 export const BookInfoRecord = Schema.Struct({
@@ -68,31 +74,44 @@ export const BookInfoRecord = Schema.Struct({
   authorSort: OptionalString,
   titleSort: OptionalString,
 })
+
 export type BookInfoRecord = typeof BookInfoRecord.Type
 
 export const SearchResult = Schema.Struct({
   query: Schema.String,
-  total: Schema.Number,
-  count: Schema.Number,
+  total: Schema.Int,
+  count: Schema.Int,
   records: Schema.Array(BookRecord),
 })
+
 export type SearchResult = typeof SearchResult.Type
 
-const LimitOptions = Schema.Struct({ limit: Schema.Number })
+const LimitOptions = Schema.Struct({ limit: Schema.Int })
+
 export type LimitOptions = typeof LimitOptions.Type
 
 const SearchOptions = Schema.Struct({
-  limit: Schema.Number,
+  limit: Schema.Int,
   query: Schema.String,
 })
+
 export type SearchOptions = typeof SearchOptions.Type
 
 const BookInfoOptions = Schema.Struct({ uuid: Schema.String })
+
 export type BookInfoOptions = typeof BookInfoOptions.Type
 
-export const ListResult = <Record>(record: Schema.Codec<Record>) =>
+// Type alias rather than interface: a Schema field record needs the implicit
+// index signature that only type aliases receive.
+type ListResultFields<Record> = Readonly<{
+  count: Schema.Int
+  records: Schema.$Array<Schema.Codec<Record>>
+}>
+
+export const ListResult = <Record>(record: Schema.Codec<Record>): Schema.Struct<ListResultFields<Record>> =>
   Schema.Struct({
-    count: Schema.Number,
+    count: Schema.Int,
     records: Schema.Array(record),
   })
+
 export type ListResult<Record> = Schema.Schema.Type<ReturnType<typeof ListResult<Record>>>

@@ -5,8 +5,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
-import type { SqlConnection } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
+import type * as SqlConnection from 'effect/sql/SqlConnection'
 import * as Str from 'effect/String'
 
 import {
@@ -44,6 +44,7 @@ export const InjectionLogRow = Schema.Struct({
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+
 export type InjectionLogRow = typeof InjectionLogRow.Type
 
 const decodeRow = Schema.decodeUnknownEffect(InjectionLogRow)
@@ -56,8 +57,8 @@ const LastSiteRow = Schema.Struct({ injection_site: Schema.NullOr(Schema.String)
 const decodeLastSiteRows = Schema.decodeUnknownEffect(Schema.Array(LastSiteRow))
 
 // Transform DB row to domain object using branded type constructors
-export const rowToDomain = (row: typeof InjectionLogRow.Type): InjectionLog =>
-  new InjectionLog({
+export const rowToDomain = (row: InjectionLogRow): InjectionLog =>
+  InjectionLog.make({
     id: InjectionLogId.make(row.id),
     datetime: DateTime.makeUnsafe(row.datetime),
     drug: row.drug,
@@ -85,7 +86,7 @@ export class InjectionLogRepo extends Context.Service<
     readonly list: (
       params: InjectionLogListParams,
       userId: string
-    ) => Effect.Effect<InjectionLog[], InjectionLogDatabaseError>
+    ) => Effect.Effect<Array<InjectionLog>, InjectionLogDatabaseError>
     readonly findById: (
       id: string,
       userId: string
@@ -99,12 +100,12 @@ export class InjectionLogRepo extends Context.Service<
       userId: string
     ) => Effect.Effect<InjectionLog, InjectionLogNotFoundError | InjectionLogDatabaseError>
     readonly delete: (id: string, userId: string) => Effect.Effect<boolean, InjectionLogDatabaseError>
-    readonly getUniqueSites: (userId: string) => Effect.Effect<string[], InjectionLogDatabaseError>
+    readonly getUniqueSites: (userId: string) => Effect.Effect<Array<string>, InjectionLogDatabaseError>
     readonly getLastSite: (userId: string) => Effect.Effect<Option.Option<string>, InjectionLogDatabaseError>
     readonly listBySchedule: (
       scheduleId: string,
       userId: string
-    ) => Effect.Effect<InjectionLog[], InjectionLogDatabaseError>
+    ) => Effect.Effect<Array<InjectionLog>, InjectionLogDatabaseError>
   }
 >()('@garage/subq/injection/injection-log-repo/InjectionLogRepo') {}
 
@@ -117,49 +118,51 @@ export const InjectionLogRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const list = Effect.fn('InjectionLogRepo.list')(
+    const list = Effect.fn('injectionLogRepo.list')(
       function* (params: InjectionLogListParams, userId: string) {
         // Convert DateTime params to ISO strings for SQLite comparison
-        const startDateStr = params.startDate !== undefined ? DateTime.formatIso(params.startDate) : undefined
-        const endDateStr = params.endDate !== undefined ? DateTime.formatIso(params.endDate) : undefined
+        const startDateStr = params.startDate === undefined ? undefined : DateTime.formatIso(params.startDate)
+        const endDateStr = params.endDate === undefined ? undefined : DateTime.formatIso(params.endDate)
 
         const rows = yield* sql`
           SELECT id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, created_at, updated_at
           FROM injection_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
-          ${params.drug !== undefined ? sql`AND drug = ${params.drug}` : sql``}
+          ${startDateStr === undefined ? sql`` : sql`AND datetime >= ${startDateStr}`}
+          ${endDateStr === undefined ? sql`` : sql`AND datetime <= ${endDateStr}`}
+          ${params.drug === undefined ? sql`` : sql`AND drug = ${params.drug}`}
           ORDER BY datetime DESC
           LIMIT ${params.limit}
           OFFSET ${params.offset}
         `
-        const results = yield* Effect.all(
-          rows.map((row) => decodeAndTransform(Option.some(row))),
-          { concurrency: 1 }
-        )
+
+        const results = yield* Effect.forEach(rows, (row) => decodeAndTransform(Option.some(row)), { concurrency: 1 })
+
         return results
       },
       mapDbError(InjectionLogDatabaseError, 'query')
     )
 
-    const findById = Effect.fn('InjectionLogRepo.findById')(
+    const findById = Effect.fn('injectionLogRepo.findById')(
       function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, created_at, updated_at
           FROM injection_logs
           WHERE id = ${id} AND user_id = ${userId}
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
+
         const decoded = yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
+
         return Option.some(decoded)
       },
       mapDbError(InjectionLogDatabaseError, 'query')
     )
 
-    const create = Effect.fn('InjectionLogRepo.create')(
+    const create = Effect.fn('injectionLogRepo.create')(
       function* (data: InjectionLogCreate, userId: string) {
         const id = yield* randomUuid()
         const supplier = Option.isSome(data.supplier) ? data.supplier.value : null
@@ -180,12 +183,13 @@ export const InjectionLogRepoLive = Layer.effect(
           FROM injection_logs
           WHERE id = ${id}
         `
+
         return yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
       },
       mapDbError(InjectionLogDatabaseError, 'insert')
     )
 
-    const update = Effect.fn('InjectionLogRepo.update')(function* (data: InjectionLogUpdate, userId: string) {
+    const update = Effect.fn('injectionLogRepo.update')(function* (data: InjectionLogUpdate, userId: string) {
       // First get current values - include user_id check to prevent IDOR
       const current = yield* sql`
           SELECT id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, created_at, updated_at
@@ -197,9 +201,9 @@ export const InjectionLogRepoLive = Layer.effect(
       }
 
       const curr = yield* decodeRow(current[0]).pipe(mapDbError(InjectionLogDatabaseError, 'query'))
-      const newDatetime = data.datetime !== undefined ? DateTime.formatIso(data.datetime) : curr.datetime
+      const newDatetime = data.datetime === undefined ? curr.datetime : DateTime.formatIso(data.datetime)
       const newDrug = data.drug ?? curr.drug
-      const newSupplier = data.supplier !== undefined ? data.supplier : curr.supplier
+      const newSupplier = data.supplier === undefined ? curr.supplier : data.supplier
       const newDoseMg = data.doseMg ?? curr.dose_mg
       const newInjectionSite = Option.isSome(data.injectionSite) ? data.injectionSite.value : curr.injection_site
       const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
@@ -231,21 +235,23 @@ export const InjectionLogRepoLive = Layer.effect(
       )
     })
 
-    const del = Effect.fn('InjectionLogRepo.delete')(
+    const del = Effect.fn('injectionLogRepo.delete')(
       function* (id: string, userId: string) {
         // Check if exists and belongs to user
         const existing = yield* sql`SELECT id FROM injection_logs WHERE id = ${id} AND user_id = ${userId}`
+
         if (Arr.isReadonlyArrayEmpty(existing)) {
           return false
         }
 
         yield* sql`DELETE FROM injection_logs WHERE id = ${id} AND user_id = ${userId}`
+
         return true
       },
       mapDbError(InjectionLogDatabaseError, 'delete')
     )
 
-    const getUniqueSites = Effect.fn('InjectionLogRepo.getUniqueSites')(
+    const getUniqueSites = Effect.fn('injectionLogRepo.getUniqueSites')(
       function* (userId: string) {
         const rawRows = yield* sql`
           SELECT DISTINCT injection_site
@@ -253,13 +259,15 @@ export const InjectionLogRepoLive = Layer.effect(
           WHERE user_id = ${userId} AND injection_site IS NOT NULL
           ORDER BY injection_site
         `
+
         const rows = yield* decodeSiteRows(rawRows)
-        return rows.map((r) => r.injection_site)
+
+        return Arr.map(rows, (r) => r.injection_site)
       },
       mapDbError(InjectionLogDatabaseError, 'query')
     )
 
-    const getLastSite = Effect.fn('InjectionLogRepo.getLastSite')(
+    const getLastSite = Effect.fn('injectionLogRepo.getLastSite')(
       function* (userId: string) {
         const rawRows = yield* sql`
           SELECT injection_site
@@ -268,14 +276,16 @@ export const InjectionLogRepoLive = Layer.effect(
           ORDER BY datetime DESC
           LIMIT 1
         `
+
         const rows = yield* decodeLastSiteRows(rawRows)
         const [row] = rows
-        return row !== undefined ? Option.fromNullOr(row.injection_site) : Option.none()
+
+        return row === undefined ? Option.none() : Option.fromNullOr(row.injection_site)
       },
       mapDbError(InjectionLogDatabaseError, 'query')
     )
 
-    const listBySchedule = Effect.fn('InjectionLogRepo.listBySchedule')(
+    const listBySchedule = Effect.fn('injectionLogRepo.listBySchedule')(
       function* (scheduleId: string, userId: string) {
         const rows = yield* sql`
           SELECT id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, created_at, updated_at
@@ -283,10 +293,9 @@ export const InjectionLogRepoLive = Layer.effect(
           WHERE schedule_id = ${scheduleId} AND user_id = ${userId}
           ORDER BY datetime ASC
         `
-        const results = yield* Effect.all(
-          rows.map((row) => decodeAndTransform(Option.some(row))),
-          { concurrency: 1 }
-        )
+
+        const results = yield* Effect.forEach(rows, (row) => decodeAndTransform(Option.some(row)), { concurrency: 1 })
+
         return results
       },
       mapDbError(InjectionLogDatabaseError, 'query')

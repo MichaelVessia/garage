@@ -16,7 +16,9 @@ export {
   WeightLogDelete,
   WeightLogListParams,
 } from './domain.js'
+
 export { WEIGHT_TRAJECTORY_MS_PER_WEEK, calculateWeightTrajectory, projectWeightTrajectoryDate } from './trajectory.js'
+
 export type {
   WeightTrajectoryPoint,
   WeightTrajectoryRegression,
@@ -24,4 +26,5 @@ export type {
   WeightTrajectory,
   WeightTrajectoryProjectionParams,
 } from './trajectory.js'
+
 export { WeightRpcs } from './rpc.js'

@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-native-collections
+language: tsx
+severity: error
+message: "Use Effect's HashMap, HashSet, MutableHashMap, or MutableHashSet instead of a native Map or Set."
+
+rule:
+  any:
+    - pattern: new Map($$$)
+    - pattern: new Map<$$$>($$$)
+    - pattern: new Set($$$)
+    - pattern: new Set<$$$>($$$)
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+ignores:
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"

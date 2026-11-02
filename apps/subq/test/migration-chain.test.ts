@@ -1,29 +1,33 @@
 import { Database } from 'bun:sqlite'
 
 import { assert, describe, it } from '@effect/vitest'
+import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 const canonicalMedicationSql = await Bun.file(
   new URL('../drizzle/0013_canonical_medications.sql', import.meta.url)
 ).text()
+
 const timezoneCalendarDateSql = await Bun.file(
   new URL('../drizzle/0014_timezone_calendar_dates.sql', import.meta.url)
 ).text()
-const journal = Schema.decodeUnknownSync(
-  Schema.fromJsonString(
-    Schema.Struct({
-      entries: Schema.Array(Schema.Struct({ idx: Schema.Number, tag: Schema.String })),
-    })
-  )
-)(await Bun.file(new URL('../drizzle/meta/_journal.json', import.meta.url)).text())
+
+const journalText = await Bun.file(new URL('../drizzle/meta/_journal.json', import.meta.url)).text()
+
+const Journal = Schema.fromJsonString(
+  Schema.Struct({
+    entries: Schema.Array(Schema.Struct({ idx: Schema.Int, tag: Schema.String })),
+  })
+)
 
 const IntegratedState = Schema.Array(
   Schema.Struct({
-    dose_mg: Schema.Number,
-    goal_migrated: Schema.Number,
+    dose_mg: Schema.Finite,
+    goal_migrated: Schema.Int,
     injection_supplier: Schema.NullOr(Schema.String),
     schedule_drug: Schema.String,
-    schedule_migrated: Schema.Number,
+    schedule_migrated: Schema.Int,
     schedule_supplier: Schema.NullOr(Schema.String),
     timezone: Schema.NullOr(Schema.String),
     timezone_migration_state: Schema.String,
@@ -31,25 +35,30 @@ const IntegratedState = Schema.Array(
 )
 
 const applyMigration = (database: Database, sql: string): void => {
-  for (const statement of sql.split('--> statement-breakpoint')) {
-    if (statement.trim() !== '') {
+  for (const statement of Str.split('--> statement-breakpoint')(sql)) {
+    if (Str.trim(statement) !== '') {
       database.run(statement)
     }
   }
 }
 
 describe('Subq v3 migration chain', () => {
-  it('orders canonical medications as 0013 and timezone calendar dates as 0014', () => {
-    assert.deepStrictEqual(journal.entries.slice(-2), [
-      { idx: 10, tag: '0013_canonical_medications' },
-      { idx: 11, tag: '0014_timezone_calendar_dates' },
-    ])
-  })
+  it.effect('orders canonical medications as 0013 and timezone calendar dates as 0014', () =>
+    Effect.gen(function* () {
+      const journal = yield* Schema.decodeEffect(Journal)(journalText)
 
-  it('applies canonical medications before timezone calendar dates without losing either contract', () => {
-    const database = new Database(':memory:')
-    database.run('PRAGMA foreign_keys = ON')
-    database.run(`
+      assert.deepStrictEqual(journal.entries.slice(-2), [
+        { idx: 10, tag: '0013_canonical_medications' },
+        { idx: 11, tag: '0014_timezone_calendar_dates' },
+      ])
+    })
+  )
+
+  it.effect('applies canonical medications before timezone calendar dates without losing either contract', () =>
+    Effect.gen(function* () {
+      const database = new Database(':memory:')
+      database.run('PRAGMA foreign_keys = ON')
+      database.run(`
       CREATE TABLE injection_schedules (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -130,12 +139,12 @@ describe('Subq v3 migration chain', () => {
          '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
     `)
 
-    applyMigration(database, canonicalMedicationSql)
-    applyMigration(database, timezoneCalendarDateSql)
+      applyMigration(database, canonicalMedicationSql)
+      applyMigration(database, timezoneCalendarDateSql)
 
-    const rows = Schema.decodeUnknownSync(IntegratedState)(
-      database
-        .query(`
+      const rows = yield* Schema.decodeUnknownEffect(IntegratedState)(
+        database
+          .query(`
           SELECT
             s.drug AS schedule_drug,
             s.supplier AS schedule_supplier,
@@ -151,21 +160,22 @@ describe('Subq v3 migration chain', () => {
           JOIN user_goals g ON g.user_id = s.user_id
           WHERE s.id = 'schedule-1'
         `)
-        .all()
-    )
+          .all()
+      )
 
-    assert.deepStrictEqual(rows, [
-      {
-        dose_mg: 0.25,
-        goal_migrated: 0,
-        injection_supplier: 'Pharmacy',
-        schedule_drug: 'Semaglutide',
-        schedule_migrated: 0,
-        schedule_supplier: 'Clinic',
-        timezone: null,
-        timezone_migration_state: 'pending',
-      },
-    ])
-    database.close()
-  })
+      assert.deepStrictEqual(rows, [
+        {
+          dose_mg: 0.25,
+          goal_migrated: 0,
+          injection_supplier: 'Pharmacy',
+          schedule_drug: 'Semaglutide',
+          schedule_migrated: 0,
+          schedule_supplier: 'Clinic',
+          timezone: null,
+          timezone_migration_state: 'pending',
+        },
+      ])
+      database.close()
+    })
+  )
 })

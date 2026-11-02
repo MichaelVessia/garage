@@ -1,8 +1,7 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import * as Option from 'effect/Option'
-import { TestClock } from 'effect/testing'
+import * as TestClock from 'effect/testing/TestClock'
 
 import { InjectionScheduleId } from '#shared'
 
@@ -27,6 +26,7 @@ const requireValue = <T>(value: T | null | undefined): T => {
   if (value === null || value === undefined) {
     throw new Error('Expected value to be present')
   }
+
   return value
 }
 
@@ -36,18 +36,24 @@ describe('ScheduleCadenceService', () => {
       yield* TestClock.setTime(testDate('2024-01-15T12:00:00Z').getTime())
       const userId = 'user-1'
 
-      yield* insertUser(userId)
-      yield* insertSettings('settings-1', userId, 'lbs', 'America/New_York')
-      yield* insertSchedule(
-        'schedule-1',
-        'Semaglutide schedule',
-        'Semaglutide',
-        'weekly',
-        testDate('2024-01-01T12:00:00Z'),
-        userId
-      )
-      yield* insertSchedulePhase('phase-1', 'schedule-1', 1, 200)
-      yield* insertInjectionLog('injection-1', testDate('2024-01-10T12:00:00Z'), 'Semaglutide', 200, userId)
+      yield* insertUser({ id: userId })
+      yield* insertSettings({ id: 'settings-1', userId, weightUnit: 'lbs', timezone: 'America/New_York' })
+      yield* insertSchedule({
+        id: 'schedule-1',
+        name: 'Semaglutide schedule',
+        drug: 'Semaglutide',
+        frequency: 'weekly',
+        startDate: testDate('2024-01-01T12:00:00Z'),
+        userId,
+      })
+      yield* insertSchedulePhase({ id: 'phase-1', scheduleId: 'schedule-1', order: 1, doseMg: 200 })
+      yield* insertInjectionLog({
+        id: 'injection-1',
+        datetime: testDate('2024-01-10T12:00:00Z'),
+        drug: 'Semaglutide',
+        doseMg: 200,
+        userId,
+      })
 
       const service = yield* ScheduleCadenceService
       const result = yield* service.getNextScheduledDose(userId)
@@ -66,31 +72,37 @@ describe('ScheduleCadenceService', () => {
       const userId = 'user-1'
       const scheduleId = InjectionScheduleId.make('schedule-1')
 
-      yield* insertUser(userId)
-      yield* insertSettings('settings-2', userId, 'lbs', 'America/New_York')
-      yield* insertSchedule(
-        scheduleId,
-        'Semaglutide schedule',
-        'Semaglutide',
-        'weekly',
-        testDate('2024-01-01T00:00:00Z'),
-        userId
-      )
-      yield* insertSchedulePhase('phase-1', scheduleId, 1, 2.5, 28)
-      yield* insertSchedulePhase('phase-2', scheduleId, 2, 5)
-      yield* insertInjectionLog('assigned-injection', testDate('2024-01-08T00:00:00Z'), 'Semaglutide', 2.5, userId, {
+      yield* insertUser({ id: userId })
+      yield* insertSettings({ id: 'settings-2', userId, weightUnit: 'lbs', timezone: 'America/New_York' })
+      yield* insertSchedule({
+        id: scheduleId,
+        name: 'Semaglutide schedule',
+        drug: 'Semaglutide',
+        frequency: 'weekly',
+        startDate: testDate('2024-01-01T00:00:00Z'),
+        userId,
+      })
+      yield* insertSchedulePhase({ id: 'phase-1', scheduleId, order: 1, doseMg: 2.5, durationDays: 28 })
+      yield* insertSchedulePhase({ id: 'phase-2', scheduleId, order: 2, doseMg: 5 })
+      yield* insertInjectionLog({
+        id: 'assigned-injection',
+        datetime: testDate('2024-01-08T00:00:00Z'),
+        drug: 'Semaglutide',
+        doseMg: 2.5,
+        userId,
         scheduleId,
       })
-      yield* insertInjectionLog(
-        'same-drug-unassigned-injection',
-        testDate('2024-01-15T00:00:00Z'),
-        'Semaglutide',
-        2.5,
-        userId
-      )
+      yield* insertInjectionLog({
+        id: 'same-drug-unassigned-injection',
+        datetime: testDate('2024-01-15T00:00:00Z'),
+        drug: 'Semaglutide',
+        doseMg: 2.5,
+        userId,
+      })
 
       const service = yield* ScheduleCadenceService
-      const view = Option.getOrThrow(yield* service.getScheduleView(userId, scheduleId))
+      const maybeView = yield* service.getScheduleView(userId, scheduleId)
+      const view = yield* Effect.fromOption(maybeView)
       const firstPhase = requireValue(view.phases[0])
 
       assert.strictEqual(view.totalCompletedInjections, 1)

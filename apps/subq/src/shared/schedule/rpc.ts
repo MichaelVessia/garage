@@ -1,4 +1,5 @@
-import { Rpc, RpcGroup } from 'effect/rpc'
+import * as Rpc from 'effect/rpc/Rpc'
+import * as RpcGroup from 'effect/rpc/RpcGroup'
 import * as Schema from 'effect/Schema'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
@@ -18,11 +19,17 @@ import {
 // Schedule Errors
 // ============================================
 
-export class ScheduleNotFoundError extends Schema.TaggedClass<ScheduleNotFoundError>()('ScheduleNotFoundError', {
+export class ScheduleNotFoundError extends Schema.TaggedClass<
+  ScheduleNotFoundError,
+  { readonly brand: unique symbol }
+>()('ScheduleNotFoundError', {
   id: Schema.String,
 }) {}
 
-export class ScheduleDatabaseError extends Schema.TaggedClass<ScheduleDatabaseError>()('ScheduleDatabaseError', {
+export class ScheduleDatabaseError extends Schema.TaggedClass<
+  ScheduleDatabaseError,
+  { readonly brand: unique symbol }
+>()('ScheduleDatabaseError', {
   operation: DbOperation,
   cause: Schema.Defect(),
 }) {}

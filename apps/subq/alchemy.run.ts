@@ -1,17 +1,18 @@
-import * as Cloudflare from '@alchemy.run/cloudflare'
-import * as Alchemy from 'alchemy'
+import { providers, state } from '@alchemy.run/cloudflare'
+import { Stack } from 'alchemy'
 import * as Effect from 'effect/Effect'
 
 import SubqWorker from './src/worker.js'
 
-export default Alchemy.Stack(
+export default Stack(
   'Subq',
   {
-    providers: Cloudflare.providers(),
-    state: Cloudflare.state(),
+    providers: providers(),
+    state: state(),
   },
   Effect.gen(function* () {
     const worker = yield* SubqWorker
+
     return { url: worker.url }
   })
 )

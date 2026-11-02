@@ -1,13 +1,7 @@
 id: no-null-return-in-gen
 snapshots:
-  ? |
-    Effect.gen(function* () {
-      if (missing) {
-        return null;
-      }
-      return yield* load();
-    });
-  : labels:
+  "Effect.gen(function* () {\n  if (missing) {\n    return null;\n  }\n  return yield* load();\n});\n":
+    labels:
     - source: return null;
       style: primary
       start: 47

@@ -1,12 +1,7 @@
 id: no-effect-fn-rewrap
 snapshots:
-  ? |
-    const fn = Effect.fn("name")(function* (args) {
-      return yield* Effect.gen(function* () {
-        yield* doWork(args);
-      }).pipe(Effect.scoped);
-    });
-  : labels:
+  "const fn = Effect.fn(\"name\")(function* (args) {\n  return yield* Effect.gen(function* () {\n    yield* doWork(args);\n  }).pipe(Effect.scoped);\n});\n":
+    labels:
     - source: |-
         Effect.fn("name")(function* (args) {
           return yield* Effect.gen(function* () {

@@ -2,11 +2,13 @@ import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schedule from 'effect/Schedule'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
+import * as Str from 'effect/String'
 import { Dom, Subscription } from 'foldkit'
 import type { Update } from 'foldkit'
 import { modifyFields } from 'foldkit/struct'
@@ -51,9 +53,11 @@ const feed = <S extends Schema.Top>(data: S) =>
   })
 
 const EventsFeed = feed(CalendarEvent.pipe(Schema.Array))
+
 type EventsFeed = typeof EventsFeed.Type
 
 export const Flags = Schema.Struct({ now: Schema.DateTimeUtc, bootVersion: Schema.Option(Schema.String) })
+
 export type Flags = typeof Flags.Type
 
 export const Model = Schema.Struct({
@@ -73,6 +77,7 @@ export const Model = Schema.Struct({
   shoppingDraft: Schema.String,
   media: feed(MediaSnapshot),
 })
+
 export type Model = typeof Model.Type
 
 // The frame dims to the ambient clock after this much idle time, sooner at night.
@@ -114,13 +119,19 @@ export const init = (flags: Flags): UpdateReturn => ({
 
 const succeeded = <A>(data: A) => ({ data: Option.some(data), failed: false })
 const online = (model: Model): Model => modifyFields(model, { isOffline: () => false })
+
 const reachability = (model: Model, isServerReachable: boolean): Model =>
   modifyFields(model, { isOffline: () => !isServerReachable })
+
 const failed = <A>(current: { readonly data: Option.Option<A> }) => ({ data: current.data, failed: true })
 
 /** The first day the calendar screen shows for its current mode. */
-export const calendarFrom = (mode: CalendarMode, anchor: CalendarDate): CalendarDate =>
+export const calendarFrom: {
+  (anchor: CalendarDate): (mode: CalendarMode) => CalendarDate
+  (mode: CalendarMode, anchor: CalendarDate): CalendarDate
+} = Function.dual(2, (mode: CalendarMode, anchor: CalendarDate): CalendarDate =>
   mode === 'week' ? weekStart(anchor) : anchor
+)
 
 const calendarCommands = (model: Model): Commands =>
   Arr.flatMap(
@@ -133,10 +144,13 @@ const calendarCommands = (model: Model): Commands =>
 
 const shouldBeAmbient = (model: Model, now: DateTime.Utc): boolean => {
   const idle = DateTime.distance(model.lastInteraction, now)
+
   const isNight = Option.exists(model.timezone, (timezone) => {
     const hour = localHour(now, timezone)
+
     return hour >= 22 || hour < 6
   })
+
   return Duration.isGreaterThanOrEqualTo(idle, isNight ? IDLE_NIGHT : IDLE_DAY)
 }
 
@@ -149,6 +163,7 @@ const shiftAnchor = (model: Model, direction: -1 | 1): Model =>
 const onShift = (model: Model, direction: -1 | 1): UpdateReturn => {
   const next = shiftAnchor(model, direction)
   const previousWeek = Option.map(model.anchor, weekStart)
+
   return Option.match(Option.map(next.anchor, weekStart), {
     onNone: (): UpdateReturn => ({ model: next }),
     onSome: (from): UpdateReturn =>
@@ -160,11 +175,13 @@ const onShift = (model: Model, direction: -1 | 1): UpdateReturn => {
 
 const onTick = (model: Model, now: DateTime.Utc): UpdateReturn => {
   const next = modifyFields(model, { now: () => now, isAmbient: () => shouldBeAmbient(model, now) })
+
   // At local midnight the upcoming window moves forward a day.
   const newDay = Option.filter(
     Option.map(model.timezone, (timezone) => today(now, timezone)),
     (date) => Option.exists(model.timezone, (timezone) => today(model.now, timezone) !== date)
   )
+
   return { model: next, commands: Arr.map(Arr.fromOption(newDay), (from) => FetchUpcoming({ from })) }
 }
 
@@ -173,6 +190,7 @@ const onSettings = (model: Model, timezone: IanaTimezone): UpdateReturn => {
     timezone: () => Option.some(timezone),
     anchor: (anchor) => Option.orElse(anchor, () => Option.some(today(model.now, timezone))),
   })
+
   return { model: next, commands: calendarCommands(next) }
 }
 
@@ -180,6 +198,7 @@ const onShoppingItem = (model: Model, uid: string, status: ShoppingItemStatus): 
   const items = Option.map(model.shopping.data, (current) =>
     Arr.map(current, (item) => (item.uid === uid ? { ...item, status } : item))
   )
+
   return {
     model: modifyFields(model, { shopping: (shopping) => ({ data: items, failed: shopping.failed }) }),
     commands: [UpdateShoppingItem({ uid, status })],
@@ -188,12 +207,13 @@ const onShoppingItem = (model: Model, uid: string, status: ShoppingItemStatus): 
 
 // Blank drafts are ignored; the server trims and length-checks the summary again.
 const onSubmitShoppingItem = (model: Model): UpdateReturn => {
-  const summary = model.shoppingDraft.trim()
+  const summary = Str.trim(model.shoppingDraft)
+
   return summary === ''
     ? { model }
     : {
         model: modifyFields(model, { shoppingDraft: () => '' }),
-        commands: [AddShoppingItem({ summary: summary.slice(0, 200) })],
+        commands: [AddShoppingItem({ summary: Str.slice(0, 200)(summary) })],
       }
 }
 
@@ -236,13 +256,11 @@ const optimisticCard = (card: MediaCard, action: MediaAction): MediaCard =>
 const onMediaAction = (model: Model, action: MediaAction): UpdateReturn => ({
   model: modifyFields(model, {
     media: (media) => ({
-      data: Option.map(
-        media.data,
-        (snapshot) =>
-          new MediaSnapshot({
-            spotify: snapshot.spotify === null ? null : optimisticPlayer(snapshot.spotify, action),
-            cards: Arr.map(snapshot.cards, (card) => optimisticCard(card, action)),
-          })
+      data: Option.map(media.data, (snapshot) =>
+        MediaSnapshot.make({
+          spotify: snapshot.spotify === null ? null : optimisticPlayer(snapshot.spotify, action),
+          cards: Arr.map(snapshot.cards, (card) => optimisticCard(card, action)),
+        })
       ),
       failed: media.failed,
     }),
@@ -264,7 +282,10 @@ const onVersion = (model: Model, version: string): UpdateReturn => ({
   commands: Option.exists(model.bootVersion, (booted) => booted !== version) ? [ReloadPage()] : [],
 })
 
-export const update = (model: Model, message: Message) =>
+export const update: {
+  (message: Message): (model: Model) => UpdateReturn
+  (model: Model, message: Message): UpdateReturn
+} = Function.dual(2, (model: Model, message: Message): UpdateReturn =>
   Message.match<UpdateReturn>(message, {
     TickedClock: ({ now }) => onTick(model, now),
     Interacted: () => ({ model: modifyFields(model, { lastInteraction: () => model.now, isAmbient: () => false }) }),
@@ -282,6 +303,7 @@ export const update = (model: Model, message: Message) =>
       const next = modifyFields(model, {
         anchor: () => Option.map(model.timezone, (timezone) => today(model.now, timezone)),
       })
+
       return { model: next, commands: calendarCommands(next) }
     },
     ClickedShoppingItem: ({ uid, status }) => onShoppingItem(model, uid, status),
@@ -332,6 +354,7 @@ export const update = (model: Model, message: Message) =>
     FailedCheckVersion: () => ({ model: reachability(model, false) }),
     StartedReload: () => ({ model }),
   })
+)
 
 // ============================================
 // Subscriptions

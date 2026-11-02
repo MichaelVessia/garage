@@ -15,7 +15,7 @@ const DEFAULT_MAX_PROJECTION_DAYS = 5 * 365
 export interface BuildGoalProgressParams {
   readonly goal: UserGoal
   readonly currentWeight: number
-  readonly weightHistory: readonly WeightTrajectoryPoint[]
+  readonly weightHistory: ReadonlyArray<WeightTrajectoryPoint>
   readonly now: Date
   readonly timezone: IanaTimezone
   readonly maxProjectionDays?: number
@@ -58,6 +58,7 @@ export const calculateGoalProgressPaceStatus = ({
   today,
 }: GoalProgressPaceStatusParams): PaceStatus => {
   const remainingLbs = currentWeight - goal.goalWeight
+
   if (remainingLbs <= 0) {
     return 'ahead'
   }
@@ -71,6 +72,7 @@ export const calculateGoalProgressPaceStatus = ({
   }
 
   const daysRemaining = calendarDaysBetween(today, goal.targetDate)
+
   if (daysRemaining <= 0) {
     return 'behind'
   }
@@ -83,9 +85,11 @@ export const calculateGoalProgressPaceStatus = ({
   if (actualRate >= requiredRate * (1 + tolerance)) {
     return 'ahead'
   }
+
   if (actualRate >= requiredRate * (1 - tolerance)) {
     return 'on_track'
   }
+
   return 'behind'
 }
 
@@ -103,6 +107,7 @@ export const buildGoalProgress = ({
   const totalToLose = goal.startingWeight - goal.goalWeight
   const lbsRemaining = Math.max(0, currentWeight - goal.goalWeight)
   const percentComplete = totalToLose > 0 ? (lbsLost / totalToLose) * 100 : 0
+
   const projectedDate =
     maxProjectionDays === undefined
       ? calculateGoalProgressProjectedDate({
@@ -120,12 +125,13 @@ export const buildGoalProgress = ({
           timezone,
           maxProjectionDays,
         })
+
   const today = projectInstantToCalendarDate(DateTime.makeUnsafe(now), timezone)
   const paceStatus = calculateGoalProgressPaceStatus({ goal, currentWeight, rateOfChange, today })
   const daysOnPlan = calendarDaysBetween(goal.startingDate, today)
   const avgLbsPerWeek = rateOfChange < 0 ? Math.abs(rateOfChange) : 0
 
-  return new GoalProgress({
+  return GoalProgress.make({
     goal,
     currentWeight: Weight.make(currentWeight),
     lbsLost,

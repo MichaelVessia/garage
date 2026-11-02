@@ -1,4 +1,5 @@
 import * as Arr from 'effect/Array'
+import * as Str from 'effect/String'
 
 /** A construct Android System WebView 106 cannot run, found in a built file. */
 export interface CompatFinding {
@@ -33,8 +34,15 @@ const CSS_RULES: ReadonlyArray<Rule> = [
 ]
 
 /** Report every unsupported construct in one built file's text. */
-export const findIncompatibilities = (file: string, text: string): ReadonlyArray<CompatFinding> => {
-  const rules = Arr.flatten([file.endsWith('.css') ? CSS_RULES : [], file.endsWith('.js') ? JS_RULES : []])
+export const findIncompatibilities = ({
+  file,
+  text,
+}: {
+  readonly file: string
+  readonly text: string
+}): ReadonlyArray<CompatFinding> => {
+  const rules = Arr.flatten([Str.endsWith('.css')(file) ? CSS_RULES : [], Str.endsWith('.js')(file) ? JS_RULES : []])
+
   return Arr.map(
     Arr.filter(rules, (rule) => rule.pattern.test(text)),
     (rule) => ({ file, feature: rule.feature })

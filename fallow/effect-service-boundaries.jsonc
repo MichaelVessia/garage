@@ -1,0 +1,38 @@
+{
+  // Package bans for Effect service boundaries. The zone rules in
+  // .fallowrc.json keep contracts and operations away from adapters. This pack
+  // keeps them away from concrete runtimes and SDKs.
+  "version": 1,
+  "name": "effect-service-boundaries",
+  "description": "Contracts and operations depend on service contracts, not concrete runtimes or SDKs.",
+  "rules": [
+    {
+      "id": "concrete-package",
+      "kind": "banned-import",
+      "zones": ["contracts", "operations"],
+      "specifiers": [
+        "@effect/platform-browser",
+        "@effect/platform-bun",
+        "@effect/platform-node",
+        "@effect/platform-node-shared",
+        "@effect/sql-d1",
+        "@effect/sql-sqlite-bun",
+        "@effect/sql-sqlite-do",
+        "@xmldom/xmldom",
+        "bun",
+        "bun:sqlite",
+        "bun:test"
+      ],
+      "message": "Import the owning service contract. Select concrete implementations in an adapter or a composition root.",
+      "severity": "error"
+    },
+    {
+      "id": "contract-sql",
+      "kind": "banned-import",
+      "zones": ["contracts"],
+      "specifiers": ["effect/sql"],
+      "message": "Keep SQL in adapters. A service contract describes the capability, not its storage.",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-import { Rpc, RpcGroup } from 'effect/rpc'
+import * as Rpc from 'effect/rpc/Rpc'
+import * as RpcGroup from 'effect/rpc/RpcGroup'
 import * as Schema from 'effect/Schema'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
@@ -10,16 +11,25 @@ import { GoalId, GoalProgressResult, UserGoal, UserGoalCreate, UserGoalDelete, U
 // Goals Errors
 // ============================================
 
-export class GoalNotFoundError extends Schema.TaggedClass<GoalNotFoundError>()('GoalNotFoundError', {
-  id: Schema.String,
-}) {}
+export class GoalNotFoundError extends Schema.TaggedClass<GoalNotFoundError, { readonly brand: unique symbol }>()(
+  'GoalNotFoundError',
+  {
+    id: Schema.String,
+  }
+) {}
 
-export class GoalDatabaseError extends Schema.TaggedClass<GoalDatabaseError>()('GoalDatabaseError', {
-  operation: DbOperation,
-  cause: Schema.Defect(),
-}) {}
+export class GoalDatabaseError extends Schema.TaggedClass<GoalDatabaseError, { readonly brand: unique symbol }>()(
+  'GoalDatabaseError',
+  {
+    operation: DbOperation,
+    cause: Schema.Defect(),
+  }
+) {}
 
-export class NoWeightDataError extends Schema.TaggedClass<NoWeightDataError>()('NoWeightDataError', {}) {}
+export class NoWeightDataError extends Schema.TaggedClass<NoWeightDataError, { readonly brand: unique symbol }>()(
+  'NoWeightDataError',
+  {}
+) {}
 
 // ============================================
 // Goals RPCs

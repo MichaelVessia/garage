@@ -1,11 +1,7 @@
 id: prefer-effect-fn-over-arrow-gen
 snapshots:
-  ? |
-    const upsert = (client, record) =>
-      Effect.gen(function* () {
-        yield* client.put(record);
-      });
-  : labels:
+  "const upsert = (client, record) =>\n  Effect.gen(function* () {\n    yield* client.put(record);\n  });\n":
+    labels:
     - source: |-
         const upsert = (client, record) =>
           Effect.gen(function* () {

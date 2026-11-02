@@ -1,8 +1,9 @@
 import * as Context from 'effect/Context'
 import type * as Effect from 'effect/Effect'
-import { FetchHttpClient } from 'effect/http'
+import * as FetchHttpClient from 'effect/http/FetchHttpClient'
 import * as Layer from 'effect/Layer'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
+import * as RpcClient from 'effect/rpc/RpcClient'
+import * as RpcSerialization from 'effect/rpc/RpcSerialization'
 
 import { FrameRpcs } from '#shared'
 

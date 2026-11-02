@@ -1,6 +1,8 @@
 /* Target: Android System WebView 106 at 1280 x 800. No nesting, :has(), color-mix(), oklch(), dvh,
    or 4/8-digit hex colours. Grid: 104 px rail, then 12 columns of 72 px with 24 px gutters inside
    24 px padding. Type: 16 label, 22 body, 30 title, plus the clocks. */
+@import '@fontsource-variable/figtree/wght.css';
+
 :root {
   --ground: #f3f4f6;
   --card: #ffffff;

@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
-import * as Story from 'foldkit/story'
+import { Story } from 'foldkit'
 
 import { DataExport, DataImportResult, IanaTimezone } from '#shared'
 
+import { ExportData, ReadImportFile, SelectImportFile } from '../src/page/settings/command.js'
 import {
   CancelledImportData,
   CancelledSelectImportFile,
@@ -16,13 +17,10 @@ import {
   ClickedSelectImportFile,
   ClickedSettingsWeightUnit,
   ConfirmedImportData,
-  ExportData,
   FailedExportData,
   FailedImportData,
   FailedUpdateSettingsPreference,
   PreparedImportData,
-  ReadImportFile,
-  SelectImportFile,
   SelectedImportFile,
   SubmittedSettingsPassword,
   SubmittedSettingsTimezone,
@@ -30,16 +28,14 @@ import {
   SucceededImportData,
   SucceededUpdateSettingsPreference,
   initialSettingsModel,
-  settingsPasswordFailed,
-  settingsPasswordSucceeded,
-  updateSettingsPage,
-} from '../src/page/settings.js'
-import type { SettingsModel, SettingsPageMessage } from '../src/page/settings.js'
+} from '../src/page/settings/model.js'
+import type { SettingsModel, SettingsPageMessage } from '../src/page/settings/model.js'
+import { settingsPasswordFailed, settingsPasswordSucceeded, updateSettingsPage } from '../src/page/settings/update.js'
 
 const { Command } = Story
 const timezone = IanaTimezone.make('America/New_York')
 
-const sampleExport = new DataExport({
+const sampleExport = DataExport.make({
   data: {
     goals: [],
     injectionLogs: [],
@@ -51,7 +47,7 @@ const sampleExport = new DataExport({
   version: '3.0.0-alpha.2',
 })
 
-const sampleImportResult = new DataImportResult({
+const sampleImportResult = DataImportResult.make({
   goals: 1,
   injectionLogs: 2,
   schedules: 1,
@@ -103,10 +99,12 @@ describe('settings page update', () => {
 
   it('a failed preference update surfaces the error and stops submitting', () => {
     const submitting: SettingsModel = { ...initialSettingsModel, preferenceSubmitting: true }
+
     const { model: next, commands = [] } = update(
       submitting,
       FailedUpdateSettingsPreference({ message: 'Failed to update display preferences' })
     )
+
     expect(next.preferenceSubmitting).toBe(false)
     expect(next.preferenceError).toBe('Failed to update display preferences')
     expect(commands).toHaveLength(0)
@@ -129,6 +127,7 @@ describe('settings page update', () => {
       ...initialSettingsModel,
       password: { ...initialSettingsModel.password, currentPassword: 'oldpassword', newPassword: 'short' },
     }
+
     Story.story(
       update,
       Story.given(withCurrent),
@@ -150,6 +149,7 @@ describe('settings page update', () => {
         newPassword: 'newpassword',
       },
     }
+
     Story.story(
       update,
       Story.given(mismatched),
@@ -171,6 +171,7 @@ describe('settings page update', () => {
         newPassword: 'newpassword',
       },
     }
+
     const { model: next, commands = [] } = update(valid, SubmittedSettingsPassword())
     expect(next.password.submitting).toBe(true)
     expect(next.password.error).toBeNull()
@@ -184,6 +185,7 @@ describe('settings page update', () => {
       ...initialSettingsModel,
       password: { ...initialSettingsModel.password, success: true },
     }
+
     Story.story(
       update,
       Story.given(succeeded),
@@ -216,6 +218,7 @@ describe('settings page update', () => {
         success: false,
       },
     }
+
     const next = settingsPasswordSucceeded(submitting)
     expect(next.password).toEqual({
       confirmPassword: '',
@@ -239,6 +242,7 @@ describe('settings page update', () => {
         success: false,
       },
     }
+
     const next = settingsPasswordFailed(submitting, 'Password change failed')
     expect(next.password.error).toBe('Password change failed')
     expect(next.password.submitting).toBe(false)

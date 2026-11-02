@@ -18,7 +18,8 @@ it.effect('redacts secret config values from retained live integration layers', 
   Effect.gen(function* () {
     const autocaliweb = yield* Effect.gen(function* () {
       const config = yield* AutocaliwebConfig
-      return yield* config.get()
+
+      return yield* config.get
     }).pipe(
       Effect.provide(
         Layer.mergeAll(
@@ -31,16 +32,19 @@ it.effect('redacts secret config values from retained live integration layers', 
         )
       )
     )
+
     assertRedactedValue(autocaliweb.password, 'secret')
 
     const sabnzbd = yield* Effect.gen(function* () {
       const config = yield* SabnzbdConfig
-      return yield* config.get()
+
+      return yield* config.get
     }).pipe(
       Effect.provide(
         Layer.mergeAll(SabnzbdConfigLive, envLayer({ SABNZBD_URL: 'http://sabnzbd.test', SABNZBD_API_KEY: 'secret' }))
       )
     )
+
     assertRedactedValue(sabnzbd.apiKey, 'secret')
   })
 )

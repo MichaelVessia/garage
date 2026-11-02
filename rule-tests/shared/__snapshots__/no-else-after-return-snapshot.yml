@@ -1,12 +1,7 @@
 id: no-else-after-return
 snapshots:
-  ? |
-    if (enabled) {
-      return true;
-    } else {
-      return false;
-    }
-  : labels:
+  "if (enabled) {\n  return true;\n} else {\n  return false;\n}\n":
+    labels:
     - source: |-
         if (enabled) {
           return true;

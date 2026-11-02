@@ -1,16 +1,19 @@
 import { assert, it } from '@effect/vitest'
 import { AutocaliwebApi, unreachable as autocaliwebUnreachable } from '@garage/autocaliweb'
 import { SabnzbdApi, envMissing, unreachable } from '@garage/sabnzbd'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { GarageMcpRoutes } from '../src/server.js'
 
 const ToolListResponse = Schema.Struct({
   jsonrpc: Schema.Literal('2.0'),
-  id: Schema.Number,
+  id: Schema.Int,
   result: Schema.Struct({
     tools: Schema.Array(
       Schema.Struct({
@@ -36,8 +39,8 @@ const QueueInputSchema = Schema.Struct({
   properties: Schema.Struct({
     limit: Schema.Struct({
       type: Schema.Literal('integer'),
-      minimum: Schema.Number,
-      maximum: Schema.Number,
+      minimum: Schema.Int,
+      maximum: Schema.Int,
       description: Schema.String,
     }),
   }),
@@ -63,7 +66,7 @@ const McpFailure = Schema.Struct({
 
 const ToolCallResponse = Schema.Struct({
   jsonrpc: Schema.Literal('2.0'),
-  id: Schema.Number,
+  id: Schema.Int,
   result: Schema.Struct({
     isError: Schema.Boolean,
     content: Schema.Array(
@@ -81,7 +84,7 @@ const makeApiLayer = (statusEffect: SabnzbdApi['Service']['status']) =>
     SabnzbdApi,
     SabnzbdApi.of({
       status: statusEffect,
-      version: () => Effect.succeed({ version: '4.5.3' }),
+      version: Effect.succeed({ version: '4.5.3' }),
       queue: ({ limit }) =>
         Effect.succeed({
           count: 1,
@@ -89,11 +92,10 @@ const makeApiLayer = (statusEffect: SabnzbdApi['Service']['status']) =>
           slots: [{ nzoId: 'SABnzbd_nzo_abc', filename: `limit-${limit}` }],
         }),
       history: () => Effect.succeed({ count: 0, totalRecords: 0, slots: [] }),
-      pause: () => Effect.succeed({ action: 'pause', ok: true }),
-      resume: () => Effect.succeed({ action: 'resume', ok: true }),
-      delete: (nzoId, options) =>
-        Effect.succeed({ action: 'delete', ok: true, nzoId, deleteFiles: options.deleteFiles }),
-      serverStats: () => Effect.succeed({ total: 1000, servers: {} }),
+      pause: Effect.succeed({ action: 'pause', ok: true }),
+      resume: Effect.succeed({ action: 'resume', ok: true }),
+      delete: ({ nzoId, deleteFiles }) => Effect.succeed({ action: 'delete', ok: true, nzoId, deleteFiles }),
+      serverStats: Effect.succeed({ total: 1000, servers: {} }),
     })
   )
 
@@ -102,22 +104,22 @@ const makeAutocaliwebLayer = (statusEffect: AutocaliwebApi['Service']['status'])
     AutocaliwebApi,
     AutocaliwebApi.of({
       status: statusEffect,
-      stats: () => Effect.succeed({ books: 1, authors: 1, categories: 1, series: 0 }),
-      catalog: () => Effect.succeed({ count: 1, records: [{ title: 'Books' }] }),
+      stats: Effect.succeed({ books: 1, authors: 1, categories: 1, series: 0 }),
+      catalog: Effect.succeed({ count: 1, records: [{ title: 'Books' }] }),
       books: () => Effect.succeed({ count: 0, records: [] }),
       recent: () => Effect.succeed({ count: 0, records: [] }),
       search: ({ query }) => Effect.succeed({ query, total: 0, count: 0, records: [] }),
       bookInfo: ({ uuid }) =>
         Effect.succeed({ uuid, authors: [], languages: [], categories: [], downloads: [], formats: [], tags: [] }),
-      shelves: () => Effect.succeed({ count: 0, records: [] }),
+      shelves: Effect.succeed({ count: 0, records: [] }),
     })
   )
 
-const ReadyAutocaliwebLayer = makeAutocaliwebLayer(() =>
+const ReadyAutocaliwebLayer = makeAutocaliwebLayer(
   Effect.succeed({ catalogCount: 1, stats: { books: 1, authors: 1, categories: 1, series: 0 } })
 )
 
-const ReadySabnzbdLayer = makeApiLayer(() =>
+const ReadySabnzbdLayer = makeApiLayer(
   Effect.succeed({ version: '4.5.3', uptime: '1d', paused: false, haveWarnings: false })
 )
 
@@ -166,11 +168,14 @@ const withInitializedHandler = <A, E>(
             clientInfo: { name: 'garage-mcp-test', version: '1.0.0' },
           },
         })
+
         assert.strictEqual(response.status, 200)
         const sessionId = response.headers.get('mcp-session-id')
+
         if (sessionId === null) {
           return assert.fail('initialize response did not include an MCP session id')
         }
+
         return yield* use(handler, sessionId)
       }),
     ({ dispose }) => Effect.tryPromise(() => dispose())
@@ -184,10 +189,11 @@ it.effect('discovers consolidated tools with bounded schemas and accurate safety
         { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
         { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
       )
+
       const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolListResponse)))
 
       assert.deepStrictEqual(
-        body.result.tools.map((tool) => tool.name),
+        Arr.map(body.result.tools, (tool) => tool.name),
         [
           'sabnzbd_status',
           'sabnzbd_version',
@@ -208,9 +214,10 @@ it.effect('discovers consolidated tools with bounded schemas and accurate safety
           'autocaliweb_shelves',
         ]
       )
+
       for (const tool of [
         ...body.result.tools.slice(0, 5),
-        ...body.result.tools.filter((candidate) => candidate.name.startsWith('autocaliweb_')),
+        ...Arr.filter(body.result.tools, (candidate) => Str.startsWith('autocaliweb_')(candidate.name)),
       ]) {
         assert.deepInclude(tool.annotations, {
           readOnlyHint: true,
@@ -219,36 +226,44 @@ it.effect('discovers consolidated tools with bounded schemas and accurate safety
           openWorldHint: false,
         })
       }
+
       for (const name of ['sabnzbd_pause', 'sabnzbd_resume']) {
-        const tool = body.result.tools.find((candidate) => candidate.name === name)
-        if (tool === undefined) {
+        const tool = Arr.findFirst(body.result.tools, (candidate) => candidate.name === name)
+
+        if (Option.isNone(tool)) {
           return assert.fail(`${name} was not discovered`)
         }
-        assert.deepInclude(tool.annotations, {
+
+        assert.deepInclude(tool.value.annotations, {
           readOnlyHint: false,
           destructiveHint: false,
           idempotentHint: true,
           openWorldHint: false,
         })
       }
-      const deleteTool = body.result.tools.find((tool) => tool.name === 'sabnzbd_delete')
-      if (deleteTool === undefined) {
+
+      const deleteTool = Arr.findFirst(body.result.tools, (tool) => tool.name === 'sabnzbd_delete')
+
+      if (Option.isNone(deleteTool)) {
         return assert.fail('sabnzbd_delete was not discovered')
       }
-      assert.deepInclude(deleteTool.annotations, {
+
+      assert.deepInclude(deleteTool.value.annotations, {
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: false,
         openWorldHint: false,
       })
 
-      const queueTool = body.result.tools.find((tool) => tool.name === 'sabnzbd_queue')
-      if (queueTool === undefined) {
+      const queueTool = Arr.findFirst(body.result.tools, (tool) => tool.name === 'sabnzbd_queue')
+
+      if (Option.isNone(queueTool)) {
         return assert.fail('sabnzbd_queue was not discovered')
       }
-      assert.strictEqual(queueTool.annotations.title, 'SABnzbd Queue')
-      const inputSchema = yield* Schema.decodeUnknownEffect(QueueInputSchema)(queueTool.inputSchema)
-      const outputSchema = yield* Schema.decodeUnknownEffect(QueueOutputSchema)(queueTool.outputSchema)
+
+      assert.strictEqual(queueTool.value.annotations.title, 'SABnzbd Queue')
+      const inputSchema = yield* Schema.decodeUnknownEffect(QueueInputSchema)(queueTool.value.inputSchema)
+      const outputSchema = yield* Schema.decodeUnknownEffect(QueueOutputSchema)(queueTool.value.outputSchema)
       assert.deepInclude(inputSchema.properties.limit, { minimum: 1, maximum: 100 })
       assert.sameMembers([...outputSchema.required], ['count', 'totalRecords', 'slots'])
     })
@@ -268,6 +283,7 @@ it.effect('encodes successful structured results through HTTP MCP', () =>
         },
         { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
       )
+
       const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolCallResponse)))
 
       assert.strictEqual(body.result.isError, false)
@@ -283,10 +299,7 @@ it.effect('encodes successful structured results through HTTP MCP', () =>
 
 it.effect('represents expected package failures without sensitive request data', () =>
   withInitializedHandler(
-    Layer.merge(
-      ReadyAutocaliwebLayer,
-      makeApiLayer(() => Effect.fail(envMissing('SABNZBD_API_KEY')))
-    ),
+    Layer.merge(ReadyAutocaliwebLayer, makeApiLayer(Effect.fail(envMissing('SABNZBD_API_KEY')))),
     (handler, sessionId) =>
       Effect.gen(function* () {
         const response = yield* post(
@@ -299,12 +312,15 @@ it.effect('represents expected package failures without sensitive request data',
           },
           { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
         )
+
         const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolCallResponse)))
         const [content] = body.result.content
+
         if (content === undefined) {
           return assert.fail('expected structured error content')
         }
-        const failure = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(McpFailure))(content.text)
+
+        const failure = yield* Schema.decodeEffect(Schema.fromJsonString(McpFailure))(content.text)
 
         assert.strictEqual(body.result.isError, true)
         assert.strictEqual(failure.code, 'SABNZBD_ENV_MISSING')
@@ -319,11 +335,12 @@ it.effect('redacts credential-bearing transport failures from MCP results', () =
   withInitializedHandler(
     Layer.merge(
       ReadyAutocaliwebLayer,
-      makeApiLayer(() =>
+      makeApiLayer(
         Effect.fail(
-          unreachable(
-            'Transport error for http://sabnzbd.example.test/api?apikey=sentinel-api-key&output=json&mode=fullstatus'
-          )
+          unreachable({
+            message:
+              'Transport error for http://sabnzbd.example.test/api?apikey=sentinel-api-key&output=json&mode=fullstatus',
+          })
         )
       )
     ),
@@ -339,12 +356,15 @@ it.effect('redacts credential-bearing transport failures from MCP results', () =
           },
           { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
         )
+
         const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolCallResponse)))
         const [content] = body.result.content
+
         if (content === undefined) {
           return assert.fail('expected redacted error content')
         }
-        const failure = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(McpFailure))(content.text)
+
+        const failure = yield* Schema.decodeEffect(Schema.fromJsonString(McpFailure))(content.text)
 
         assert.strictEqual(body.result.isError, true)
         assert.strictEqual(failure.code, 'SABNZBD_UNREACHABLE')
@@ -355,43 +375,39 @@ it.effect('redacts credential-bearing transport failures from MCP results', () =
   )
 )
 
-it.effect('redacts AutoCaliWeb Basic-auth transport failures from MCP results', () =>
-  withInitializedHandler(
-    Layer.merge(
-      makeAutocaliwebLayer(() =>
-        Effect.fail(
-          autocaliwebUnreachable(
-            'Transport error for http://fixture-user:sentinel-password@autocaliweb.example.test/opds'
-          )
-        )
-      ),
-      ReadySabnzbdLayer
-    ),
-    (handler, sessionId) =>
-      Effect.gen(function* () {
-        const response = yield* post(
-          handler,
-          {
-            jsonrpc: '2.0',
-            id: 5,
-            method: 'tools/call',
-            params: { name: 'autocaliweb_status', arguments: {} },
-          },
-          { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
-        )
-        const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolCallResponse)))
-        const [content] = body.result.content
-        if (content === undefined) {
-          return assert.fail('expected redacted AutoCaliWeb error content')
-        }
-        const failure = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(McpFailure))(content.text)
+const UnreachableAutocaliwebLayer = autocaliwebUnreachable({
+  message: 'Transport error for http://fixture-user:sentinel-password@autocaliweb.example.test/opds',
+}).pipe(Effect.fail, makeAutocaliwebLayer)
 
-        assert.strictEqual(body.result.isError, true)
-        assert.strictEqual(failure.code, 'AUTOCALIWEB_UNREACHABLE')
-        assert.notInclude(content.text, 'sentinel-password')
-        assert.notInclude(content.text, 'fixture-user')
-        assert.notInclude(content.text, 'autocaliweb.example.test')
-      })
+it.effect('redacts AutoCaliWeb Basic-auth transport failures from MCP results', () =>
+  withInitializedHandler(Layer.merge(UnreachableAutocaliwebLayer, ReadySabnzbdLayer), (handler, sessionId) =>
+    Effect.gen(function* () {
+      const response = yield* post(
+        handler,
+        {
+          jsonrpc: '2.0',
+          id: 5,
+          method: 'tools/call',
+          params: { name: 'autocaliweb_status', arguments: {} },
+        },
+        { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' }
+      )
+
+      const body = yield* responseJson(response).pipe(Effect.flatMap(Schema.decodeUnknownEffect(ToolCallResponse)))
+      const [content] = body.result.content
+
+      if (content === undefined) {
+        return assert.fail('expected redacted AutoCaliWeb error content')
+      }
+
+      const failure = yield* Schema.decodeEffect(Schema.fromJsonString(McpFailure))(content.text)
+
+      assert.strictEqual(body.result.isError, true)
+      assert.strictEqual(failure.code, 'AUTOCALIWEB_UNREACHABLE')
+      assert.notInclude(content.text, 'sentinel-password')
+      assert.notInclude(content.text, 'fixture-user')
+      assert.notInclude(content.text, 'autocaliweb.example.test')
+    })
   )
 )
 
@@ -403,9 +419,11 @@ it.effect('serves a deterministic HTTP readiness response', () =>
     ({ handler }) =>
       Effect.gen(function* () {
         const response = yield* Effect.tryPromise(() => handler(new Request('http://localhost/health')))
+
         const body = yield* responseJson(response).pipe(
           Effect.flatMap(Schema.decodeUnknownEffect(Schema.Struct({ status: Schema.Literal('ready') })))
         )
+
         assert.strictEqual(response.status, 200)
         assert.deepStrictEqual(body, { status: 'ready' })
       }),

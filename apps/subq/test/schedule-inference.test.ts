@@ -1,19 +1,16 @@
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
-import * as Schema from 'effect/Schema'
 import { describe, expect, it } from 'vitest'
 
-import { IanaTimezone, inferScheduleDraftFromInjectionLogs, InjectionLog } from '#shared'
+import { DoseMg, IanaTimezone, inferScheduleDraftFromInjectionLogs, InjectionLog, InjectionLogId } from '#shared'
 
-const decodeInjection = Schema.decodeUnknownSync(InjectionLog)
-
-const injection = (id: string, datetime: string, doseMg: number) =>
-  decodeInjection({
+const injection = (id: string, datetime: string, doseMg: number): InjectionLog =>
+  InjectionLog.make({
     createdAt: DateTime.makeUnsafe('2026-03-01T00:00:00.000Z'),
     datetime: DateTime.makeUnsafe(datetime),
-    doseMg,
+    doseMg: DoseMg.make(doseMg),
     drug: 'Semaglutide',
-    id,
+    id: InjectionLogId.make(id),
     injectionSite: null,
     notes: null,
     scheduleId: null,
@@ -32,9 +29,11 @@ describe('schedule inference', () => {
     )
 
     expect(Option.isSome(draft)).toBe(true)
+
     if (Option.isNone(draft)) {
       return
     }
+
     expect(draft.value.startDate).toBe('2026-03-07')
     expect(Option.getOrUndefined(draft.value.phases[0]?.durationDays ?? Option.none())).toBe(1)
   })

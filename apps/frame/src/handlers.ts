@@ -22,7 +22,7 @@ const toPublicError =
       Effect.tapError((failure) =>
         Effect.logWarning('Upstream request failed').pipe(Effect.annotateLogs({ code: failure.code }))
       ),
-      Effect.mapError(() => new UpstreamUnavailable({ source, message: publicMessages[source] }))
+      Effect.mapError(() => UpstreamUnavailable.make({ source, message: publicMessages[source] }))
     )
 
 const isRejected = Schema.is(MediaActionRejected)
@@ -40,7 +40,7 @@ const toPublicMediaError = <A, R>(
     Effect.mapError((failure) =>
       isRejected(failure)
         ? failure
-        : new UpstreamUnavailable({ source: 'home-assistant', message: publicMessages['home-assistant'] })
+        : UpstreamUnavailable.make({ source: 'home-assistant', message: publicMessages['home-assistant'] })
     )
   )
 
@@ -51,7 +51,7 @@ export const FrameHandlersLive = FrameRpcs.toLayer(
     const homeAssistant = yield* HomeAssistantApi
 
     return {
-      GetSettings: () => Effect.succeed(new FrameSettings({ timezone })),
+      GetSettings: () => Effect.succeed(FrameSettings.make({ timezone })),
       GetCalendar: (window: CalendarWindow) =>
         calendar
           .occurrences({
@@ -59,19 +59,19 @@ export const FrameHandlersLive = FrameRpcs.toLayer(
             end: calendarDateStartUtc(window.to, timezone),
           })
           .pipe(toPublicError('calendar')),
-      GetWeather: () => homeAssistant.weather().pipe(toPublicError('home-assistant')),
-      GetShopping: () => homeAssistant.shoppingItems().pipe(toPublicError('home-assistant')),
+      GetWeather: () => homeAssistant.weather.pipe(toPublicError('home-assistant')),
+      GetShopping: () => homeAssistant.shoppingItems.pipe(toPublicError('home-assistant')),
       AddShoppingItem: (addition: ShoppingItemAddition) =>
         homeAssistant
           .addShoppingItem(addition)
-          .pipe(Effect.andThen(homeAssistant.shoppingItems()), toPublicError('home-assistant')),
-      GetMedia: () => homeAssistant.media().pipe(toPublicError('home-assistant')),
+          .pipe(Effect.andThen(homeAssistant.shoppingItems), toPublicError('home-assistant')),
+      GetMedia: () => homeAssistant.media.pipe(toPublicError('home-assistant')),
       RunMediaAction: (action: MediaAction) =>
-        homeAssistant.runMediaAction(action).pipe(Effect.andThen(homeAssistant.media()), toPublicMediaError),
+        homeAssistant.runMediaAction(action).pipe(Effect.andThen(homeAssistant.media), toPublicMediaError),
       UpdateShoppingItem: (update: ShoppingItemUpdate) =>
         homeAssistant
           .updateShoppingItem(update)
-          .pipe(Effect.andThen(homeAssistant.shoppingItems()), toPublicError('home-assistant')),
+          .pipe(Effect.andThen(homeAssistant.shoppingItems), toPublicError('home-assistant')),
     }
   })
 )

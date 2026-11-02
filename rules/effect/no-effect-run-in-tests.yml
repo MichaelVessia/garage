@@ -13,5 +13,9 @@ rule:
     - pattern: Effect.runPromiseExit($$$ARGS)
 
 files:
+  - "apps/*/test/**/*.ts"
+  - "apps/*/test/**/*.tsx"
+  - "apps/*/web/test/**/*.ts"
+  - "apps/*/web/test/**/*.tsx"
   - "packages/*/test/**/*.ts"
   - "packages/*/test/**/*.tsx"

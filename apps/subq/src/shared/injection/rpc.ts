@@ -1,4 +1,5 @@
-import { Rpc, RpcGroup } from 'effect/rpc'
+import * as Rpc from 'effect/rpc/Rpc'
+import * as RpcGroup from 'effect/rpc/RpcGroup'
 import * as Schema from 'effect/Schema'
 
 import { AuthRpcMiddleware } from '../auth-middleware.js'
@@ -54,7 +55,7 @@ export const InjectionRpcs = RpcGroup.make(
   }),
   Rpc.make('InjectionLogBulkAssignSchedule', {
     payload: InjectionLogBulkAssignSchedule,
-    success: Schema.Number,
+    success: Schema.Int,
     error: Schema.Union([InjectionLogDatabaseError, ScheduleAssignmentTargetNotFoundError]),
   })
 ).middleware(AuthRpcMiddleware)

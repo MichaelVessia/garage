@@ -1,8 +1,7 @@
 id: no-silent-catch
 snapshots:
-  ? |
-    program.pipe(Effect.catchAll(() => Effect.succeed([])));
-  : labels:
+  "program.pipe(Effect.catchAll(() => Effect.succeed([])));\n":
+    labels:
     - source: Effect.catchAll(() => Effect.succeed([]))
       style: primary
       start: 13
@@ -11,9 +10,8 @@ snapshots:
       style: secondary
       start: 35
       end: 53
-  ? |
-    program.pipe(Effect.catchTag("RequestError", () => Effect.succeed(null)));
-  : labels:
+  "program.pipe(Effect.catchTag(\"RequestError\", () => Effect.succeed(null)));\n":
+    labels:
     - source: Effect.catchTag("RequestError", () => Effect.succeed(null))
       style: primary
       start: 13
@@ -22,9 +20,8 @@ snapshots:
       style: secondary
       start: 51
       end: 71
-  ? |
-    program.pipe(Effect.orElseSucceed(() => ""));
-  : labels:
+  "program.pipe(Effect.orElseSucceed(() => \"\"));\n":
+    labels:
     - source: Effect.orElseSucceed(() => "")
       style: primary
       start: 13

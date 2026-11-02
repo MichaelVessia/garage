@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
 
 import {
   addCalendarDays,
@@ -48,33 +48,37 @@ import { mapDbError } from '../shared/common/db-error.js'
 
 // Weight stats row schema (combined query with points as JSON)
 const WeightStatsRow = Schema.Struct({
-  min_weight: Schema.NullOr(Schema.Number),
-  max_weight: Schema.NullOr(Schema.Number),
-  avg_weight: Schema.NullOr(Schema.Number),
-  entry_count: Schema.Number,
+  min_weight: Schema.NullOr(Schema.Finite),
+  max_weight: Schema.NullOr(Schema.Finite),
+  avg_weight: Schema.NullOr(Schema.Finite),
+  entry_count: Schema.Int,
   points_json: Schema.String,
 })
+
 const decodeWeightStatsRow = Schema.decodeUnknownEffect(WeightStatsRow)
 
 // Schema for parsing points from JSON
 const WeightPointJson = Schema.Struct({
   datetime: Schema.String,
-  weight: Schema.Number,
+  weight: Schema.Finite,
 })
+
 const decodeWeightPointsJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Array(WeightPointJson)))
 
 // Weight trend row schema - decode ISO8601 string to Date
 const WeightTrendRow = Schema.Struct({
   datetime: Schema.DateFromString,
-  weight: Schema.Number,
+  weight: Schema.Finite,
 })
+
 const decodeWeightTrendRows = Schema.decodeUnknownEffect(Schema.Array(WeightTrendRow))
 
 // Injection site count row schema
 const InjectionSiteRow = Schema.Struct({
   injection_site: Schema.NullOr(Schema.String),
-  count: Schema.Number,
+  count: Schema.Int,
 })
+
 const decodeInjectionSiteRows = Schema.decodeUnknownEffect(Schema.Array(InjectionSiteRow))
 
 // Dose history row schema - decode ISO8601 string to Date
@@ -83,19 +87,22 @@ const DoseHistoryRow = Schema.Struct({
   drug: MedicationCompound,
   dose_mg: DoseMg,
 })
+
 const decodeDoseHistoryRows = Schema.decodeUnknownEffect(Schema.Array(DoseHistoryRow))
 
 // Drug count row schema
 const DrugCountRow = Schema.Struct({
   drug: MedicationCompound,
-  count: Schema.Number,
+  count: Schema.Int,
 })
+
 const decodeDrugCountRows = Schema.decodeUnknownEffect(Schema.Array(DrugCountRow))
 
 // Datetime-only row schema (for timezone-aware day of week calculation)
 const DatetimeRow = Schema.Struct({
   datetime: Schema.DateFromString,
 })
+
 const decodeDatetimeRows = Schema.decodeUnknownEffect(Schema.Array(DatetimeRow))
 
 // ============================================
@@ -151,16 +158,17 @@ export const StatsServiceLive = Layer.effect(
     const sql = yield* SqlClient.SqlClient
     const settingsRepo = yield* SettingsRepo
 
-    const getTimezone = Effect.fn('StatsService.getTimezone')(function* (userId: string) {
+    const getTimezone = Effect.fn('statsService.getTimezone')(function* (userId: string) {
       const settings = yield* settingsRepo
         .get(userId)
         .pipe(Effect.mapError((error) => StatsDatabaseError.make({ operation: error.operation, cause: error.cause })))
+
       return yield* Option.match(settings, {
         onNone: () =>
           Effect.fail(
             StatsDatabaseError.make({
               operation: 'query',
-              cause: new SettingsTimezoneNotInitialized({ userId }),
+              cause: SettingsTimezoneNotInitialized.make({ userId }),
             })
           ),
         onSome: ({ timezone }) => Effect.succeed(timezone),
@@ -171,26 +179,30 @@ export const StatsServiceLive = Layer.effect(
       if (params.startDate === undefined && params.endDate === undefined) {
         return sql``
       }
+
       const startDate =
         params.startDate === undefined
           ? undefined
           : DateTime.formatIso(calendarDateStartUtc(params.startDate, timezone))
+
       const endDate =
         params.endDate === undefined
           ? undefined
           : DateTime.formatIso(calendarDateStartUtc(addCalendarDays(params.endDate, 1), timezone))
+
       return sql`
         ${startDate === undefined ? sql`` : sql`AND datetime >= ${startDate}`}
         ${endDate === undefined ? sql`` : sql`AND datetime < ${endDate}`}
       `
     }
 
-    const listInjectionDatetimes = Effect.fn('StatsService.listInjectionDatetimes')(function* (
+    const listInjectionDatetimes = Effect.fn('statsService.listInjectionDatetimes')(function* (
       params: StatsParams,
       userId: string,
       timezone: IanaTimezone
     ) {
       const range = dateRangeClause(params, timezone)
+
       const rows = yield* sql`
           SELECT datetime
           FROM injection_logs
@@ -198,11 +210,13 @@ export const StatsServiceLive = Layer.effect(
           ${range}
           ORDER BY datetime ASC
         `
+
       const decoded = yield* decodeDatetimeRows(rows)
+
       return Arr.map(decoded, (row) => row.datetime)
     })
 
-    const getWeightStats = Effect.fn('StatsService.getWeightStats')(
+    const getWeightStats = Effect.fn('statsService.getWeightStats')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
@@ -228,18 +242,21 @@ export const StatsServiceLive = Layer.effect(
           WHERE user_id = ${userId}
           ${range}
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return { data: Option.none<WeightStats>(), timezone }
         }
 
         const decoded = yield* decodeWeightStatsRow(rows[0])
+
         if (decoded.min_weight === null || decoded.max_weight === null || decoded.avg_weight === null) {
           return { data: Option.none<WeightStats>(), timezone }
         }
 
         // Parse points from JSON
         const pointsRaw = yield* decodeWeightPointsJson(decoded.points_json)
-        const points: { date: Date; weight: number }[] = Arr.map(pointsRaw, (p) => ({
+
+        const points: Array<{ date: Date; weight: number }> = Arr.map(pointsRaw, (p) => ({
           date: DateTime.toDate(DateTime.makeUnsafe(p.datetime)),
           weight: p.weight,
         }))
@@ -248,7 +265,7 @@ export const StatsServiceLive = Layer.effect(
 
         return {
           data: Option.some(
-            new WeightStats({
+            WeightStats.make({
               minWeight: Weight.make(decoded.min_weight),
               maxWeight: Weight.make(decoded.max_weight),
               avgWeight: Weight.make(decoded.avg_weight),
@@ -262,10 +279,11 @@ export const StatsServiceLive = Layer.effect(
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getWeightTrend = Effect.fn('StatsService.getWeightTrend')(
+    const getWeightTrend = Effect.fn('statsService.getWeightTrend')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
+
         const rows = yield* sql`
           SELECT datetime, weight
           FROM weight_logs
@@ -273,17 +291,19 @@ export const StatsServiceLive = Layer.effect(
           ${range}
           ORDER BY datetime ASC
         `
+
         const decoded = yield* decodeWeightTrendRows(rows)
-        const points = Arr.map(
-          decoded,
-          (row) => new WeightTrendPoint({ date: row.datetime, weight: Weight.make(row.weight) })
+
+        const points = Arr.map(decoded, (row) =>
+          WeightTrendPoint.make({ date: row.datetime, weight: Weight.make(row.weight) })
         )
 
         const trajectory = calculateWeightTrajectory(points)
+
         const trendLine = Option.match(trajectory.trendLine, {
           onNone: () => null,
           onSome: (trendLineData) =>
-            new TrendLine({
+            TrendLine.make({
               slope: trendLineData.slope,
               intercept: trendLineData.intercept,
               startDate: trendLineData.startDate,
@@ -292,15 +312,17 @@ export const StatsServiceLive = Layer.effect(
               endWeight: Weight.make(trendLineData.endWeight),
             }),
         })
-        return { data: new WeightTrendStats({ points, trendLine }), timezone }
+
+        return { data: WeightTrendStats.make({ points, trendLine }), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getInjectionSiteStats = Effect.fn('StatsService.getInjectionSiteStats')(
+    const getInjectionSiteStats = Effect.fn('statsService.getInjectionSiteStats')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
+
         const rows = yield* sql`
           SELECT
             COALESCE(injection_site, 'Unknown') as injection_site,
@@ -311,25 +333,28 @@ export const StatsServiceLive = Layer.effect(
           GROUP BY injection_site
           ORDER BY count DESC
         `
+
         const decodedRows = yield* decodeInjectionSiteRows(rows)
-        const sites = Arr.map(
-          decodedRows,
-          (decoded) =>
-            new InjectionSiteCount({
-              site: InjectionSite.make(decoded.injection_site ?? 'Unknown'),
-              count: Count.make(decoded.count),
-            })
+
+        const sites = Arr.map(decodedRows, (decoded) =>
+          InjectionSiteCount.make({
+            site: InjectionSite.make(decoded.injection_site ?? 'Unknown'),
+            count: Count.make(decoded.count),
+          })
         )
+
         const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
-        return { data: new InjectionSiteStats({ sites, totalInjections: Count.make(total) }), timezone }
+
+        return { data: InjectionSiteStats.make({ sites, totalInjections: Count.make(total) }), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getDoseHistory = Effect.fn('StatsService.getDoseHistory')(
+    const getDoseHistory = Effect.fn('statsService.getDoseHistory')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
+
         const rows = yield* sql`
           SELECT datetime, drug, dose_mg
           FROM injection_logs
@@ -337,18 +362,21 @@ export const StatsServiceLive = Layer.effect(
           ${range}
           ORDER BY datetime ASC
         `
+
         const decoded = yield* decodeDoseHistoryRows(rows)
+
         const inputs = Arr.map(decoded, (row) => ({
           date: row.datetime,
           drug: row.drug,
           doseMg: row.dose_mg,
         }))
+
         return { data: buildDoseHistoryStats(inputs), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getInjectionFrequency = Effect.fn('StatsService.getInjectionFrequency')(
+    const getInjectionFrequency = Effect.fn('statsService.getInjectionFrequency')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const datetimes = yield* listInjectionDatetimes(params, userId, timezone)
@@ -359,10 +387,11 @@ export const StatsServiceLive = Layer.effect(
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getDrugBreakdown = Effect.fn('StatsService.getDrugBreakdown')(
+    const getDrugBreakdown = Effect.fn('statsService.getDrugBreakdown')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const range = dateRangeClause(params, timezone)
+
         const rows = yield* sql`
           SELECT drug, COUNT(*) as count
           FROM injection_logs
@@ -371,18 +400,21 @@ export const StatsServiceLive = Layer.effect(
           GROUP BY drug
           ORDER BY count DESC
         `
+
         const decodedRows = yield* decodeDrugCountRows(rows)
-        const drugs = Arr.map(
-          decodedRows,
-          (decoded) => new DrugCount({ drug: decoded.drug, count: Count.make(decoded.count) })
+
+        const drugs = Arr.map(decodedRows, (decoded) =>
+          DrugCount.make({ drug: decoded.drug, count: Count.make(decoded.count) })
         )
+
         const total = Arr.reduce(decodedRows, 0, (sum, decoded) => sum + decoded.count)
-        return { data: new DrugBreakdownStats({ drugs, totalInjections: Count.make(total) }), timezone }
+
+        return { data: DrugBreakdownStats.make({ drugs, totalInjections: Count.make(total) }), timezone }
       },
       mapDbError(StatsDatabaseError, 'query')
     )
 
-    const getInjectionByDayOfWeek = Effect.fn('StatsService.getInjectionByDayOfWeek')(
+    const getInjectionByDayOfWeek = Effect.fn('statsService.getInjectionByDayOfWeek')(
       function* (params: StatsParams, userId: string) {
         const timezone = yield* getTimezone(userId)
         const datetimes = yield* listInjectionDatetimes(params, userId, timezone)

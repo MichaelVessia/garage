@@ -5,7 +5,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
+import * as Str from 'effect/String'
 
 import {
   CalendarDate,
@@ -50,7 +51,7 @@ const decodeLegacyGoalRows = Schema.decodeUnknownEffect(Schema.Array(LegacyGoalD
 const decodeLegacyInstant = Schema.decodeUnknownOption(Schema.DateTimeUtcFromString)
 
 const settingsRowToDomain = (row: typeof SettingsRow.Type, timezone: IanaTimezone): UserSettings =>
-  new UserSettings({
+  UserSettings.make({
     id: row.id,
     weightUnit: row.weight_unit,
     timezone,
@@ -75,6 +76,7 @@ const temporalMigrationError = (
 const recoverLegacyCalendarDate = (date: CalendarDate, timezone: IanaTimezone): CalendarDate => {
   const positiveOffsetCandidate = addCalendarDays(date, 1)
   const candidateStoredDate = calendarDateStartUtc(positiveOffsetCandidate, timezone).pipe(DateTime.formatIsoDateUtc)
+
   return candidateStoredDate === date ? positiveOffsetCandidate : date
 }
 
@@ -90,9 +92,11 @@ const convertLegacyPlannedDate = (
   if (Schema.is(CalendarDate)(value)) {
     return Effect.succeed(recoverLegacyCalendarDate(value, timezone))
   }
-  if (!value.endsWith('Z')) {
+
+  if (!Str.endsWith('Z')(value)) {
     return Effect.fail(temporalMigrationError(context.entity, context.recordId, context.field, value))
   }
+
   return Option.match(decodeLegacyInstant(value), {
     onNone: () => Effect.fail(temporalMigrationError(context.entity, context.recordId, context.field, value)),
     onSome: (instant) => Effect.succeed(projectInstantToCalendarDate(instant, timezone)),
@@ -127,23 +131,26 @@ export const SettingsRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const readRow = Effect.fn('SettingsRepo.readRow')(
+    const readRow = Effect.fn('settingsRepo.readRow')(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, weight_unit, timezone, timezone_migration_state, created_at, updated_at
           FROM user_settings
           WHERE user_id = ${userId}
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none<typeof SettingsRow.Type>()
         }
+
         return Option.some(yield* decodeSettingsRow(rows[0]))
       },
       mapDbError(SettingsDatabaseError, 'query')
     )
 
-    const get = Effect.fn('SettingsRepo.get')(function* (userId: string) {
+    const get = Effect.fn('settingsRepo.get')(function* (userId: string) {
       const row = yield* readRow(userId)
+
       return Option.flatMap(row, (settings) =>
         settings.timezone === null || settings.timezone_migration_state !== 'complete'
           ? Option.none()
@@ -151,7 +158,7 @@ export const SettingsRepoLive = Layer.effect(
       )
     })
 
-    const initializeTimezone = Effect.fn('SettingsRepo.initializeTimezone')(function* (
+    const initializeTimezone = Effect.fn('settingsRepo.initializeTimezone')(function* (
       userId: string,
       detectedTimezone: IanaTimezone
     ) {
@@ -182,15 +189,18 @@ export const SettingsRepoLive = Layer.effect(
       `.pipe(mapDbError(SettingsDatabaseError, 'insert'))
 
       const claimed = yield* readRow(userId)
+
       if (Option.isNone(claimed) || claimed.value.timezone === null) {
         return yield* Effect.fail(
           SettingsDatabaseError.make({
             operation: 'query',
-            cause: new SettingsMissingAfterUpsert({ message: 'Settings timezone claim was not persisted' }),
+            cause: SettingsMissingAfterUpsert.make({ message: 'Settings timezone claim was not persisted' }),
           })
         )
       }
+
       const claimedTimezone = claimed.value.timezone
+
       if (claimed.value.timezone_migration_state === 'complete') {
         return settingsRowToDomain(claimed.value, claimedTimezone)
       }
@@ -200,14 +210,17 @@ export const SettingsRepoLive = Layer.effect(
         FROM injection_schedules
         WHERE user_id = ${userId} AND calendar_date_migrated = 0
       `.pipe(mapDbError(SettingsDatabaseError, 'query'))
+
       const rawGoalRows = yield* sql`
         SELECT id, starting_date, target_date
         FROM user_goals
         WHERE user_id = ${userId} AND calendar_date_migrated = 0
       `.pipe(mapDbError(SettingsDatabaseError, 'query'))
+
       const scheduleRows = yield* decodeLegacyScheduleRows(rawScheduleRows).pipe(
         mapDbError(SettingsDatabaseError, 'query')
       )
+
       const goalRows = yield* decodeLegacyGoalRows(rawGoalRows).pipe(mapDbError(SettingsDatabaseError, 'query'))
 
       const schedules: ReadonlyArray<ConvertedScheduleDate> = yield* Effect.forEach(
@@ -220,6 +233,7 @@ export const SettingsRepoLive = Layer.effect(
           }).pipe(Effect.map((startDate) => ({ id: row.id, startDate }))),
         { concurrency: 1 }
       )
+
       const goals: ReadonlyArray<ConvertedGoalDates> = yield* Effect.forEach(
         goalRows,
         (row) =>
@@ -237,7 +251,7 @@ export const SettingsRepoLive = Layer.effect(
                       entity: 'user_goal',
                       field: 'target_date',
                       recordId: row.id,
-                    }).pipe(Effect.map(Option.some)),
+                    }).pipe(Effect.asSome),
             },
             { concurrency: 1 }
           ).pipe(Effect.map(({ startingDate, targetDate }) => ({ id: row.id, startingDate, targetDate }))),
@@ -276,30 +290,30 @@ export const SettingsRepoLive = Layer.effect(
       `.pipe(mapDbError(SettingsDatabaseError, 'update'))
 
       const initialized = yield* get(userId)
-      return yield* Option.match(initialized, {
-        onNone: () =>
-          Effect.fail(
-            SettingsDatabaseError.make({
-              operation: 'query',
-              cause: new SettingsMissingAfterUpsert({ message: 'Settings timezone migration did not complete' }),
-            })
-          ),
-        onSome: Effect.succeed,
-      })
+
+      return yield* Effect.fromOption(initialized, () =>
+        SettingsDatabaseError.make({
+          operation: 'query',
+          cause: SettingsMissingAfterUpsert.make({ message: 'Settings timezone migration did not complete' }),
+        })
+      )
     })
 
-    const resolveUpsertMigrationTimezone = Effect.fn('SettingsRepo.resolveUpsertMigrationTimezone')(function* (
+    const resolveUpsertMigrationTimezone = Effect.fn('settingsRepo.resolveUpsertMigrationTimezone')(function* (
       userId: string,
       requestedTimezone: Option.Option<IanaTimezone>
     ) {
       const claimed = yield* readRow(userId)
       const immediateTimezone = Option.flatMap(claimed, ({ timezone }) => Option.fromNullishOr(timezone))
+
       if (Option.isSome(immediateTimezone)) {
         return immediateTimezone.value
       }
+
       if (Option.isSome(requestedTimezone)) {
         return requestedTimezone.value
       }
+
       const attempts = yield* Effect.forEach(
         Arr.range(1, 32),
         () =>
@@ -309,21 +323,18 @@ export const SettingsRepoLive = Layer.effect(
           ),
         { concurrency: 1 }
       )
-      return yield* Option.match(Arr.head(Arr.getSomes(attempts)), {
-        onNone: () =>
-          Effect.fail(
-            SettingsDatabaseError.make({
-              operation: 'insert',
-              cause: new SettingsMissingAfterUpsert({
-                message: 'Timezone is required when creating settings',
-              }),
-            })
-          ),
-        onSome: Effect.succeed,
-      })
+
+      return yield* Effect.fromOption(Arr.head(Arr.getSomes(attempts)), () =>
+        SettingsDatabaseError.make({
+          operation: 'insert',
+          cause: SettingsMissingAfterUpsert.make({
+            message: 'Timezone is required when creating settings',
+          }),
+        })
+      )
     })
 
-    const upsert = Effect.fn('SettingsRepo.upsert')(
+    const upsert = Effect.fn('settingsRepo.upsert')(
       function* (userId: string, data: UserSettingsUpdate) {
         const now = DateTime.formatIso(yield* DateTime.now)
         const id = yield* randomUuid()
@@ -360,16 +371,13 @@ export const SettingsRepoLive = Layer.effect(
         `
 
         const result = yield* get(userId)
-        return yield* Option.match(result, {
-          onNone: () =>
-            Effect.fail(
-              SettingsDatabaseError.make({
-                operation: 'query',
-                cause: new SettingsMissingAfterUpsert({ message: 'Settings not found after upsert' }),
-              })
-            ),
-          onSome: Effect.succeed,
-        })
+
+        return yield* Effect.fromOption(result, () =>
+          SettingsDatabaseError.make({
+            operation: 'query',
+            cause: SettingsMissingAfterUpsert.make({ message: 'Settings not found after upsert' }),
+          })
+        )
       },
       mapDbError(SettingsDatabaseError, 'update')
     )

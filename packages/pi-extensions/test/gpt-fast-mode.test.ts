@@ -30,23 +30,31 @@ describe('GPT fast-mode policy', () => {
 
   it('adds priority only to a matching supported model request', () => {
     assert.deepStrictEqual(
-      applyFastMode({ input: 'hello', model: 'gpt-5.6-sol' }, supportedModel, true),
+      applyFastMode({ input: 'hello', model: 'gpt-5.6-sol' }, { model: supportedModel, enabled: true }),
       Option.some({
         input: 'hello',
         model: 'gpt-5.6-sol',
         service_tier: 'priority',
       })
     )
-    assert.deepStrictEqual(applyFastMode({ model: 'other-model' }, supportedModel, true), Option.none())
-    assert.deepStrictEqual(applyFastMode({ model: 'gpt-5.6-sol' }, supportedModel, false), Option.none())
-    assert.deepStrictEqual(applyFastMode('not-an-object', supportedModel, true), Option.none())
+    assert.deepStrictEqual(
+      applyFastMode({ model: 'other-model' }, { model: supportedModel, enabled: true }),
+      Option.none()
+    )
+    assert.deepStrictEqual(
+      applyFastMode({ model: 'gpt-5.6-sol' }, { model: supportedModel, enabled: false }),
+      Option.none()
+    )
+    assert.deepStrictEqual(applyFastMode('not-an-object', { model: supportedModel, enabled: true }), Option.none())
   })
 
   it.effect('reads settings through Effect filesystem and path capabilities', () => {
     const reads: Array<string> = []
+
     const fileSystemLayer = FileSystem.layerNoop({
       readFileString: (path) => {
         reads.push(path)
+
         return Effect.succeed('{"pi-gpt-fast-mode":{"enabled":true}}')
       },
     })
@@ -67,6 +75,7 @@ describe('GPT fast-mode policy', () => {
       Effect.provide(Layer.mergeAll(fileSystemLayer, NodePath.layer)),
       Effect.map((enabled) => {
         assert.isFalse(enabled)
+
         return enabled
       })
     )

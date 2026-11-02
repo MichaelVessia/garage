@@ -1,3 +1,4 @@
+import * as Arr from 'effect/Array'
 import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as SchemaGetter from 'effect/SchemaGetter'
@@ -20,14 +21,17 @@ import type {
 } from './model.js'
 
 const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
-const NullableNumber = Schema.NullOr(Schema.Number).pipe(Schema.optional)
+const NullableInt = Schema.NullOr(Schema.Int).pipe(Schema.optional)
+const NullableFinite = Schema.NullOr(Schema.Finite).pipe(Schema.optional)
 const NullableBoolean = Schema.NullOr(Schema.Boolean).pipe(Schema.optional)
+
 const BooleanFlag = Schema.Union([Schema.Boolean, Schema.Literals(['0', '1'])]).pipe(
   Schema.decodeTo(Schema.Boolean, {
     decode: SchemaGetter.transform((value: boolean | '0' | '1') => value === true || value === '1'),
     encode: SchemaGetter.transform((value: boolean) => value),
   })
 )
+
 const NullableBooleanFlag = Schema.NullOr(BooleanFlag).pipe(Schema.optional)
 const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
 const ActionStatusApi = Schema.Union([Schema.Boolean, Schema.String]).pipe(Schema.NullOr, Schema.optional)
@@ -74,8 +78,8 @@ const QueueApi = Schema.Struct({
   timeleft: NullableString,
   mb: NullableString,
   mbleft: NullableString,
-  noofslots: NullableNumber,
-  noofslots_total: NullableNumber,
+  noofslots: NullableInt,
+  noofslots_total: NullableInt,
   slots: Schema.Array(QueueSlotApi),
 })
 
@@ -88,10 +92,10 @@ const HistorySlotApi = Schema.Struct({
   name: Schema.String,
   status: NullableString,
   category: NullableString,
-  bytes: NullableNumber,
+  bytes: NullableFinite,
   fail_message: NullableString,
   storage: NullableString,
-  completed: NullableNumber,
+  completed: NullableFinite,
 })
 
 const HistoryApi = Schema.Struct({
@@ -99,7 +103,7 @@ const HistoryApi = Schema.Struct({
   month_size: NullableString,
   week_size: NullableString,
   day_size: NullableString,
-  noofslots: NullableNumber,
+  noofslots: NullableInt,
   slots: Schema.Array(HistorySlotApi),
 })
 
@@ -112,17 +116,17 @@ const ActionResponseApi = Schema.Struct({
 })
 
 const ServerUsageApi = Schema.Struct({
-  total: NullableNumber,
-  month: NullableNumber,
-  week: NullableNumber,
-  day: NullableNumber,
+  total: NullableFinite,
+  month: NullableFinite,
+  week: NullableFinite,
+  day: NullableFinite,
 })
 
 const ServerStatsApi = Schema.Struct({
-  total: NullableNumber,
-  month: NullableNumber,
-  week: NullableNumber,
-  day: NullableNumber,
+  total: NullableFinite,
+  month: NullableFinite,
+  week: NullableFinite,
+  day: NullableFinite,
   servers: Schema.Record(Schema.String, ServerUsageApi),
 })
 
@@ -198,7 +202,8 @@ const queueSlotToApi = (slot: QueueSlot): typeof QueueSlotApi.Type => ({
 })
 
 const queueResultFromApi = (response: typeof QueueResponseApi.Type): QueueResult => {
-  const slots = response.queue.slots.map(queueSlotFromApi)
+  const slots = Arr.map(response.queue.slots, queueSlotFromApi)
+
   return {
     status: fromNullable(response.queue.status),
     paused: fromNullable(response.queue.paused),
@@ -226,7 +231,7 @@ const queueResultToApi = (result: QueueResult): typeof QueueResponseApi.Type => 
     mbleft: result.mbleft,
     noofslots: result.noofslots,
     noofslots_total: result.totalRecords,
-    slots: result.slots.map(queueSlotToApi),
+    slots: Arr.map(result.slots, queueSlotToApi),
   },
 })
 
@@ -260,7 +265,8 @@ const historySlotToApi = (slot: HistorySlot): typeof HistorySlotApi.Type => ({
 })
 
 const historyResultFromApi = (response: typeof HistoryResponseApi.Type): HistoryResult => {
-  const slots = response.history.slots.map(historySlotFromApi)
+  const slots = Arr.map(response.history.slots, historySlotFromApi)
+
   return {
     totalSize: fromNullable(response.history.total_size),
     monthSize: fromNullable(response.history.month_size),
@@ -280,7 +286,7 @@ const historyResultToApi = (result: HistoryResult): typeof HistoryResponseApi.Ty
     week_size: result.weekSize,
     day_size: result.daySize,
     noofslots: result.totalRecords,
-    slots: result.slots.map(historySlotToApi),
+    slots: Arr.map(result.slots, historySlotToApi),
   },
 })
 

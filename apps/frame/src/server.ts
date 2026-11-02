@@ -8,7 +8,9 @@ import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Path from 'effect/Path'
-import { RpcSerialization, RpcServer } from 'effect/rpc'
+import * as RpcSerialization from 'effect/rpc/RpcSerialization'
+import * as RpcServer from 'effect/rpc/RpcServer'
+import * as Str from 'effect/String'
 
 import { FrameRpcs, FrameVersion } from '#shared'
 
@@ -24,7 +26,7 @@ const VERSION_META = 'frame-version'
 const fingerprint = (html: string): string => `${Math.abs(Hash.string(html)).toString(16)}-${html.length}`
 
 const withVersionMeta = (html: string, version: string): string =>
-  html.replace('<head>', `<head><meta name="${VERSION_META}" content="${version}" />`)
+  Str.replace('<head>', `<head><meta name="${VERSION_META}" content="${version}" />`)(html)
 
 // Serves the built SPA and its version. Unknown paths fall back to index.html so client routes survive a reload.
 const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
@@ -34,17 +36,20 @@ const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
       const path = yield* Path.Path
       const platform = yield* HttpPlatform.HttpPlatform
       const root = path.resolve(webRoot)
+
       const indexHtml = yield* fs.readFileString(path.join(root, 'index.html')).pipe(
         Effect.tapError((failure) => Effect.logWarning('No built SPA in the web root', failure.reason)),
         Effect.orElseSucceed(() => '')
       )
-      const version = new FrameVersion({ version: Option.getOrElse(buildId, () => fingerprint(indexHtml)) })
+
+      const version = FrameVersion.make({ version: Option.getOrElse(buildId, () => fingerprint(indexHtml)) })
+
       const page = HttpServerResponse.html(withVersionMeta(indexHtml, version.version)).pipe(
         HttpServerResponse.setHeader('cache-control', 'no-cache')
       )
 
       const isServableFile = (candidate: string) =>
-        candidate.startsWith(`${root}${path.sep}`) && candidate !== path.join(root, 'index.html')
+        Str.startsWith(`${root}${path.sep}`)(candidate) && candidate !== path.join(root, 'index.html')
           ? fs.stat(candidate).pipe(
               Effect.map((info) => info.type === 'File'),
               Effect.tapError((failure) => Effect.logDebug('No static file at path', failure.reason)),
@@ -69,10 +74,13 @@ const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
           const request = yield* HttpServerRequest.HttpServerRequest
           const pathname = decodeURIComponent(new URL(request.url, 'http://frame.local').pathname)
           const candidate = path.resolve(root, `.${pathname}`)
+
           if (!(yield* isServableFile(candidate))) {
             return page
           }
-          const cacheControl = pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache'
+
+          const cacheControl = Str.startsWith('/assets/')(pathname) ? 'public, max-age=31536000, immutable' : 'no-cache'
+
           return yield* platform.fileResponse(candidate, { headers: { 'cache-control': cacheControl } }).pipe(
             Effect.tapError((failure) => Effect.logWarning('Static file could not be served', failure.reason)),
             Effect.orElseSucceed(() => HttpServerResponse.text('Not found', { status: 404 }))
@@ -91,14 +99,17 @@ const ARTWORK_PATH = '/media/art/'
 const ArtworkRoute = Layer.unwrap(
   Effect.gen(function* () {
     const homeAssistant = yield* HomeAssistantApi
+
     return HttpRouter.add(
       'GET',
       `${ARTWORK_PATH}*`,
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+
         const entityId = decodeURIComponent(
-          new URL(request.url, 'http://frame.local').pathname.slice(ARTWORK_PATH.length)
+          Str.slice(ARTWORK_PATH.length)(new URL(request.url, 'http://frame.local').pathname)
         )
+
         return yield* homeAssistant.mediaArtwork(entityId).pipe(
           Effect.map(
             Option.match({
@@ -120,6 +131,17 @@ const ArtworkRoute = Layer.unwrap(
   })
 )
 
+type FrameRoutesServices =
+  | Layer.Services<typeof RpcRoute>
+  | Layer.Services<typeof ArtworkRoute>
+  | Layer.Services<ReturnType<typeof spaRoutes>>
+
 /** Health, RPC, media artwork, and SPA routes for the frame server. `buildId` names the deployed build. */
-export const frameRoutes = (webRoot: string, buildId: Option.Option<string>) =>
+export const frameRoutes = ({
+  webRoot,
+  buildId,
+}: {
+  readonly webRoot: string
+  readonly buildId: Option.Option<string>
+}): Layer.Layer<never, never, FrameRoutesServices> =>
   Layer.mergeAll(RpcRoute, ArtworkRoute, spaRoutes(webRoot, buildId))

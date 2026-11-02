@@ -1,5 +1,9 @@
-import * as Docker from '@alchemy.run/docker'
-import * as Alchemy from 'alchemy'
+import {
+  Container as DockerContainer,
+  Context as DockerContext,
+  providers as dockerProviders,
+} from '@alchemy.run/docker'
+import { Stack, localState } from 'alchemy'
 import * as Arr from 'effect/Array'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
@@ -26,16 +30,12 @@ const optionalSettings = Effect.forEach(
   { concurrency: 1 }
 ).pipe(Effect.map((entries) => R.fromEntries(Arr.getSomes(entries))))
 
-export default Alchemy.Stack(
+export default Stack(
   'Frame',
   {
-    // Alchemy 2.0.0-beta.70 types Docker.providers() with an `any` requirement; nothing here widens it.
-    // @effect-diagnostics anyUnknownInErrorContext:off
-    // oxlint-disable-next-line typescript/no-unsafe-assignment -- upstream `any` requirement
-    providers: Docker.providers(),
-    // @effect-diagnostics anyUnknownInErrorContext:on
+    providers: dockerProviders(),
     // Local state under apps/frame/.alchemy on the deploying workstation.
-    state: Alchemy.localState(),
+    state: localState(),
   },
   Effect.gen(function* () {
     // `deploy:prod` sets this from the Nix image tag and loads that image onto the host first
@@ -45,12 +45,12 @@ export default Alchemy.Stack(
     // The frame host's Docker endpoint, e.g. `ssh://root@<host>`, reached with the workstation's SSH key.
     const dockerHost = yield* Config.NonEmptyString('FRAME_DOCKER_HOST')
 
-    const host = yield* Docker.Context('frame-host', {
+    const host = yield* DockerContext('frame-host', {
       docker: `host=${dockerHost}`,
       description: 'garage-frame host',
     })
 
-    const container = yield* Docker.Container('frame', {
+    const container = yield* DockerContainer('frame', {
       name: 'garage-frame',
       context: host,
       image: imageRef,

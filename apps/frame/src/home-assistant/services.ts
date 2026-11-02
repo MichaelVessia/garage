@@ -38,11 +38,11 @@ export class HomeAssistantConfig extends Context.Service<
 export class HomeAssistantApi extends Context.Service<
   HomeAssistantApi,
   {
-    readonly weather: () => Effect.Effect<Weather, HomeAssistantError>
-    readonly shoppingItems: () => Effect.Effect<ReadonlyArray<ShoppingItem>, HomeAssistantError>
+    readonly weather: Effect.Effect<Weather, HomeAssistantError>
+    readonly shoppingItems: Effect.Effect<ReadonlyArray<ShoppingItem>, HomeAssistantError>
     readonly addShoppingItem: (addition: ShoppingItemAddition) => Effect.Effect<void, HomeAssistantError>
     readonly updateShoppingItem: (update: ShoppingItemUpdate) => Effect.Effect<void, HomeAssistantError>
-    readonly media: () => Effect.Effect<MediaSnapshot, HomeAssistantError>
+    readonly media: Effect.Effect<MediaSnapshot, HomeAssistantError>
     readonly runMediaAction: (action: MediaAction) => Effect.Effect<void, HomeAssistantError | MediaActionRejected>
     /** Artwork bytes for a configured player, or none when it has no proxied artwork. */
     readonly mediaArtwork: (
@@ -66,7 +66,10 @@ const readOptional = (name: string) =>
   )
 
 const parsed = <A>(name: string, result: Result.Result<A, string>) =>
-  Result.match(result, { onSuccess: Effect.succeed, onFailure: (reason) => Effect.fail(envInvalid(name, reason)) })
+  Result.match(result, {
+    onSuccess: Effect.succeed,
+    onFailure: (reason) => Effect.fail(envInvalid({ variable: name, reason })),
+  })
 
 const readOptionalEntity = (name: string, domain: string) =>
   readOptional(name).pipe(
@@ -74,16 +77,19 @@ const readOptionalEntity = (name: string, domain: string) =>
     Effect.map((entities) => Option.fromNullishOr(entities[0]))
   )
 
-const readMediaConfig = Effect.fn('frame.home-assistant.readMediaConfig')(function* () {
+const readMediaConfig = Effect.fn('frame.homeAssistant.readMediaConfig')(function* () {
   const slots = yield* readOptional('HOME_ASSISTANT_MEDIA_PLAYERS').pipe(
     Effect.flatMap((raw) => parsed('HOME_ASSISTANT_MEDIA_PLAYERS', parseMediaSlots(raw)))
   )
+
   const zones = yield* readOptional('HOME_ASSISTANT_SPEAKER_ZONES').pipe(
     Effect.flatMap((raw) => parsed('HOME_ASSISTANT_SPEAKER_ZONES', parseEntityList(raw, 'switch')))
   )
+
   const allOn = yield* readOptionalEntity('HOME_ASSISTANT_SPEAKERS_ALL_ON', 'button')
   const allOff = yield* readOptionalEntity('HOME_ASSISTANT_SPEAKERS_ALL_OFF', 'button')
   const spotify = yield* readOptionalEntity('HOME_ASSISTANT_SPOTIFY_PLAYER', 'media_player')
+
   return { slots, zones, allOn, allOff, spotify } satisfies MediaConfig
 })
 
@@ -95,6 +101,7 @@ export const HomeAssistantConfigLive: Layer.Layer<HomeAssistantConfig, HomeAssis
     const weatherEntity = yield* readEntity('HOME_ASSISTANT_WEATHER_ENTITY', 'weather.forecast_home')
     const shoppingEntity = yield* readEntity('HOME_ASSISTANT_SHOPPING_ENTITY', 'todo.shopping_list')
     const media = yield* readMediaConfig()
+
     return HomeAssistantConfig.of({ url, token, weatherEntity, shoppingEntity, media })
   })
 )

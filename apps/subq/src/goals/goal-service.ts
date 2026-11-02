@@ -1,3 +1,4 @@
+import * as Arr from 'effect/Array'
 import * as Context from 'effect/Context'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
@@ -61,37 +62,40 @@ export const GoalServiceLive = Layer.effect(
     const weightLogRepo = yield* WeightLogRepo
     const settingsRepo = yield* SettingsRepo
 
-    const getTimezone = Effect.fn('GoalService.getTimezone')(function* (userId: string) {
+    const getTimezone = Effect.fn('goalService.getTimezone')(function* (userId: string) {
       const settings = yield* settingsRepo
         .get(userId)
         .pipe(Effect.mapError((error) => GoalDatabaseError.make({ operation: error.operation, cause: error.cause })))
+
       return yield* Option.match(settings, {
         onNone: () =>
           Effect.fail(
             GoalDatabaseError.make({
               operation: 'query',
-              cause: new SettingsTimezoneNotInitialized({ userId }),
+              cause: SettingsTimezoneNotInitialized.make({ userId }),
             })
           ),
         onSome: ({ timezone }) => Effect.succeed(timezone),
       })
     })
 
-    const requireCompletedTimezoneMigration = Effect.fn('GoalService.requireCompletedTimezoneMigration')(function* (
+    const requireCompletedTimezoneMigration = Effect.fn('goalService.requireCompletedTimezoneMigration')(function* (
       userId: string
     ) {
       const settings = yield* settingsRepo
         .get(userId)
         .pipe(Effect.mapError((error) => GoalDatabaseError.make({ operation: error.operation, cause: error.cause })))
+
       return yield* Option.match(settings, {
-        onNone: () => Effect.fail(new SettingsTimezoneNotInitialized({ userId })),
+        onNone: () => Effect.fail(SettingsTimezoneNotInitialized.make({ userId })),
         onSome: ({ timezone }) => Effect.succeed(timezone),
       })
     })
 
-    const getCurrentWeight = Effect.fn('GoalService.getCurrentWeight')(
+    const getCurrentWeight = Effect.fn('goalService.getCurrentWeight')(
       function* (userId: string) {
         const entry = yield* weightLogRepo.mostRecent(userId)
+
         return Option.map(entry, ({ weight }) => weight)
       },
       mapDbError(GoalDatabaseError, 'query')
@@ -99,42 +103,48 @@ export const GoalServiceLive = Layer.effect(
 
     const getMostRecentWeight = getCurrentWeight
 
-    const getWeightHistory = Effect.fn('GoalService.getWeightHistory')(
+    const getWeightHistory = Effect.fn('goalService.getWeightHistory')(
       function* (userId: string) {
         const entries = yield* weightLogRepo.listChronological(userId)
-        return entries.map((entry) => ({ date: DateTime.toDate(entry.datetime), weight: entry.weight }))
+
+        return Arr.map(entries, (entry) => ({ date: DateTime.toDate(entry.datetime), weight: entry.weight }))
       },
       mapDbError(GoalDatabaseError, 'query')
     )
 
-    const getWeightAtDateInTimezone = Effect.fn('GoalService.getWeightAtDateInTimezone')(
+    const getWeightAtDateInTimezone = Effect.fn('goalService.getWeightAtDateInTimezone')(
       function* (userId: string, date: CalendarDate, timezone: IanaTimezone) {
         const nearest = yield* weightLogRepo.nearestToDate(userId, date, timezone)
+
         return Option.map(nearest, ({ weight }) => weight)
       },
       mapDbError(GoalDatabaseError, 'query')
     )
 
-    const getWeightAtDate = Effect.fn('GoalService.getWeightAtDate')(function* (userId: string, date: CalendarDate) {
+    const getWeightAtDate = Effect.fn('goalService.getWeightAtDate')(function* (userId: string, date: CalendarDate) {
       const timezone = yield* getTimezone(userId)
+
       return yield* getWeightAtDateInTimezone(userId, date, timezone)
     })
 
-    const getGoalProgress = Effect.fn('GoalService.getGoalProgress')(function* (userId: string) {
+    const getGoalProgress = Effect.fn('goalService.getGoalProgress')(function* (userId: string) {
       const timezone = yield* getTimezone(userId)
       const goal = yield* goalRepo.getActive(userId)
+
       if (Option.isNone(goal)) {
-        return new GoalProgressResult({ goal: null, timezone })
+        return GoalProgressResult.make({ goal: null, timezone })
       }
 
       const currentWeight = yield* getCurrentWeight(userId)
+
       if (Option.isNone(currentWeight)) {
-        return new GoalProgressResult({ goal: null, timezone })
+        return GoalProgressResult.make({ goal: null, timezone })
       }
 
       const now = yield* DateTime.now
       const weightHistory = yield* getWeightHistory(userId)
-      return new GoalProgressResult({
+
+      return GoalProgressResult.make({
         goal: buildGoalProgress({
           goal: goal.value,
           currentWeight: currentWeight.value,
@@ -146,7 +156,7 @@ export const GoalServiceLive = Layer.effect(
       })
     })
 
-    const resolveStartingWeight = Effect.fn('GoalService.resolveStartingWeight')(function* (
+    const resolveStartingWeight = Effect.fn('goalService.resolveStartingWeight')(function* (
       userId: string,
       data: UserGoalCreate,
       timezone: IanaTimezone
@@ -154,24 +164,28 @@ export const GoalServiceLive = Layer.effect(
       if (data.startingWeight !== undefined) {
         return data.startingWeight
       }
+
       const weight = Option.isSome(data.startingDate)
         ? yield* getWeightAtDateInTimezone(userId, data.startingDate.value, timezone)
         : yield* getMostRecentWeight(userId)
+
       if (Option.isNone(weight)) {
         return yield* Effect.fail(NoWeightDataError.make({}))
       }
+
       return weight.value
     })
 
-    const createGoal = Effect.fn('GoalService.createGoal')(function* (userId: string, data: UserGoalCreate) {
+    const createGoal = Effect.fn('goalService.createGoal')(function* (userId: string, data: UserGoalCreate) {
       const timezone = yield* getTimezone(userId)
       const startingWeight = yield* resolveStartingWeight(userId, data, timezone)
       const now = yield* DateTime.now
       const startingDate = Option.getOrElse(data.startingDate, () => projectInstantToCalendarDate(now, timezone))
+
       return yield* goalRepo.create(data, startingWeight, startingDate, userId)
     })
 
-    const recomputeStartingWeightOnDateChange = Effect.fn('GoalService.recomputeStartingWeightOnDateChange')(function* (
+    const recomputeStartingWeightOnDateChange = Effect.fn('goalService.recomputeStartingWeightOnDateChange')(function* (
       userId: string,
       data: UserGoalUpdate,
       timezone: IanaTimezone
@@ -179,41 +193,54 @@ export const GoalServiceLive = Layer.effect(
       if (data.startingDate === undefined || data.startingWeight !== undefined) {
         return data
       }
+
       const current = yield* goalRepo.findById(data.id, userId)
+
       if (Option.isNone(current) || current.value.startingDate === data.startingDate) {
         return data
       }
+
       const weight = yield* getWeightAtDateInTimezone(userId, data.startingDate, timezone)
+
       if (Option.isNone(weight)) {
         return data
       }
+
       const update: RecomputedGoalUpdate = {
         id: data.id,
         startingWeight: Weight.make(weight.value),
         startingDate: data.startingDate,
       }
+
       if (data.goalWeight !== undefined) {
         update.goalWeight = data.goalWeight
       }
+
       if (data.targetDate !== undefined) {
         update.targetDate = data.targetDate
       }
+
       if (data.notes !== undefined) {
         update.notes = data.notes
       }
+
       if (data.isActive !== undefined) {
         update.isActive = data.isActive
       }
-      return new UserGoalUpdate(update)
+
+      return UserGoalUpdate.make(update)
     })
 
-    const updateGoal = Effect.fn('GoalService.updateGoal')(function* (userId: string, data: UserGoalUpdate) {
+    const updateGoal = Effect.fn('goalService.updateGoal')(function* (userId: string, data: UserGoalUpdate) {
       const changesPlannedDates = data.startingDate !== undefined || data.targetDate !== undefined
+
       if (!changesPlannedDates) {
         return yield* goalRepo.update(data, userId)
       }
+
       const timezone = yield* requireCompletedTimezoneMigration(userId)
       const updateData = yield* recomputeStartingWeightOnDateChange(userId, data, timezone)
+
       return yield* goalRepo.update(updateData, userId)
     })
 

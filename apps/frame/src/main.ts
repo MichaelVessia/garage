@@ -16,10 +16,11 @@ const CalendarLive = CalendarFeedLive.pipe(Layer.provide(CalendarConfigLive))
 
 const HomeAssistantLive = HomeAssistantApiLive.pipe(Layer.provide(HomeAssistantConfigLive))
 
-const FrameServicesLive = Layer.merge(CalendarLive, HomeAssistantLive).pipe(
-  Layer.provideMerge(FrameTimezoneLive),
-  Layer.provide(BunHttpClient.layer)
-)
+const FrameAdaptersLive = Layer.merge(CalendarLive, HomeAssistantLive).pipe(Layer.provideMerge(FrameTimezoneLive))
+
+const FrameServicesLive = FrameAdaptersLive.pipe(Layer.provide(BunHttpClient.layer))
+
+const FrameAppLive = FrameHandlersLive.pipe(Layer.provideMerge(FrameServicesLive))
 
 const HttpServerLive = Layer.unwrap(
   Effect.gen(function* () {
@@ -27,9 +28,9 @@ const HttpServerLive = Layer.unwrap(
     const webRoot = yield* Config.NonEmptyString('FRAME_WEB_ROOT').pipe(Config.withDefault('web/dist'))
     const buildId = yield* Config.NonEmptyString('FRAME_BUILD_ID').pipe(Config.option)
 
-    return HttpRouter.serve(
-      frameRoutes(webRoot, buildId).pipe(Layer.provide(FrameHandlersLive), Layer.provide(FrameServicesLive))
-    ).pipe(Layer.provide(BunHttpServer.layer({ hostname: '0.0.0.0', port })))
+    return HttpRouter.serve(frameRoutes({ webRoot, buildId }).pipe(Layer.provide(FrameAppLive))).pipe(
+      Layer.provide(BunHttpServer.layer({ hostname: '0.0.0.0', port }))
+    )
   })
 )
 

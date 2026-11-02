@@ -19,21 +19,21 @@ import type { DeleteOptions, LimitOptions } from '../src/index.js'
 const makeApiLayer = Effect.gen(function* () {
   const queueOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
   const historyOptions = yield* Ref.make<ReadonlyArray<LimitOptions>>([])
-  const deleteCalls = yield* Ref.make<ReadonlyArray<{ readonly nzoId: string; readonly options: DeleteOptions }>>([])
+  const deleteCalls = yield* Ref.make<ReadonlyArray<DeleteOptions>>([])
+
   const api = SabnzbdApi.of({
-    status: () =>
-      Effect.succeed({
-        version: '4.5.3',
-        uptime: '1d',
-        paused: false,
-        pausedAll: false,
-        speedlimit: '0',
-        speedlimitAbs: '0',
-        diskspace1Norm: '1 TB',
-        haveWarnings: false,
-        warnings: [],
-      }),
-    version: () => Effect.succeed({ version: '4.5.3' }),
+    status: Effect.succeed({
+      version: '4.5.3',
+      uptime: '1d',
+      paused: false,
+      pausedAll: false,
+      speedlimit: '0',
+      speedlimitAbs: '0',
+      diskspace1Norm: '1 TB',
+      haveWarnings: false,
+      warnings: [],
+    }),
+    version: Effect.succeed({ version: '4.5.3' }),
     queue: (options) =>
       Ref.update(queueOptions, (records) => [...records, options]).pipe(
         Effect.as({
@@ -86,20 +86,19 @@ const makeApiLayer = Effect.gen(function* () {
           ],
         })
       ),
-    pause: () => Effect.succeed({ action: 'pause', ok: true }),
-    resume: () => Effect.succeed({ action: 'resume', ok: true }),
-    delete: (nzoId, options) =>
-      Ref.update(deleteCalls, (records) => [...records, { nzoId, options }]).pipe(
-        Effect.as({ action: 'delete', ok: true, nzoId, deleteFiles: options.deleteFiles })
+    pause: Effect.succeed({ action: 'pause', ok: true }),
+    resume: Effect.succeed({ action: 'resume', ok: true }),
+    delete: (options) =>
+      Ref.update(deleteCalls, (records) => [...records, options]).pipe(
+        Effect.as({ action: 'delete', ok: true, nzoId: options.nzoId, deleteFiles: options.deleteFiles })
       ),
-    serverStats: () =>
-      Effect.succeed({
-        total: 1000,
-        month: 400,
-        week: 100,
-        day: 10,
-        servers: { 'news.example.test': { total: 1000, month: 400, week: 100, day: 10 } },
-      }),
+    serverStats: Effect.succeed({
+      total: 1000,
+      month: 400,
+      week: 100,
+      day: 10,
+      servers: { 'news.example.test': { total: 1000, month: 400, week: 100, day: 10 } },
+    }),
   })
 
   return { layer: Layer.succeed(SabnzbdApi, api), queueOptions, historyOptions, deleteCalls }
@@ -131,9 +130,11 @@ it.effect('runs queue mutations through the API service without preflight config
     const fake = yield* makeApiLayer
     const pauseResult = yield* pause.pipe(Effect.provide(fake.layer))
     const resumeResult = yield* resume.pipe(Effect.provide(fake.layer))
-    const deleteResult = yield* deleteQueueItem('SABnzbd_nzo_abc', { deleteFiles: true }).pipe(
+
+    const deleteResult = yield* deleteQueueItem({ nzoId: 'SABnzbd_nzo_abc', deleteFiles: true }).pipe(
       Effect.provide(fake.layer)
     )
+
     const deleteCalls = yield* Ref.get(fake.deleteCalls)
 
     assert.deepStrictEqual(pauseResult, { action: 'pause', ok: true })
@@ -144,6 +145,6 @@ it.effect('runs queue mutations through the API service without preflight config
       nzoId: 'SABnzbd_nzo_abc',
       deleteFiles: true,
     })
-    assert.deepStrictEqual(deleteCalls, [{ nzoId: 'SABnzbd_nzo_abc', options: { deleteFiles: true } }])
+    assert.deepStrictEqual(deleteCalls, [{ nzoId: 'SABnzbd_nzo_abc', deleteFiles: true }])
   })
 )

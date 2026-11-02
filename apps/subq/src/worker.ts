@@ -1,18 +1,22 @@
-import * as Cloudflare from '@alchemy.run/cloudflare'
+import { D1, Worker, WorkerEnvironment } from '@alchemy.run/cloudflare'
 import { D1Client } from '@effect/sql-d1'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
-import { HttpServerRequest, HttpServerResponse } from 'effect/http'
+import * as HttpServerRequest from 'effect/http/HttpServerRequest'
+import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
-import { RpcSerialization, RpcServer } from 'effect/rpc'
+import * as RpcSerialization from 'effect/rpc/RpcSerialization'
+import * as RpcServer from 'effect/rpc/RpcServer'
 import * as Schema from 'effect/Schema'
 
 import { AppRpcs } from '#shared'
 
 import { BetterAuthApiError } from './auth/better-auth-error.js'
+// This module is the Worker composition root; makeAuth needs the runtime-only D1 binding.
+// oxlint-disable-next-line effect/no-service-constructor-imports -- the composition root builds Better Auth from runtime bindings
 import { AuthRpcMiddlewareLive, AuthService, makeAuth } from './auth/index.js'
 import { DataExportRpcHandlersLive, DataExportServiceLive } from './data-export/index.js'
 import { AssetRequestError, UnexpectedRequestSource } from './errors.js'
@@ -27,7 +31,7 @@ import { WeightLogRepoLive, WeightRpcHandlersLive } from './weight/index.js'
 // D1 database resource. Drizzle-generated migrations are applied at deploy
 // time by the resource itself (sorted by numeric prefix, tracked in
 // `drizzle_migrations`).
-export const Database = Cloudflare.D1.Database('Database', {
+export const Database = D1.Database('Database', {
   // Prod pins the existing database name so state recovery adopts it instead of creating an empty replacement.
   name: Config.String('SUBQ_DATABASE_NAME').pipe(Config.option, Config.map(Option.getOrUndefined)),
   migrations: { dir: './drizzle', table: 'drizzle_migrations' },
@@ -68,7 +72,9 @@ const ServicesLive = Layer.mergeAll(
   ScheduleAssignmentLive
 )
 
-export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
+// Cloudflare and Alchemy load the Worker entry through its default export.
+// oxlint-disable-next-line import/no-default-export -- Worker entry contract
+export default class SubqWorker extends Worker<SubqWorker>()(
   'Subq',
   {
     main: import.meta.filename,
@@ -90,8 +96,8 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
   Effect.gen(function* () {
     // Init phase: runs at plan time (registers bindings) and at runtime.
     // Raw binding access must stay lazy — bindings only exist at runtime.
-    const db = yield* Cloudflare.D1.QueryDatabase(Database)
-    const workerEnvironment = yield* Cloudflare.WorkerEnvironment
+    const db = yield* D1.QueryDatabase(Database)
+    const workerEnvironment = yield* WorkerEnvironment
     const authSecret = yield* Config.Redacted('BETTER_AUTH_SECRET')
     const authUrl = yield* Config.String('BETTER_AUTH_URL')
 
@@ -110,11 +116,11 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
     const SqlLive = Layer.unwrap(db.raw.pipe(Effect.map((d1) => D1Client.layer({ db: d1 }))))
     const AuthLive = Layer.effect(AuthService, auth.pipe(Effect.map((instance) => ({ auth: instance }))))
 
+    const RepositoriesWithSqlLive = RepositoriesLive.pipe(Layer.provideMerge(SqlLive))
+    const ServicesWithDependenciesLive = ServicesLive.pipe(Layer.provideMerge(RepositoriesWithSqlLive))
+
     const AppLive = Layer.mergeAll(RpcHandlersLive, AuthRpcMiddlewareLive).pipe(
-      Layer.provide(ServicesLive),
-      Layer.provide(RepositoriesLive),
-      Layer.provide(AuthLive),
-      Layer.provide(SqlLive)
+      Layer.provide(Layer.mergeAll(ServicesWithDependenciesLive, AuthLive))
     )
 
     // toHttpEffect returns an inner per-request handler; flatten it INSIDE the
@@ -124,17 +130,21 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
       Effect.provide([AppLive, RpcSerialization.layerJson])
     )
 
-    const handleAuthRequest = Effect.fn('handleAuthRequest')(function* () {
+    const handleAuthRequest = Effect.fn('worker.handleAuthRequest')(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const { source } = request
+
       if (!(source instanceof Request)) {
-        return yield* Effect.die(new UnexpectedRequestSource({ message: 'expected a web Request source' }))
+        return yield* Effect.die(UnexpectedRequestSource.make({ message: 'expected a web Request source' }))
       }
+
       const instance = yield* auth
+
       const response = yield* Effect.tryPromise({
         try: () => instance.handler(source),
         catch: (cause) => BetterAuthApiError.make({ cause }),
       })
+
       return HttpServerResponse.fromWeb(response)
     })
 
@@ -143,20 +153,25 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
         const request = yield* HttpServerRequest.HttpServerRequest
         // request.url is path-only under the Workers runtime
         const url = new URL(request.url, 'http://localhost')
+
         if (url.pathname === '/health') {
           return HttpServerResponse.text('ok')
         }
+
         if (url.pathname.startsWith('/api/auth/')) {
           return yield* handleAuthRequest()
         }
+
         if (url.pathname === '/rpc' || url.pathname === '/rpc/') {
           return yield* rpcApp
         }
 
         const { source } = request
+
         if (!(source instanceof Request)) {
-          return yield* Effect.die(new UnexpectedRequestSource({ message: 'expected a web Request source' }))
+          return yield* Effect.die(UnexpectedRequestSource.make({ message: 'expected a web Request source' }))
         }
+
         if (source.method !== 'GET' && source.method !== 'HEAD') {
           return HttpServerResponse.empty({ status: 404 })
         }
@@ -164,11 +179,14 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
         const assetRequest = isSpaNavigationPath(url.pathname)
           ? new Request(new URL('/', source.url).toString(), source)
           : source
+
         const assets = yield* Schema.decodeUnknownEffect(AssetFetcher)(workerEnvironment.ASSETS)
+
         const assetResponse = yield* Effect.tryPromise({
           try: () => assets.fetch(assetRequest),
           catch: (cause) => AssetRequestError.make({ cause }),
         })
+
         return HttpServerResponse.fromWeb(assetResponse)
       }).pipe(Effect.orDie),
     }
@@ -176,6 +194,6 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
     // The worker init IS the application entry point; binding layers are
     // provided here by design (see Alchemy's Worker docs).
     // @effect-diagnostics-next-line strictEffectProvide:off
-    Effect.provide(Cloudflare.D1.QueryDatabaseBinding)
+    Effect.provide(D1.QueryDatabaseBinding)
   )
 ) {}

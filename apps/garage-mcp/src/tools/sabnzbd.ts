@@ -23,7 +23,7 @@ import * as Toolkit from 'effect/ai/Toolkit'
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 
-import { GarageMcpToolError, garageMcpToolError, sabnzbdToolError } from '../errors.js'
+import { GarageMcpToolError, failGarageMcpTool, failSabnzbdTool } from '../errors.js'
 
 const ListLimit = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 })).annotate({
   description: 'Maximum number of records to return, from 1 through 100',
@@ -189,8 +189,9 @@ export const SabnzbdToolkit = Toolkit.make(
 export const SabnzbdToolkitHandlers = SabnzbdToolkit.toLayer(
   Effect.gen(function* () {
     const api = yield* SabnzbdApi
+
     const run = <A>(operation: Effect.Effect<A, SabnzbdError, SabnzbdApi>) =>
-      operation.pipe(Effect.provideService(SabnzbdApi, api), Effect.mapError(sabnzbdToolError))
+      operation.pipe(Effect.provideService(SabnzbdApi, api), Effect.catch(failSabnzbdTool))
 
     return SabnzbdToolkit.of({
       sabnzbd_status: () => run(status),
@@ -202,14 +203,12 @@ export const SabnzbdToolkitHandlers = SabnzbdToolkit.toLayer(
       sabnzbd_resume: () => run(resume),
       sabnzbd_delete: ({ nzoId, deleteFiles, confirmDeleteFiles }) =>
         deleteFiles && !confirmDeleteFiles
-          ? Effect.fail(
-              garageMcpToolError({
-                code: 'SABNZBD_DELETE_CONFIRMATION_REQUIRED',
-                message: 'Deleting downloaded data requires confirmDeleteFiles to be true.',
-                fix: 'Set confirmDeleteFiles only after confirming that downloaded data should be removed from disk.',
-              })
-            )
-          : run(deleteQueueItem(nzoId, { deleteFiles })),
+          ? failGarageMcpTool({
+              code: 'SABNZBD_DELETE_CONFIRMATION_REQUIRED',
+              message: 'Deleting downloaded data requires confirmDeleteFiles to be true.',
+              fix: 'Set confirmDeleteFiles only after confirming that downloaded data should be removed from disk.',
+            })
+          : run(deleteQueueItem({ nzoId, deleteFiles })),
     })
   })
 )

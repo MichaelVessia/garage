@@ -1,6 +1,10 @@
 import { discoverAndLoadExtensions } from '@earendil-works/pi-coding-agent'
 import { assert, describe, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import * as Order from 'effect/Order'
+import * as Str from 'effect/String'
 
 const extensionPaths = [
   new URL('../extensions/gpt-fast-mode.ts', import.meta.url).pathname,
@@ -18,21 +22,27 @@ describe('Pi extension adapters', () => {
       assert.deepStrictEqual(loaded.errors, [])
       assert.strictEqual(loaded.extensions.length, 2)
 
-      const fastMode = loaded.extensions.find(({ path }) => path.endsWith('gpt-fast-mode.ts'))
-      const sessionModelDefault = loaded.extensions.find(({ path }) => path.endsWith('session-model-default.ts'))
+      const fastMode = Arr.findFirst(loaded.extensions, ({ path }) => Str.endsWith('gpt-fast-mode.ts')(path))
 
-      if (fastMode === undefined || sessionModelDefault === undefined) {
+      const sessionModelDefault = Arr.findFirst(loaded.extensions, ({ path }) =>
+        Str.endsWith('session-model-default.ts')(path)
+      )
+
+      if (Option.isNone(fastMode) || Option.isNone(sessionModelDefault)) {
         return assert.fail('expected all Garage Pi extension adapters to load')
       }
 
-      assert.isTrue(fastMode.commands.has('fast'))
-      assert.isTrue(fastMode.shortcuts.has('ctrl+alt+m'))
-      assert.deepStrictEqual([...fastMode.handlers.keys()].toSorted(), [
+      assert.isTrue(fastMode.value.commands.has('fast'))
+      assert.isTrue(fastMode.value.shortcuts.has('ctrl+alt+m'))
+      assert.deepStrictEqual(Arr.sort(fastMode.value.handlers.keys(), Order.String), [
         'before_provider_request',
         'model_select',
         'session_start',
       ])
-      assert.deepStrictEqual([...sessionModelDefault.handlers.keys()].toSorted(), ['model_select', 'session_start'])
+      assert.deepStrictEqual(Arr.sort(sessionModelDefault.value.handlers.keys(), Order.String), [
+        'model_select',
+        'session_start',
+      ])
     })
   )
 })

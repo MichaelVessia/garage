@@ -7,7 +7,7 @@ import { SqliteClient } from '@effect/sql-sqlite-bun'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
 
 import type { MedicationCompound } from '#shared'
 
@@ -146,13 +146,18 @@ const clearTables = Effect.gen(function* () {
 // Insert Helpers
 // ============================================
 
-export const insertWeightLog = (
-  id: string,
-  datetime: Date,
-  weight: number,
-  userId: string,
-  notes: string | null = null
-) =>
+// Reuse the inferred SQL statement effect type; naming `SqlError` directly is an unstable API.
+type InsertEffect = typeof clearTables
+
+interface InsertWeightLogInput {
+  readonly id: string
+  readonly datetime: Date
+  readonly weight: number
+  readonly userId: string
+  readonly notes?: string | null
+}
+
+export const insertWeightLog = ({ id, datetime, weight, userId, notes = null }: InsertWeightLogInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
@@ -162,7 +167,13 @@ export const insertWeightLog = (
     `
   })
 
-export const insertUser = (id: string, email = `${id}@example.com`, name = 'Test User') =>
+interface InsertUserInput {
+  readonly id: string
+  readonly email?: string
+  readonly name?: string
+}
+
+export const insertUser = ({ id, email = `${id}@example.com`, name = 'Test User' }: InsertUserInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`
@@ -171,41 +182,41 @@ export const insertUser = (id: string, email = `${id}@example.com`, name = 'Test
     `
   })
 
-export const insertInjectionLog = (
-  id: string,
-  datetime: Date,
-  drug: MedicationCompound,
-  doseMg: number,
-  userId: string,
-  options: {
-    supplier?: string | null
-    injectionSite?: string | null
-    notes?: string | null
-    scheduleId?: string | null
-  } = {}
-) =>
+interface InsertInjectionLogInput {
+  readonly id: string
+  readonly datetime: Date
+  readonly drug: MedicationCompound
+  readonly doseMg: number
+  readonly userId: string
+  readonly supplier?: string | null
+  readonly injectionSite?: string | null
+  readonly notes?: string | null
+  readonly scheduleId?: string | null
+}
+
+export const insertInjectionLog = (input: InsertInjectionLogInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* sql`
       INSERT INTO injection_logs (id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, user_id, created_at, updated_at)
-      VALUES (${id}, ${datetime.toISOString()}, ${drug}, ${options.supplier ?? null}, ${doseMg}, ${options.injectionSite ?? null}, ${options.notes ?? null}, ${options.scheduleId ?? null}, ${userId}, ${now}, ${now})
+      VALUES (${input.id}, ${input.datetime.toISOString()}, ${input.drug}, ${input.supplier ?? null}, ${input.doseMg}, ${input.injectionSite ?? null}, ${input.notes ?? null}, ${input.scheduleId ?? null}, ${input.userId}, ${now}, ${now})
     `
   })
 
-export const insertSchedule = (
-  id: string,
-  name: string,
-  drug: MedicationCompound,
-  frequency: string,
-  startDate: Date,
-  userId: string,
-  options: {
-    supplier?: string | null
-    isActive?: boolean
-    notes?: string | null
-  } = {}
-) =>
+interface InsertScheduleInput {
+  readonly id: string
+  readonly name: string
+  readonly drug: MedicationCompound
+  readonly frequency: string
+  readonly startDate: Date
+  readonly userId: string
+  readonly supplier?: string | null
+  readonly isActive?: boolean
+  readonly notes?: string | null
+}
+
+export const insertSchedule = (input: InsertScheduleInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
@@ -214,17 +225,25 @@ export const insertSchedule = (
         id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
         is_active, notes, user_id, created_at, updated_at
       )
-      VALUES (${id}, ${name}, ${drug}, ${options.supplier ?? null}, ${frequency}, ${DateTime.formatIsoDateUtc(DateTime.fromDateUnsafe(startDate))}, 1, ${options.isActive !== false ? 1 : 0}, ${options.notes ?? null}, ${userId}, ${now}, ${now})
+      VALUES (${input.id}, ${input.name}, ${input.drug}, ${input.supplier ?? null}, ${input.frequency}, ${DateTime.formatIsoDateUtc(DateTime.fromDateUnsafe(input.startDate))}, 1, ${input.isActive === false ? 0 : 1}, ${input.notes ?? null}, ${input.userId}, ${now}, ${now})
     `
   })
 
-export const insertSchedulePhase = (
-  id: string,
-  scheduleId: string,
-  order: number,
-  doseMg: number,
-  durationDays: number | null = null
-) =>
+interface InsertSchedulePhaseInput {
+  readonly id: string
+  readonly scheduleId: string
+  readonly order: number
+  readonly doseMg: number
+  readonly durationDays?: number | null
+}
+
+export const insertSchedulePhase = ({
+  id,
+  scheduleId,
+  order,
+  doseMg,
+  durationDays = null,
+}: InsertSchedulePhaseInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
@@ -234,7 +253,14 @@ export const insertSchedulePhase = (
     `
   })
 
-export const insertSettings = (id: string, userId: string, weightUnit: 'lbs' | 'kg', timezone: string | null = null) =>
+interface InsertSettingsInput {
+  readonly id: string
+  readonly userId: string
+  readonly weightUnit: 'lbs' | 'kg'
+  readonly timezone?: string | null
+}
+
+export const insertSettings = ({ id, userId, weightUnit, timezone = null }: InsertSettingsInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(yield* DateTime.now)
@@ -261,8 +287,13 @@ export const insertSettings = (id: string, userId: string, weightUnit: 'lbs' | '
  *     // tables already set up and cleared
  *   }))
  */
-export const makeInitializedTestLayer = <Out, Err>(repoLayer: Layer.Layer<Out, Err, SqlClient.SqlClient>) =>
-  Layer.effectDiscard(setupTables.pipe(Effect.andThen(clearTables))).pipe(
-    Layer.provideMerge(repoLayer.pipe(Layer.provideMerge(SqliteTestLayer))),
+export const makeInitializedTestLayer = <Out, Err>(
+  repoLayer: Layer.Layer<Out, Err, SqlClient.SqlClient>
+): Layer.Layer<Out | Layer.Success<typeof SqliteTestLayer>, Err | Layer.Error<typeof SqliteTestLayer>> => {
+  const repoWithSqlite = repoLayer.pipe(Layer.provideMerge(SqliteTestLayer))
+
+  return Layer.effectDiscard(setupTables.pipe(Effect.andThen(clearTables))).pipe(
+    Layer.provideMerge(repoWithSqlite),
     Layer.fresh
   )
+}

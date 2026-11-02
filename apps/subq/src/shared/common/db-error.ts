@@ -1,4 +1,9 @@
 import * as Effect from 'effect/Effect'
+import * as Function from 'effect/Function'
+
+interface DbErrorClass<Self, Op extends string> {
+  readonly make: (input: { readonly operation: Op; readonly cause: unknown }) => Self
+}
 
 /**
  * Wraps a repo call's failure channel into one of the per-domain
@@ -7,10 +12,21 @@ import * as Effect from 'effect/Effect'
  * class so it also fits `SettingsDatabaseError`, whose operation literal set
  * excludes `'delete'`.
  */
-export const mapDbError =
+export const mapDbError: {
   <Self, Op extends string>(
-    ErrorClass: { readonly make: (input: { readonly operation: Op; readonly cause: unknown }) => Self },
+    ErrorClass: DbErrorClass<Self, Op>,
     operation: Op
-  ) =>
-  <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, Self, R> =>
-    Effect.mapError(self, (cause: unknown) => ErrorClass.make({ operation, cause }))
+  ): <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, Self, R>
+  <A, E, R, Self, Op extends string>(
+    self: Effect.Effect<A, E, R>,
+    ErrorClass: DbErrorClass<Self, Op>,
+    operation: Op
+  ): Effect.Effect<A, Self, R>
+} = Function.dual(
+  3,
+  <A, E, R, Self, Op extends string>(
+    self: Effect.Effect<A, E, R>,
+    ErrorClass: DbErrorClass<Self, Op>,
+    operation: Op
+  ): Effect.Effect<A, Self, R> => Effect.mapError(self, (cause: unknown) => ErrorClass.make({ operation, cause }))
+)

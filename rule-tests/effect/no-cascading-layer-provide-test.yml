@@ -1,0 +1,42 @@
+id: no-cascading-layer-provide
+
+valid:
+  - |
+    App.pipe(Layer.provide(Dependency))
+  - |
+    App.pipe(Layer.provide(Layer.mergeAll(A, B)))
+  - |
+    App.pipe(Layer.provide([A, B]))
+  - |
+    const configured = A.pipe(Layer.provide(B))
+    App.pipe(Layer.provideMerge(configured))
+  - |
+    App.pipe(Layer.provide(A)).pipe(Layer.provide(B))
+  - |
+    App.pipe(Effect.provide(A), Effect.provide(B))
+  - |
+    App.pipe(Local.provide(A), Local.provide(B))
+  - |
+    Layer.provide(Layer.suspend(() => A.pipe(Layer.provide(B))))
+
+invalid:
+  - |
+    App.pipe(Layer.provide(A), Layer.provide(B))
+  - |
+    App.pipe(Layer.provideMerge(A), Layer.provide(B))
+  - |
+    App.pipe(Layer.provide(A), Layer.provideMerge(B))
+  - |
+    App.pipe(Layer.provideMerge(A), Layer.provideMerge(B))
+  - |
+    App.pipe(Layer.provide(A), decorate, Layer.provide(B))
+  - |
+    App.pipe(Layer.provide(A), Layer.provide(B), Layer.provide(C))
+  - |
+    Layer.provide(Layer.provide(A))
+  - |
+    Layer.provide(App, Layer.provide(A, B))
+  - |
+    Layer.provideMerge(App, Layer.provideMerge(A, B))
+  - |
+    Layer.provide(Layer.mergeAll(A.pipe(Layer.provide(B)), C))

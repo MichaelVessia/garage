@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { WebviewIncompatible } from './errors.js'
 import { findIncompatibilities } from './webview-compat.js'
@@ -17,17 +18,22 @@ const checkDist = Effect.fn('frame.checkWebviewCompat')(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const files = yield* fs.readDirectory(dist, { recursive: true })
+
   const findings = yield* Effect.forEach(
-    Arr.filter(files, (file) => file.endsWith('.js') || file.endsWith('.css')),
-    (file) => fs.readFileString(path.join(dist, file)).pipe(Effect.map((text) => findIncompatibilities(file, text))),
+    Arr.filter(files, (file) => Str.endsWith('.js')(file) || Str.endsWith('.css')(file)),
+    (file) =>
+      fs.readFileString(path.join(dist, file)).pipe(Effect.map((text) => findIncompatibilities({ file, text }))),
     { concurrency: 4 }
   )
+
   const problems = Arr.flatten(findings)
+
   if (Arr.isReadonlyArrayNonEmpty(problems)) {
-    return yield* new WebviewIncompatible({
+    return yield* WebviewIncompatible.make({
       findings: Arr.map(problems, (problem) => `${problem.file}: ${problem.feature}`),
     })
   }
+
   yield* Console.log(`WebView 106 compatibility check passed for ${files.length} files`)
 })
 

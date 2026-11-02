@@ -2,16 +2,23 @@ import * as Schema from 'effect/Schema'
 
 /** Upstream systems the frame reads from. */
 const UpstreamSource = Schema.Literals(['calendar', 'home-assistant'])
+
 /** Upstream systems the frame reads from. */
 export type UpstreamSource = typeof UpstreamSource.Type
 
 /** The server refused a media change that is not configured or not allowed. */
-export class MediaActionRejected extends Schema.TaggedError<MediaActionRejected>()('MediaActionRejected', {
-  message: Schema.String,
-}) {}
+export class MediaActionRejected extends Schema.TaggedError<MediaActionRejected, { readonly brand: unique symbol }>()(
+  'MediaActionRejected',
+  {
+    message: Schema.String,
+  }
+) {}
 
 /** A credential-free failure the frame can show and retry. */
-export class UpstreamUnavailable extends Schema.TaggedError<UpstreamUnavailable>()('UpstreamUnavailable', {
-  source: UpstreamSource,
-  message: Schema.String,
-}) {}
+export class UpstreamUnavailable extends Schema.TaggedError<UpstreamUnavailable, { readonly brand: unique symbol }>()(
+  'UpstreamUnavailable',
+  {
+    source: UpstreamSource,
+    message: Schema.String,
+  }
+) {}

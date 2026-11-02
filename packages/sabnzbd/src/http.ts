@@ -1,7 +1,8 @@
 import { makeJsonClient } from '@garage/integration-http'
 import type { JsonClient } from '@garage/integration-http'
 import * as Effect from 'effect/Effect'
-import { HttpClient, HttpClientRequest } from 'effect/http'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 
@@ -54,12 +55,13 @@ export const SabnzbdApiLive = Layer.effect(
   Effect.gen(function* () {
     const sabnzbdConfig = yield* SabnzbdConfig
     const client = yield* HttpClient.HttpClient
+
     const withConfig = <A, E>(f: (http: JsonClient<SabnzbdError>) => Effect.Effect<A, E>) =>
-      sabnzbdConfig.get().pipe(Effect.flatMap((config) => f(httpClientFor(client, config))))
+      sabnzbdConfig.get.pipe(Effect.flatMap((config) => f(httpClientFor(client, config))))
 
     return SabnzbdApi.of({
-      status: () => withConfig((http) => http.getJson('', FullStatusResponseSchema, modeQuery('fullstatus'))),
-      version: () => withConfig((http) => http.getJson('', VersionResponseSchema, modeQuery('version'))),
+      status: withConfig((http) => http.getJson('', FullStatusResponseSchema, modeQuery('fullstatus'))),
+      version: withConfig((http) => http.getJson('', VersionResponseSchema, modeQuery('version'))),
       queue: (options) =>
         withConfig((http) =>
           http.getJson(
@@ -82,17 +84,13 @@ export const SabnzbdApiLive = Layer.effect(
             ])
           )
         ),
-      pause: () =>
-        withConfig((http) =>
-          http.getJson('', ActionResponseSchema, modeQuery('pause')).pipe(Effect.map((ok) => actionResult('pause', ok)))
-        ),
-      resume: () =>
-        withConfig((http) =>
-          http
-            .getJson('', ActionResponseSchema, modeQuery('resume'))
-            .pipe(Effect.map((ok) => actionResult('resume', ok)))
-        ),
-      delete: (nzoId, options) =>
+      pause: withConfig((http) =>
+        http.getJson('', ActionResponseSchema, modeQuery('pause')).pipe(Effect.map((ok) => actionResult('pause', ok)))
+      ),
+      resume: withConfig((http) =>
+        http.getJson('', ActionResponseSchema, modeQuery('resume')).pipe(Effect.map((ok) => actionResult('resume', ok)))
+      ),
+      delete: ({ nzoId, deleteFiles }) =>
         withConfig((http) =>
           http
             .getJson(
@@ -101,12 +99,12 @@ export const SabnzbdApiLive = Layer.effect(
               modeQuery('queue', [
                 ['name', 'delete'],
                 ['value', nzoId],
-                ['del_files', options.deleteFiles ? 1 : 0],
+                ['del_files', deleteFiles ? 1 : 0],
               ])
             )
-            .pipe(Effect.map((ok) => actionResult('delete', ok, nzoId, options.deleteFiles)))
+            .pipe(Effect.map((ok) => actionResult('delete', ok, nzoId, deleteFiles)))
         ),
-      serverStats: () => withConfig((http) => http.getJson('', ServerStatsSchema, modeQuery('server_stats'))),
+      serverStats: withConfig((http) => http.getJson('', ServerStatsSchema, modeQuery('server_stats'))),
     })
   })
 )

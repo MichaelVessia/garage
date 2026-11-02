@@ -11,9 +11,10 @@ const makeApiLayer = Effect.gen(function* () {
   const queueLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const historyLimits = yield* Ref.make<ReadonlyArray<number>>([])
   const mutations = yield* Ref.make<ReadonlyArray<string>>([])
+
   const api = SabnzbdApi.of({
-    status: () => Effect.succeed({ version: '4.5.3', paused: false, haveWarnings: false }),
-    version: () => Effect.succeed({ version: '4.5.3' }),
+    status: Effect.succeed({ version: '4.5.3', paused: false, haveWarnings: false }),
+    version: Effect.succeed({ version: '4.5.3' }),
     queue: ({ limit }) =>
       Ref.update(queueLimits, (limits) => [...limits, limit]).pipe(
         Effect.as({
@@ -27,14 +28,13 @@ const makeApiLayer = Effect.gen(function* () {
       Ref.update(historyLimits, (limits) => [...limits, limit]).pipe(
         Effect.as({ count: 0, totalRecords: 0, slots: [] })
       ),
-    pause: () => Ref.update(mutations, (calls) => [...calls, 'pause']).pipe(Effect.as({ action: 'pause', ok: true })),
-    resume: () =>
-      Ref.update(mutations, (calls) => [...calls, 'resume']).pipe(Effect.as({ action: 'resume', ok: true })),
-    delete: (nzoId, options) =>
-      Ref.update(mutations, (calls) => [...calls, `delete:${nzoId}:${options.deleteFiles}`]).pipe(
-        Effect.as({ action: 'delete', ok: true, nzoId, deleteFiles: options.deleteFiles })
+    pause: Ref.update(mutations, (calls) => [...calls, 'pause']).pipe(Effect.as({ action: 'pause', ok: true })),
+    resume: Ref.update(mutations, (calls) => [...calls, 'resume']).pipe(Effect.as({ action: 'resume', ok: true })),
+    delete: ({ nzoId, deleteFiles }) =>
+      Ref.update(mutations, (calls) => [...calls, `delete:${nzoId}:${deleteFiles}`]).pipe(
+        Effect.as({ action: 'delete', ok: true, nzoId, deleteFiles })
       ),
-    serverStats: () => Effect.succeed({ servers: {} }),
+    serverStats: Effect.succeed({ servers: {} }),
   })
 
   return { layer: Layer.succeed(SabnzbdApi, api), queueLimits, historyLimits, mutations }
@@ -64,6 +64,7 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
 
     yield* toolkit.handle('sabnzbd_pause', {}).pipe(Effect.flatMap(Stream.runCollect))
     yield* toolkit.handle('sabnzbd_resume', {}).pipe(Effect.flatMap(Stream.runCollect))
+
     const unsafeDelete = yield* toolkit
       .handle('sabnzbd_delete', {
         nzoId: 'SABnzbd_nzo_unsafe',
@@ -73,9 +74,11 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
       .pipe(Effect.flatMap(Stream.runCollect), Effect.flip)
 
     assert.deepStrictEqual(yield* Ref.get(fake.mutations), ['pause', 'resume'])
+
     if (unsafeDelete._tag !== 'GarageMcpToolError') {
       return assert.fail(`expected GarageMcpToolError, received ${unsafeDelete._tag}`)
     }
+
     assert.strictEqual(unsafeDelete.code, 'SABNZBD_DELETE_CONFIRMATION_REQUIRED')
 
     yield* toolkit
@@ -96,9 +99,11 @@ it.effect('adapts every read tool to its SABnzbd package operation', () =>
     const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers.pipe(Layer.provide(fake.layer))))
     const statusResults = yield* toolkit.handle('sabnzbd_status', {}).pipe(Effect.flatMap(Stream.runCollect))
     const versionResults = yield* toolkit.handle('sabnzbd_version', {}).pipe(Effect.flatMap(Stream.runCollect))
+
     const historyResults = yield* toolkit
       .handle('sabnzbd_history', { limit: 25 })
       .pipe(Effect.flatMap(Stream.runCollect))
+
     const statsResults = yield* toolkit.handle('sabnzbd_server_stats', {}).pipe(Effect.flatMap(Stream.runCollect))
 
     assert.deepStrictEqual(statusResults[0]?.encodedResult, {

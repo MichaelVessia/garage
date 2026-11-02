@@ -7,26 +7,33 @@ import * as Option from 'effect/Option'
 import * as Path from 'effect/Path'
 import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import { describe } from 'vitest'
 
 const effectVersion = '4.1.2'
 
 const DependencyMap = Schema.Record(Schema.String, Schema.String)
-const Manifest = Schema.Struct({
-  dependencies: Schema.optional(DependencyMap),
-  devDependencies: Schema.optional(DependencyMap),
-})
+
+const Manifest = Schema.fromJsonString(
+  Schema.Struct({
+    dependencies: Schema.optional(DependencyMap),
+    devDependencies: Schema.optional(DependencyMap),
+  })
+)
 
 const discoverManifests = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
+
   const workspaceDirectories = yield* Effect.forEach(['apps', 'packages'], (root) =>
     fs.readDirectory(root).pipe(Effect.map((entries) => Arr.map(entries, (entry) => path.join(root, entry))))
   )
+
   const candidates = [
     'package.json',
-    ...Arr.flatten(workspaceDirectories).map((entry) => path.join(entry, 'package.json')),
+    ...Arr.map(Arr.flatten(workspaceDirectories), (entry) => path.join(entry, 'package.json')),
   ]
+
   const manifests = yield* Effect.forEach(
     candidates,
     (candidate) => fs.exists(candidate).pipe(Effect.map((exists) => (exists ? Option.some(candidate) : Option.none()))),
@@ -40,20 +47,21 @@ const isPinnedEffectDependency = (name: string): boolean =>
   name === 'effect' ||
   name === '@effect/vitest' ||
   name === '@effect/platform' ||
-  name.startsWith('@effect/platform-') ||
+  Str.startsWith('@effect/platform-')(name) ||
   name === '@effect/sql' ||
-  name.startsWith('@effect/sql-')
+  Str.startsWith('@effect/sql-')(name)
 
 describe('Effect dependency pins', () => {
   it.effect('exact-pins first-party runtime and test packages to one version', () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem
       const paths = yield* discoverManifests
+
       const mismatches = yield* Effect.forEach(
         paths,
         (path) =>
           fs.readFileString(path).pipe(
-            Effect.map((source) => Schema.decodeUnknownSync(Manifest)(JSON.parse(source))),
+            Effect.flatMap(Schema.decodeEffect(Manifest)),
             Effect.map((manifest) => ({ ...manifest.dependencies, ...manifest.devDependencies })),
             Effect.map(R.toEntries),
             Effect.map((dependencies) =>

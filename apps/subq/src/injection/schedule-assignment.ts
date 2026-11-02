@@ -4,14 +4,14 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
 
 import { InjectionLogDatabaseError, ScheduleAssignmentTargetNotFoundError } from '#shared'
 import type { InjectionLogBulkAssignSchedule } from '#shared'
 
 import { mapDbError } from '../shared/common/db-error.js'
 
-const CountRow = Schema.Struct({ count: Schema.Number })
+const CountRow = Schema.Struct({ count: Schema.Int })
 const decodeCountRow = Schema.decodeUnknownEffect(CountRow)
 
 export class ScheduleAssignment extends Context.Service<
@@ -29,20 +29,22 @@ export const ScheduleAssignmentLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const countRowsForUser = Effect.fn('ScheduleAssignment.countRowsForUser')(
-      function* (ids: readonly string[], userId: string) {
+    const countRowsForUser = Effect.fn('scheduleAssignment.countRowsForUser')(
+      function* (ids: ReadonlyArray<string>, userId: string) {
         const rows = yield* sql`
           SELECT COUNT(*) as count FROM injection_logs
           WHERE id IN ${sql.in(ids)} AND user_id = ${userId}
         `
+
         const [rawRow] = rows
         const row = yield* decodeCountRow(rawRow)
+
         return row.count
       },
       mapDbError(InjectionLogDatabaseError, 'query')
     )
 
-    const requireScheduleOwnedByUser = Effect.fn('ScheduleAssignment.requireScheduleOwnedByUser')(function* (
+    const requireScheduleOwnedByUser = Effect.fn('scheduleAssignment.requireScheduleOwnedByUser')(function* (
       scheduleId: string,
       userId: string
     ) {
@@ -57,10 +59,11 @@ export const ScheduleAssignmentLive = Layer.effect(
       if (row.count === 0) {
         return yield* Effect.fail(ScheduleAssignmentTargetNotFoundError.make({ scheduleId }))
       }
+
       return yield* Effect.void
     })
 
-    const assign = Effect.fn('ScheduleAssignment.assign')(function* (
+    const assign = Effect.fn('scheduleAssignment.assign')(function* (
       data: InjectionLogBulkAssignSchedule,
       userId: string
     ) {

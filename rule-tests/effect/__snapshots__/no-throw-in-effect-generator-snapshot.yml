@@ -1,10 +1,7 @@
 id: no-throw-in-effect-generator
 snapshots:
-  ? |
-    Effect.gen(function* () {
-      throw new Error('boom');
-    });
-  : labels:
+  "Effect.gen(function* () {\n  throw new Error('boom');\n});\n":
+    labels:
     - source: throw new Error('boom');
       style: primary
       start: 28

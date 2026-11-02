@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
-import { HttpClient, HttpClientRequest } from 'effect/http'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 
@@ -10,6 +11,7 @@ export const SessionUser = Schema.Struct({
   email: Schema.String,
   name: Schema.String,
 })
+
 export type SessionUser = typeof SessionUser.Type
 
 const SessionResponse = Schema.Struct({
@@ -23,23 +25,27 @@ type BetterAuthRequestBody =
   | { readonly email: string; readonly password: string }
   | { readonly email: string; readonly name: string; readonly password: string }
   | { readonly currentPassword: string; readonly newPassword: string; readonly revokeOtherSessions: true }
-  | Readonly<Record<never, never>>
+  | Readonly<Record<string, never>>
 
 const extractErrorMessage = (body: Schema.Json, fallback: string): string => {
   if (P.isObject(body) && 'message' in body && P.isString(body.message)) {
     return body.message
   }
+
   return fallback
 }
 
 const failForStatus = Effect.fn('betterAuthHttp.failForStatus')(
   (status: number, body: Schema.Json, fallback: string): Effect.Effect<void, BetterAuthHttpError> =>
-    status >= 400 ? Effect.fail(new BetterAuthHttpError({ message: extractErrorMessage(body, fallback) })) : Effect.void
+    status >= 400
+      ? Effect.fail(BetterAuthHttpError.make({ message: extractErrorMessage(body, fallback) }))
+      : Effect.void
 )
 
 const postJson = Effect.fn('betterAuthHttp.postJson')(function* (url: string, body: BetterAuthRequestBody) {
   const client = yield* HttpClient.HttpClient
   const request = yield* HttpClientRequest.post(url).pipe(HttpClientRequest.bodyJson(body))
+
   return yield* client.execute(request)
 })
 
@@ -48,6 +54,7 @@ export const fetchSession = Effect.fn('betterAuthHttp.fetchSession')(function* (
   const response = yield* client.get('/api/auth/get-session')
   const body = yield* response.json.pipe(Effect.flatMap(decodeJson))
   yield* failForStatus(response.status, body, 'Session fetch failed')
+
   return yield* body === null ? Effect.succeed(null) : decodeSession(body).pipe(Effect.map((session) => session.user))
 })
 
@@ -56,6 +63,7 @@ export const signIn = Effect.fn('betterAuthHttp.signIn')(function* (email: strin
   const body = yield* response.json.pipe(Effect.flatMap(decodeJson))
   yield* failForStatus(response.status, body, 'Sign in failed')
   const session = yield* decodeSession(body)
+
   return session.user
 })
 
@@ -64,11 +72,13 @@ export const signUp = Effect.fn('betterAuthHttp.signUp')(function* (email: strin
   const body = yield* response.json.pipe(Effect.flatMap(decodeJson))
   yield* failForStatus(response.status, body, 'Sign up failed')
   const session = yield* decodeSession(body)
+
   return session.user
 })
 
 export const signOut = Effect.fn('betterAuthHttp.signOut')(function* () {
   const response = yield* postJson('/api/auth/sign-out', {})
+
   if (response.status >= 400) {
     const body = yield* response.json.pipe(Effect.flatMap(decodeJson))
     yield* failForStatus(response.status, body, 'Sign out failed')
@@ -84,6 +94,7 @@ export const changePassword = Effect.fn('betterAuthHttp.changePassword')(functio
     newPassword,
     revokeOtherSessions: true,
   })
+
   if (response.status >= 400) {
     const body = yield* response.json.pipe(Effect.flatMap(decodeJson))
     yield* failForStatus(response.status, body, 'Password change failed')

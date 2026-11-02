@@ -7,14 +7,17 @@ import * as Console from 'effect/Console'
 import * as Deferred from 'effect/Deferred'
 import * as Effect from 'effect/Effect'
 import * as HashMap from 'effect/HashMap'
-import { HttpClient, HttpClientResponse } from 'effect/http'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
-import { ChildProcess, ChildProcessSpawner } from 'effect/process'
+import * as ChildProcess from 'effect/process/ChildProcess'
+import * as ChildProcessSpawner from 'effect/process/ChildProcessSpawner'
 import * as Ref from 'effect/Ref'
 import * as Schedule from 'effect/Schedule'
 import * as Schema from 'effect/Schema'
-import { Socket } from 'effect/socket'
+import * as Socket from 'effect/socket/Socket'
+import * as Str from 'effect/String'
 
 import { PreflightFailed } from './errors.js'
 
@@ -27,25 +30,32 @@ const DEVTOOLS_PORT = 9333
 const SCREENS = ['Today', 'Calendar', 'Shopping', 'Media'] as const
 
 const DevtoolsTarget = Schema.Struct({ webSocketDebuggerUrl: Schema.String })
+
 const CdpMessage = Schema.fromJsonString(
   Schema.Struct({
-    id: Schema.optional(Schema.Number),
+    id: Schema.optional(Schema.Int),
     method: Schema.optional(Schema.String),
     params: Schema.optional(Schema.Unknown),
     result: Schema.optional(Schema.Unknown),
   })
 )
+
 const EvaluateResult = Schema.Struct({ result: Schema.Struct({ value: Schema.optional(Schema.Unknown) }) })
-const CdpParams = Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Number, Schema.Boolean]))
+const CdpParams = Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Finite, Schema.Boolean]))
+
 type CdpParams = typeof CdpParams.Type
-const CdpRequest = Schema.fromJsonString(Schema.Struct({ id: Schema.Number, method: Schema.String, params: CdpParams }))
+
+const CdpRequest = Schema.fromJsonString(Schema.Struct({ id: Schema.Int, method: Schema.String, params: CdpParams }))
+
 type CdpMessage = typeof CdpMessage.Type
+
 const ExceptionParams = Schema.Struct({
   exceptionDetails: Schema.Struct({
     text: Schema.String,
     exception: Schema.optional(Schema.Struct({ description: Schema.optional(Schema.String) })),
   }),
 })
+
 const ConsoleParams = Schema.Struct({
   type: Schema.String,
   args: Schema.Array(
@@ -53,11 +63,12 @@ const ConsoleParams = Schema.Struct({
   ),
 })
 
-const fail = (check: string, detail: string) => new PreflightFailed({ check, message: `${check}: ${detail}` })
+const fail = (check: string, detail: string) => PreflightFailed.make({ check, message: `${check}: ${detail}` })
 
 // One `nix build` for the server, the SPA, and the browser, in that order.
 const buildArtifacts = Effect.fn('frame.preflight.build')(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+
   const output = yield* spawner.string(
     ChildProcess.make(
       'nix',
@@ -72,10 +83,13 @@ const buildArtifacts = Effect.fn('frame.preflight.build')(function* () {
       { stderr: 'inherit' }
     )
   )
-  const [server, web, chromium] = Arr.filter(output.split('\n'), (line) => line !== '')
+
+  const [server, web, chromium] = Arr.filter(Str.split('\n')(output), (line) => line !== '')
+
   if (server === undefined || web === undefined || chromium === undefined) {
     return yield* fail('build', 'nix build did not print three store paths')
   }
+
   return { server, web, chromium }
 })
 
@@ -86,9 +100,11 @@ const spawnScoped = Effect.fn('frame.preflight.spawn')(function* (
   env: Record<string, string>
 ) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+
   const handle = yield* spawner.spawn(
     ChildProcess.make(command, [...args], { env, extendEnv: true, stdout: 'ignore', stderr: 'ignore' })
   )
+
   yield* Effect.addFinalizer(() =>
     handle.kill().pipe(
       Effect.tapError((failure) => Effect.logDebug('Preflight child already exited', failure)),
@@ -107,10 +123,12 @@ const waitUntilReachable = (url: string, check: string) =>
 // A minimal Chrome DevTools Protocol session over the page's WebSocket.
 const openPage = Effect.fn('frame.preflight.openPage')(function* () {
   const client = yield* HttpClient.HttpClient
+
   const target = yield* client.put(`http://127.0.0.1:${DEVTOOLS_PORT}/json/new?about:blank`).pipe(
     Effect.flatMap(HttpClientResponse.schemaBodyJson(DevtoolsTarget)),
     Effect.mapError(() => fail('browser', 'could not open a DevTools page'))
   )
+
   const socket = yield* Socket.makeWebSocket(target.webSocketDebuggerUrl)
   const pull = yield* Socket.readerString(socket)
   const { write } = yield* socket.writer
@@ -124,17 +142,23 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
       const description = exceptionDetails.exception?.description ?? exceptionDetails.text
       yield* Ref.update(scriptErrors, Arr.append(description))
     }
+
     if (message.method === 'Runtime.consoleAPICalled') {
       const { type, args } = yield* Schema.decodeUnknownEffect(ConsoleParams)(message.params)
+
       if (type === 'error') {
-        const text = Arr.map(args, (arg) => arg.description ?? String(arg.value)).join(' ')
+        const text = Arr.join(
+          Arr.map(args, (arg) => arg.description ?? String(arg.value)),
+          ' '
+        )
+
         yield* Ref.update(scriptErrors, Arr.append(`console.error: ${text}`))
       }
     }
   })
 
   const onFrame = (frame: string) =>
-    Schema.decodeUnknownEffect(CdpMessage)(frame).pipe(
+    Schema.decodeEffect(CdpMessage)(frame).pipe(
       Effect.flatMap((message) =>
         message.id === undefined
           ? onEvent(message)
@@ -164,6 +188,7 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
     const reply = yield* Deferred.make<unknown>()
     yield* Ref.update(replies, HashMap.set(id, reply))
     yield* Schema.encodeEffect(CdpRequest)({ id, method, params }).pipe(Effect.flatMap(write), Effect.orDie)
+
     return yield* Deferred.await(reply).pipe(
       Effect.timeoutOrElse({
         duration: '10 seconds',
@@ -192,7 +217,7 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
                   fail(
                     check,
                     Arr.isReadonlyArrayNonEmpty(errors)
-                      ? `timed out after 20 s; script errors:\n${errors.join('\n')}`
+                      ? `timed out after 20 s; script errors:\n${Arr.join(errors, '\n')}`
                       : 'timed out after 20 s'
                   )
                 )
@@ -204,12 +229,14 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
   yield* send('Runtime.enable')
   yield* send('Page.enable')
   yield* send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false })
+
   return { send, holds, waitFor, scriptErrors }
 })
 
 const loaded = `!/Loading|unavailable|Offline/.test(document.body.innerText)`
+
 const clickScreen = (screen: string) =>
-  `(() => { const b = [...document.querySelectorAll('.rail-item')].find((el) => el.innerText.trim().toLowerCase() === '${screen.toLowerCase()}'); if (b) b.click(); return b !== undefined })()`
+  `(() => { const b = [...document.querySelectorAll('.rail-item')].find((el) => el.innerText.trim().toLowerCase() === '${Str.toLowerCase(screen)}'); if (b) b.click(); return b !== undefined })()`
 
 const preflight = Effect.fn('frame.preflight')(function* () {
   const artifacts = yield* buildArtifacts()
@@ -246,10 +273,12 @@ const preflight = Effect.fn('frame.preflight')(function* () {
     { concurrency: 1, discard: true }
   )
   const errors = yield* Ref.get(page.scriptErrors)
+
   if (Arr.isReadonlyArrayNonEmpty(errors)) {
-    return yield* fail('script errors', errors.join('\n'))
+    return yield* fail('script errors', Arr.join(errors, '\n'))
   }
-  yield* Console.log(`Preflight passed in Chromium 106: mounted, ${SCREENS.join(', ')} loaded, no script errors`)
+
+  yield* Console.log(`Preflight passed in Chromium 106: mounted, ${Arr.join(SCREENS, ', ')} loaded, no script errors`)
 })
 
 const ScriptLayer = Layer.mergeAll(BunServices.layer, BunHttpClient.layer, Socket.layerWebSocketConstructorGlobal)

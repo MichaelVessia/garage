@@ -51,13 +51,18 @@ const ServiceAccountKey = Schema.fromJsonString(
 
 const readServiceAccount = Effect.fn('frame.calendar.readServiceAccount')(function* () {
   const key = yield* readRequiredSecret('GOOGLE_SERVICE_ACCOUNT_KEY')
+
   const decoded = yield* key.pipe(
     Redacted.value,
-    Schema.decodeUnknownEffect(ServiceAccountKey),
+    Schema.decodeEffect(ServiceAccountKey),
     Effect.mapError(() =>
-      envInvalid('GOOGLE_SERVICE_ACCOUNT_KEY', 'expected the JSON key file with client_email and private_key')
+      envInvalid({
+        variable: 'GOOGLE_SERVICE_ACCOUNT_KEY',
+        reason: 'expected the JSON key file with client_email and private_key',
+      })
     )
   )
+
   return {
     clientEmail: decoded.client_email,
     privateKey: Redacted.make(decoded.private_key),
@@ -70,6 +75,7 @@ export const CalendarConfigLive: Layer.Layer<CalendarConfig, CalendarError> = La
   Effect.gen(function* () {
     const calendarId = yield* readRequiredString('GOOGLE_CALENDAR_ID')
     const serviceAccount = yield* readServiceAccount()
+
     return CalendarConfig.of({ calendarId, serviceAccount })
   })
 )
