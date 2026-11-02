@@ -64,6 +64,16 @@ The frame server runs as a Docker container on a Proxmox LXC with Docker. One co
 
    Keep it mode `0600`.
 
+### Preflight
+
+```sh
+bun run --filter '@garage/frame' preflight
+```
+
+`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with the real upstreams from `.env.prod`, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
+
+The static check in `bun run build` catches unsupported syntax and CSS early; the preflight catches runtime failures that a static scan cannot see.
+
 ### Ship it
 
 ```sh
@@ -72,6 +82,7 @@ bun run --filter '@garage/frame' deploy:prod
 
 This runs, in order:
 
+0. The preflight above.
 1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
 2. `scripts/load-image.ts` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`, unless the host already has that tag.
 3. `alchemy deploy --stage prod --env-file .env.prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values. A new tag makes Alchemy replace the container.

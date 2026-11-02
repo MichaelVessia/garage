@@ -40,7 +40,11 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
     })
   )
   if (loaded !== 0) {
-    return yield* new ImageLoadFailed({ image: imageRef, exitCode: loaded })
+    return yield* new ImageLoadFailed({
+      image: imageRef,
+      exitCode: loaded,
+      message: `docker load of ${imageRef} exited with ${loaded}`,
+    })
   }
 })
 

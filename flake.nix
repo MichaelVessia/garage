@@ -144,6 +144,58 @@
           runHook postInstall
         '';
       };
+      # Headless Chromium matching the frame's Android System WebView 106, for the deploy preflight.
+      # Playwright's archived Linux build; Chromium dlopens udev and GL, so the wrapper exposes them.
+      chromiumWebview106 = pkgs.stdenv.mkDerivation {
+        pname = "chromium-webview-106";
+        version = "106.0.5249.30";
+        src = pkgs.fetchurl {
+          url = "https://playwright.azureedge.net/builds/chromium/1024/chromium-linux.zip";
+          hash = "sha256-NN0lOVd/HWFxa72ccKzEkrNk6OdCwAI+Njvi1VrcoyQ=";
+        };
+        nativeBuildInputs = with pkgs; [autoPatchelfHook makeWrapper unzip];
+        buildInputs = with pkgs; [
+          alsa-lib
+          at-spi2-atk
+          at-spi2-core
+          atk
+          cairo
+          cups
+          dbus
+          expat
+          glib
+          gtk3
+          libdrm
+          libgbm
+          libGL
+          libxkbcommon
+          mesa
+          nspr
+          nss
+          pango
+          systemd
+          xorg.libX11
+          xorg.libXcomposite
+          xorg.libXdamage
+          xorg.libXext
+          xorg.libXfixes
+          xorg.libXrandr
+          xorg.libxcb
+          xorg.libxshmfence
+        ];
+        # Optional Qt shims for the system print dialog; headless runs never load them.
+        autoPatchelfIgnoreMissingDeps = ["libQt5Core.so.5" "libQt5Gui.so.5" "libQt5Widgets.so.5" "libQt6Core.so.6" "libQt6Gui.so.6" "libQt6Widgets.so.6"];
+        unpackPhase = "unzip -q $src";
+        installPhase = ''
+          runHook preInstall
+          mkdir -p $out/libexec $out/bin
+          cp -r chrome-linux $out/libexec/
+          makeWrapper $out/libexec/chrome-linux/chrome $out/bin/chromium-webview-106 \
+            --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [pkgs.systemd pkgs.libGL]} \
+            --set FONTCONFIG_FILE ${pkgs.makeFontsConf {fontDirectories = [pkgs.dejavu_fonts];}}
+          runHook postInstall
+        '';
+      };
       # Names one server + SPA build: the image tag, and the version /health reports so the frame reloads.
       garageFrameBuildId = builtins.substring 0 16 (builtins.hashString "sha256"
         (builtins.unsafeDiscardStringContext "${garageFrame}${garageFrameWeb}"));
@@ -229,6 +281,9 @@
         pi-extensions = piExtensions;
 
         default = garage-mcp;
+      }
+      // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+        chromium-webview-106 = chromiumWebview106;
       };
 
       devShells.default = pkgs.mkShell {

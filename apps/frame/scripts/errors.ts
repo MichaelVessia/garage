@@ -9,10 +9,18 @@ export class WebviewIncompatible extends Schema.TaggedErrorClass<WebviewIncompat
 export class ImageLoadFailed extends Schema.TaggedErrorClass<ImageLoadFailed>()('ImageLoadFailed', {
   image: Schema.String,
   exitCode: Schema.Number,
+  message: Schema.String,
+}) {}
+
+/** The shipped build failed a check in Chromium 106 before deploy. */
+export class PreflightFailed extends Schema.TaggedErrorClass<PreflightFailed>()('PreflightFailed', {
+  check: Schema.String,
+  message: Schema.String,
 }) {}
 
 /** The deployed server did not report the expected build in time. */
 export class DeployNotLive extends Schema.TaggedErrorClass<DeployNotLive>()('DeployNotLive', {
   expected: Schema.String,
   observed: Schema.String,
+  message: Schema.String,
 }) {}

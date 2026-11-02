@@ -27,7 +27,11 @@ const verifyDeploy = Effect.fn('frame.verifyDeploy')(function* () {
     Effect.repeat({ until: (observed) => observed === expected, schedule: Schedule.spaced('3 seconds'), times: 40 })
   )
   if (version !== expected) {
-    return yield* new DeployNotLive({ expected, observed: version })
+    return yield* new DeployNotLive({
+      expected,
+      observed: version,
+      message: `expected build ${expected}, the frame host reports ${version}`,
+    })
   }
   yield* Console.log(`garage-frame ${expected} is live at ${baseUrl}`)
 })
