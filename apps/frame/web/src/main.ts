@@ -13,7 +13,17 @@ import { evo } from 'foldkit/struct'
 import { CalendarDate, CalendarEvent, IanaTimezone, ShoppingItem, Weather, addCalendarDays } from '#shared'
 import type { ShoppingItemStatus } from '#shared'
 
-import { FetchSettings, FetchShopping, FetchUpcoming, FetchWeather, FetchWeek, UpdateShoppingItem } from './command.js'
+import {
+  CheckVersion,
+  FetchSettings,
+  FetchShopping,
+  FetchUpcoming,
+  FetchWeather,
+  FetchWeek,
+  ReloadPage,
+  RetrySettings,
+  UpdateShoppingItem,
+} from './command.js'
 import type { Commands } from './command.js'
 import { CalendarMode, Interacted, RefreshDue, Screen, TickedClock } from './message.js'
 import type { Message } from './message.js'
@@ -32,11 +42,13 @@ const feed = <S extends Schema.Top>(data: S) =>
 const EventsFeed = feed(CalendarEvent.pipe(Schema.Array))
 type EventsFeed = typeof EventsFeed.Type
 
-export const Flags = Schema.Struct({ now: Schema.DateTimeUtc })
+export const Flags = Schema.Struct({ now: Schema.DateTimeUtc, bootVersion: Schema.Option(Schema.String) })
 export type Flags = typeof Flags.Type
 
 export const Model = Schema.Struct({
   now: Schema.DateTimeUtc,
+  bootVersion: Schema.Option(Schema.String),
+  isOffline: Schema.Boolean,
   lastInteraction: Schema.DateTimeUtc,
   isAmbient: Schema.Boolean,
   screen: Screen,
@@ -63,6 +75,8 @@ const emptyFeed = { data: Option.none(), failed: false }
 export const init = (flags: Flags): readonly [Model, Commands] => [
   {
     now: flags.now,
+    bootVersion: flags.bootVersion,
+    isOffline: false,
     lastInteraction: flags.now,
     isAmbient: false,
     screen: 'today',
@@ -82,6 +96,9 @@ export const init = (flags: Flags): readonly [Model, Commands] => [
 // ============================================
 
 const succeeded = <A>(data: A) => ({ data: Option.some(data), failed: false })
+const online = (model: Model): Model => evo(model, { isOffline: () => false })
+const reachability = (model: Model, isServerReachable: boolean): Model =>
+  evo(model, { isOffline: () => !isServerReachable })
 const failed = <A>(current: { readonly data: Option.Option<A> }) => ({ data: current.data, failed: true })
 
 /** The first day the calendar screen shows for its current mode. */
@@ -156,7 +173,14 @@ const REFRESH = {
   calendar: calendarCommands,
   weather: (): Commands => [FetchWeather()],
   shopping: (): Commands => [FetchShopping()],
+  version: (): Commands => [CheckVersion()],
 }
+
+// A new deploy serves a different version than this page booted with; reload to pick it up.
+const onVersion = (model: Model, version: string): UpdateReturn => [
+  online(model),
+  Option.exists(model.bootVersion, (booted) => booted !== version) ? [ReloadPage()] : [],
+]
 
 export const update = (model: Model, message: Message): UpdateReturn =>
   Match.valueTags(message, {
@@ -174,20 +198,44 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     },
     ClickedShoppingItem: ({ uid, status }) => onShoppingItem(model, uid, status),
     RefreshDue: ({ source }): UpdateReturn => [model, REFRESH[source](model)],
-    SucceededFetchSettings: ({ settings }) => onSettings(model, settings.timezone),
-    FailedFetchSettings: (): UpdateReturn => [model, [FetchSettings()]],
-    SucceededFetchUpcoming: ({ events }): UpdateReturn => [evo(model, { upcoming: () => succeeded(events) }), []],
-    FailedFetchUpcoming: (): UpdateReturn => [evo(model, { upcoming: failed }), []],
+    SucceededFetchSettings: ({ settings }) => onSettings(online(model), settings.timezone),
+    FailedFetchSettings: ({ isServerReachable }): UpdateReturn => [
+      reachability(model, isServerReachable),
+      [RetrySettings()],
+    ],
+    SucceededFetchUpcoming: ({ events }): UpdateReturn => [
+      evo(online(model), { upcoming: () => succeeded(events) }),
+      [],
+    ],
+    FailedFetchUpcoming: ({ isServerReachable }): UpdateReturn => [
+      evo(reachability(model, isServerReachable), { upcoming: failed }),
+      [],
+    ],
     // Ignore a week that arrives after the user has paged elsewhere.
     SucceededFetchWeek: ({ from, events }): UpdateReturn =>
       Option.contains(Option.map(model.anchor, weekStart), from)
-        ? [evo(model, { week: () => succeeded(events) }), []]
-        : [model, []],
-    FailedFetchWeek: (): UpdateReturn => [evo(model, { week: failed }), []],
-    SucceededFetchWeather: ({ weather }): UpdateReturn => [evo(model, { weather: () => succeeded(weather) }), []],
-    FailedFetchWeather: (): UpdateReturn => [evo(model, { weather: failed }), []],
-    SucceededFetchShopping: ({ items }): UpdateReturn => [evo(model, { shopping: () => succeeded(items) }), []],
-    FailedFetchShopping: (): UpdateReturn => [evo(model, { shopping: failed }), []],
+        ? [evo(online(model), { week: () => succeeded(events) }), []]
+        : [online(model), []],
+    FailedFetchWeek: ({ isServerReachable }): UpdateReturn => [
+      evo(reachability(model, isServerReachable), { week: failed }),
+      [],
+    ],
+    SucceededFetchWeather: ({ weather }): UpdateReturn => [
+      evo(online(model), { weather: () => succeeded(weather) }),
+      [],
+    ],
+    FailedFetchWeather: ({ isServerReachable }): UpdateReturn => [
+      evo(reachability(model, isServerReachable), { weather: failed }),
+      [],
+    ],
+    SucceededFetchShopping: ({ items }): UpdateReturn => [evo(online(model), { shopping: () => succeeded(items) }), []],
+    FailedFetchShopping: ({ isServerReachable }): UpdateReturn => [
+      evo(reachability(model, isServerReachable), { shopping: failed }),
+      [],
+    ],
+    CheckedVersion: ({ version }) => onVersion(model, version),
+    FailedCheckVersion: (): UpdateReturn => [reachability(model, false), []],
+    StartedReload: (): UpdateReturn => [model, []],
   })
 
 // ============================================
@@ -225,6 +273,13 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: () => ({}),
       dependenciesToStream: () => every('15 minutes').pipe(Stream.map(() => RefreshDue({ source: 'weather' }))),
+    }
+  ),
+  versionCheck: entry(
+    {},
+    {
+      modelToDependencies: () => ({}),
+      dependenciesToStream: () => every('5 minutes').pipe(Stream.map(() => RefreshDue({ source: 'version' }))),
     }
   ),
   shoppingRefresh: entry(

@@ -22,18 +22,23 @@ export const ClickedCalendarMode = m('ClickedCalendarMode', { mode: CalendarMode
 export const ClickedShift = m('ClickedShift', { direction: Schema.Literals([-1, 1]) })
 export const ClickedToday = m('ClickedToday')
 export const ClickedShoppingItem = m('ClickedShoppingItem', { uid: Schema.String, status: ShoppingItemStatus })
-export const RefreshDue = m('RefreshDue', { source: Schema.Literals(['calendar', 'weather', 'shopping']) })
+export const RefreshDue = m('RefreshDue', { source: Schema.Literals(['calendar', 'weather', 'shopping', 'version']) })
 
 export const SucceededFetchSettings = m('SucceededFetchSettings', { settings: FrameSettings })
-export const FailedFetchSettings = m('FailedFetchSettings')
+export const FailedFetchSettings = m('FailedFetchSettings', { isServerReachable: Schema.Boolean })
 export const SucceededFetchUpcoming = m('SucceededFetchUpcoming', { events: Schema.Array(CalendarEvent) })
-export const FailedFetchUpcoming = m('FailedFetchUpcoming')
+export const FailedFetchUpcoming = m('FailedFetchUpcoming', { isServerReachable: Schema.Boolean })
 export const SucceededFetchWeek = m('SucceededFetchWeek', { from: CalendarDate, events: Schema.Array(CalendarEvent) })
-export const FailedFetchWeek = m('FailedFetchWeek')
+export const FailedFetchWeek = m('FailedFetchWeek', { isServerReachable: Schema.Boolean })
 export const SucceededFetchWeather = m('SucceededFetchWeather', { weather: Weather })
-export const FailedFetchWeather = m('FailedFetchWeather')
+export const FailedFetchWeather = m('FailedFetchWeather', { isServerReachable: Schema.Boolean })
 export const SucceededFetchShopping = m('SucceededFetchShopping', { items: Schema.Array(ShoppingItem) })
-export const FailedFetchShopping = m('FailedFetchShopping')
+export const FailedFetchShopping = m('FailedFetchShopping', { isServerReachable: Schema.Boolean })
+
+// A deploy is detected by comparing the server's version with the one this page booted with.
+export const CheckedVersion = m('CheckedVersion', { version: Schema.String })
+export const FailedCheckVersion = m('FailedCheckVersion')
+export const StartedReload = m('StartedReload')
 
 const Message = Schema.Union([
   TickedClock,
@@ -54,5 +59,8 @@ const Message = Schema.Union([
   FailedFetchWeather,
   SucceededFetchShopping,
   FailedFetchShopping,
+  CheckedVersion,
+  FailedCheckVersion,
+  StartedReload,
 ])
 export type Message = typeof Message.Type

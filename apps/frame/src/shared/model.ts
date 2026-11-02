@@ -2,6 +2,11 @@ import * as Schema from 'effect/Schema'
 
 import { CalendarDate, IanaTimezone } from './calendar-date.js'
 
+/** The identity of the SPA build a server instance serves; it changes whenever the built assets change. */
+export class FrameVersion extends Schema.Class<FrameVersion>('FrameVersion')({
+  version: Schema.String,
+}) {}
+
 /** Display settings the server owns and the frame needs before rendering. */
 export class FrameSettings extends Schema.Class<FrameSettings>('FrameSettings')({
   timezone: IanaTimezone,

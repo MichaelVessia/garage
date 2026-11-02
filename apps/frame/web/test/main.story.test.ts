@@ -8,11 +8,25 @@ import * as Story from 'foldkit/story'
 import { CalendarDate, FrameSettings, IanaTimezone, Weather } from '#shared'
 import type { CalendarEvent } from '#shared'
 
-import { FetchShopping, FetchUpcoming, FetchWeek, UpdateShoppingItem } from '../src/command.js'
+import {
+  CheckVersion,
+  FetchShopping,
+  FetchUpcoming,
+  FetchWeek,
+  ReloadPage,
+  RetrySettings,
+  UpdateShoppingItem,
+} from '../src/command.js'
 import { init, update } from '../src/main.js'
 import type { Model } from '../src/main.js'
 import {
+  CheckedVersion,
   ClickedScreen,
+  FailedCheckVersion,
+  FailedFetchSettings,
+  FailedFetchWeather,
+  RefreshDue,
+  StartedReload,
   ClickedShift,
   ClickedShoppingItem,
   Interacted,
@@ -29,7 +43,7 @@ const timezone = IanaTimezone.make('America/New_York')
 const now = DateTime.makeUnsafe('2026-11-02T15:00:00Z')
 const at = (iso: string) => DateTime.makeUnsafe(iso)
 
-const [initial] = init({ now })
+const [initial] = init({ now, bootVersion: Option.some('build-1') })
 
 const ready: Model = {
   ...initial,
@@ -214,5 +228,68 @@ describe('frame app', () => {
     const ambientHtml = rendered({ ...loaded, isAmbient: true })
     expect(ambientHtml).toContain('amb-time')
     expect(ambientHtml).toContain('Swim lesson')
+  })
+
+  it('reloads when the server reports a different version than the page booted with', () => {
+    Story.story(
+      update,
+      Story.given(ready),
+      Story.message(RefreshDue({ source: 'version' })),
+      Story.Command.resolve(CheckVersion, CheckedVersion({ version: 'build-1' })),
+      Story.Command.expectNone(),
+      Story.message(RefreshDue({ source: 'version' })),
+      Story.Command.resolve(CheckVersion, CheckedVersion({ version: 'build-2' })),
+      Story.Command.expectExact(ReloadPage),
+      Story.Command.resolve(ReloadPage, StartedReload())
+    )
+  })
+
+  it('never reloads a page served without a version', () => {
+    Story.story(
+      update,
+      Story.given({ ...ready, bootVersion: Option.none() }),
+      Story.message(CheckedVersion({ version: 'build-2' })),
+      Story.Command.expectNone()
+    )
+  })
+
+  it('keeps the last data and shows offline while the server is unreachable', () => {
+    const withEvents: Model = { ...ready, upcoming: { data: Option.some(events), failed: false } }
+    Story.story(
+      update,
+      Story.given(withEvents),
+      Story.message(FailedCheckVersion()),
+      Story.model((model) => {
+        expect(model.isOffline).toBe(true)
+        expect(Option.getOrThrow(model.upcoming.data)).toHaveLength(2)
+      }),
+      Story.message(SucceededFetchUpcoming({ events })),
+      Story.model((model) => {
+        expect(model.isOffline).toBe(false)
+      }),
+      // An upstream failure means the frame server answered.
+      Story.message(FailedFetchWeather({ isServerReachable: true })),
+      Story.model((model) => {
+        expect(model.isOffline).toBe(false)
+        expect(model.weather.failed).toBe(true)
+      })
+    )
+
+    expect(rendered({ ...withEvents, isOffline: true })).toContain('Offline')
+  })
+
+  it('retries settings with a delay instead of a tight loop', () => {
+    Story.story(
+      update,
+      Story.given(initial),
+      Story.message(FailedFetchSettings({ isServerReachable: false })),
+      Story.model((model) => {
+        expect(model.isOffline).toBe(true)
+      }),
+      Story.Command.expectExact(RetrySettings),
+      Story.Command.resolve(RetrySettings, SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })),
+      Story.Command.resolve(FetchUpcoming, SucceededFetchUpcoming({ events })),
+      Story.Command.resolve(FetchWeek, SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events }))
+    )
   })
 })

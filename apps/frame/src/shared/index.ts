@@ -13,6 +13,7 @@ export {
   CalendarEvent,
   CalendarWindow,
   FrameSettings,
+  FrameVersion,
   ShoppingItem,
   ShoppingItemStatus,
   ShoppingItemUpdate,

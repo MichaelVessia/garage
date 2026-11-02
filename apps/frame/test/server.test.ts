@@ -3,6 +3,7 @@ import * as BunServices from '@effect/platform-bun/BunServices'
 import { afterAll, assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
@@ -52,7 +53,7 @@ const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
 )
 
 const { handler, dispose } = HttpRouter.toWebHandler(
-  frameRoutes(webRoot).pipe(
+  frameRoutes(webRoot, Option.none()).pipe(
     Layer.provide(FrameHandlersLive),
     Layer.provide(ServicesLayer),
     Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
@@ -65,6 +66,10 @@ afterAll(() => dispose())
 class TestRequestError extends Schema.TaggedErrorClass<TestRequestError>()('TestRequestError', {
   cause: Schema.Defect(),
 }) {}
+
+const decodeHealth = Schema.decodeUnknownSync(
+  Schema.fromJsonString(Schema.Struct({ status: Schema.String, version: Schema.String }))
+)
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))
 
@@ -92,12 +97,35 @@ const rpc = (tag: string, payload: Readonly<Record<string, string>> | null) =>
 const get = (path: string) => send(new Request(`http://frame.test${path}`))
 
 describe('frame server', () => {
-  it.effect('reports readiness', () =>
+  it.effect('reports readiness with the version embedded in the served page', () =>
     Effect.gen(function* () {
-      const response = yield* get('/health')
+      const health = yield* get('/health')
+      const page = yield* get('/')
+      const { version } = decodeHealth(health.body)
 
-      assert.strictEqual(response.status, 200)
-      assert.include(response.body, 'ready')
+      assert.strictEqual(health.status, 200)
+      assert.match(version, /^[\da-f]+-\d+$/u)
+      assert.include(page.body, `<meta name="frame-version" content="${version}" />`)
+    })
+  )
+
+  it.effect('reports an injected build id instead of the fingerprint', () =>
+    Effect.gen(function* () {
+      const injected = HttpRouter.toWebHandler(
+        frameRoutes(webRoot, Option.some('build-42')).pipe(
+          Layer.provide(FrameHandlersLive),
+          Layer.provide(ServicesLayer),
+          Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
+        ),
+        { disableLogger: true }
+      )
+      const response = yield* Effect.tryPromise({
+        try: () => injected.handler(new Request('http://frame.test/health')).then((res) => res.text()),
+        catch: (cause) => new TestRequestError({ cause }),
+      })
+      yield* Effect.tryPromise({ try: () => injected.dispose(), catch: (cause) => new TestRequestError({ cause }) })
+
+      assert.strictEqual(decodeHealth(response).version, 'build-42')
     })
   )
 

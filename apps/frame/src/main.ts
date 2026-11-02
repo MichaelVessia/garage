@@ -25,9 +25,10 @@ const HttpServerLive = Layer.unwrap(
   Effect.gen(function* () {
     const port = yield* Config.int('FRAME_PORT').pipe(Config.withDefault(8080))
     const webRoot = yield* Config.nonEmptyString('FRAME_WEB_ROOT').pipe(Config.withDefault('web/dist'))
+    const buildId = yield* Config.nonEmptyString('FRAME_BUILD_ID').pipe(Config.option)
 
     return HttpRouter.serve(
-      frameRoutes(webRoot).pipe(Layer.provide(FrameHandlersLive), Layer.provide(FrameServicesLive))
+      frameRoutes(webRoot, buildId).pipe(Layer.provide(FrameHandlersLive), Layer.provide(FrameServicesLive))
     ).pipe(Layer.provide(BunHttpServer.layer({ hostname: '0.0.0.0', port })))
   })
 )

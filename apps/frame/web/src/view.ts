@@ -127,6 +127,7 @@ const viewRail = (h: H, model: Model) =>
           [label]
         )
       ),
+      ...(model.isOffline ? [h.div([h.Class('rail-offline'), h.Role('status')], ['Offline'])] : []),
       h.div(
         [h.Class('rail-clock')],
         Option.match(model.timezone, {
