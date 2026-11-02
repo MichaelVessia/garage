@@ -13,11 +13,13 @@ import tsconfig from '../tsconfig.base.json' with { type: 'json' }
 // The Effect language service ships its full diagnostic list in the schema of
 // the installed @effect/tsgo. Every diagnostic must be configured, so a
 // toolchain upgrade cannot add a rule that silently stays at its default.
+// Deprecated aliases are excluded: configuring one fails the type check with a
+// deprecatedRuleName warning, and its replacement rules are configured instead.
 const TsgoSchema = Schema.fromJsonString(
   Schema.Struct({
     definitions: Schema.Struct({
       effectLanguageServicePluginDiagnosticSeverityDefinition: Schema.Struct({
-        properties: Schema.Record(Schema.String, Schema.Unknown),
+        properties: Schema.Record(Schema.String, Schema.Struct({ description: Schema.String })),
       }),
     }),
   })
@@ -38,7 +40,13 @@ it.effect('configures every Effect language-service diagnostic as an error', () 
       .readFileString('node_modules/@effect/tsgo/schema.json')
       .pipe(Effect.flatMap(Schema.decodeEffect(TsgoSchema)))
 
-    const available = R.keys(schema.definitions.effectLanguageServicePluginDiagnosticSeverityDefinition.properties)
+    const available = R.keys(
+      R.filter(
+        schema.definitions.effectLanguageServicePluginDiagnosticSeverityDefinition.properties,
+        ({ description }) => !Str.startsWith('Deprecated:')(description)
+      )
+    )
+
     const configured: Readonly<Record<string, string>> = plugin?.diagnosticSeverity ?? {}
 
     assert.deepStrictEqual(Arr.sort(R.keys(configured), Str.Order), Arr.sort(available, Str.Order))

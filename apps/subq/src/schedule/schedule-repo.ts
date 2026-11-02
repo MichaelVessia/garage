@@ -93,7 +93,7 @@ export const ScheduleRepoLive = Layer.effect(
       scheduleId: string,
       phases: ReadonlyArray<SchedulePhaseCreate>
     ) {
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
       yield* Effect.forEach(
         phases,
         (phase) =>
@@ -198,7 +198,7 @@ export const ScheduleRepoLive = Layer.effect(
         const id = yield* randomUuid()
         const supplier = Option.getOrNull(data.supplier)
         const notes = Option.getOrNull(data.notes)
-        const now = DateTime.formatIso(yield* DateTime.now)
+        const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
         const { startDate } = data
 
         // Deactivate any existing active schedules for this user
@@ -266,7 +266,7 @@ export const ScheduleRepoLive = Layer.effect(
       const newFrequency = data.frequency ?? curr.frequency
       const newIsActive = data.isActive ?? curr.is_active === 1
       const newNotes = data.notes === undefined ? curr.notes : data.notes
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
 
       // If activating this schedule, deactivate others
       if (newIsActive && curr.is_active !== 1) {

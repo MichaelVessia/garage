@@ -90,7 +90,7 @@ const ProtocolLive = Layer.unwrap(
 ).pipe(Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]))
 
 const main = Effect.fn('seed.main')(function* () {
-  const payload = yield* Schema.decodeUnknownEffect(DataExport)(yield* generateDemoData())
+  const payload = yield* generateDemoData().pipe(Effect.flatMap(Schema.decodeUnknownEffect(DataExport)))
   const client = yield* RpcClient.make(AppRpcs)
   const result = yield* client.UserDataImport(payload)
   yield* Effect.log('Import complete').pipe(

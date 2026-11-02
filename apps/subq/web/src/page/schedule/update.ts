@@ -12,8 +12,7 @@ import { CalendarDate, DoseMg, MedicationCompound } from '#shared'
 import type { IanaTimezone } from '#shared'
 
 import type { Api } from '../../api.js'
-import { FetchSettings } from '../../data/settings.js'
-import type { FailedFetchSettings, SucceededFetchSettings } from '../../data/settings.js'
+import { FailedFetchSettings, FetchSettings, SucceededFetchSettings } from '../../data/settings.js'
 import { withForm } from '../../lib/form.js'
 import {
   ActivateSchedule,
@@ -23,42 +22,42 @@ import {
   OpenScheduleForm,
   SaveSchedule,
 } from './command.js'
-import type {
+import {
   CompletedOpenScheduleForm,
   FailedActivateSchedule,
   FailedDeleteSchedule,
   FailedFetchNextDose,
   FailedFetchSchedules,
   FailedSaveSchedule,
-  ScheduleForm,
-  ScheduleMessage,
-  ScheduleModel,
-  SchedulePhaseForm,
   SucceededActivateSchedule,
   SucceededDeleteSchedule,
   SucceededFetchNextDose,
   SucceededFetchSchedules,
   SucceededSaveSchedule,
 } from './model.js'
+import type { ScheduleForm, ScheduleMessage, ScheduleModel, SchedulePhaseForm } from './model.js'
 
 // ============================================
 // Update
 // ============================================
 
-type ScheduleCommandMessage =
-  | typeof SucceededFetchSettings.Type
-  | typeof FailedFetchSettings.Type
-  | typeof SucceededFetchSchedules.Type
-  | typeof FailedFetchSchedules.Type
-  | typeof SucceededFetchNextDose.Type
-  | typeof FailedFetchNextDose.Type
-  | typeof CompletedOpenScheduleForm.Type
-  | typeof SucceededSaveSchedule.Type
-  | typeof FailedSaveSchedule.Type
-  | typeof SucceededDeleteSchedule.Type
-  | typeof FailedDeleteSchedule.Type
-  | typeof SucceededActivateSchedule.Type
-  | typeof FailedActivateSchedule.Type
+const ScheduleCommandMessage = Schema.Union([
+  SucceededFetchSettings,
+  FailedFetchSettings,
+  SucceededFetchSchedules,
+  FailedFetchSchedules,
+  SucceededFetchNextDose,
+  FailedFetchNextDose,
+  CompletedOpenScheduleForm,
+  SucceededSaveSchedule,
+  FailedSaveSchedule,
+  SucceededDeleteSchedule,
+  FailedDeleteSchedule,
+  SucceededActivateSchedule,
+  FailedActivateSchedule,
+])
+
+type ScheduleCommandMessage = typeof ScheduleCommandMessage.Type
 
 type UpdateReturn = Update.Return<ScheduleModel, ScheduleCommandMessage, Api>
 

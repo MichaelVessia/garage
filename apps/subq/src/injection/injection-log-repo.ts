@@ -169,7 +169,7 @@ export const InjectionLogRepoLive = Layer.effect(
         const injectionSite = Option.isSome(data.injectionSite) ? data.injectionSite.value : null
         const notes = Option.isSome(data.notes) ? data.notes.value : null
         const scheduleId = Option.isSome(data.scheduleId) ? data.scheduleId.value : null
-        const now = DateTime.formatIso(yield* DateTime.now)
+        const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
         const datetimeStr = DateTime.formatIso(data.datetime)
 
         yield* sql`
@@ -208,7 +208,7 @@ export const InjectionLogRepoLive = Layer.effect(
       const newInjectionSite = Option.isSome(data.injectionSite) ? data.injectionSite.value : curr.injection_site
       const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
       const newScheduleId = Option.isSome(data.scheduleId) ? data.scheduleId.value : curr.schedule_id
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
 
       yield* sql`
           UPDATE injection_logs

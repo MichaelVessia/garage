@@ -90,7 +90,7 @@ describe('CalendarFeedLive', () => {
     Effect.gen(function* () {
       const { feed } = yield* makeFeed(googleResponse, Option.some('#fa573c'))
 
-      const colors = Arr.map(yield* feed.occurrences(range), (event) => [event.title, event.color])
+      const colors = yield* feed.occurrences(range).pipe(Effect.map(Arr.map((event) => [event.title, event.color])))
 
       assert.deepStrictEqual(colors, [
         // The label supersedes the event's colorId.
@@ -147,7 +147,7 @@ describe('CalendarFeedLive', () => {
       yield* TestClock.adjust('6 minutes')
       yield* feed.occurrences(range)
 
-      const urls = Arr.map(yield* Ref.get(requests), (request) => request.url)
+      const urls = yield* Ref.get(requests).pipe(Effect.map(Arr.map((request) => request.url)))
       assert.strictEqual(Arr.filter(urls, (url) => url === tokenUri).length, 1)
       assert.strictEqual(Arr.filter(urls, isEvents).length, 3)
     })
@@ -197,7 +197,7 @@ describe('CalendarFeedLive', () => {
       yield* feed.occurrences(range)
 
       assert.strictEqual(error.code, 'CALENDAR_HTTP_ERROR')
-      const urls = Arr.map(yield* Ref.get(requests), (request) => request.url)
+      const urls = yield* Ref.get(requests).pipe(Effect.map(Arr.map((request) => request.url)))
       assert.strictEqual(Arr.filter(urls, (url) => url === tokenUri).length, 2)
     })
   )

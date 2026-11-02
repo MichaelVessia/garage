@@ -2,7 +2,6 @@ import * as NodePath from '@effect/platform-node/NodePath'
 import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as FileSystem from 'effect/FileSystem'
-import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 
 import {
@@ -63,7 +62,7 @@ describe('GPT fast-mode policy', () => {
       const enabled = yield* loadConfiguredDefault('/agent')
       assert.isTrue(enabled)
       assert.deepStrictEqual(reads, ['/agent/settings.json'])
-    }).pipe(Effect.provide(Layer.mergeAll(fileSystemLayer, NodePath.layer)))
+    }).pipe(Effect.provide([fileSystemLayer, NodePath.layer]))
   })
 
   it.effect('defaults to disabled when stored settings are malformed', () => {
@@ -72,7 +71,7 @@ describe('GPT fast-mode policy', () => {
     })
 
     return loadConfiguredDefault('/agent').pipe(
-      Effect.provide(Layer.mergeAll(fileSystemLayer, NodePath.layer)),
+      Effect.provide([fileSystemLayer, NodePath.layer]),
       Effect.map((enabled) => {
         assert.isFalse(enabled)
 

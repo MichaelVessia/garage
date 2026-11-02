@@ -8,6 +8,7 @@ import * as Result from 'effect/Result'
 import { AuthContext, AuthRpcMiddleware, Unauthorized } from '#shared'
 
 import { AuthService } from './auth-service.js'
+import { BetterAuthApiError } from './better-auth-error.js'
 
 /**
  * Layer that provides the auth middleware implementation.
@@ -25,11 +26,14 @@ export const AuthRpcMiddlewareLive = Layer.effect(
         const headerObj = R.filterMap(headers, (value) => (P.isString(value) ? Result.succeed(value) : Result.failVoid))
 
         // better-auth's getSession handles both cookies and Bearer tokens (via bearer plugin)
-        const session = yield* Effect.tryPromise(() => auth.api.getSession({ headers: headerObj })).pipe(
+        const session = yield* Effect.tryPromise({
+          try: () => auth.api.getSession({ headers: headerObj }),
+          catch: (cause) => BetterAuthApiError.make({ cause }),
+        }).pipe(
           Effect.tapError((error) =>
             Effect.logDebug('Auth: session lookup failed').pipe(Effect.annotateLogs({ error }))
           ),
-          Effect.catchTag('UnknownError', () => Effect.succeed(null))
+          Effect.catchTag('BetterAuthApiError', () => Effect.succeed(null))
         )
 
         if (session?.user === undefined) {

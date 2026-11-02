@@ -125,6 +125,16 @@ const ReadySabnzbdLayer = makeApiLayer(
 
 const ReadyApiLayer = Layer.merge(ReadyAutocaliwebLayer, ReadySabnzbdLayer)
 
+class TestRequestError extends Schema.TaggedError<TestRequestError, { readonly brand: unique symbol }>()(
+  'TestRequestError',
+  {
+    cause: Schema.Defect(),
+  }
+) {}
+
+const tryRequest = <A>(evaluate: () => Promise<A>) =>
+  Effect.tryPromise({ try: evaluate, catch: (cause) => TestRequestError.make({ cause }) })
+
 const post = (
   handler: (request: Request) => Promise<Response>,
   body: Schema.Json,
@@ -132,7 +142,7 @@ const post = (
 ) =>
   Schema.encodeEffect(Schema.fromJsonString(Schema.Json))(body).pipe(
     Effect.flatMap((encodedBody) =>
-      Effect.tryPromise(() =>
+      tryRequest(() =>
         handler(
           new Request('http://localhost/mcp', {
             method: 'POST',
@@ -148,7 +158,7 @@ const post = (
     )
   )
 
-const responseJson = (response: Response) => Effect.tryPromise(() => response.json())
+const responseJson = (response: Response) => tryRequest(() => response.json())
 
 const withInitializedHandler = <A, E>(
   apiLayer: Layer.Layer<AutocaliwebApi | SabnzbdApi>,
@@ -178,7 +188,7 @@ const withInitializedHandler = <A, E>(
 
         return yield* use(handler, sessionId)
       }),
-    ({ dispose }) => Effect.tryPromise(() => dispose())
+    ({ dispose }) => tryRequest(() => dispose())
   )
 
 it.effect('discovers consolidated tools with bounded schemas and accurate safety annotations', () =>
@@ -299,7 +309,7 @@ it.effect('encodes successful structured results through HTTP MCP', () =>
 
 it.effect('represents expected package failures without sensitive request data', () =>
   withInitializedHandler(
-    Layer.merge(ReadyAutocaliwebLayer, makeApiLayer(Effect.fail(envMissing('SABNZBD_API_KEY')))),
+    Layer.merge(ReadyAutocaliwebLayer, envMissing('SABNZBD_API_KEY').pipe(Effect.fail, makeApiLayer)),
     (handler, sessionId) =>
       Effect.gen(function* () {
         const response = yield* post(
@@ -335,14 +345,10 @@ it.effect('redacts credential-bearing transport failures from MCP results', () =
   withInitializedHandler(
     Layer.merge(
       ReadyAutocaliwebLayer,
-      makeApiLayer(
-        Effect.fail(
-          unreachable({
-            message:
-              'Transport error for http://sabnzbd.example.test/api?apikey=sentinel-api-key&output=json&mode=fullstatus',
-          })
-        )
-      )
+      unreachable({
+        message:
+          'Transport error for http://sabnzbd.example.test/api?apikey=sentinel-api-key&output=json&mode=fullstatus',
+      }).pipe(Effect.fail, makeApiLayer)
     ),
     (handler, sessionId) =>
       Effect.gen(function* () {
@@ -418,7 +424,7 @@ it.effect('serves a deterministic HTTP readiness response', () =>
     ),
     ({ handler }) =>
       Effect.gen(function* () {
-        const response = yield* Effect.tryPromise(() => handler(new Request('http://localhost/health')))
+        const response = yield* tryRequest(() => handler(new Request('http://localhost/health')))
 
         const body = yield* responseJson(response).pipe(
           Effect.flatMap(Schema.decodeUnknownEffect(Schema.Struct({ status: Schema.Literal('ready') })))
@@ -427,6 +433,6 @@ it.effect('serves a deterministic HTTP readiness response', () =>
         assert.strictEqual(response.status, 200)
         assert.deepStrictEqual(body, { status: 'ready' })
       }),
-    ({ dispose }) => Effect.tryPromise(() => dispose())
+    ({ dispose }) => tryRequest(() => dispose())
   )
 )

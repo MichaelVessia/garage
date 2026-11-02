@@ -160,7 +160,7 @@ interface InsertWeightLogInput {
 export const insertWeightLog = ({ id, datetime, weight, userId, notes = null }: InsertWeightLogInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    const now = DateTime.formatIso(yield* DateTime.now)
+    const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     yield* sql`
       INSERT INTO weight_logs (id, datetime, weight, notes, user_id, created_at, updated_at)
       VALUES (${id}, ${datetime.toISOString()}, ${weight}, ${notes}, ${userId}, ${now}, ${now})
@@ -197,7 +197,7 @@ interface InsertInjectionLogInput {
 export const insertInjectionLog = (input: InsertInjectionLogInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    const now = DateTime.formatIso(yield* DateTime.now)
+    const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     yield* sql`
       INSERT INTO injection_logs (id, datetime, drug, supplier, dose_mg, injection_site, notes, schedule_id, user_id, created_at, updated_at)
       VALUES (${input.id}, ${input.datetime.toISOString()}, ${input.drug}, ${input.supplier ?? null}, ${input.doseMg}, ${input.injectionSite ?? null}, ${input.notes ?? null}, ${input.scheduleId ?? null}, ${input.userId}, ${now}, ${now})
@@ -219,7 +219,7 @@ interface InsertScheduleInput {
 export const insertSchedule = (input: InsertScheduleInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    const now = DateTime.formatIso(yield* DateTime.now)
+    const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     yield* sql`
       INSERT INTO injection_schedules (
         id, name, drug, supplier, frequency, start_date, calendar_date_migrated,
@@ -246,7 +246,7 @@ export const insertSchedulePhase = ({
 }: InsertSchedulePhaseInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    const now = DateTime.formatIso(yield* DateTime.now)
+    const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     yield* sql`
       INSERT INTO schedule_phases (id, schedule_id, "order", duration_days, dose_mg, created_at, updated_at)
       VALUES (${id}, ${scheduleId}, ${order}, ${durationDays}, ${doseMg}, ${now}, ${now})
@@ -263,7 +263,7 @@ interface InsertSettingsInput {
 export const insertSettings = ({ id, userId, weightUnit, timezone = null }: InsertSettingsInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
-    const now = DateTime.formatIso(yield* DateTime.now)
+    const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     const migrationState = timezone === null ? 'pending' : 'complete'
     yield* sql`
       INSERT INTO user_settings (id, user_id, weight_unit, timezone, timezone_migration_state, created_at, updated_at)

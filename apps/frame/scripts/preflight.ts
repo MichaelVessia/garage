@@ -283,5 +283,4 @@ const preflight = Effect.fn('frame.preflight')(function* () {
 
 const ScriptLayer = Layer.mergeAll(BunServices.layer, BunHttpClient.layer, Socket.layerWebSocketConstructorGlobal)
 
-// @effect-diagnostics-next-line strictEffectProvide:off -- script entry point
 BunRuntime.runMain(preflight().pipe(Effect.scoped, Effect.provide(ScriptLayer)))

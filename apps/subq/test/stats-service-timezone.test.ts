@@ -202,7 +202,8 @@ describe('StatsService', () => {
           )
         }).pipe(Effect.provide(layer))
 
-        assert.strictEqual(yield* Ref.get(reads), 1)
+        const readCount = yield* Ref.get(reads)
+        assert.strictEqual(readCount, 1)
         assert.strictEqual(result.timezone, firstTimezone)
         assert.isTrue(Option.isSome(result.data))
       })

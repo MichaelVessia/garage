@@ -41,5 +41,4 @@ const verifyDeploy = Effect.fn('frame.verifyDeploy')(function* () {
   yield* Console.log(`garage-frame ${expected} is live at ${baseUrl}`)
 })
 
-// @effect-diagnostics-next-line strictEffectProvide:off -- script entry point
 BunRuntime.runMain(verifyDeploy().pipe(Effect.provide(BunHttpClient.layer)))

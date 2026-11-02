@@ -75,10 +75,8 @@ it.effect('joins baseUrl, basePath, static query, and per-call query into an enc
       ['b', true],
     ])
 
-    assert.deepStrictEqual(
-      Arr.map(yield* Ref.get(requests), (request) => request.url),
-      ['http://x.test/api/foo/bar?token=abc&q=hello%20world&n=5&b=true']
-    )
+    const urls = yield* Ref.get(requests).pipe(Effect.map(Arr.map((request) => request.url)))
+    assert.deepStrictEqual(urls, ['http://x.test/api/foo/bar?token=abc&q=hello%20world&n=5&b=true'])
   })
 )
 
@@ -95,10 +93,8 @@ it.effect('omits the query string entirely when there are no query params', () =
 
     yield* jsonClient.getJson('/ping', ItemSchema)
 
-    assert.deepStrictEqual(
-      Arr.map(yield* Ref.get(requests), (request) => request.url),
-      ['http://y.test/ping']
-    )
+    const urls = yield* Ref.get(requests).pipe(Effect.map(Arr.map((request) => request.url)))
+    assert.deepStrictEqual(urls, ['http://y.test/ping'])
   })
 )
 

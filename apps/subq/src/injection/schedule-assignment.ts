@@ -75,7 +75,7 @@ export const ScheduleAssignmentLive = Layer.effect(
         yield* requireScheduleOwnedByUser(data.scheduleId, userId)
       }
 
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
       const { scheduleId } = data
 
       yield* sql`

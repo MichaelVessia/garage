@@ -8,32 +8,29 @@ import { ActionResult, DeleteOptions } from '../packages/sabnzbd/src/index.js'
 
 it.effect('exports public schemas for retained normalized models', () =>
   Effect.gen(function* () {
-    assert.deepStrictEqual(
-      yield* Schema.decodeEffect(BookInfoRecord)({
-        authors: [],
-        languages: [],
-        categories: [],
-        downloads: [],
-        formats: [],
-        tags: [],
-      }),
-      {
-        authors: [],
-        languages: [],
-        categories: [],
-        downloads: [],
-        formats: [],
-        tags: [],
-      }
-    )
-    assert.deepStrictEqual(
-      yield* Schema.decodeEffect(ActionResult)({ action: 'delete', ok: true, deleteFiles: false }),
-      {
-        action: 'delete',
-        ok: true,
-        deleteFiles: false,
-      }
-    )
+    const bookInfo = yield* Schema.decodeEffect(BookInfoRecord)({
+      authors: [],
+      languages: [],
+      categories: [],
+      downloads: [],
+      formats: [],
+      tags: [],
+    })
+
+    assert.deepStrictEqual(bookInfo, {
+      authors: [],
+      languages: [],
+      categories: [],
+      downloads: [],
+      formats: [],
+      tags: [],
+    })
+    const actionResult = yield* Schema.decodeEffect(ActionResult)({ action: 'delete', ok: true, deleteFiles: false })
+    assert.deepStrictEqual(actionResult, {
+      action: 'delete',
+      ok: true,
+      deleteFiles: false,
+    })
   })
 )
 

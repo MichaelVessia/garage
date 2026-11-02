@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from '@effect/vitest'
+import { assert, describe, expect, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { Scene, Story } from 'foldkit'
 
@@ -101,7 +102,9 @@ const rendered = (model: Model) => {
     { update, view },
     Scene.given(model),
     Scene.tap((simulation) => {
-      html = JSON.stringify(simulation.html)
+      html = Option.getOrElse(Schema.encodeOption(Schema.fromJsonString(Schema.Unknown))(simulation.html), () =>
+        assert.fail('rendered HTML is not JSON')
+      )
     })
   )
 

@@ -10,10 +10,8 @@ import { IanaTimezone } from '#shared'
 import type { DataImportResult } from '#shared'
 
 import type { Api } from '../../api.js'
-import { ChangePassword } from '../../auth.js'
-import type { FailedChangePassword, SucceededChangePassword } from '../../auth.js'
-import { FetchSettings } from '../../data/settings.js'
-import type { FailedFetchSettings, SucceededFetchSettings } from '../../data/settings.js'
+import { ChangePassword, FailedChangePassword, SucceededChangePassword } from '../../auth.js'
+import { FailedFetchSettings, FetchSettings, SucceededFetchSettings } from '../../data/settings.js'
 import {
   ExportData,
   ImportData,
@@ -22,39 +20,40 @@ import {
   UpdateTimezone,
   UpdateWeightUnit,
 } from './command.js'
-import type {
+import {
   CancelledSelectImportFile,
   FailedExportData,
   FailedImportData,
   FailedUpdateSettingsPreference,
-  PasswordForm,
   PreparedImportData,
   SelectedImportFile,
-  SettingsModel,
-  SettingsPageMessage,
   SucceededExportData,
   SucceededImportData,
   SucceededUpdateSettingsPreference,
 } from './model.js'
+import type { PasswordForm, SettingsModel, SettingsPageMessage } from './model.js'
 
 // ============================================
 // Update
 // ============================================
 
-type SettingsCommandMessage =
-  | typeof SucceededUpdateSettingsPreference.Type
-  | typeof FailedUpdateSettingsPreference.Type
-  | typeof SucceededChangePassword.Type
-  | typeof FailedChangePassword.Type
-  | typeof SucceededExportData.Type
-  | typeof FailedExportData.Type
-  | typeof SelectedImportFile.Type
-  | typeof CancelledSelectImportFile.Type
-  | typeof PreparedImportData.Type
-  | typeof SucceededImportData.Type
-  | typeof FailedImportData.Type
-  | typeof SucceededFetchSettings.Type
-  | typeof FailedFetchSettings.Type
+const SettingsCommandMessage = Schema.Union([
+  SucceededUpdateSettingsPreference,
+  FailedUpdateSettingsPreference,
+  SucceededChangePassword,
+  FailedChangePassword,
+  SucceededExportData,
+  FailedExportData,
+  SelectedImportFile,
+  CancelledSelectImportFile,
+  PreparedImportData,
+  SucceededImportData,
+  FailedImportData,
+  SucceededFetchSettings,
+  FailedFetchSettings,
+])
+
+type SettingsCommandMessage = typeof SettingsCommandMessage.Type
 
 type UpdateReturn = Update.Return<SettingsModel, SettingsCommandMessage, Api | HttpClient.HttpClient>
 

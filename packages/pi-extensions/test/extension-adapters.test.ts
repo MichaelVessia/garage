@@ -4,6 +4,7 @@ import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
+import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
 const extensionPaths = [
@@ -11,9 +12,17 @@ const extensionPaths = [
   new URL('../extensions/session-model-default.ts', import.meta.url).pathname,
 ]
 
-const loadAdapters = Effect.tryPromise(() =>
-  discoverAndLoadExtensions(extensionPaths, '.', '/tmp/garage-pi-extensions-empty-agent-dir')
-)
+class ExtensionLoadError extends Schema.TaggedError<ExtensionLoadError, { readonly brand: unique symbol }>()(
+  'ExtensionLoadError',
+  {
+    cause: Schema.Defect(),
+  }
+) {}
+
+const loadAdapters = Effect.tryPromise({
+  try: () => discoverAndLoadExtensions(extensionPaths, '.', '/tmp/garage-pi-extensions-empty-agent-dir'),
+  catch: (cause) => ExtensionLoadError.make({ cause }),
+})
 
 describe('Pi extension adapters', () => {
   it.effect('load and register their Pi lifecycle surfaces', () =>

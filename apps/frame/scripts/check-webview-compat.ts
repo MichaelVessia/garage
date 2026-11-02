@@ -37,5 +37,4 @@ const checkDist = Effect.fn('frame.checkWebviewCompat')(function* () {
   yield* Console.log(`WebView 106 compatibility check passed for ${files.length} files`)
 })
 
-// @effect-diagnostics-next-line strictEffectProvide:off -- script entry point
 BunRuntime.runMain(checkDist().pipe(Effect.provide(BunServices.layer)))

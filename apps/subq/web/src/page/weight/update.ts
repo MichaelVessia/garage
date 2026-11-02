@@ -1,6 +1,7 @@
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
+import * as Schema from 'effect/Schema'
 import { AsyncData } from 'foldkit'
 import type { Update } from 'foldkit'
 import { modifyFields } from 'foldkit/struct'
@@ -12,7 +13,7 @@ import { toStorageLbs } from '../../data/settings.js'
 import { fromLocalDatetimeString, utcToLocalDatetimeString } from '../../lib/datetime.js'
 import { withForm } from '../../lib/form.js'
 import { DeleteWeight, FetchWeightLogs, OpenWeightForm, SaveWeight } from './command.js'
-import type {
+import {
   CompletedOpenWeightForm,
   FailedDeleteWeight,
   FailedFetchWeightLogs,
@@ -20,22 +21,24 @@ import type {
   SucceededDeleteWeight,
   SucceededFetchWeightLogs,
   SucceededSaveWeight,
-  WeightMessage,
-  WeightModel,
 } from './model.js'
+import type { WeightMessage, WeightModel } from './model.js'
 
 // ============================================
 // Update
 // ============================================
 
-type WeightCommandMessage =
-  | typeof SucceededFetchWeightLogs.Type
-  | typeof FailedFetchWeightLogs.Type
-  | typeof CompletedOpenWeightForm.Type
-  | typeof SucceededSaveWeight.Type
-  | typeof FailedSaveWeight.Type
-  | typeof SucceededDeleteWeight.Type
-  | typeof FailedDeleteWeight.Type
+const WeightCommandMessage = Schema.Union([
+  SucceededFetchWeightLogs,
+  FailedFetchWeightLogs,
+  CompletedOpenWeightForm,
+  SucceededSaveWeight,
+  FailedSaveWeight,
+  SucceededDeleteWeight,
+  FailedDeleteWeight,
+])
+
+type WeightCommandMessage = typeof WeightCommandMessage.Type
 
 type UpdateReturn = Update.Return<WeightModel, WeightCommandMessage, Api>
 

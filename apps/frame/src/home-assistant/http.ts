@@ -183,7 +183,7 @@ export const HomeAssistantApiLive = Layer.effect(
         return Option.none()
       }
 
-      const path = Option.flatMap(yield* entityState(entityId), artworkPath)
+      const path = yield* entityState(entityId).pipe(Effect.map(Option.flatMap(artworkPath)))
 
       if (Option.isNone(path)) {
         return Option.none()

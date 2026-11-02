@@ -27,6 +27,7 @@ import { SucceededImportData, SucceededUpdateSettingsPreference } from '../src/p
 import { RejectedFetchStats, rangeKey } from '../src/page/stats/model.js'
 import { CompletedOpenWeightForm } from '../src/page/weight/model.js'
 import { view } from '../src/view.js'
+import { renderedHtml } from './rendered-html.js'
 
 const detectedTimezone = IanaTimezone.make('America/New_York')
 const persistedTimezone = IanaTimezone.make('Pacific/Auckland')
@@ -208,7 +209,7 @@ describe('application timezone', () => {
       { update, view },
       Scene.given(failed),
       Scene.tap(({ html }) => {
-        const rendered = JSON.stringify(html)
+        const rendered = renderedHtml(html)
         expect(rendered).toContain('goal-17')
         expect(rendered).toContain('target_date')
         expect(rendered).toContain('not-a-date')

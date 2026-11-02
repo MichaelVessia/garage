@@ -149,7 +149,8 @@ describe('HomeAssistantApiLive', () => {
           precipitationProbability: null,
         },
       ])
-      assert.deepStrictEqual(yield* recorded(fake.requests), [
+      const requests = yield* recorded(fake.requests)
+      assert.deepStrictEqual(requests, [
         {
           method: 'GET',
           url: 'http://ha.example.test:8123/api/states/weather.home',
@@ -189,21 +190,23 @@ describe('HomeAssistantApiLive', () => {
       const items = yield* api.shoppingItems
 
       assert.deepStrictEqual(items, [{ uid: 'a1', summary: 'Milk', status: 'needs_action' }])
-      assert.deepStrictEqual(
-        Arr.map(yield* recorded(fake.requests), (request) => [request.method, request.url, request.body]),
-        [
-          [
-            'POST',
-            'http://ha.example.test:8123/api/services/todo/update_item',
-            { entity_id: 'todo.shopping', item: 'a1', status: 'completed' },
-          ],
-          [
-            'POST',
-            'http://ha.example.test:8123/api/services/todo/get_items?return_response',
-            { entity_id: 'todo.shopping' },
-          ],
-        ]
+
+      const requests = yield* recorded(fake.requests).pipe(
+        Effect.map(Arr.map((request) => [request.method, request.url, request.body]))
       )
+
+      assert.deepStrictEqual(requests, [
+        [
+          'POST',
+          'http://ha.example.test:8123/api/services/todo/update_item',
+          { entity_id: 'todo.shopping', item: 'a1', status: 'completed' },
+        ],
+        [
+          'POST',
+          'http://ha.example.test:8123/api/services/todo/get_items?return_response',
+          { entity_id: 'todo.shopping' },
+        ],
+      ])
     })
   )
 
@@ -217,16 +220,17 @@ describe('HomeAssistantApiLive', () => {
 
       yield* api.addShoppingItem(ShoppingItemAddition.make({ summary: 'Bread' }))
 
-      assert.deepStrictEqual(
-        Arr.map(yield* recorded(fake.requests), (request) => [request.method, request.url, request.body]),
-        [
-          [
-            'POST',
-            'http://ha.example.test:8123/api/services/todo/add_item',
-            { entity_id: 'todo.shopping', item: 'Bread' },
-          ],
-        ]
+      const requests = yield* recorded(fake.requests).pipe(
+        Effect.map(Arr.map((request) => [request.method, request.url, request.body]))
       )
+
+      assert.deepStrictEqual(requests, [
+        [
+          'POST',
+          'http://ha.example.test:8123/api/services/todo/add_item',
+          { entity_id: 'todo.shopping', item: 'Bread' },
+        ],
+      ])
     })
   )
 
@@ -321,7 +325,8 @@ describe('HomeAssistantApiLive', () => {
         .pipe(Effect.flip)
 
       assert.instanceOf(refused, MediaActionRejected)
-      assert.deepStrictEqual(yield* recorded(fake.requests), [])
+      const requests = yield* recorded(fake.requests)
+      assert.deepStrictEqual(requests, [])
     })
   )
 
@@ -342,16 +347,18 @@ describe('HomeAssistantApiLive', () => {
 
       assert.strictEqual(Option.map(artwork, (art) => art.contentType).pipe(Option.getOrNull), 'image/png')
       assert.isTrue(Option.isNone(foreign))
-      assert.deepStrictEqual(
-        Arr.map(yield* recorded(fake.requests), (request) => [request.url, request.authorization]),
-        [
-          ['http://ha.example.test:8123/api/states/media_player.music', 'Bearer ha-token'],
-          [
-            'http://ha.example.test:8123/api/media_player_proxy/media_player.music?token=art-token&cache=1',
-            'Bearer ha-token',
-          ],
-        ]
+
+      const requests = yield* recorded(fake.requests).pipe(
+        Effect.map(Arr.map((request) => [request.url, request.authorization]))
       )
+
+      assert.deepStrictEqual(requests, [
+        ['http://ha.example.test:8123/api/states/media_player.music', 'Bearer ha-token'],
+        [
+          'http://ha.example.test:8123/api/media_player_proxy/media_player.music?token=art-token&cache=1',
+          'Bearer ha-token',
+        ],
+      ])
     })
   )
 

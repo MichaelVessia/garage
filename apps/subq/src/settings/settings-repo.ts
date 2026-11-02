@@ -143,7 +143,7 @@ export const SettingsRepoLive = Layer.effect(
           return Option.none<typeof SettingsRow.Type>()
         }
 
-        return Option.some(yield* decodeSettingsRow(rows[0]))
+        return yield* decodeSettingsRow(rows[0]).pipe(Effect.asSome)
       },
       mapDbError(SettingsDatabaseError, 'query')
     )
@@ -162,7 +162,7 @@ export const SettingsRepoLive = Layer.effect(
       userId: string,
       detectedTimezone: IanaTimezone
     ) {
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
       const claimId = yield* randomUuid().pipe(mapDbError(SettingsDatabaseError, 'insert'))
 
       // Claim the migration timezone in the same statement that arbitrates the
@@ -336,7 +336,7 @@ export const SettingsRepoLive = Layer.effect(
 
     const upsert = Effect.fn('settingsRepo.upsert')(
       function* (userId: string, data: UserSettingsUpdate) {
-        const now = DateTime.formatIso(yield* DateTime.now)
+        const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
         const id = yield* randomUuid()
 
         // Create a durable pending row or atomically patch an existing row.

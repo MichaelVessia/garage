@@ -76,7 +76,8 @@ it.effect('adapts every API/catalog tool to the AutoCaliWeb package operations',
     })
     assert.deepInclude(searchResults[0]?.encodedResult, { query: 'fixture', count: 1 })
     assert.deepInclude(infoResults[0]?.encodedResult, { uuid: 'fixture-uuid', formats: ['EPUB'] })
-    assert.deepStrictEqual(yield* Ref.get(fake.calls), [
+    const calls = yield* Ref.get(fake.calls)
+    assert.deepStrictEqual(calls, [
       'status',
       'status',
       'stats',

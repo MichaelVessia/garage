@@ -145,15 +145,18 @@ export const DeleteInjection = Command.define('DeleteInjection', {
     }).pipe(toCommandResult(FailedDeleteInjection, 'Failed to delete injection log')),
 })
 
-export type InjectionCommandMessage =
-  | typeof SucceededFetchInjectionLogs.Type
-  | typeof FailedFetchInjectionLogs.Type
-  | typeof SucceededFetchInjectionSites.Type
-  | typeof FailedFetchInjectionSites.Type
-  | typeof SucceededFetchInjectionSchedules.Type
-  | typeof FailedFetchInjectionSchedules.Type
-  | typeof CompletedOpenInjectionForm.Type
-  | typeof SucceededSaveInjection.Type
-  | typeof FailedSaveInjection.Type
-  | typeof SucceededDeleteInjection.Type
-  | typeof FailedDeleteInjection.Type
+const InjectionCommandMessage = Schema.Union([
+  SucceededFetchInjectionLogs,
+  FailedFetchInjectionLogs,
+  SucceededFetchInjectionSites,
+  FailedFetchInjectionSites,
+  SucceededFetchInjectionSchedules,
+  FailedFetchInjectionSchedules,
+  CompletedOpenInjectionForm,
+  SucceededSaveInjection,
+  FailedSaveInjection,
+  SucceededDeleteInjection,
+  FailedDeleteInjection,
+])
+
+export type InjectionCommandMessage = typeof InjectionCommandMessage.Type

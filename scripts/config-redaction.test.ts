@@ -1,7 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import * as ConfigProvider from 'effect/ConfigProvider'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import * as Redacted from 'effect/Redacted'
 
 import { AutocaliwebConfig, AutocaliwebConfigLive } from '../packages/autocaliweb/src/index.js'
@@ -21,16 +20,14 @@ it.effect('redacts secret config values from retained live integration layers', 
 
       return yield* config.get
     }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          AutocaliwebConfigLive,
-          envLayer({
-            AUTOCALIWEB_URL: 'http://autocaliweb.test',
-            AUTOCALIWEB_USERNAME: 'admin',
-            AUTOCALIWEB_PASSWORD: 'secret',
-          })
-        )
-      )
+      Effect.provide([
+        AutocaliwebConfigLive,
+        envLayer({
+          AUTOCALIWEB_URL: 'http://autocaliweb.test',
+          AUTOCALIWEB_USERNAME: 'admin',
+          AUTOCALIWEB_PASSWORD: 'secret',
+        }),
+      ])
     )
 
     assertRedactedValue(autocaliweb.password, 'secret')
@@ -40,9 +37,7 @@ it.effect('redacts secret config values from retained live integration layers', 
 
       return yield* config.get
     }).pipe(
-      Effect.provide(
-        Layer.mergeAll(SabnzbdConfigLive, envLayer({ SABNZBD_URL: 'http://sabnzbd.test', SABNZBD_API_KEY: 'secret' }))
-      )
+      Effect.provide([SabnzbdConfigLive, envLayer({ SABNZBD_URL: 'http://sabnzbd.test', SABNZBD_API_KEY: 'secret' })])
     )
 
     assertRedactedValue(sabnzbd.apiKey, 'secret')

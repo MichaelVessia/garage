@@ -55,5 +55,4 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
   }
 })
 
-// @effect-diagnostics-next-line strictEffectProvide:off -- script entry point
 BunRuntime.runMain(loadImage().pipe(Effect.scoped, Effect.provide(BunServices.layer)))
