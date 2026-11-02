@@ -317,7 +317,9 @@ describe('frame app', () => {
     }
 
     const todayHtml = rendered(loaded)
-    expect(todayHtml).toContain('10:00')
+    // 10:00 renders one fixed-width box per digit, on the Today clock and the rail clock.
+    expect(todayHtml.match(/clock-digit/gu)).toHaveLength(8)
+    expect(todayHtml).toContain('Monday, November 2')
     expect(todayHtml).toContain('Swim lesson')
     expect(todayHtml).toContain('Grandparents visiting')
     expect(todayHtml).toContain('Partly cloudy')

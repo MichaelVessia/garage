@@ -116,6 +116,11 @@ const untilLabel = (event: CalendarEvent, now: DateTime.DateTime): string => {
   return hours < 48 ? `in ${hours} h` : `in ${Math.round(hours / 24)} days`
 }
 
+// Each digit sits in a fixed-width box, so the clock does not shift as the minutes change.
+const viewClockDigits = (h: H, time: string): ReadonlyArray<Html> =>
+  // oxlint-disable-next-line typescript/no-misused-spread -- a clock string is ASCII digits and a colon
+  Arr.map([...time], (character) => h.span([h.Class(character === ':' ? 'clock-colon' : 'clock-digit')], [character]))
+
 const classes = (...names: ReadonlyArray<string | false>): string =>
   names.filter((name): name is string => name !== false && name !== '').join(' ')
 
@@ -206,6 +211,9 @@ const viewAgenda = (
           ),
         ]
       : [viewNotice(h, Arr.isReadonlyArrayNonEmpty(allDay) ? 'No timed events' : options.empty)]),
+    ...(options.markNext && Arr.isReadonlyArrayNonEmpty(timed) && Option.isNone(next)
+      ? [viewNotice(h, 'Nothing else today')]
+      : []),
   ]
 }
 
@@ -240,12 +248,12 @@ const viewRail = (h: H, model: Model) =>
         ? [h.div([h.Class('rail-offline'), h.Role('status')], [icon(h, 'offline', 'rail-icon'), 'Offline'])]
         : []),
       h.div(
-        [h.Class('rail-clock num')],
+        [h.Class('rail-clock')],
         Option.match(model.timezone, {
           onNone: () => [],
           onSome: (timezone) => {
             const { time, meridiem } = clockParts(model.now, timezone)
-            return [h.b([], [time]), h.span([], [meridiem])]
+            return [h.b([], viewClockDigits(h, time)), h.span([], [meridiem])]
           },
         })
       ),
@@ -443,7 +451,7 @@ const viewToday = (h: H, model: Model, timezone: IanaTimezone) => {
       h.section(
         [h.Class('t-clock')],
         [
-          h.div([h.Class('t-time num')], [time, h.span([h.Class('t-meridiem')], [meridiem])]),
+          h.div([h.Class('t-time')], [...viewClockDigits(h, time), h.span([h.Class('t-meridiem')], [meridiem])]),
           h.div([h.Class('t-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
         ]
       ),
@@ -727,33 +735,33 @@ const mediaButton = (
   )
 
 // A native select: Android shows its own picker, which suits a touch screen.
-const viewSourcePicker = (h: H, label: string, player: MediaPlayer, isDisabled: boolean) =>
-  h.label(
-    [h.Class('picker')],
+const viewSourceSelect = (h: H, label: string, player: MediaPlayer, isDisabled: boolean) =>
+  h.select(
     [
-      h.span([h.Class('picker-label')], [label]),
-      h.select(
-        [
-          h.Class('field'),
-          h.Disabled(isDisabled),
-          h.OnChange((source) =>
-            // The placeholder option has no source to select.
-            source === ''
-              ? Interacted()
-              : ClickedMediaAction({ action: { _tag: 'SelectSource', entityId: player.entityId, source } })
-          ),
-        ],
-        [
-          h.option([h.Value(''), h.Selected(player.source === null)], ['Choose…']),
-          ...Arr.map(player.sources, (source) =>
-            h.option([h.Value(source), h.Selected(player.source === source)], [source])
-          ),
-        ]
+      h.Class('field source'),
+      h.AriaLabel(label),
+      h.Disabled(isDisabled),
+      h.OnChange((source) =>
+        // The placeholder option has no source to select.
+        source === ''
+          ? Interacted()
+          : ClickedMediaAction({ action: { _tag: 'SelectSource', entityId: player.entityId, source } })
+      ),
+    ],
+    [
+      h.option([h.Value(''), h.Selected(player.source === null)], [`${label}…`]),
+      ...Arr.map(player.sources, (source) =>
+        h.option([h.Value(source), h.Selected(player.source === source)], [source])
       ),
     ]
   )
 
-// Two fixed rows in a fixed order: power and transport, then volume. A row a player cannot use is left out.
+const viewSourcePicker = (h: H, label: string, player: MediaPlayer, isDisabled: boolean) =>
+  h.label(
+    [h.Class('picker')],
+    [h.span([h.Class('picker-label')], [label]), viewSourceSelect(h, label, player, isDisabled)]
+  )
+
 const viewPlayerControls = (h: H, player: MediaPlayer, isDisabled: boolean) => {
   const { entityId } = player
   const has = (control: MediaPlayer['controls'][number]) => player.controls.includes(control)
@@ -800,10 +808,7 @@ const viewPlayerControls = (h: H, player: MediaPlayer, isDisabled: boolean) => {
         ]
       : []),
   ]
-  return Arr.map(
-    Arr.filter([transport, volume], (row) => Arr.isReadonlyArrayNonEmpty(row)),
-    (row) => h.div([h.Class('controls')], row)
-  )
+  return h.div([h.Class('controls')], [...transport, ...volume])
 }
 
 const volumeLabel = (player: MediaPlayer): ReadonlyArray<string> =>
@@ -825,10 +830,10 @@ const stateClass = (player: MediaPlayer): string =>
     Match.orElse(() => 'is-on')
   )
 
-const viewPlayerCard = (h: H, player: MediaPlayer) => {
+const viewPlayerCard = (h: H, player: MediaPlayer, isWide: boolean) => {
   const isDisabled = player.status === 'unavailable'
   return h.section(
-    [h.Key(player.entityId), h.Class(`card tile ${stateClass(player)}`)],
+    [h.Key(player.entityId), h.Class(classes('card tile', stateClass(player), isWide && 'is-wide'))],
     [
       h.div(
         [h.Class('tile-head')],
@@ -846,10 +851,10 @@ const viewPlayerCard = (h: H, player: MediaPlayer) => {
               ),
             ]
           ),
+          ...(player.controls.includes('source') ? [viewSourceSelect(h, 'Source', player, isDisabled)] : []),
         ]
       ),
-      ...viewPlayerControls(h, player, isDisabled),
-      ...(player.controls.includes('source') ? [viewSourcePicker(h, 'Source', player, isDisabled)] : []),
+      viewPlayerControls(h, player, isDisabled),
     ]
   )
 }
@@ -927,11 +932,25 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
     ]
   )
 
-const viewMediaCard = (h: H, card: MediaCard) =>
-  Match.valueTags(card, {
-    PlayerCard: ({ player }) => viewPlayerCard(h, player),
-    ZonesCard: ({ speakers }) => viewSpeakers(h, speakers),
-  })
+const isZonesCard = (card: MediaCard): boolean =>
+  Match.value(card).pipe(
+    Match.tag('ZonesCard', () => true),
+    Match.orElse(() => false)
+  )
+
+// Device tiles pair up two per row; the last tile of an odd run spans the row so no cell is left empty.
+const viewMediaCards = (h: H, cards: ReadonlyArray<MediaCard>) =>
+  Arr.map(cards, (card, index) =>
+    Match.valueTags(card, {
+      PlayerCard: ({ player }) => {
+        const runStart = Arr.findLastIndex(Arr.take(cards, index), isZonesCard)
+        const positionInRun = index - (Option.getOrElse(runStart, () => -1) + 1)
+        const nextIsPlayer = Option.exists(Arr.get(cards, index + 1), (other) => !isZonesCard(other))
+        return viewPlayerCard(h, player, positionInRun % 2 === 0 && !nextIsPlayer)
+      },
+      ZonesCard: ({ speakers }) => viewSpeakers(h, speakers),
+    })
+  )
 
 const viewSpotify = (h: H, player: MediaPlayer) => {
   const isDisabled = player.status === 'unavailable'
@@ -1007,7 +1026,7 @@ const viewMedia = (h: H, model: Model) =>
                 [h.Class('media-grid')],
                 [
                   ...(snapshot.spotify === null ? [] : [viewSpotify(h, snapshot.spotify)]),
-                  ...Arr.map(snapshot.cards, (card) => viewMediaCard(h, card)),
+                  ...viewMediaCards(h, snapshot.cards),
                 ]
               ),
       }),
@@ -1025,7 +1044,7 @@ const viewAmbient = (h: H, model: Model, timezone: IanaTimezone) => {
   return h.div(
     [h.Class('ambient')],
     [
-      h.div([h.Class('amb-time num')], [time, h.span([h.Class('amb-meridiem')], [meridiem])]),
+      h.div([h.Class('amb-time')], [...viewClockDigits(h, time), h.span([h.Class('amb-meridiem')], [meridiem])]),
       h.div([h.Class('amb-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
       ...Arr.map(Arr.fromOption(next), (event) =>
         h.div(

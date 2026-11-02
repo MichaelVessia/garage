@@ -134,11 +134,18 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
-/* The clock faces share one glyph set: Figtree's proportional figures (its tabular 1 has a foot). */
-.t-time,
-.rail-clock,
-.amb-time {
-  font-variant-numeric: proportional-nums;
+/* Clock faces: Figtree's proportional figures (its tabular 1 has a foot), each in a fixed-width box
+   so the time does not shift as the minutes change. */
+.clock-digit {
+  display: inline-block;
+  width: 0.6em;
+  text-align: center;
+}
+
+.clock-colon {
+  display: inline-block;
+  width: 0.28em;
+  text-align: center;
 }
 
 .icon {
@@ -584,7 +591,6 @@ select.field {
   font-size: 152px;
   font-weight: 600;
   line-height: 0.92;
-  letter-spacing: -0.03em;
   white-space: nowrap;
 }
 
@@ -990,13 +996,11 @@ select.field {
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-rows: max-content;
+  /* Three 208 px rows and two gutters fill the 672 px area exactly; scrolling snaps to row starts. */
+  grid-auto-rows: 208px;
   gap: var(--gap);
   align-content: start;
-  align-items: start;
-  padding-bottom: 48px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 48px), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 48px), transparent 100%);
+  scroll-snap-type: y mandatory;
 }
 
 .media-grid::-webkit-scrollbar {
@@ -1006,6 +1010,7 @@ select.field {
 
 .media-grid > .card {
   min-height: auto;
+  scroll-snap-align: start;
 }
 
 .spotify {
@@ -1091,14 +1096,20 @@ select.field {
 }
 
 .tile {
-  grid-column: span 4;
+  grid-column: span 6;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.tile .controls + .controls {
-  margin-top: -8px;
+.tile.is-wide {
+  grid-column: 1 / 13;
+}
+
+.tile-head .source {
+  width: 200px;
+  flex: none;
+  margin-left: auto;
 }
 
 .tile-head {
@@ -1123,6 +1134,7 @@ select.field {
 .tile-text {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
 }
 
@@ -1155,10 +1167,6 @@ select.field {
 .tile.is-on .status,
 .tile.is-playing .status {
   color: var(--good);
-}
-
-.tile .picker .field {
-  flex: 1;
 }
 
 .tile.is-unavailable .tile-name,
@@ -1263,7 +1271,6 @@ select.field {
   font-size: 200px;
   font-weight: 600;
   line-height: 0.95;
-  letter-spacing: -0.03em;
   color: #e3e5ea;
 }
 
