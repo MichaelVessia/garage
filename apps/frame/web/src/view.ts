@@ -16,7 +16,7 @@ import { clockParts, isDarkHour, isHappening, monthDay, occursOn, today, weekday
 import { viewCalendar, viewToday } from './view/agenda.js'
 import { viewMedia } from './view/media.js'
 import type { H } from './view/shared.js'
-import { eventTime, nextTimed, viewClockDigits } from './view/shared.js'
+import { classes, colorAttributes, colorClass, eventTime, nextTimed, viewClockDigits } from './view/shared.js'
 import { viewShopping } from './view/shopping.js'
 import { conditionIcon, conditionLabel, degrees } from './view/weather.js'
 
@@ -80,7 +80,7 @@ const viewAmbient = (h: H, model: Model, timezone: IanaTimezone) => {
       h.div([h.Class('amb-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
       ...Arr.map(Arr.fromOption(next), (event) =>
         h.div(
-          [h.Class('amb-next')],
+          [h.Class(classes('amb-next', colorClass(event))), ...colorAttributes(h, event)],
           [
             h.span([h.Class('amb-when num')], [isHappening(event, model.now) ? 'Now' : eventTime(event, timezone)]),
             h.span([], [event.title]),

@@ -8,7 +8,8 @@ import * as Str from 'effect/String'
 export const calendarId = 'family-calendar@group.calendar.example.test'
 export const accessToken = 'synthetic-access-token'
 export const tokenUri = 'https://oauth2.example.test/token'
-export const eventsPath = `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`
+export const calendarPath = `/calendar/v3/calendars/${encodeURIComponent(calendarId)}`
+export const eventsPath = `${calendarPath}/events`
 
 class TestKeyError extends Schema.TaggedError<TestKeyError, { readonly brand: unique symbol }>()('TestKeyError', {
   cause: Schema.Defect(),
@@ -52,6 +53,7 @@ export const syntheticEvents = [
     summary: 'Swim lesson',
     location: 'Community pool',
     colorId: '7',
+    eventLabelId: 'label-grape',
     start: { dateTime: '2026-11-02T17:00:00-05:00', timeZone: 'America/New_York' },
     end: { dateTime: '2026-11-02T18:00:00-05:00', timeZone: 'America/New_York' },
   },
@@ -67,6 +69,7 @@ export const syntheticEvents = [
     id: 'school-call',
     status: 'confirmed',
     summary: '  School call  ',
+    eventLabelId: 'label-avocado',
     start: { dateTime: '2026-11-03T15:00:00Z' },
     end: { dateTime: '2026-11-03T15:30:00Z' },
   },
@@ -87,10 +90,23 @@ export const syntheticEvents = [
   },
 ]
 
-/** A Google sign-in and Calendar backend that answers with the synthetic events. */
+/** The calendar's event labels; Google reports label colours in any case. */
+export const syntheticLabels = [
+  { id: 'label-avocado', name: 'Appointments', backgroundColor: '#C0CA33' },
+  { id: 'label-grape', name: 'Lessons', backgroundColor: '#8e24aa' },
+]
+
+/** A Google sign-in and Calendar backend that answers with the synthetic calendar and events. */
 export const googleResponse = (url: URL): RecordingHttpResponse => {
   if (url.toString() === tokenUri) {
     return { status: 200, body: { access_token: accessToken, expires_in: 3599, token_type: 'Bearer' } }
+  }
+
+  if (url.hostname === 'www.googleapis.com' && url.pathname === calendarPath) {
+    return {
+      status: 200,
+      body: { kind: 'calendar#calendar', id: calendarId, labelProperties: { eventLabels: syntheticLabels } },
+    }
   }
 
   if (url.hostname === 'www.googleapis.com' && url.pathname === eventsPath) {

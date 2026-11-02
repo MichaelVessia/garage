@@ -360,10 +360,11 @@ describe('frame app', () => {
     expect(html).toContain('in 13 h')
   })
 
-  it('marks each event with the colour picked in Google Calendar', () => {
+  it('paints each event in its Google Calendar colour with readable text, wherever it appears', () => {
+    // A light extended-palette label for the timed event, a dark red for the all-day one.
     const coloured = Arr.map(events, (event): CalendarEvent => ({
       ...event,
-      color: event._tag === 'AllDayEvent' ? 'tomato' : 'peacock',
+      color: event._tag === 'AllDayEvent' ? '#d50000' : '#c0ca33',
     }))
 
     const loaded: Model = {
@@ -373,10 +374,12 @@ describe('frame app', () => {
     }
 
     const todayHtml = rendered(loaded)
-    expect(todayHtml).toContain('"ev-peacock":true')
-    expect(todayHtml).toContain('"ev-tomato":true')
-    expect(rendered({ ...loaded, screen: 'calendar' })).toContain('"ev-peacock":true')
-    expect(rendered(ready)).not.toContain('"ev-')
+    expect(todayHtml).toContain('"is-coloured":true')
+    expect(todayHtml).toContain('"--ev":"#c0ca33","--on-ev":"#14171c"')
+    expect(todayHtml).toContain('"--ev":"#d50000","--on-ev":"#ffffff"')
+    expect(rendered({ ...loaded, screen: 'calendar' })).toContain('"--ev":"#c0ca33"')
+    expect(rendered({ ...loaded, isAmbient: true })).toContain('"--ev":"#c0ca33"')
+    expect(rendered(ready)).not.toContain('is-coloured')
   })
 
   it('uses the light theme by day and the dark theme from 20:00 to 06:59', () => {

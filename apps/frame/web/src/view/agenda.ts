@@ -27,7 +27,7 @@ import {
   weekdayShort,
 } from '../time.js'
 import type { H } from './shared.js'
-import { classes, eventTime, nextTimed, viewClockDigits, viewNotice } from './shared.js'
+import { classes, colorAttributes, colorClass, eventTime, nextTimed, viewClockDigits, viewNotice } from './shared.js'
 import { viewShoppingSummary } from './shopping.js'
 import { viewWeather } from './weather.js'
 
@@ -55,11 +55,11 @@ const untilLabel = (event: CalendarEvent, now: DateTime.DateTime): string => {
   return hours < 48 ? `in ${hours} h` : `in ${Math.round(hours / 24)} days`
 }
 
-// The colour picked for the event in Google Calendar; uncoloured events keep the neutral mark.
-const colorClass = (event: CalendarEvent): string | false => event.color !== null && `is-coloured ev-${event.color}`
-
 const viewChip = (h: H, event: CalendarEvent) =>
-  h.li([h.Key(event.id), h.Class(classes('chip', colorClass(event)))], [h.span([h.Class('chip-text')], [event.title])])
+  h.li(
+    [h.Key(event.id), h.Class(classes('chip', colorClass(event))), ...colorAttributes(h, event)],
+    [h.span([h.Class('chip-text')], [event.title])]
+  )
 
 const viewEventRow = (
   h: H,
@@ -72,6 +72,7 @@ const viewEventRow = (
     [
       h.Key(event.id),
       h.Class(classes('row', colorClass(event), options.isNext && 'is-next', hasEnded(event, now) && 'is-past')),
+      ...colorAttributes(h, event),
     ],
     [
       h.span([h.Class('row-time num')], [eventTime(event, timezone)]),
@@ -352,6 +353,7 @@ const viewWeekEvent = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: 
           hasEnded(event, now) && 'is-past'
         )
       ),
+      ...colorAttributes(h, event),
     ],
     [
       ...(isTimed(event) ? [h.span([h.Class('wk-time num')], [formatTime(event.start, timezone)])] : []),

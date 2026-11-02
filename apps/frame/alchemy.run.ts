@@ -15,6 +15,7 @@ const PORT = 8080
 // Optional settings pass through only when the deploy environment sets them; the image supplies the rest.
 const OPTIONAL_SETTINGS = [
   'FRAME_TIMEZONE',
+  'GOOGLE_CALENDAR_COLOR',
   'HOME_ASSISTANT_WEATHER_ENTITY',
   'HOME_ASSISTANT_SHOPPING_ENTITY',
   'HOME_ASSISTANT_MEDIA_PLAYERS',

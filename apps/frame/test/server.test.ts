@@ -92,7 +92,11 @@ const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
       Layer.succeed(FrameTimezone, { timezone: IanaTimezone.make('America/New_York') }),
       Layer.effect(
         CalendarConfig,
-        makeServiceAccount.pipe(Effect.map((serviceAccount) => CalendarConfig.of({ calendarId, serviceAccount })))
+        makeServiceAccount.pipe(
+          Effect.map((serviceAccount) =>
+            CalendarConfig.of({ calendarId, serviceAccount, calendarColor: Option.none() })
+          )
+        )
       ),
       Layer.succeed(HomeAssistantConfig, {
         url: 'http://ha.example.test:8123',

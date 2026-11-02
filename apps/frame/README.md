@@ -22,6 +22,7 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 | --- | --- | --- | --- |
 | `GOOGLE_CALENDAR_ID` | yes | none | Calendar ID of the family calendar (Google Calendar settings, "Integrate calendar") |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | yes | none | Redacted JSON key file of a Google service account the calendar is shared with |
+| `GOOGLE_CALENDAR_COLOR` | no | none | The calendar's colour as `#rrggbb`, shown for events with no label or colour of their own; without it they stay neutral |
 | `HOME_ASSISTANT_URL` | yes | none | Home Assistant base URL, for example `http://192.0.2.10:8123` |
 | `HOME_ASSISTANT_TOKEN` | yes | none | Redacted long-lived access token; a non-admin user is enough |
 | `HOME_ASSISTANT_WEATHER_ENTITY` | no | `weather.forecast_home` | Weather entity |
@@ -48,6 +49,9 @@ The frame reads the calendar as a Google service account, so it sees each event'
 2. Create a JSON key for the service account. Store the whole file as `GOOGLE_SERVICE_ACCOUNT_KEY`.
 3. In Google Calendar, share the family calendar with the service account's email address and select "Make changes to events". Google sends `colorId` only to accounts that can change events; with "See all event details" every event arrives uncoloured. The frame still only reads, because it requests the `calendar.readonly` scope.
 4. Copy the calendar ID from the calendar's "Integrate calendar" settings into `GOOGLE_CALENDAR_ID`.
+5. Optionally set `GOOGLE_CALENDAR_COLOR` to the calendar's colour as Google shows it to you. Google keeps a calendar's colour per viewer, so the service account cannot read yours.
+
+The frame colours each event as Google Calendar does: its label colour, then its classic colour, then the calendar's colour. Label and event colour changes in Google appear within five minutes.
 
 To revoke access, delete the key in Google Cloud or remove the service account from the calendar's sharing settings.
 
@@ -76,6 +80,7 @@ The frame server runs as a Docker container on a Proxmox LXC with Docker. One co
    | `FRAME_URL` (`http://<frame-host>:8080`) | yes |
    | `GOOGLE_CALENDAR_ID` | yes |
    | `GOOGLE_SERVICE_ACCOUNT_KEY` | yes |
+   | `GOOGLE_CALENDAR_COLOR` | no |
    | `HOME_ASSISTANT_URL` | yes |
    | `HOME_ASSISTANT_TOKEN` | yes |
    | `FRAME_TIMEZONE` | no |

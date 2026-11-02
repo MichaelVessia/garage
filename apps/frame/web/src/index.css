@@ -469,63 +469,9 @@ select.field {
 }
 
 /* ---------------------------------------------------------------- event colours */
-/* Google Calendar's event palette as solid fills, so an event coloured in Google reads as that
-   colour from across the room. `--on-ev` is white or Ink, whichever passes 4.5:1 on the fill.
-   Uncoloured events stay neutral. */
-.ev-lavender {
-  --ev: #7986cb;
-  --on-ev: #14171c;
-}
-
-.ev-sage {
-  --ev: #33b679;
-  --on-ev: #14171c;
-}
-
-.ev-grape {
-  --ev: #8e24aa;
-  --on-ev: #ffffff;
-}
-
-.ev-flamingo {
-  --ev: #e67c73;
-  --on-ev: #14171c;
-}
-
-.ev-banana {
-  --ev: #f6bf26;
-  --on-ev: #14171c;
-}
-
-.ev-tangerine {
-  --ev: #f4511e;
-  --on-ev: #14171c;
-}
-
-.ev-peacock {
-  --ev: #039be5;
-  --on-ev: #14171c;
-}
-
-.ev-graphite {
-  --ev: #616161;
-  --on-ev: #ffffff;
-}
-
-.ev-blueberry {
-  --ev: #3f51b5;
-  --on-ev: #ffffff;
-}
-
-.ev-basil {
-  --ev: #0b8043;
-  --on-ev: #ffffff;
-}
-
-.ev-tomato {
-  --ev: #d50000;
-  --on-ev: #ffffff;
-}
+/* Each event Google Calendar shows in a colour carries `is-coloured` and an inline `--ev` (Google's
+   shade, from its label, colorId, or the calendar) and `--on-ev` (white or Ink, whichever reads
+   better on it). Coloured events fill solid so the colour coding reads from across the room. */
 
 /* ---------------------------------------------------------------- agenda pieces */
 .chips {
@@ -653,14 +599,7 @@ select.field {
 }
 
 .row.is-coloured .row-main {
-  padding-left: 0;
   box-shadow: none;
-}
-
-.row.is-coloured .row-time,
-.row.is-coloured .row-title,
-.row.is-coloured .row-where {
-  color: var(--on-ev);
 }
 
 .row.is-coloured.is-past {
@@ -674,6 +613,13 @@ select.field {
 .row.is-past .row-time,
 .row.is-past .row-title {
   color: var(--ink-2);
+}
+
+/* Text on a coloured row always takes the colour's readable ink, even when next or past. */
+.row.is-coloured .row-time,
+.row.is-coloured .row-title,
+.row.is-coloured .row-where {
+  color: var(--on-ev);
 }
 
 /* ---------------------------------------------------------------- today */
@@ -814,7 +760,8 @@ select.field {
   padding: 18px 0;
 }
 
-.t-today .row.is-next {
+.t-today .row.is-next,
+.t-today .row.is-coloured {
   padding: 18px 16px;
 }
 
@@ -858,6 +805,10 @@ select.field {
 .t-tomorrow .row {
   grid-template-columns: 112px minmax(0, 1fr);
   padding: 12px 0;
+}
+
+.t-tomorrow .row.is-coloured {
+  padding: 12px 16px;
 }
 
 .t-tomorrow .chip {
@@ -1435,6 +1386,16 @@ select.field {
   margin-top: 24px;
   font-size: 30px;
   font-weight: 500;
+}
+
+.amb-next.is-coloured::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--ev);
 }
 
 .amb-when {

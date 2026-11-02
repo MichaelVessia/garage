@@ -7,6 +7,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Jwt from 'effect/jose/Jwt'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
@@ -41,7 +42,10 @@ const summary = (event: CalendarEvent) =>
     ? `${event.title} ${DateTime.formatIso(event.start)} ${event.color ?? '-'}`
     : `${event.title} ${event.startDate}..${event.endDate} ${event.color ?? '-'}`
 
-const makeFeed = Effect.fn('test.makeFeed')(function* (respond: (url: URL) => RecordingHttpResponse = googleResponse) {
+const makeFeed = Effect.fn('test.makeFeed')(function* (
+  respond: (url: URL) => RecordingHttpResponse = googleResponse,
+  calendarColor: Option.Option<string> = Option.none()
+) {
   const serviceAccount = yield* makeServiceAccount
   const fake = yield* makeRecordingHttpClient((_method, url) => respond(url))
 
@@ -50,7 +54,7 @@ const makeFeed = Effect.fn('test.makeFeed')(function* (respond: (url: URL) => Re
       CalendarFeedLive.pipe(
         Layer.provide(
           Layer.mergeAll(
-            Layer.succeed(CalendarConfig, { calendarId, serviceAccount }),
+            Layer.succeed(CalendarConfig, { calendarId, serviceAccount, calendarColor }),
             Layer.succeed(FrameTimezone, { timezone }),
             fake.layer
           )
@@ -65,20 +69,38 @@ const makeFeed = Effect.fn('test.makeFeed')(function* (respond: (url: URL) => Re
 const isEvents = (url: string) => new URL(url).pathname === eventsPath
 
 describe('CalendarFeedLive', () => {
-  it.effect('maps Google colours, timed and all-day events in start order, and drops cancelled instances', () =>
+  it.effect('maps timed and all-day events in start order and drops cancelled instances', () =>
     Effect.gen(function* () {
       const { feed } = yield* makeFeed()
 
       const events = yield* feed.occurrences(range)
 
       assert.deepStrictEqual(Arr.map(events, summary), [
-        'Swim lesson 2026-11-02T22:00:00.000Z peacock',
-        'School call 2026-11-03T15:00:00.000Z -',
-        'Grandparents visiting 2026-11-05..2026-11-08 tomato',
+        'Swim lesson 2026-11-02T22:00:00.000Z #8e24aa',
+        'School call 2026-11-03T15:00:00.000Z #c0ca33',
+        'Grandparents visiting 2026-11-05..2026-11-08 #d50000',
         '(No title) 2026-11-06T17:00:00.000Z -',
       ])
       assert.strictEqual(events[0]?.location, 'Community pool')
       assert.strictEqual(events[0]?.id, 'swim_20261102T220000Z')
+    })
+  )
+
+  it.effect('colours each event as Google Calendar does: label, then colorId, then the calendar colour', () =>
+    Effect.gen(function* () {
+      const { feed } = yield* makeFeed(googleResponse, Option.some('#fa573c'))
+
+      const colors = Arr.map(yield* feed.occurrences(range), (event) => [event.title, event.color])
+
+      assert.deepStrictEqual(colors, [
+        // The label supersedes the event's colorId.
+        ['Swim lesson', '#8e24aa'],
+        // A label from Google's extended palette, reported in upper case.
+        ['School call', '#c0ca33'],
+        ['Grandparents visiting', '#d50000'],
+        // An unknown colorId falls back to the calendar's colour.
+        ['(No title)', '#fa573c'],
+      ])
     })
   )
 
@@ -88,7 +110,9 @@ describe('CalendarFeedLive', () => {
 
       yield* feed.occurrences(range)
 
-      const [signIn, list] = yield* Ref.get(requests)
+      const recorded = yield* Ref.get(requests)
+      const [signIn] = recorded
+      const list = Arr.findFirst(recorded, (request) => isEvents(request.url)).pipe(Option.getOrUndefined)
       assert.strictEqual(signIn?.method, 'POST')
       assert.strictEqual(signIn?.url, tokenUri)
 
@@ -213,6 +237,25 @@ describe('CalendarConfigLive', () => {
       assert.strictEqual(config.serviceAccount.clientEmail, 'frame@example-project.iam.example.test')
       assert.strictEqual(Redacted.value(config.serviceAccount.privateKey), 'synthetic-private-key')
       assert.strictEqual(config.serviceAccount.tokenUri, 'https://oauth2.googleapis.com/token')
+    })
+  )
+
+  it.effect('reads an optional calendar colour and rejects one that is not #rrggbb', () =>
+    Effect.gen(function* () {
+      const env = {
+        GOOGLE_CALENDAR_ID: calendarId,
+        GOOGLE_SERVICE_ACCOUNT_KEY:
+          '{"type":"service_account","client_email":"frame@example-project.iam.example.test","private_key":"k"}',
+      }
+
+      assert.isTrue(Option.isNone((yield* configFrom(env)).calendarColor))
+      assert.deepStrictEqual(
+        (yield* configFrom({ ...env, GOOGLE_CALENDAR_COLOR: ' #FA573C ' })).calendarColor,
+        Option.some('#fa573c')
+      )
+
+      const error = yield* Effect.flip(configFrom({ ...env, GOOGLE_CALENDAR_COLOR: 'tomato' }))
+      assert.strictEqual(error.code, 'FRAME_ENV_INVALID')
     })
   )
 
