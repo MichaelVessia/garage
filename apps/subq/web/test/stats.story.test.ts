@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from '@effect/vitest'
+import { assert, describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import * as AsyncData from 'foldkit/asyncData'
-import * as Scene from 'foldkit/scene'
+import { AsyncData, Scene } from 'foldkit'
 
 import {
   CalendarDate,
+  Count,
   DoseHistoryStats,
   DrugBreakdownStats,
   GoalId,
@@ -18,8 +19,10 @@ import {
   WeightTrendStats,
 } from '#shared'
 
-import { initialChartState, viewWeightTrend } from '../src/chart/weight-trend.js'
-import type { ChartMessage, WeightTrendProps } from '../src/chart/weight-trend.js'
+import { initialChartState } from '../src/chart/state.js'
+import type { ChartMessage } from '../src/chart/state.js'
+import { viewWeightTrend } from '../src/chart/weight-trend.js'
+import type { WeightTrendProps } from '../src/chart/weight-trend.js'
 import {
   ChangedCustomEnd,
   ChangedCustomStart,
@@ -33,36 +36,32 @@ import {
   distinctStatsResultTimezones,
   initialStatsModel,
   rangeKey,
-  scheduleEndDate,
-  scheduleEndExclusiveDate,
-  syncStatsFetch,
-  updateStats as updateStatsPage,
-} from '../src/page/stats.js'
-import type { StatsModel } from '../src/page/stats.js'
+} from '../src/page/stats/model.js'
+import type { StatsMessage, StatsModel } from '../src/page/stats/model.js'
+import { syncStatsFetch, updateStats as updateStatsPage } from '../src/page/stats/update.js'
+import { scheduleEndDate, scheduleEndExclusiveDate } from '../src/page/stats/view.js'
 
 const timezone = IanaTimezone.make('America/New_York')
+
 const range = {
   end: Option.some(CalendarDate.make('2026-07-03')),
   start: Option.some(CalendarDate.make('2026-06-03')),
 }
 
-const updateStats = (
-  model: StatsModel,
-  message: Parameters<typeof updateStatsPage>[1],
-  currentTimezone: IanaTimezone
-) => updateStatsPage(model, message, currentTimezone, 1)
+const updateStats = (model: StatsModel, message: StatsMessage, currentTimezone: IanaTimezone) =>
+  updateStatsPage(model, message, currentTimezone, 1)
 
 const emptyBundle = {
-  dayOfWeek: Schema.decodeUnknownSync(InjectionDayOfWeekStats)({ days: [], totalInjections: 0 }),
-  doseHistory: Schema.decodeUnknownSync(DoseHistoryStats)({ points: [] }),
-  drugBreakdown: Schema.decodeUnknownSync(DrugBreakdownStats)({ drugs: [], totalInjections: 0 }),
+  dayOfWeek: InjectionDayOfWeekStats.make({ days: [], totalInjections: Count.make(0) }),
+  doseHistory: DoseHistoryStats.make({ points: [] }),
+  drugBreakdown: DrugBreakdownStats.make({ drugs: [], totalInjections: Count.make(0) }),
   frequency: null,
   goal: null,
   injections: [],
   schedules: [],
-  siteStats: Schema.decodeUnknownSync(InjectionSiteStats)({ sites: [], totalInjections: 0 }),
+  siteStats: InjectionSiteStats.make({ sites: [], totalInjections: Count.make(0) }),
   weightStats: null,
-  weightTrend: Schema.decodeUnknownSync(WeightTrendStats)({ points: [], trendLine: null }),
+  weightTrend: WeightTrendStats.make({ points: [], trendLine: null }),
 }
 
 describe('stats page update', () => {
@@ -70,6 +69,7 @@ describe('stats page update', () => {
     const start = DateTime.makeUnsafe('2026-01-01T05:00:00.000Z').pipe(DateTime.toDate)
     const inclusiveEnd = DateTime.makeUnsafe('2026-01-21T05:00:00.000Z').pipe(DateTime.toDate)
     const nextDayStart = DateTime.makeUnsafe('2026-01-22T05:00:00.000Z').pipe(DateTime.toDate)
+
     const props: WeightTrendProps = {
       displayWeight: (weight) => weight,
       injectionData: [],
@@ -92,10 +92,11 @@ describe('stats page update', () => {
       ],
       zoomRange: Option.none(),
     }
+
     Scene.scene(
       {
         update: (model: WeightTrendProps, _message: ChartMessage) => ({ model }),
-        view: viewWeightTrend,
+        view: (model: WeightTrendProps, h) => viewWeightTrend({ h, props: model }),
       },
       Scene.given(props),
       Scene.tap(({ html }) => {
@@ -106,47 +107,55 @@ describe('stats page update', () => {
     )
   })
 
-  it('uses the last included day as a finite schedule chart end date', () => {
-    const audit = DateTime.makeUnsafe('2026-01-01T00:00:00.000Z')
-    const schedule = Schema.decodeUnknownSync(InjectionSchedule)({
-      createdAt: audit,
-      drug: 'Semaglutide',
-      frequency: 'weekly',
-      id: 'schedule-finite',
-      isActive: false,
-      name: 'Finite schedule',
-      notes: null,
-      phases: [
-        {
-          createdAt: audit,
-          doseMg: 1,
-          durationDays: 7,
-          id: 'phase-1',
-          order: 1,
-          scheduleId: 'schedule-finite',
-          updatedAt: audit,
-        },
-        {
-          createdAt: audit,
-          doseMg: 2,
-          durationDays: 14,
-          id: 'phase-2',
-          order: 2,
-          scheduleId: 'schedule-finite',
-          updatedAt: audit,
-        },
-      ],
-      supplier: null,
-      startDate: '2026-01-01',
-      updatedAt: audit,
+  it.effect('uses the last included day as a finite schedule chart end date', () =>
+    Effect.gen(function* () {
+      const audit = DateTime.makeUnsafe('2026-01-01T00:00:00.000Z')
+
+      const schedule = yield* Schema.decodeEffect(InjectionSchedule)({
+        createdAt: audit,
+        drug: 'Semaglutide',
+        frequency: 'weekly',
+        id: 'schedule-finite',
+        isActive: false,
+        name: 'Finite schedule',
+        notes: null,
+        phases: [
+          {
+            createdAt: audit,
+            doseMg: 1,
+            durationDays: 7,
+            id: 'phase-1',
+            order: 1,
+            scheduleId: 'schedule-finite',
+            updatedAt: audit,
+          },
+          {
+            createdAt: audit,
+            doseMg: 2,
+            durationDays: 14,
+            id: 'phase-2',
+            order: 2,
+            scheduleId: 'schedule-finite',
+            updatedAt: audit,
+          },
+        ],
+        supplier: null,
+        startDate: '2026-01-01',
+        updatedAt: audit,
+      })
+
+      const toIso = (date: Date): string => date.toISOString()
+
+      assert.deepStrictEqual(
+        Option.map(scheduleEndDate(schedule, timezone), toIso),
+        Option.some('2026-01-21T05:00:00.000Z')
+      )
+      assert.deepStrictEqual(
+        Option.map(scheduleEndExclusiveDate(schedule, timezone), toIso),
+        Option.some('2026-01-22T05:00:00.000Z')
+      )
     })
-
-    const end = Option.getOrThrow(scheduleEndDate(schedule, timezone))
-    const endExclusive = Option.getOrThrow(scheduleEndExclusiveDate(schedule, timezone))
-
-    expect(end.toISOString()).toBe('2026-01-21T05:00:00.000Z')
-    expect(endExclusive.toISOString()).toBe('2026-01-22T05:00:00.000Z')
-  })
+  )
 
   it('syncStatsFetch fetches when the range key changes and dedupes otherwise', () => {
     const { model: loading, commands = [] } = syncStatsFetch(initialStatsModel, range, timezone)
@@ -255,6 +264,7 @@ describe('stats page update', () => {
 
   it('rejects a mixed bundle and reconciles authoritative settings instead of retrying the stale zone', () => {
     const { model: loading } = syncStatsFetch(initialStatsModel, range, timezone)
+
     const { commands = [] } = updateStats(
       loading,
       RejectedFetchStats({
@@ -290,6 +300,7 @@ describe('stats page update', () => {
       }),
       timezone
     )
+
     expect(AsyncData.isLoading(afterLateA.data)).toBe(true)
 
     const { model: afterLatestA } = updateStats(
@@ -303,6 +314,7 @@ describe('stats page update', () => {
       }),
       timezone
     )
+
     expect(afterLatestA.data._tag).toBe('Success')
   })
 

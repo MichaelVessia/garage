@@ -1,6 +1,6 @@
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
-import { FetchHttpClient } from 'effect/http'
+import * as FetchHttpClient from 'effect/http/FetchHttpClient'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import { Runtime } from 'foldkit'
@@ -10,12 +10,10 @@ import { MissingRoot } from './errors.js'
 import { Flags, Model, init, subscriptions, update } from './main.js'
 import { view } from './view.js'
 
-import '@fontsource-variable/figtree/wght.css'
-import './index.css'
-
 const container = document.querySelector<HTMLElement>('#root')
+
 if (container === null) {
-  throw new MissingRoot()
+  throw MissingRoot.make()
 }
 
 const application = Runtime.makeElement({

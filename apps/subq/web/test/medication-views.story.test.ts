@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as P from 'effect/Predicate'
-import * as AsyncData from 'foldkit/asyncData'
-import * as Scene from 'foldkit/scene'
+import { AsyncData, Scene } from 'foldkit'
 
 import {
   CalendarDate,
@@ -17,14 +17,19 @@ import {
   PhaseDurationDays,
   PhaseOrder,
   ScheduleName,
+  SchedulePhase,
   SchedulePhaseId,
   Supplier,
 } from '#shared'
 
-import { initialInjectionsModel, updateInjections, viewInjections } from '../src/page/injections.js'
-import type { InjectionsMessage, InjectionsModel } from '../src/page/injections.js'
-import { initialScheduleModel, updateSchedule, viewSchedule } from '../src/page/schedule.js'
-import type { ScheduleMessage, ScheduleModel } from '../src/page/schedule.js'
+import { initialInjectionsModel } from '../src/page/injections/model.js'
+import type { InjectionsMessage, InjectionsModel } from '../src/page/injections/model.js'
+import { updateInjections } from '../src/page/injections/update.js'
+import { viewInjections } from '../src/page/injections/view.js'
+import { initialScheduleModel } from '../src/page/schedule/model.js'
+import type { ScheduleMessage, ScheduleModel } from '../src/page/schedule/model.js'
+import { updateSchedule } from '../src/page/schedule/update.js'
+import { viewSchedule } from '../src/page/schedule/view.js'
 
 interface ViewNode {
   readonly sel: string | undefined
@@ -41,31 +46,36 @@ const findById = (node: ViewNode | null, id: string): ViewNode | null => {
   if (node === null) {
     return null
   }
+
   if (node.data?.props?.id === id) {
     return node
   }
+
   for (const child of node.children ?? []) {
     if (!P.isString(child)) {
       const found = findById(child, id)
+
       if (found !== null) {
         return found
       }
     }
   }
+
   return null
 }
 
 const textContent = (node: ViewNode | null): string =>
   node === null
     ? ''
-    : `${node.text ?? ''}${(node.children ?? [])
-        .map((child) => (P.isString(child) ? child : textContent(child)))
-        .join('')}`
+    : `${node.text ?? ''}${Arr.join(
+        Arr.map(node.children ?? [], (child) => (P.isString(child) ? child : textContent(child))),
+        ''
+      )}`
 
 const timestamp = DateTime.makeUnsafe('2026-01-01T00:00:00Z')
 const scheduleId = InjectionScheduleId.make('schedule-1')
 
-const schedule = new InjectionSchedule({
+const schedule = InjectionSchedule.make({
   createdAt: timestamp,
   drug: MedicationCompound.make('Semaglutide'),
   frequency: 'weekly',
@@ -74,7 +84,7 @@ const schedule = new InjectionSchedule({
   name: ScheduleName.make('Titration'),
   notes: null,
   phases: [
-    {
+    SchedulePhase.make({
       createdAt: timestamp,
       doseMg: DoseMg.make(0.25),
       durationDays: PhaseDurationDays.make(28),
@@ -82,14 +92,14 @@ const schedule = new InjectionSchedule({
       order: PhaseOrder.make(1),
       scheduleId,
       updatedAt: timestamp,
-    },
+    }),
   ],
   startDate: CalendarDate.make('2026-01-01'),
   supplier: Supplier.make('Clinic'),
   updatedAt: timestamp,
 })
 
-const injection = new InjectionLog({
+const injection = InjectionLog.make({
   createdAt: timestamp,
   datetime: DateTime.makeUnsafe('2026-01-08T12:00:00Z'),
   doseMg: DoseMg.make(0.25),
@@ -131,7 +141,7 @@ describe('canonical medication views', () => {
       {
         update: (currentModel: InjectionsModel, message: InjectionsMessage) =>
           updateInjections(currentModel, message, timezone),
-        view: (currentModel, h) => viewInjections(currentModel, timezone, h),
+        view: (currentModel, h) => viewInjections({ h, model: currentModel, timezone }),
       },
       Scene.given(model),
       Scene.tap<InjectionsModel, InjectionsMessage>(({ html: view }) => {
@@ -173,7 +183,7 @@ describe('canonical medication views', () => {
       {
         update: (currentModel: ScheduleModel, message: ScheduleMessage) =>
           updateSchedule(currentModel, message, timezone, 1),
-        view: viewSchedule,
+        view: (currentModel, h) => viewSchedule({ h, model: currentModel }),
       },
       Scene.given(model),
       Scene.tap<ScheduleModel, ScheduleMessage>(({ html: view }) => {

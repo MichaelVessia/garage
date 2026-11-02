@@ -1,3 +1,6 @@
+import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
+
 import type { Frequency } from '#shared'
 
 export const FREQUENCIES: ReadonlyArray<readonly [value: Frequency, label: string]> = [
@@ -9,9 +12,11 @@ export const FREQUENCIES: ReadonlyArray<readonly [value: Frequency, label: strin
 ]
 
 export const frequencyLabel = (frequency: Frequency): string =>
-  FREQUENCIES.find(([value]) => value === frequency)?.[1] ?? frequency
+  Arr.findFirst(FREQUENCIES, ([value]) => value === frequency).pipe(
+    Option.match({ onNone: () => frequency, onSome: ([, label]) => label })
+  )
 
-export const frequencyFromString = (value: string): Frequency => {
-  const frequency = FREQUENCIES.find(([candidate]) => candidate === value)
-  return frequency === undefined ? 'weekly' : frequency[0]
-}
+export const frequencyFromString = (value: string): Frequency =>
+  Arr.findFirst(FREQUENCIES, ([candidate]) => candidate === value).pipe(
+    Option.match({ onNone: (): Frequency => 'weekly', onSome: ([frequency]) => frequency })
+  )

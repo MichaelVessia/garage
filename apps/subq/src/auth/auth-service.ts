@@ -5,6 +5,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { bearer } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/d1'
 import * as Context from 'effect/Context'
+import * as Str from 'effect/String'
 
 import { SESSION_COOKIE_CACHE_MAX_AGE_SECONDS, SESSION_EXPIRES_IN_SECONDS, SESSION_UPDATE_AGE_SECONDS } from '#shared'
 
@@ -18,8 +19,8 @@ export interface AuthConfig {
 
 // Auth tables (user, session, account, verification) are managed by the
 // drizzle migrations in ./drizzle, applied at deploy time by the D1 resource.
-export const makeAuth = ({ baseURL, db, secret }: AuthConfig) => {
-  const options = {
+const makeAuthOptions = ({ baseURL, db, secret }: AuthConfig) =>
+  ({
     database: drizzleAdapter(drizzle(db), {
       provider: 'sqlite',
       schema: { account, session, user, verification },
@@ -40,18 +41,18 @@ export const makeAuth = ({ baseURL, db, secret }: AuthConfig) => {
       },
     },
     advanced: {
-      useSecureCookies: baseURL.startsWith('https://'),
+      useSecureCookies: Str.startsWith('https://')(baseURL),
       defaultCookieAttributes: {
         sameSite: 'lax',
         path: '/',
       },
     },
     plugins: [bearer()],
-  } satisfies BetterAuthOptions
-  return betterAuth(options)
-}
+  }) satisfies BetterAuthOptions
 
-export type AuthInstance = ReturnType<typeof makeAuth>
+export type AuthInstance = ReturnType<typeof betterAuth<ReturnType<typeof makeAuthOptions>>>
+
+export const makeAuth = (config: AuthConfig): AuthInstance => betterAuth(makeAuthOptions(config))
 
 export class AuthService extends Context.Service<AuthService, { readonly auth: AuthInstance }>()(
   '@garage/subq/auth/auth-service/AuthService'

@@ -12,17 +12,11 @@ afterEach(() => {
 
 describe('browser download adapter', () => {
   it.effect('creates and clicks a temporary download anchor, then cleans up', () => {
-    let createdBlob: Blob | undefined
     const anchor = document.createElement('a')
     const click = vi.spyOn(anchor, 'click').mockImplementation(() => {})
     const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const contents = '{"version":"2.0.0"}'
-    vi.spyOn(URL, 'createObjectURL').mockImplementation((value) => {
-      if (value instanceof Blob) {
-        createdBlob = value
-      }
-      return 'blob:subq-export'
-    })
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:subq-export')
     vi.spyOn(document, 'createElement').mockReturnValue(anchor)
 
     return Effect.gen(function* () {
@@ -32,10 +26,12 @@ describe('browser download adapter', () => {
         mediaType: 'application/json',
       })
 
-      const blob = createdBlob
-      if (blob === undefined) {
+      const blob = createObjectUrl.mock.calls[0]?.[0]
+
+      if (!(blob instanceof Blob)) {
         assert.fail('expected a Blob')
       }
+
       assert.strictEqual(blob.type, 'application/json')
       assert.strictEqual(blob.size, contents.length)
       assert.strictEqual(click.mock.calls.length, 1)

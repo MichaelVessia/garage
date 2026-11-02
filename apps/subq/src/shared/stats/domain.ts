@@ -9,7 +9,7 @@ import { Weight, WeightRateOfChange } from '../weight/domain.js'
 // Stats Request Params (shared across stats endpoints)
 // ============================================
 
-export class StatsParams extends Schema.Class<StatsParams>('StatsParams')({
+export class StatsParams extends Schema.Class<StatsParams, { readonly brand: unique symbol }>('StatsParams')({
   startDate: Schema.optional(CalendarDate),
   endDate: Schema.optional(CalendarDate),
 }) {}
@@ -18,7 +18,7 @@ export class StatsParams extends Schema.Class<StatsParams>('StatsParams')({
 // Weight Stats Response
 // ============================================
 
-export class WeightStats extends Schema.Class<WeightStats>('WeightStats')({
+export class WeightStats extends Schema.Class<WeightStats, { readonly brand: unique symbol }>('WeightStats')({
   /** Minimum weight in period */
   minWeight: Weight,
   /** Maximum weight in period */
@@ -35,17 +35,19 @@ export class WeightStats extends Schema.Class<WeightStats>('WeightStats')({
 // Weight Trend Data Point (for line chart)
 // ============================================
 
-export class WeightTrendPoint extends Schema.Class<WeightTrendPoint>('WeightTrendPoint')({
+export class WeightTrendPoint extends Schema.Class<WeightTrendPoint, { readonly brand: unique symbol }>(
+  'WeightTrendPoint'
+)({
   date: Schema.Date,
   weight: Weight,
 }) {}
 
 /** Linear regression trend line data */
-export class TrendLine extends Schema.Class<TrendLine>('TrendLine')({
+export class TrendLine extends Schema.Class<TrendLine, { readonly brand: unique symbol }>('TrendLine')({
   /** Slope in lbs per millisecond */
-  slope: Schema.Number,
+  slope: Schema.Finite,
   /** Y-intercept (weight at epoch) */
-  intercept: Schema.Number,
+  intercept: Schema.Finite,
   /** Start point for rendering */
   startDate: Schema.Date,
   startWeight: Weight,
@@ -54,7 +56,9 @@ export class TrendLine extends Schema.Class<TrendLine>('TrendLine')({
   endWeight: Weight,
 }) {}
 
-export class WeightTrendStats extends Schema.Class<WeightTrendStats>('WeightTrendStats')({
+export class WeightTrendStats extends Schema.Class<WeightTrendStats, { readonly brand: unique symbol }>(
+  'WeightTrendStats'
+)({
   points: Schema.Array(WeightTrendPoint),
   /** Linear regression trend line, null if < 2 points */
   trendLine: Schema.NullOr(TrendLine),
@@ -64,12 +68,16 @@ export class WeightTrendStats extends Schema.Class<WeightTrendStats>('WeightTren
 // Injection Site Distribution (for pie chart)
 // ============================================
 
-export class InjectionSiteCount extends Schema.Class<InjectionSiteCount>('InjectionSiteCount')({
+export class InjectionSiteCount extends Schema.Class<InjectionSiteCount, { readonly brand: unique symbol }>(
+  'InjectionSiteCount'
+)({
   site: InjectionSite,
   count: Count,
 }) {}
 
-export class InjectionSiteStats extends Schema.Class<InjectionSiteStats>('InjectionSiteStats')({
+export class InjectionSiteStats extends Schema.Class<InjectionSiteStats, { readonly brand: unique symbol }>(
+  'InjectionSiteStats'
+)({
   sites: Schema.Array(InjectionSiteCount),
   totalInjections: Count,
 }) {}
@@ -78,13 +86,17 @@ export class InjectionSiteStats extends Schema.Class<InjectionSiteStats>('Inject
 // Dose History (for line/step chart)
 // ============================================
 
-export class DoseHistoryPoint extends Schema.Class<DoseHistoryPoint>('DoseHistoryPoint')({
+export class DoseHistoryPoint extends Schema.Class<DoseHistoryPoint, { readonly brand: unique symbol }>(
+  'DoseHistoryPoint'
+)({
   date: Schema.Date,
   drug: MedicationCompound,
   doseMg: DoseMg,
 }) {}
 
-export class DoseHistoryStats extends Schema.Class<DoseHistoryStats>('DoseHistoryStats')({
+export class DoseHistoryStats extends Schema.Class<DoseHistoryStats, { readonly brand: unique symbol }>(
+  'DoseHistoryStats'
+)({
   points: Schema.Array(DoseHistoryPoint),
 }) {}
 
@@ -92,7 +104,9 @@ export class DoseHistoryStats extends Schema.Class<DoseHistoryStats>('DoseHistor
 // Injection Frequency Stats
 // ============================================
 
-export class InjectionFrequencyStats extends Schema.Class<InjectionFrequencyStats>('InjectionFrequencyStats')({
+export class InjectionFrequencyStats extends Schema.Class<InjectionFrequencyStats, { readonly brand: unique symbol }>(
+  'InjectionFrequencyStats'
+)({
   /** Total injections in period */
   totalInjections: Count,
   /** Average days between injections */
@@ -107,12 +121,14 @@ export class InjectionFrequencyStats extends Schema.Class<InjectionFrequencyStat
 // Drug Breakdown (for pie chart)
 // ============================================
 
-export class DrugCount extends Schema.Class<DrugCount>('DrugCount')({
+export class DrugCount extends Schema.Class<DrugCount, { readonly brand: unique symbol }>('DrugCount')({
   drug: MedicationCompound,
   count: Count,
 }) {}
 
-export class DrugBreakdownStats extends Schema.Class<DrugBreakdownStats>('DrugBreakdownStats')({
+export class DrugBreakdownStats extends Schema.Class<DrugBreakdownStats, { readonly brand: unique symbol }>(
+  'DrugBreakdownStats'
+)({
   drugs: Schema.Array(DrugCount),
   totalInjections: Count,
 }) {}
@@ -121,13 +137,15 @@ export class DrugBreakdownStats extends Schema.Class<DrugBreakdownStats>('DrugBr
 // Injection By Day of Week (for pie chart)
 // ============================================
 
-export class DayOfWeekCount extends Schema.Class<DayOfWeekCount>('DayOfWeekCount')({
+export class DayOfWeekCount extends Schema.Class<DayOfWeekCount, { readonly brand: unique symbol }>('DayOfWeekCount')({
   /** 0=Sunday, 1=Monday, ..., 6=Saturday */
   dayOfWeek: DayOfWeek,
   count: Count,
 }) {}
 
-export class InjectionDayOfWeekStats extends Schema.Class<InjectionDayOfWeekStats>('InjectionDayOfWeekStats')({
+export class InjectionDayOfWeekStats extends Schema.Class<InjectionDayOfWeekStats, { readonly brand: unique symbol }>(
+  'InjectionDayOfWeekStats'
+)({
   days: Schema.Array(DayOfWeekCount),
   totalInjections: Count,
 }) {}
@@ -136,7 +154,10 @@ export class InjectionDayOfWeekStats extends Schema.Class<InjectionDayOfWeekStat
 // Stats Domain Errors
 // ============================================
 
-export class StatsDatabaseError extends Schema.TaggedClass<StatsDatabaseError>()('StatsDatabaseError', {
-  operation: DbOperation,
-  cause: Schema.Defect(),
-}) {}
+export class StatsDatabaseError extends Schema.TaggedClass<StatsDatabaseError, { readonly brand: unique symbol }>()(
+  'StatsDatabaseError',
+  {
+    operation: DbOperation,
+    cause: Schema.Defect(),
+  }
+) {}

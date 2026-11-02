@@ -1,8 +1,10 @@
 import * as Arr from 'effect/Array'
+import * as Function from 'effect/Function'
 import * as Hash from 'effect/Hash'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Result from 'effect/Result'
+import * as Str from 'effect/String'
 
 import type { MediaAction, MediaControl, MediaPlayer, MediaPlayerStatus, SpeakerZone } from '#shared'
 
@@ -34,26 +36,28 @@ const ZONES_SLOT = 'zones'
 const isControl = (token: string): token is MediaControl => Arr.some(CONTROLS, (control) => control === token)
 
 const splitList = (raw: string): ReadonlyArray<string> =>
-  Arr.filter(
-    Arr.map(raw.split(','), (entry) => entry.trim()),
-    (entry) => entry !== ''
-  )
+  Arr.filter(Arr.map(Str.split(',')(raw), Str.trim), (entry) => entry !== '')
 
 const parseSlot = (entry: string): Result.Result<MediaSlot, string> => {
   if (entry === ZONES_SLOT) {
     return Result.succeed({ _tag: 'Zones' })
   }
-  const [entityId = '', overrides] = entry.split('=')
-  if (!entityId.startsWith('media_player.')) {
+
+  const [entityId, overrides] = Str.split('=')(entry)
+
+  if (!Str.startsWith('media_player.')(entityId)) {
     return Result.fail(`"${entityId}" is not a media_player entity`)
   }
+
   if (overrides === undefined) {
     return Result.succeed({ _tag: 'Player', player: { entityId, controls: Option.none() } })
   }
-  const tokens = Arr.filter(overrides.split('+'), (token) => token !== '')
+
+  const tokens = Arr.filter(Str.split('+')(overrides), (token) => token !== '')
   const unknown = Arr.filter(tokens, (token) => !isControl(token))
+
   return Arr.isReadonlyArrayNonEmpty(unknown)
-    ? Result.fail(`unknown controls for ${entityId}: ${unknown.join(', ')}`)
+    ? Result.fail(`unknown controls for ${entityId}: ${Arr.join(unknown, ', ')}`)
     : Result.succeed({
         _tag: 'Player',
         player: { entityId, controls: Option.some(Arr.filter(CONTROLS, (control) => tokens.includes(control))) },
@@ -69,13 +73,17 @@ export const parseMediaSlots = (raw: string): Result.Result<ReadonlyArray<MediaS
   Result.all(Arr.map(splitList(raw), parseSlot))
 
 /** Parses a comma-separated list of entities that must all be in `domain`. */
-export const parseEntityList = (raw: string, domain: string): Result.Result<ReadonlyArray<string>, string> => {
+export const parseEntityList: {
+  (domain: string): (raw: string) => Result.Result<ReadonlyArray<string>, string>
+  (raw: string, domain: string): Result.Result<ReadonlyArray<string>, string>
+} = Function.dual(2, (raw: string, domain: string): Result.Result<ReadonlyArray<string>, string> => {
   const entities = splitList(raw)
-  const foreign = Arr.filter(entities, (entity) => !entity.startsWith(`${domain}.`))
+  const foreign = Arr.filter(entities, (entity) => !Str.startsWith(`${domain}.`)(entity))
+
   return Arr.isReadonlyArrayNonEmpty(foreign)
-    ? Result.fail(`not ${domain} entities: ${foreign.join(', ')}`)
+    ? Result.fail(`not ${domain} entities: ${Arr.join(foreign, ', ')}`)
     : Result.succeed(entities)
-}
+})
 
 const isZones = (slot: MediaSlot) => Match.valueTags(slot, { Player: () => false, Zones: () => true })
 
@@ -83,6 +91,7 @@ const isZones = (slot: MediaSlot) => Match.valueTags(slot, { Player: () => false
 export const mediaLayout = (config: MediaConfig): ReadonlyArray<MediaSlot> => {
   const hasZones = Arr.isReadonlyArrayNonEmpty(config.zones)
   const slots = Arr.filter(config.slots, (slot) => hasZones || !isZones(slot))
+
   return hasZones && !Arr.some(slots, isZones) ? [...slots, { _tag: 'Zones' }] : slots
 }
 
@@ -117,6 +126,7 @@ const controlsFor = (
     mute: supports(features, FEATURE.volumeMute),
     source: supports(features, FEATURE.selectSource) && Arr.isReadonlyArrayNonEmpty(sources),
   } satisfies Record<MediaControl, boolean>
+
   return Arr.filter(
     CONTROLS,
     (control) =>
@@ -145,7 +155,10 @@ const artVersion = (picture: Option.Option<string>) =>
   )
 
 /** A media card for a configured player; a missing entity shows as unavailable. */
-export const toMediaPlayer = (player: MediaPlayerConfig, state: Option.Option<EntityStateResponse>): MediaPlayer =>
+export const toMediaPlayer: {
+  (state: Option.Option<EntityStateResponse>): (player: MediaPlayerConfig) => MediaPlayer
+  (player: MediaPlayerConfig, state: Option.Option<EntityStateResponse>): MediaPlayer
+} = Function.dual(2, (player: MediaPlayerConfig, state: Option.Option<EntityStateResponse>): MediaPlayer =>
   Option.match(state, {
     onNone: (): MediaPlayer => ({
       entityId: player.entityId,
@@ -164,6 +177,7 @@ export const toMediaPlayer = (player: MediaPlayerConfig, state: Option.Option<En
       const sources = attributes.source_list ?? []
       const status = statusOf(raw)
       const title = attributes.media_title ?? null
+
       return {
         entityId: player.entityId,
         name: attributes.friendly_name ?? player.entityId,
@@ -185,9 +199,13 @@ export const toMediaPlayer = (player: MediaPlayerConfig, state: Option.Option<En
       }
     },
   })
+)
 
 /** A speaker zone switch; a missing entity shows as unavailable. */
-export const toSpeakerZone = (entityId: string, state: Option.Option<EntityStateResponse>): SpeakerZone =>
+export const toSpeakerZone: {
+  (state: Option.Option<EntityStateResponse>): (entityId: string) => SpeakerZone
+  (entityId: string, state: Option.Option<EntityStateResponse>): SpeakerZone
+} = Function.dual(2, (entityId: string, state: Option.Option<EntityStateResponse>): SpeakerZone =>
   Option.match(state, {
     onNone: (): SpeakerZone => ({ entityId, name: entityId, isOn: false, isAvailable: false }),
     onSome: ({ state: raw, attributes }): SpeakerZone => ({
@@ -197,6 +215,7 @@ export const toSpeakerZone = (entityId: string, state: Option.Option<EntityState
       isAvailable: raw !== 'unavailable' && raw !== 'unknown',
     }),
   })
+)
 
 /** One Home Assistant service call. */
 export interface ServiceCall {
@@ -245,7 +264,10 @@ const buttonCall = (button: Option.Option<string>, label: string): Result.Result
   })
 
 /** Maps a requested media change to its service call, or explains why it is not allowed. */
-export const authorizeMediaAction = (config: MediaConfig, action: MediaAction): Result.Result<ServiceCall, string> =>
+export const authorizeMediaAction: {
+  (action: MediaAction): (config: MediaConfig) => Result.Result<ServiceCall, string>
+  (config: MediaConfig, action: MediaAction): Result.Result<ServiceCall, string>
+} = Function.dual(2, (config: MediaConfig, action: MediaAction): Result.Result<ServiceCall, string> =>
   Match.valueTags(action, {
     TurnOn: ({ entityId }) => playerCall(config, entityId, 'power', 'turn_on'),
     TurnOff: ({ entityId }) => playerCall(config, entityId, 'power', 'turn_off'),
@@ -261,14 +283,19 @@ export const authorizeMediaAction = (config: MediaConfig, action: MediaAction): 
     AllZonesOn: () => buttonCall(config.allOn, 'all-zones-on'),
     AllZonesOff: () => buttonCall(config.allOff, 'all-zones-off'),
   })
+)
 
 /** Whether artwork may be proxied for this entity: only configured media players. */
-export const isArtworkEntity = (config: MediaConfig, entityId: string): boolean =>
+export const isArtworkEntity: {
+  (entityId: string): (config: MediaConfig) => boolean
+  (config: MediaConfig, entityId: string): boolean
+} = Function.dual(2, (config: MediaConfig, entityId: string): boolean =>
   Arr.some(playerConfigs(config), (player) => player.entityId === entityId)
+)
 
 // Home Assistant serves player artwork through its media player proxy; nothing else is fetched.
 const ARTWORK_PREFIX = '/api/media_player_proxy/'
 
 /** The Home Assistant path to fetch artwork from, if the entity reports proxied artwork. */
 export const artworkPath = (state: EntityStateResponse): Option.Option<string> =>
-  Option.filter(Option.fromNullishOr(state.attributes.entity_picture), (picture) => picture.startsWith(ARTWORK_PREFIX))
+  Option.filter(Option.fromNullishOr(state.attributes.entity_picture), Str.startsWith(ARTWORK_PREFIX))

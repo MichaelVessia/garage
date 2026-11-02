@@ -2,12 +2,13 @@ import { assert, describe, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
-import type { HttpClientRequest } from 'effect/http'
+import type * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { CalendarDate, IanaTimezone, MediaActionRejected, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
@@ -76,22 +77,26 @@ const ConfigLayer = Layer.mergeAll(
   Layer.succeed(FrameTimezone, { timezone: IanaTimezone.make('America/New_York') })
 )
 
-const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Record(Schema.String, Schema.String)))
+const decodeJson = Schema.decodeEffect(Schema.fromJsonString(Schema.Record(Schema.String, Schema.String)))
 
-const bodyOf = (request: HttpClientRequest.HttpClientRequest): Record<string, string> | null =>
-  request.body._tag === 'Uint8Array' ? decodeJson(new TextDecoder().decode(request.body.body)) : null
+const bodyOf = (
+  request: HttpClientRequest.HttpClientRequest
+): Effect.Effect<Readonly<Record<string, string>> | null, Schema.SchemaError> =>
+  request.body._tag === 'Uint8Array' ? decodeJson(new TextDecoder().decode(request.body.body)) : Effect.succeed(null)
 
 const recorded = (
   requests: Ref.Ref<ReadonlyArray<{ method: string; url: string; raw: HttpClientRequest.HttpClientRequest }>>
 ) =>
   Ref.get(requests).pipe(
-    Effect.map((records) =>
-      records.map((record) => ({
-        method: record.method,
-        url: record.url,
-        authorization: record.raw.headers.authorization,
-        body: bodyOf(record.raw),
-      }))
+    Effect.flatMap((records) =>
+      Effect.forEach(records, (record) =>
+        Effect.map(bodyOf(record.raw), (body) => ({
+          method: record.method,
+          url: record.url,
+          authorization: record.raw.headers.authorization,
+          body,
+        }))
+      )
     )
   )
 
@@ -125,11 +130,12 @@ describe('HomeAssistantApiLive', () => {
               },
             }
       )
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
 
-      const weather = yield* api.weather()
+      const weather = yield* api.weather
 
       assert.strictEqual(weather.condition, 'partlycloudy')
       assert.strictEqual(weather.temperature, 48)
@@ -163,7 +169,7 @@ describe('HomeAssistantApiLive', () => {
   it.effect('reads shopping items and updates an item by uid', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient((_method, url) =>
-        url.pathname.endsWith('/update_item')
+        Str.endsWith('/update_item')(url.pathname)
           ? { status: 200, body: [] }
           : {
               status: 200,
@@ -174,16 +180,17 @@ describe('HomeAssistantApiLive', () => {
               },
             }
       )
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
 
-      yield* api.updateShoppingItem(new ShoppingItemUpdate({ uid: 'a1', status: 'completed' }))
-      const items = yield* api.shoppingItems()
+      yield* api.updateShoppingItem(ShoppingItemUpdate.make({ uid: 'a1', status: 'completed' }))
+      const items = yield* api.shoppingItems
 
       assert.deepStrictEqual(items, [{ uid: 'a1', summary: 'Milk', status: 'needs_action' }])
       assert.deepStrictEqual(
-        (yield* recorded(fake.requests)).map((request) => [request.method, request.url, request.body]),
+        Arr.map(yield* recorded(fake.requests), (request) => [request.method, request.url, request.body]),
         [
           [
             'POST',
@@ -203,14 +210,15 @@ describe('HomeAssistantApiLive', () => {
   it.effect('adds a shopping item to the configured list', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: [] }))
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
 
-      yield* api.addShoppingItem(new ShoppingItemAddition({ summary: 'Bread' }))
+      yield* api.addShoppingItem(ShoppingItemAddition.make({ summary: 'Bread' }))
 
       assert.deepStrictEqual(
-        (yield* recorded(fake.requests)).map((request) => [request.method, request.url, request.body]),
+        Arr.map(yield* recorded(fake.requests), (request) => [request.method, request.url, request.body]),
         [
           [
             'POST',
@@ -225,22 +233,24 @@ describe('HomeAssistantApiLive', () => {
   it.effect('reads configured media in screen order, with a missing zone shown as unavailable', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient((_method, url) => {
-        const entity = url.pathname.replace('/api/states/', '')
+        const entity = Str.replace('/api/states/', '')(url.pathname)
+
         return Option.match(stateOf(entity), {
           onNone: () => ({ status: 404, body: { message: 'Entity not found.' } }),
           onSome: (state) => ({ status: 200, body: state }),
         })
       })
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
 
-      const media = yield* api.media()
+      const media = yield* api.media
 
       assert.strictEqual(media.spotify?.name, 'Music')
       assert.strictEqual(media.spotify?.nowPlaying?.title, 'Song')
       assert.deepStrictEqual(
-        media.cards.map((card) => (card._tag === 'PlayerCard' ? card.player.name : 'zones')),
+        Arr.map(media.cards, (card) => (card._tag === 'PlayerCard' ? card.player.name : 'zones')),
         ['Den TV', 'Receiver', 'zones']
       )
       const [, receiver, zones] = media.cards
@@ -264,6 +274,7 @@ describe('HomeAssistantApiLive', () => {
   it.effect('sends allowed media actions as Home Assistant service calls', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: [] }))
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
@@ -273,7 +284,7 @@ describe('HomeAssistantApiLive', () => {
 
       const requests = yield* Ref.get(fake.requests)
       assert.deepStrictEqual(
-        requests.map((request) => [
+        Arr.map(requests, (request) => [
           request.method,
           request.url,
           request.raw.headers.authorization,
@@ -300,6 +311,7 @@ describe('HomeAssistantApiLive', () => {
   it.effect('refuses media actions outside the allowlist without calling Home Assistant', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: [] }))
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
@@ -316,10 +328,11 @@ describe('HomeAssistantApiLive', () => {
   it.effect('proxies artwork only for configured players', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient((_method, url) =>
-        url.pathname.startsWith('/api/media_player_proxy/')
+        Str.startsWith('/api/media_player_proxy/')(url.pathname)
           ? { status: 200, body: 'PNG', headers: new Headers({ 'content-type': 'image/png' }) }
           : { status: 200, body: Option.getOrNull(stateOf('media_player.music')) }
       )
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
@@ -330,7 +343,7 @@ describe('HomeAssistantApiLive', () => {
       assert.strictEqual(Option.map(artwork, (art) => art.contentType).pipe(Option.getOrNull), 'image/png')
       assert.isTrue(Option.isNone(foreign))
       assert.deepStrictEqual(
-        (yield* recorded(fake.requests)).map((request) => [request.url, request.authorization]),
+        Arr.map(yield* recorded(fake.requests), (request) => [request.url, request.authorization]),
         [
           ['http://ha.example.test:8123/api/states/media_player.music', 'Bearer ha-token'],
           [
@@ -345,11 +358,12 @@ describe('HomeAssistantApiLive', () => {
   it.effect('maps HTTP failures to a tagged error without the token', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient(() => ({ status: 401, body: { message: 'unauthorized' } }))
+
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
 
-      const error = yield* Effect.flip(api.shoppingItems())
+      const error = yield* Effect.flip(api.shoppingItems)
 
       assert.strictEqual(error.code, 'HOME_ASSISTANT_HTTP_ERROR')
       assert.notInclude(`${error.message} ${error.fix}`, 'ha-token')

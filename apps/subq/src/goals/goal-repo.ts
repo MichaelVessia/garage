@@ -5,7 +5,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
 import * as Str from 'effect/String'
 
 import {
@@ -30,23 +30,24 @@ import { randomUuid } from '../shared/common/random-uuid.js'
 export const GoalRow = Schema.Struct({
   id: Schema.String,
   user_id: Schema.String,
-  goal_weight: Schema.Number,
-  starting_weight: Schema.Number,
+  goal_weight: Schema.Finite,
+  starting_weight: Schema.Finite,
   starting_date: CalendarDate,
   target_date: Schema.NullOr(CalendarDate),
-  calendar_date_migrated: Schema.Number,
+  calendar_date_migrated: Schema.Int,
   notes: Schema.NullOr(Schema.String),
-  is_active: Schema.Number,
+  is_active: Schema.Int,
   completed_at: Schema.NullOr(Schema.String),
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+
 export type GoalRow = typeof GoalRow.Type
 
 const decodeGoalRow = Schema.decodeUnknownEffect(GoalRow)
 
-export const goalRowToDomain = (row: typeof GoalRow.Type): UserGoal =>
-  new UserGoal({
+export const goalRowToDomain = (row: GoalRow): UserGoal =>
+  UserGoal.make({
     id: GoalId.make(row.id),
     goalWeight: Weight.make(row.goal_weight),
     startingWeight: Weight.make(row.starting_weight),
@@ -80,7 +81,7 @@ const goalUpdatePatch = (data: UserGoalUpdate) => ({
 export class GoalRepo extends Context.Service<
   GoalRepo,
   {
-    readonly list: (userId: string) => Effect.Effect<UserGoal[], GoalDatabaseError>
+    readonly list: (userId: string) => Effect.Effect<Array<UserGoal>, GoalDatabaseError>
     readonly getActive: (userId: string) => Effect.Effect<Option.Option<UserGoal>, GoalDatabaseError>
     readonly findById: (id: string, userId: string) => Effect.Effect<Option.Option<UserGoal>, GoalDatabaseError>
     readonly create: (
@@ -106,7 +107,7 @@ export const GoalRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const list = Effect.fn('GoalRepo.list')(
+    const list = Effect.fn('goalRepo.list')(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
@@ -115,16 +116,15 @@ export const GoalRepoLive = Layer.effect(
           WHERE user_id = ${userId}
           ORDER BY created_at DESC
         `
-        const decoded = yield* Effect.all(
-          rows.map((r) => decodeGoalRow(r)),
-          { concurrency: 1 }
-        )
-        return decoded.map(goalRowToDomain)
+
+        const decoded = yield* Effect.forEach(rows, (r) => decodeGoalRow(r), { concurrency: 1 })
+
+        return Arr.map(decoded, goalRowToDomain)
       },
       mapDbError(GoalDatabaseError, 'query')
     )
 
-    const getActive = Effect.fn('GoalRepo.getActive')(
+    const getActive = Effect.fn('goalRepo.getActive')(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
@@ -132,16 +132,19 @@ export const GoalRepoLive = Layer.effect(
           FROM user_goals
           WHERE user_id = ${userId} AND is_active = 1
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
+
         const decoded = yield* decodeGoalRow(rows[0])
+
         return Option.some(goalRowToDomain(decoded))
       },
       mapDbError(GoalDatabaseError, 'query')
     )
 
-    const findById = Effect.fn('GoalRepo.findById')(
+    const findById = Effect.fn('goalRepo.findById')(
       function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
@@ -149,16 +152,19 @@ export const GoalRepoLive = Layer.effect(
           FROM user_goals
           WHERE id = ${id} AND user_id = ${userId}
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
+
         const decoded = yield* decodeGoalRow(rows[0])
+
         return Option.some(goalRowToDomain(decoded))
       },
       mapDbError(GoalDatabaseError, 'query')
     )
 
-    const create = Effect.fn('GoalRepo.create')(function* (
+    const create = Effect.fn('goalRepo.create')(function* (
       data: UserGoalCreate,
       startingWeight: number,
       startingDate: CalendarDate,
@@ -185,13 +191,11 @@ export const GoalRepoLive = Layer.effect(
 
       // Fetch and return the created goal
       const result = yield* findById(id, userId)
-      return yield* Option.match(result, {
-        onNone: () => Effect.fail(GoalNotFoundError.make({ id })),
-        onSome: (goal) => Effect.succeed(goal),
-      })
+
+      return yield* Effect.fromOption(result, () => GoalNotFoundError.make({ id }))
     })
 
-    const update = Effect.fn('GoalRepo.update')(function* (data: UserGoalUpdate, userId: string) {
+    const update = Effect.fn('goalRepo.update')(function* (data: UserGoalUpdate, userId: string) {
       // First get current values - include user_id check to prevent IDOR
       const current = yield* sql`
           SELECT id, user_id, goal_weight, starting_weight, starting_date,
@@ -205,8 +209,9 @@ export const GoalRepoLive = Layer.effect(
 
       const curr = yield* decodeGoalRow(current[0]).pipe(mapDbError(GoalDatabaseError, 'query'))
       const patch = goalUpdatePatch(data)
+
       if (patch.changesPlannedDates && curr.calendar_date_migrated !== 1) {
-        return yield* new SettingsTimezoneNotInitialized({ userId })
+        return yield* SettingsTimezoneNotInitialized.make({ userId })
       }
 
       const now = DateTime.formatIso(yield* DateTime.now)
@@ -256,23 +261,25 @@ export const GoalRepoLive = Layer.effect(
                 updated_at = ${now}
             WHERE id = ${data.id} AND user_id = ${userId}
           `
+
       yield* patchFields.pipe(mapDbError(GoalDatabaseError, 'update'))
 
       // Fetch updated
       const result = yield* findById(data.id, userId)
-      return yield* Option.match(result, {
-        onNone: () => Effect.fail(GoalNotFoundError.make({ id: data.id })),
-        onSome: (goal) => Effect.succeed(goal),
-      })
+
+      return yield* Effect.fromOption(result, () => GoalNotFoundError.make({ id: data.id }))
     })
 
-    const del = Effect.fn('GoalRepo.delete')(
+    const del = Effect.fn('goalRepo.delete')(
       function* (id: string, userId: string) {
         const existing = yield* sql`SELECT id FROM user_goals WHERE id = ${id} AND user_id = ${userId}`
+
         if (Arr.isReadonlyArrayEmpty(existing)) {
           return false
         }
+
         yield* sql`DELETE FROM user_goals WHERE id = ${id} AND user_id = ${userId}`
+
         return true
       },
       mapDbError(GoalDatabaseError, 'delete')

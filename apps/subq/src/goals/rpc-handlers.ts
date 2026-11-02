@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
 import { authedRpc, GoalRpcs } from '#shared'
-import type { GoalId, UserGoalCreate, UserGoalUpdate } from '#shared'
+import type { AuthUser, GoalId, UserGoalCreate, UserGoalUpdate } from '#shared'
 
 import { GoalRepo } from './goal-repo.js'
 import { GoalService } from './goal-service.js'
@@ -12,8 +12,8 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
     const goalRepo = yield* GoalRepo
     const goalService = yield* GoalService
 
-    const GoalGetActive = authedRpc('rpc.goal.getActive', (user) =>
-      Effect.gen(function* () {
+    const GoalGetActive = authedRpc(
+      Effect.fn('rpc.goal.getActive')(function* (user: AuthUser) {
         yield* Effect.logDebug('GoalGetActive called').pipe(
           Effect.annotateLogs({ rpc: 'GoalGetActive', userId: user.id })
         )
@@ -25,34 +25,37 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
             goalId: result?.id ?? 'none',
           })
         )
+
         return result
       })
     )
 
-    const GoalGet = authedRpc('rpc.goal.get', (user, { id }: { id: GoalId }) =>
-      Effect.gen(function* () {
+    const GoalGet = authedRpc(
+      Effect.fn('rpc.goal.get')(function* (user: AuthUser, { id }: { id: GoalId }) {
         yield* Effect.logDebug('GoalGet called').pipe(Effect.annotateLogs({ rpc: 'GoalGet', id }))
         const result = yield* goalRepo.findById(id, user.id).pipe(Effect.map(Option.getOrNull))
         yield* Effect.logDebug('GoalGet completed').pipe(
           Effect.annotateLogs({ rpc: 'GoalGet', id, found: result !== null })
         )
+
         return result
       })
     )
 
-    const GoalList = authedRpc('rpc.goal.list', (user) =>
-      Effect.gen(function* () {
+    const GoalList = authedRpc(
+      Effect.fn('rpc.goal.list')(function* (user: AuthUser) {
         yield* Effect.logDebug('GoalList called').pipe(Effect.annotateLogs({ rpc: 'GoalList', userId: user.id }))
         const result = yield* goalRepo.list(user.id)
         yield* Effect.logDebug('GoalList completed').pipe(
           Effect.annotateLogs({ rpc: 'GoalList', count: result.length })
         )
+
         return result
       })
     )
 
-    const GoalCreate = authedRpc('rpc.goal.create', (user, data: UserGoalCreate) =>
-      Effect.gen(function* () {
+    const GoalCreate = authedRpc(
+      Effect.fn('rpc.goal.create')(function* (user: AuthUser, data: UserGoalCreate) {
         yield* Effect.logInfo('GoalCreate called').pipe(
           Effect.annotateLogs({
             rpc: 'GoalCreate',
@@ -69,12 +72,13 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
             goalWeight: result.goalWeight,
           })
         )
+
         return result
       })
     )
 
-    const GoalUpdate = authedRpc('rpc.goal.update', (user, data: UserGoalUpdate) =>
-      Effect.gen(function* () {
+    const GoalUpdate = authedRpc(
+      Effect.fn('rpc.goal.update')(function* (user: AuthUser, data: UserGoalUpdate) {
         yield* Effect.logInfo('GoalUpdate called').pipe(
           Effect.annotateLogs({
             rpc: 'GoalUpdate',
@@ -85,23 +89,25 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
 
         const result = yield* goalService.updateGoal(user.id, data)
         yield* Effect.logInfo('GoalUpdate completed').pipe(Effect.annotateLogs({ rpc: 'GoalUpdate', id: data.id }))
+
         return result
       })
     )
 
-    const GoalDelete = authedRpc('rpc.goal.delete', (user, { id }: { id: GoalId }) =>
-      Effect.gen(function* () {
+    const GoalDelete = authedRpc(
+      Effect.fn('rpc.goal.delete')(function* (user: AuthUser, { id }: { id: GoalId }) {
         yield* Effect.logInfo('GoalDelete called').pipe(Effect.annotateLogs({ rpc: 'GoalDelete', id }))
         const result = yield* goalRepo.delete(id, user.id)
         yield* Effect.logInfo('GoalDelete completed').pipe(
           Effect.annotateLogs({ rpc: 'GoalDelete', id, deleted: result })
         )
+
         return result
       })
     )
 
-    const GoalGetProgress = authedRpc('rpc.goal.getProgress', (user) =>
-      Effect.gen(function* () {
+    const GoalGetProgress = authedRpc(
+      Effect.fn('rpc.goal.getProgress')(function* (user: AuthUser) {
         yield* Effect.logDebug('GoalGetProgress called').pipe(
           Effect.annotateLogs({ rpc: 'GoalGetProgress', userId: user.id })
         )
@@ -114,6 +120,7 @@ export const GoalRpcHandlersLive = GoalRpcs.toLayer(
             timezone: result.timezone,
           })
         )
+
         return result
       })
     )

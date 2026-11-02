@@ -1,11 +1,16 @@
 // @vitest-environment happy-dom
 import { assert, describe, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
-import { HttpClient, HttpClientError, HttpClientResponse } from 'effect/http'
-import type { HttpClientRequest } from 'effect/http'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientError from 'effect/http/HttpClientError'
+import type * as HttpClientRequest from 'effect/http/HttpClientRequest'
+import * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { changePassword, fetchSession, signIn, signOut, signUp } from '../src/adapter/better-auth-http.js'
 import { SignOut } from '../src/auth.js'
@@ -17,34 +22,45 @@ interface CannedResponse {
 
 const makeCannedClient = (respond: (request: HttpClientRequest.HttpClientRequest) => CannedResponse) => {
   const requests: Array<HttpClientRequest.HttpClientRequest> = []
+
   const client = HttpClient.make((request) => {
     requests.push(request)
     const response = respond(request)
     const init: ResponseInit = { status: response.status }
     const webResponse = response.body === undefined ? new Response(null, init) : Response.json(response.body, init)
+
     return Effect.succeed(HttpClientResponse.fromWeb(request, webResponse))
   })
+
   return { layer: Layer.succeed(HttpClient.HttpClient, client), requests }
 }
 
 const RequestBody = Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Boolean]))
+
 type RequestBody = typeof RequestBody.Type
 
-const requestJson = (request: HttpClientRequest.HttpClientRequest): RequestBody | undefined => {
-  if (request.body._tag !== 'Uint8Array') {
-    return undefined
-  }
-  return Schema.decodeUnknownSync(Schema.fromJsonString(RequestBody))(new TextDecoder().decode(request.body.body))
-}
+const decodeRequestBody = Schema.decodeEffect(Schema.fromJsonString(RequestBody))
+
+const requestJson = (
+  request: HttpClientRequest.HttpClientRequest
+): Effect.Effect<Option.Option<RequestBody>, Schema.SchemaError> =>
+  request.body._tag === 'Uint8Array'
+    ? decodeRequestBody(new TextDecoder().decode(request.body.body)).pipe(Effect.asSome)
+    : Effect.succeedNone
 
 const user = { email: 'person@example.com', id: 'user-1', name: 'Person' }
 
 describe('Better Auth HTTP adapter', () => {
   it.effect('uses the expected endpoint, method, and JSON body for every operation', () => {
     const canned = makeCannedClient((request) => {
-      if (request.url.endsWith('get-session') || request.url.includes('sign-in') || request.url.includes('sign-up')) {
+      if (
+        Str.endsWith('get-session')(request.url) ||
+        Str.includes('sign-in')(request.url) ||
+        Str.includes('sign-up')(request.url)
+      ) {
         return { body: { user }, status: 200 }
       }
+
       return { body: {}, status: 200 }
     })
 
@@ -56,7 +72,7 @@ describe('Better Auth HTTP adapter', () => {
       yield* changePassword('old-secret', 'new-secret')
 
       assert.deepStrictEqual(
-        canned.requests.map(({ method, url }) => ({ method, url })),
+        Arr.map(canned.requests, ({ method, url }) => ({ method, url })),
         [
           { method: 'GET', url: '/api/auth/get-session' },
           { method: 'POST', url: '/api/auth/sign-in/email' },
@@ -65,11 +81,11 @@ describe('Better Auth HTTP adapter', () => {
           { method: 'POST', url: '/api/auth/change-password' },
         ]
       )
-      assert.deepStrictEqual(canned.requests.slice(1).map(requestJson), [
-        { email: 'person@example.com', password: 'secret' },
-        { email: 'person@example.com', name: 'Person', password: 'secret' },
-        {},
-        { currentPassword: 'old-secret', newPassword: 'new-secret', revokeOtherSessions: true },
+      assert.deepStrictEqual(yield* Effect.forEach(Arr.drop(canned.requests, 1), requestJson), [
+        Option.some({ email: 'person@example.com', password: 'secret' }),
+        Option.some({ email: 'person@example.com', name: 'Person', password: 'secret' }),
+        Option.some({}),
+        Option.some({ currentPassword: 'old-secret', newPassword: 'new-secret', revokeOtherSessions: true }),
       ])
     }).pipe(Effect.provide(canned.layer))
   })
@@ -119,7 +135,8 @@ describe('Better Auth HTTP adapter', () => {
           })
         )
       )
-      const exit = yield* fetchSession().pipe(Effect.provide(Layer.succeed(HttpClient.HttpClient, client)), Effect.exit)
+
+      const exit = yield* fetchSession().pipe(Effect.provideService(HttpClient.HttpClient, client), Effect.exit)
       assert.isTrue(Exit.isFailure(exit))
     })
   )

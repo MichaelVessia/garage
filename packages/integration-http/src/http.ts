@@ -1,8 +1,12 @@
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
-import { HttpClientRequest, HttpClientResponse } from 'effect/http'
-import type { HttpClient } from 'effect/http'
+import type * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
+import * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import type * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
+
+import type { ErrorFailure } from './errors.js'
 
 // Shared HTTP-adapter pipeline for retained integration packages: build a URL
 // from a base plus optional fixed path/query values, apply integration-owned
@@ -13,8 +17,8 @@ type QueryParams = ReadonlyArray<readonly [string, string | number | boolean]>
 
 export interface JsonClientErrors<E> {
   readonly httpError: (status: number) => E
-  readonly unreachable: (message: string, cause?: unknown) => E
-  readonly decodeError: (message: string, cause?: unknown) => E
+  readonly unreachable: (failure: ErrorFailure) => E
+  readonly decodeError: (failure: ErrorFailure) => E
 }
 
 interface JsonClientConfig<E> {
@@ -38,12 +42,16 @@ export interface JsonClient<E> {
 }
 
 const normalizeBaseUrl = (baseUrl: string): string => {
-  const trimmed = baseUrl.trim()
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+  const trimmed = Str.trim(baseUrl)
+
+  return Str.endsWith('/')(trimmed) ? Str.slice(0, -1)(trimmed) : trimmed
 }
 
 const queryString = (params: QueryParams): string =>
-  params.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join('&')
+  Arr.join(
+    Arr.map(params, ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`),
+    '&'
+  )
 
 export const makeJsonClient = <E>(config: JsonClientConfig<E>): JsonClient<E> => {
   const basePath = config.basePath ?? ''
@@ -53,13 +61,14 @@ export const makeJsonClient = <E>(config: JsonClientConfig<E>): JsonClient<E> =>
   const endpoint = (path: string, query: QueryParams): string => {
     const search = queryString([...staticQuery, ...query])
     const base = `${normalizeBaseUrl(config.baseUrl)}${basePath}${path}`
+
     return Str.isEmpty(search) ? base : `${base}?${search}`
   }
 
   const execute = Effect.fnUntraced(function* (request: HttpClientRequest.HttpClientRequest) {
     const response = yield* config.client
       .execute(request)
-      .pipe(Effect.mapError((error) => unreachable(error.message, error)))
+      .pipe(Effect.mapError((error) => unreachable({ message: error.message, cause: error })))
 
     if (response.status < 200 || response.status >= 300) {
       return yield* Effect.fail(httpError(response.status))
@@ -68,7 +77,8 @@ export const makeJsonClient = <E>(config: JsonClientConfig<E>): JsonClient<E> =>
     return response
   })
 
-  const toDecodeError = (error: { readonly message: string }): E => decodeError(error.message, error)
+  const toDecodeError = (error: { readonly message: string }): E =>
+    decodeError({ message: error.message, cause: error })
 
   const decodeBody = <A, I, RD, RE>(
     response: HttpClientResponse.HttpClientResponse,

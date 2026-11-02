@@ -5,8 +5,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
-import type { SqlConnection } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
+import type * as SqlConnection from 'effect/sql/SqlConnection'
 import * as Str from 'effect/String'
 
 import {
@@ -34,18 +34,19 @@ import { randomUuid } from '../shared/common/random-uuid.js'
 export const WeightLogRow = Schema.Struct({
   id: Schema.String,
   datetime: Schema.String,
-  weight: Schema.Number,
+  weight: Schema.Finite,
   notes: Schema.NullOr(Schema.String),
   created_at: Schema.String,
   updated_at: Schema.String,
 })
+
 export type WeightLogRow = typeof WeightLogRow.Type
 
 const decodeRow = Schema.decodeUnknownEffect(WeightLogRow)
 
 // Transform DB row to domain object using branded type constructors
-export const rowToDomain = (row: typeof WeightLogRow.Type): WeightLog =>
-  new WeightLog({
+export const rowToDomain = (row: WeightLogRow): WeightLog =>
+  WeightLog.make({
     id: WeightLogId.make(row.id),
     datetime: DateTime.makeUnsafe(row.datetime),
     weight: Weight.make(row.weight),
@@ -65,10 +66,13 @@ const decodeAndTransform = (raw: Option.Option<SqlConnection.Row>) =>
 export class WeightLogRepo extends Context.Service<
   WeightLogRepo,
   {
-    readonly list: (params: WeightLogListParams, userId: string) => Effect.Effect<WeightLog[], WeightLogDatabaseError>
+    readonly list: (
+      params: WeightLogListParams,
+      userId: string
+    ) => Effect.Effect<Array<WeightLog>, WeightLogDatabaseError>
     readonly findById: (id: string, userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
     /** Complete weight history for a user in ascending datetime order. */
-    readonly listChronological: (userId: string) => Effect.Effect<WeightLog[], WeightLogDatabaseError>
+    readonly listChronological: (userId: string) => Effect.Effect<Array<WeightLog>, WeightLogDatabaseError>
     /** Most recently logged weight entry for a user. */
     readonly mostRecent: (userId: string) => Effect.Effect<Option.Option<WeightLog>, WeightLogDatabaseError>
     /** Weight entry whose projected local date is nearest to the planned date. */
@@ -95,31 +99,29 @@ export const WeightLogRepoLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const list = Effect.fn('WeightLogRepo.list')(
+    const list = Effect.fn('weightLogRepo.list')(
       function* (params: WeightLogListParams, userId: string) {
         // Convert DateTime params to ISO strings for SQLite comparison
-        const startDateStr = params.startDate !== undefined ? DateTime.formatIso(params.startDate) : undefined
-        const endDateStr = params.endDate !== undefined ? DateTime.formatIso(params.endDate) : undefined
+        const startDateStr = params.startDate === undefined ? undefined : DateTime.formatIso(params.startDate)
+        const endDateStr = params.endDate === undefined ? undefined : DateTime.formatIso(params.endDate)
 
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE user_id = ${userId}
-          ${startDateStr !== undefined ? sql`AND datetime >= ${startDateStr}` : sql``}
-          ${endDateStr !== undefined ? sql`AND datetime <= ${endDateStr}` : sql``}
+          ${startDateStr === undefined ? sql`` : sql`AND datetime >= ${startDateStr}`}
+          ${endDateStr === undefined ? sql`` : sql`AND datetime <= ${endDateStr}`}
           ORDER BY datetime DESC
           LIMIT ${params.limit}
           OFFSET ${params.offset}
         `
-        return yield* Effect.all(
-          rows.map((row) => decodeAndTransform(Option.some(row))),
-          { concurrency: 1 }
-        )
+
+        return yield* Effect.forEach(rows, (row) => decodeAndTransform(Option.some(row)), { concurrency: 1 })
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )
 
-    const listChronological = Effect.fn('WeightLogRepo.listChronological')(
+    const listChronological = Effect.fn('weightLogRepo.listChronological')(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
@@ -127,31 +129,32 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE user_id = ${userId}
           ORDER BY datetime ASC
         `
-        return yield* Effect.all(
-          rows.map((row) => decodeAndTransform(Option.some(row))),
-          { concurrency: 1 }
-        )
+
+        return yield* Effect.forEach(rows, (row) => decodeAndTransform(Option.some(row)), { concurrency: 1 })
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )
 
-    const findById = Effect.fn('WeightLogRepo.findById')(
+    const findById = Effect.fn('weightLogRepo.findById')(
       function* (id: string, userId: string) {
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
           FROM weight_logs
           WHERE id = ${id} AND user_id = ${userId}
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
+
         const decoded = yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
+
         return Option.some(decoded)
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )
 
-    const mostRecent = Effect.fn('WeightLogRepo.mostRecent')(
+    const mostRecent = Effect.fn('weightLogRepo.mostRecent')(
       function* (userId: string) {
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
@@ -160,16 +163,19 @@ export const WeightLogRepoLive = Layer.effect(
           ORDER BY datetime DESC
           LIMIT 1
         `
+
         if (Arr.isReadonlyArrayEmpty(rows)) {
           return Option.none()
         }
+
         const decoded = yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
+
         return Option.some(decoded)
       },
       mapDbError(WeightLogDatabaseError, 'query')
     )
 
-    const nearestToDate = Effect.fn('WeightLogRepo.nearestToDate')(
+    const nearestToDate = Effect.fn('weightLogRepo.nearestToDate')(
       function* (userId: string, date: CalendarDate, timezone: IanaTimezone) {
         const rows = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
@@ -177,16 +183,16 @@ export const WeightLogRepoLive = Layer.effect(
           WHERE user_id = ${userId}
           ORDER BY datetime ASC
         `
-        const entries = yield* Effect.all(
-          rows.map((row) => decodeAndTransform(Option.some(row))),
-          { concurrency: 1 }
-        )
+
+        const entries = yield* Effect.forEach(rows, (row) => decodeAndTransform(Option.some(row)), { concurrency: 1 })
+
         return Arr.reduce(
           entries,
           Option.none<{ readonly distance: number; readonly entry: WeightLog }>(),
           (best, entry) => {
             const entryDate = projectInstantToCalendarDate(entry.datetime, timezone)
             const candidate = { distance: Math.abs(calendarDaysBetween(date, entryDate)), entry }
+
             return Option.match(best, {
               onNone: () => Option.some(candidate),
               onSome: (previous) => Option.some(candidate.distance < previous.distance ? candidate : previous),
@@ -197,7 +203,7 @@ export const WeightLogRepoLive = Layer.effect(
       mapDbError(WeightLogDatabaseError, 'query')
     )
 
-    const create = Effect.fn('WeightLogRepo.create')(
+    const create = Effect.fn('weightLogRepo.create')(
       function* (data: WeightLogCreate, userId: string) {
         const id = yield* randomUuid()
         const notes = Option.isSome(data.notes) ? data.notes.value : null
@@ -215,12 +221,13 @@ export const WeightLogRepoLive = Layer.effect(
           FROM weight_logs
           WHERE id = ${id}
         `
+
         return yield* decodeAndTransform(Option.fromUndefinedOr(rows[0]))
       },
       mapDbError(WeightLogDatabaseError, 'insert')
     )
 
-    const update = Effect.fn('WeightLogRepo.update')(function* (data: WeightLogUpdate, userId: string) {
+    const update = Effect.fn('weightLogRepo.update')(function* (data: WeightLogUpdate, userId: string) {
       // First get current values - include user_id check to prevent IDOR
       const current = yield* sql`
           SELECT id, datetime, weight, notes, created_at, updated_at
@@ -232,7 +239,7 @@ export const WeightLogRepoLive = Layer.effect(
       }
 
       const curr = yield* decodeRow(current[0]).pipe(mapDbError(WeightLogDatabaseError, 'query'))
-      const newDatetime = data.datetime !== undefined ? DateTime.formatIso(data.datetime) : curr.datetime
+      const newDatetime = data.datetime === undefined ? curr.datetime : DateTime.formatIso(data.datetime)
       const newWeight = data.weight ?? curr.weight
       const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
       const now = DateTime.formatIso(yield* DateTime.now)
@@ -258,15 +265,17 @@ export const WeightLogRepoLive = Layer.effect(
       )
     })
 
-    const del = Effect.fn('WeightLogRepo.delete')(
+    const del = Effect.fn('weightLogRepo.delete')(
       function* (id: string, userId: string) {
         // Check if exists and belongs to user
         const existing = yield* sql`SELECT id FROM weight_logs WHERE id = ${id} AND user_id = ${userId}`
+
         if (Arr.isReadonlyArrayEmpty(existing)) {
           return false
         }
 
         yield* sql`DELETE FROM weight_logs WHERE id = ${id} AND user_id = ${userId}`
+
         return true
       },
       mapDbError(WeightLogDatabaseError, 'delete')

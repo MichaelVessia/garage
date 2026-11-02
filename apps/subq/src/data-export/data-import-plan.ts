@@ -12,7 +12,7 @@ export interface DataImportPlan {
 
 const invalidImport = (message: string) => Effect.fail(DataImportError.make({ message }))
 
-export const planDataImport = Effect.fn('DataImportPlan.planDataImport')(function* (snapshot: DataExport) {
+export const planDataImport = Effect.fn('dataImportPlan.planDataImport')(function* (snapshot: DataExport) {
   const scheduleIds = HashSet.fromIterable(Arr.map(snapshot.data.schedules, (schedule) => schedule.id))
 
   yield* Effect.forEach(
@@ -21,9 +21,9 @@ export const planDataImport = Effect.fn('DataImportPlan.planDataImport')(functio
       Effect.forEach(
         schedule.phases,
         (phase) =>
-          phase.scheduleId !== schedule.id
-            ? invalidImport(`Phase ${phase.id} references schedule ${phase.scheduleId}, expected ${schedule.id}`)
-            : Effect.void,
+          phase.scheduleId === schedule.id
+            ? Effect.void
+            : invalidImport(`Phase ${phase.id} references schedule ${phase.scheduleId}, expected ${schedule.id}`),
         { concurrency: 1 }
       ),
     { concurrency: 1 }
@@ -40,7 +40,7 @@ export const planDataImport = Effect.fn('DataImportPlan.planDataImport')(functio
 
   return {
     snapshot,
-    result: new DataImportResult({
+    result: DataImportResult.make({
       weightLogs: snapshot.data.weightLogs.length,
       injectionLogs: snapshot.data.injectionLogs.length,
       schedules: snapshot.data.schedules.length,

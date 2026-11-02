@@ -25,10 +25,9 @@ const GarageToolkit = Toolkit.merge(SabnzbdToolkit, AutocaliwebToolkit)
 
 const GarageToolkitHandlers = Layer.merge(SabnzbdToolkitHandlers, AutocaliwebToolkitHandlers)
 
-const GarageToolsMcp = McpServer.toolkit(GarageToolkit).pipe(
-  Layer.provideMerge(GarageToolkitHandlers),
-  Layer.provide(McpHttp)
-)
+const GarageTools = McpServer.toolkit(GarageToolkit).pipe(Layer.provideMerge(GarageToolkitHandlers))
+
+const GarageToolsMcp = GarageTools.pipe(Layer.provide(McpHttp))
 
 const HealthRoute = HttpRouter.add('GET', '/health', HttpServerResponse.jsonUnsafe({ status: 'ready' }))
 

@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
 import { authedRpc, StatsRpcs } from '#shared'
-import type { StatsParams } from '#shared'
+import type { AuthUser, StatsParams } from '#shared'
 
 import { StatsService } from './stats-service.js'
 
@@ -10,8 +10,8 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
   Effect.gen(function* () {
     const service = yield* StatsService
 
-    const GetWeightStats = authedRpc('rpc.stats.getWeightStats', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetWeightStats = authedRpc(
+      Effect.fn('rpc.stats.getWeightStats')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetWeightStats called').pipe(
           Effect.annotateLogs({
             rpc: 'GetWeightStats',
@@ -24,12 +24,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         yield* Effect.logDebug('GetWeightStats completed').pipe(
           Effect.annotateLogs({ rpc: 'GetWeightStats', hasData: Option.isSome(result.data), timezone: result.timezone })
         )
+
         return { data: Option.getOrNull(result.data), timezone: result.timezone }
       })
     )
 
-    const GetWeightTrend = authedRpc('rpc.stats.getWeightTrend', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetWeightTrend = authedRpc(
+      Effect.fn('rpc.stats.getWeightTrend')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetWeightTrend called').pipe(
           Effect.annotateLogs({ rpc: 'GetWeightTrend', userId: user.id })
         )
@@ -37,12 +38,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         yield* Effect.logDebug('GetWeightTrend completed').pipe(
           Effect.annotateLogs({ rpc: 'GetWeightTrend', points: result.data.points.length, timezone: result.timezone })
         )
+
         return result
       })
     )
 
-    const GetInjectionSiteStats = authedRpc('rpc.stats.getInjectionSiteStats', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetInjectionSiteStats = authedRpc(
+      Effect.fn('rpc.stats.getInjectionSiteStats')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetInjectionSiteStats called').pipe(
           Effect.annotateLogs({ rpc: 'GetInjectionSiteStats', userId: user.id })
         )
@@ -54,12 +56,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
             timezone: result.timezone,
           })
         )
+
         return result
       })
     )
 
-    const GetDoseHistory = authedRpc('rpc.stats.getDoseHistory', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetDoseHistory = authedRpc(
+      Effect.fn('rpc.stats.getDoseHistory')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetDoseHistory called').pipe(
           Effect.annotateLogs({ rpc: 'GetDoseHistory', userId: user.id })
         )
@@ -67,12 +70,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
         yield* Effect.logDebug('GetDoseHistory completed').pipe(
           Effect.annotateLogs({ rpc: 'GetDoseHistory', points: result.data.points.length, timezone: result.timezone })
         )
+
         return result
       })
     )
 
-    const GetInjectionFrequency = authedRpc('rpc.stats.getInjectionFrequency', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetInjectionFrequency = authedRpc(
+      Effect.fn('rpc.stats.getInjectionFrequency')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetInjectionFrequency called').pipe(
           Effect.annotateLogs({ rpc: 'GetInjectionFrequency', userId: user.id })
         )
@@ -84,12 +88,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
             timezone: result.timezone,
           })
         )
+
         return { data: Option.getOrNull(result.data), timezone: result.timezone }
       })
     )
 
-    const GetDrugBreakdown = authedRpc('rpc.stats.getDrugBreakdown', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetDrugBreakdown = authedRpc(
+      Effect.fn('rpc.stats.getDrugBreakdown')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetDrugBreakdown called').pipe(
           Effect.annotateLogs({ rpc: 'GetDrugBreakdown', userId: user.id })
         )
@@ -101,12 +106,13 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
             timezone: result.timezone,
           })
         )
+
         return result
       })
     )
 
-    const GetInjectionByDayOfWeek = authedRpc('rpc.stats.getInjectionByDayOfWeek', (user, params: StatsParams) =>
-      Effect.gen(function* () {
+    const GetInjectionByDayOfWeek = authedRpc(
+      Effect.fn('rpc.stats.getInjectionByDayOfWeek')(function* (user: AuthUser, params: StatsParams) {
         yield* Effect.logDebug('GetInjectionByDayOfWeek called').pipe(
           Effect.annotateLogs({ rpc: 'GetInjectionByDayOfWeek', userId: user.id })
         )
@@ -118,6 +124,7 @@ export const StatsRpcHandlersLive = StatsRpcs.toLayer(
             timezone: result.timezone,
           })
         )
+
         return result
       })
     )

@@ -2,12 +2,14 @@ import type { Event, EventDateTime } from '@distilled.cloud/google-workspace/cal
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as Function from 'effect/Function'
 import * as HashMap from 'effect/HashMap'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { CalendarDate, calendarDateStartUtc } from '#shared'
 import type { AllDayEvent, CalendarEvent, EventColor, IanaTimezone, TimedEvent } from '#shared'
@@ -33,10 +35,7 @@ const COLORS = HashMap.fromIterable<string, EventColor>(
 )
 
 const text = (value: Option.Option<string>): Option.Option<string> =>
-  Option.filter(
-    Option.map(value, (raw) => raw.trim()),
-    (trimmed) => trimmed !== ''
-  )
+  Option.filter(Option.map(value, Str.trim), (trimmed) => trimmed !== '')
 
 const decodeDate = Schema.decodeUnknownOption(CalendarDate)
 
@@ -67,10 +66,12 @@ const toCalendarEvent = (event: Event): Option.Option<CalendarEvent> =>
         Option.getOrNull
       ),
     }
+
     const startTime = Option.fromNullishOr(event.start)
     const endTime = Option.fromNullishOr(event.end)
     const timed = Option.all({ start: instantOf(startTime), end: instantOf(endTime) })
     const allDay = Option.all({ startDate: dateOf(startTime), endDate: dateOf(endTime) })
+
     return Option.orElse(
       Option.map(timed, ({ start, end }): TimedEvent => ({ _tag: 'TimedEvent', ...details, start, end })),
       () =>
@@ -92,26 +93,36 @@ const startOf = (event: CalendarEvent, timezone: IanaTimezone): DateTime.Utc =>
 const byStart = (timezone: IanaTimezone): Order.Order<CalendarEvent> =>
   Order.mapInput(DateTime.Order, (event: CalendarEvent) => startOf(event, timezone))
 
+/** The RFC 3339 bounds of an events request. */
+interface ListWindow {
+  readonly timeMin: string
+  readonly timeMax: string
+}
+
 /** The request window Google Calendar expects for `range`. */
-export const listWindow = (range: InstantRange) => ({
+export const listWindow = (range: InstantRange): ListWindow => ({
   timeMin: DateTime.formatIso(range.start),
   timeMax: DateTime.formatIso(range.end),
 })
+
+type OccurrencesEffect = Effect.Effect<ReadonlyArray<CalendarEvent>, ReturnType<typeof calendarDecodeError>>
 
 /**
  * Map expanded Google Calendar events to occurrences sorted by start, placing all-day events in the frame timezone.
  * Cancelled instances are dropped; an event without a usable start and end fails the whole response.
  */
-export const toOccurrences = (
-  events: ReadonlyArray<Event>,
-  timezone: IanaTimezone
-): Effect.Effect<ReadonlyArray<CalendarEvent>, ReturnType<typeof calendarDecodeError>> =>
+export const toOccurrences: {
+  (timezone: IanaTimezone): (events: ReadonlyArray<Event>) => OccurrencesEffect
+  (events: ReadonlyArray<Event>, timezone: IanaTimezone): OccurrencesEffect
+} = Function.dual(2, (events: ReadonlyArray<Event>, timezone: IanaTimezone): OccurrencesEffect =>
   Effect.forEach(
     Arr.filter(events, (event) => event.status !== 'cancelled'),
     (event) =>
-      Option.match(toCalendarEvent(event), {
-        onNone: () => Effect.fail(calendarDecodeError('Google Calendar returned an event without a usable time')),
-        onSome: Effect.succeed,
-      }),
+      Effect.fromOption(toCalendarEvent(event)).pipe(
+        Effect.mapError(() =>
+          calendarDecodeError({ message: 'Google Calendar returned an event without a usable time' })
+        )
+      ),
     { concurrency: 1 }
   ).pipe(Effect.map((occurrences) => Arr.sort(occurrences, byStart(timezone))))
+)

@@ -1,11 +1,13 @@
 import { makeJsonClient } from '@garage/integration-http'
 import type { JsonClient } from '@garage/integration-http'
 import * as Effect from 'effect/Effect'
-import { HttpClient, HttpClientRequest } from 'effect/http'
-import type { HttpClientResponse } from 'effect/http'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
+import type * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
+import * as Str from 'effect/String'
 
 import { BookInfoSchema, StatsSchema } from './api-schema.js'
 import { decodeError, httpError, unreachable } from './errors.js'
@@ -16,8 +18,9 @@ import type { OpdsFeed } from './opds.js'
 import { AutocaliwebApi, AutocaliwebConfig } from './services.js'
 
 const normalizeBaseUrl = (baseUrl: string): string => {
-  const trimmed = baseUrl.trim()
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+  const trimmed = Str.trim(baseUrl)
+
+  return Str.endsWith('/')(trimmed) ? Str.slice(0, -1)(trimmed) : trimmed
 }
 
 // OPDS pagination hands back either a relative path or an absolute
@@ -27,20 +30,21 @@ const normalizeBaseUrl = (baseUrl: string): string => {
 const feedUrl = Effect.fn('autocaliweb.feedUrl')(function* (config: AutocaliwebConfigValue, path: string) {
   const baseUrl = yield* Effect.try({
     try: () => new URL(normalizeBaseUrl(config.url)),
-    catch: (cause) => decodeError('AutoCaliWeb base URL is invalid.', cause),
+    catch: (cause) => decodeError({ message: 'AutoCaliWeb base URL is invalid.', cause }),
   })
+
   const candidate = yield* Effect.try({
     try: () =>
       new URL(
-        path.startsWith('http://') || path.startsWith('https://')
+        Str.startsWith('http://')(path) || Str.startsWith('https://')(path)
           ? path
-          : `${normalizeBaseUrl(config.url)}${path.startsWith('/') ? path : `/${path}`}`
+          : `${normalizeBaseUrl(config.url)}${Str.startsWith('/')(path) ? path : `/${path}`}`
       ),
-    catch: (cause) => decodeError('AutoCaliWeb returned an invalid OPDS pagination URL.', cause),
+    catch: (cause) => decodeError({ message: 'AutoCaliWeb returned an invalid OPDS pagination URL.', cause }),
   })
 
   if (candidate.origin !== baseUrl.origin || candidate.username !== '' || candidate.password !== '') {
-    return yield* decodeError('AutoCaliWeb returned a cross-origin OPDS pagination URL.')
+    return yield* decodeError({ message: 'AutoCaliWeb returned a cross-origin OPDS pagination URL.' })
   }
 
   return candidate.href
@@ -59,7 +63,7 @@ const httpClientFor = (client: HttpClient.HttpClient, config: AutocaliwebConfigV
   })
 
 const responseText = (response: HttpClientResponse.HttpClientResponse): Effect.Effect<string, AutocaliwebError> =>
-  response.text.pipe(Effect.mapError((cause) => decodeError(cause.message, cause)))
+  response.text.pipe(Effect.mapError((cause) => decodeError({ message: cause.message, cause })))
 
 const getFeed = (
   http: JsonClient<AutocaliwebError>,
@@ -75,7 +79,7 @@ const getFeed = (
       )
     ),
     Effect.flatMap(responseText),
-    Effect.flatMap((xml) => parseOpdsFeed(config.url, xml))
+    Effect.flatMap(parseOpdsFeed(config.url))
   )
 
 const loadStats = (http: JsonClient<AutocaliwebError>) => http.getJson('/opds/stats', StatsSchema)
@@ -101,6 +105,7 @@ const collectBookFeed = (
       Effect.withSpan('autocaliweb.collectOpdsPage'),
       Effect.flatMap((feed) => {
         const nextRecords = [...records, ...feed.books].slice(0, limit)
+
         return Option.match(feed.nextHref, {
           onNone: () => Effect.succeed(nextRecords),
           onSome: (nextHref) =>
@@ -117,30 +122,30 @@ export const AutocaliwebApiLive = Layer.effect(
   Effect.gen(function* () {
     const autocaliwebConfig = yield* AutocaliwebConfig
     const client = yield* HttpClient.HttpClient
+
     const withConfig = <A, E>(
       f: (http: JsonClient<AutocaliwebError>, config: AutocaliwebConfigValue) => Effect.Effect<A, E>
-    ) => autocaliwebConfig.get().pipe(Effect.flatMap((config) => f(httpClientFor(client, config), config)))
+    ) => autocaliwebConfig.get.pipe(Effect.flatMap((config) => f(httpClientFor(client, config), config)))
 
     return AutocaliwebApi.of({
-      status: () =>
-        withConfig(
-          Effect.fn('AutocaliwebApi.status.configured')(function* (http, config) {
-            const feed = yield* getFeed(http, config, '/opds')
-            const statRecords = yield* loadStats(http)
-            yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
-            return {
-              title: Option.getOrUndefined(feed.title),
-              updated: Option.getOrUndefined(feed.updated),
-              catalogCount: feed.navigation.length,
-              stats: statRecords,
-            }
-          })
-        ),
-      stats: () => withConfig((http) => loadStats(http)),
-      catalog: () =>
-        withConfig((http, config) =>
-          getFeed(http, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
-        ),
+      status: withConfig(
+        Effect.fn('autocaliweb.api.status')(function* (http, config) {
+          const feed = yield* getFeed(http, config, '/opds')
+          const statRecords = yield* loadStats(http)
+          yield* Effect.annotateCurrentSpan({ 'autocaliweb.route_count': feed.navigation.length })
+
+          return {
+            title: Option.getOrUndefined(feed.title),
+            updated: Option.getOrUndefined(feed.updated),
+            catalogCount: feed.navigation.length,
+            stats: statRecords,
+          }
+        })
+      ),
+      stats: withConfig((http) => loadStats(http)),
+      catalog: withConfig((http, config) =>
+        getFeed(http, config, '/opds').pipe(Effect.map((feed) => toListResult(feed.navigation)))
+      ),
       books: (options) =>
         withConfig((http, config) => collectBookFeed(http, config, '/opds/books/letter/00', options.limit)),
       recent: (options) => withConfig((http, config) => collectBookFeed(http, config, '/opds/new', options.limit)),
@@ -149,18 +154,18 @@ export const AutocaliwebApiLive = Layer.effect(
           getFeed(http, config, withQuery('/opds/search', options.query)).pipe(
             Effect.map((feed) => {
               const records = feed.books.slice(0, options.limit)
+
               return { query: options.query, total: feed.books.length, count: records.length, records }
             })
           )
         ),
       bookInfo: (options) =>
         withConfig((http) => http.getJson(`/ajax/book/${encodeURIComponent(options.uuid)}`, BookInfoSchema)),
-      shelves: () =>
-        withConfig((http, config) =>
-          getFeed(http, config, '/opds/shelfindex').pipe(
-            Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
-          )
-        ),
+      shelves: withConfig((http, config) =>
+        getFeed(http, config, '/opds/shelfindex').pipe(
+          Effect.map((feed): ListResult<CatalogEntry> => toListResult(feed.navigation))
+        )
+      ),
     })
   })
 )

@@ -8,7 +8,7 @@ export interface DownloadTextFileOptions {
   readonly mediaType: string
 }
 
-const browserDownloadError = () => new BrowserDownloadError({ message: 'Browser download failed' })
+const browserDownloadError = () => BrowserDownloadError.make({ message: 'Browser download failed' })
 
 const attempt = <A>(evaluate: () => A): Effect.Effect<A, BrowserDownloadError> =>
   Effect.try({ catch: browserDownloadError, try: evaluate })
@@ -18,6 +18,7 @@ export const downloadTextFile = Effect.fn('browserDownload.downloadTextFile')(
     Effect.scoped(
       Effect.gen(function* () {
         const blob = yield* attempt(() => new Blob([contents], { type: mediaType }))
+
         const url = yield* Effect.acquireRelease(
           attempt(() => URL.createObjectURL(blob)),
           (objectUrl) =>
@@ -28,12 +29,14 @@ export const downloadTextFile = Effect.fn('browserDownload.downloadTextFile')(
               Effect.ignore
             )
         )
+
         const anchor = yield* Effect.acquireRelease(
           attempt(() => {
             const element = globalThis.document.createElement('a')
             element.href = url
             element.download = filename
             globalThis.document.body.append(element)
+
             return element
           }),
           (element) =>
@@ -44,6 +47,7 @@ export const downloadTextFile = Effect.fn('browserDownload.downloadTextFile')(
               Effect.ignore
             )
         )
+
         yield* attempt(() => {
           anchor.click()
         })

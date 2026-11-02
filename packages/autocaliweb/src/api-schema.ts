@@ -11,10 +11,10 @@ const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
 const StringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
 const StatsApi = Schema.Struct({
-  books: Schema.Number,
-  authors: Schema.Number,
-  categories: Schema.Number,
-  series: Schema.Number,
+  books: Schema.Int,
+  authors: Schema.Int,
+  categories: Schema.Int,
+  series: Schema.Int,
 })
 
 export const StatsSchema = StatsApi.pipe(Schema.decodeTo(DomainStatsResult))
@@ -29,11 +29,11 @@ const BookInfoApi = Schema.Struct({
   languages: StringArray,
   comments: NullableString,
   tags: StringArray,
-  application_id: Schema.Number,
+  application_id: Schema.Int,
   last_modified: NullableString,
   author_sort: NullableString,
   uuid: Schema.String,
-  rating: Schema.Union([Schema.String, Schema.Number]),
+  rating: Schema.Union([Schema.String, Schema.Finite]),
   authors: StringArray,
   title_sort: NullableString,
   main_format: Schema.optional(MainFormat),
@@ -50,6 +50,7 @@ const bookInfoRecordFromApi = (book: typeof BookInfoApi.Type): BookInfoRecord =>
     ...fromFormats(Option.fromNullishOr(book.main_format)),
     ...fromFormats(Option.fromNullishOr(book.other_formats)),
   ]
+
   return {
     id: String(book.application_id),
     uuid: book.uuid,

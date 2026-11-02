@@ -14,8 +14,10 @@ import { loadModelDefault, persistModelDefault } from '../src/session-model-defa
 const platformLayer = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)
 
 const runEffect = function <A, E>(effect: Effect.Effect<A, E>): Promise<A> {
+  // oxlint-disable no-restricted-properties -- Pi invokes extension callbacks as Promise-returning entry points; this adapter edge runs their Effect programs.
   // ast-grep-ignore: no-runpromise-in-effect
   return Effect.runPromise(effect)
+  // oxlint-enable no-restricted-properties
 }
 
 /** Keep Ctrl+P model cycling local to the active Pi session. */

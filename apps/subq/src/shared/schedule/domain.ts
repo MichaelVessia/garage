@@ -9,10 +9,12 @@ import { DoseMg, MedicationCompound, Notes, Supplier } from '../common/domain.js
 
 /** UUID identifier for injection schedules */
 export const InjectionScheduleId = Schema.String.pipe(Schema.brand('InjectionScheduleId'))
+
 export type InjectionScheduleId = typeof InjectionScheduleId.Type
 
 /** UUID identifier for schedule phases */
 export const SchedulePhaseId = Schema.String.pipe(Schema.brand('SchedulePhaseId'))
+
 export type SchedulePhaseId = typeof SchedulePhaseId.Type
 
 // ============================================
@@ -21,18 +23,22 @@ export type SchedulePhaseId = typeof SchedulePhaseId.Type
 
 /** Schedule name/label */
 export const ScheduleName = Schema.NonEmptyString.pipe(Schema.brand('ScheduleName'))
+
 export type ScheduleName = typeof ScheduleName.Type
 
 /** Frequency of injections (e.g., "weekly", "every 3 days") */
 export const Frequency = Schema.Literals(['daily', 'every_3_days', 'weekly', 'every_2_weeks', 'monthly'] as const)
+
 export type Frequency = typeof Frequency.Type
 
 /** Phase order number (1-based) */
 export const PhaseOrder = Schema.Int.check(Schema.isGreaterThan(0)).pipe(Schema.brand('PhaseOrder'))
+
 export type PhaseOrder = typeof PhaseOrder.Type
 
 /** Duration in days for a phase */
 export const PhaseDurationDays = Schema.Int.check(Schema.isGreaterThan(0)).pipe(Schema.brand('PhaseDurationDays'))
+
 export type PhaseDurationDays = typeof PhaseDurationDays.Type
 
 // ============================================
@@ -48,7 +54,7 @@ export type PhaseDurationDays = typeof PhaseDurationDays.Type
  * E.g., "Month 1: 2.5 mg weekly" would be one phase.
  * If durationDays is null, the phase is indefinite (maintenance phase).
  */
-export class SchedulePhase extends Schema.Class<SchedulePhase>('SchedulePhase')({
+export class SchedulePhase extends Schema.Class<SchedulePhase, { readonly brand: unique symbol }>('SchedulePhase')({
   id: SchedulePhaseId,
   scheduleId: InjectionScheduleId,
   order: PhaseOrder,
@@ -58,7 +64,9 @@ export class SchedulePhase extends Schema.Class<SchedulePhase>('SchedulePhase')(
   updatedAt: Schema.DateTimeUtc,
 }) {}
 
-export class SchedulePhaseCreate extends Schema.Class<SchedulePhaseCreate>('SchedulePhaseCreate')({
+export class SchedulePhaseCreate extends Schema.Class<SchedulePhaseCreate, { readonly brand: unique symbol }>(
+  'SchedulePhaseCreate'
+)({
   order: PhaseOrder,
   durationDays: Schema.NullOr(PhaseDurationDays),
   doseMg: DoseMg,
@@ -72,7 +80,9 @@ export class SchedulePhaseCreate extends Schema.Class<SchedulePhaseCreate>('Sche
  * An injection schedule tracks a user's prescribed injection regimen.
  * Contains multiple phases for titration schedules.
  */
-export class InjectionSchedule extends Schema.Class<InjectionSchedule>('InjectionSchedule')({
+export class InjectionSchedule extends Schema.Class<InjectionSchedule, { readonly brand: unique symbol }>(
+  'InjectionSchedule'
+)({
   id: InjectionScheduleId,
   name: ScheduleName,
   drug: MedicationCompound,
@@ -89,7 +99,9 @@ export class InjectionSchedule extends Schema.Class<InjectionSchedule>('Injectio
 /**
  * Payload for creating a new injection schedule.
  */
-export class InjectionScheduleCreate extends Schema.Class<InjectionScheduleCreate>('InjectionScheduleCreate')({
+export class InjectionScheduleCreate extends Schema.Class<InjectionScheduleCreate, { readonly brand: unique symbol }>(
+  'InjectionScheduleCreate'
+)({
   name: ScheduleName,
   drug: MedicationCompound,
   supplier: Schema.OptionFromOptional(Supplier),
@@ -102,7 +114,9 @@ export class InjectionScheduleCreate extends Schema.Class<InjectionScheduleCreat
 /**
  * Payload for updating an existing injection schedule.
  */
-export class InjectionScheduleUpdate extends Schema.Class<InjectionScheduleUpdate>('InjectionScheduleUpdate')({
+export class InjectionScheduleUpdate extends Schema.Class<InjectionScheduleUpdate, { readonly brand: unique symbol }>(
+  'InjectionScheduleUpdate'
+)({
   id: InjectionScheduleId,
   name: Schema.optional(ScheduleName),
   drug: Schema.optional(MedicationCompound),
@@ -117,7 +131,9 @@ export class InjectionScheduleUpdate extends Schema.Class<InjectionScheduleUpdat
 /**
  * Payload for deleting an injection schedule.
  */
-export class InjectionScheduleDelete extends Schema.Class<InjectionScheduleDelete>('InjectionScheduleDelete')({
+export class InjectionScheduleDelete extends Schema.Class<InjectionScheduleDelete, { readonly brand: unique symbol }>(
+  'InjectionScheduleDelete'
+)({
   id: InjectionScheduleId,
 }) {}
 
@@ -128,19 +144,23 @@ export class InjectionScheduleDelete extends Schema.Class<InjectionScheduleDelet
 /**
  * Represents the next scheduled dose for a user.
  */
-export class NextScheduledDose extends Schema.Class<NextScheduledDose>('NextScheduledDose')({
+export class NextScheduledDose extends Schema.Class<NextScheduledDose, { readonly brand: unique symbol }>(
+  'NextScheduledDose'
+)({
   scheduleId: InjectionScheduleId,
   scheduleName: ScheduleName,
   drug: MedicationCompound,
   doseMg: DoseMg,
   suggestedDate: CalendarDate,
   currentPhase: PhaseOrder,
-  totalPhases: Schema.Number,
-  daysUntilDue: Schema.Number,
+  totalPhases: Schema.Int,
+  daysUntilDue: Schema.Int,
   isOverdue: Schema.Boolean,
 }) {}
 
-export class NextScheduledDoseResult extends Schema.Class<NextScheduledDoseResult>('NextScheduledDoseResult')({
+export class NextScheduledDoseResult extends Schema.Class<NextScheduledDoseResult, { readonly brand: unique symbol }>(
+  'NextScheduledDoseResult'
+)({
   nextDose: Schema.NullOr(NextScheduledDose),
   timezone: IanaTimezone,
 }) {}
@@ -152,7 +172,9 @@ export class NextScheduledDoseResult extends Schema.Class<NextScheduledDoseResul
 /**
  * Summary of a completed injection associated with a schedule phase.
  */
-export class PhaseInjectionSummary extends Schema.Class<PhaseInjectionSummary>('PhaseInjectionSummary')({
+export class PhaseInjectionSummary extends Schema.Class<PhaseInjectionSummary, { readonly brand: unique symbol }>(
+  'PhaseInjectionSummary'
+)({
   id: Schema.String,
   datetime: Schema.DateTimeUtc,
   doseMg: DoseMg,
@@ -163,7 +185,9 @@ export class PhaseInjectionSummary extends Schema.Class<PhaseInjectionSummary>('
  * Progress and details for a single phase in the schedule view.
  * If durationDays is null, the phase is indefinite (no end date).
  */
-export class SchedulePhaseView extends Schema.Class<SchedulePhaseView>('SchedulePhaseView')({
+export class SchedulePhaseView extends Schema.Class<SchedulePhaseView, { readonly brand: unique symbol }>(
+  'SchedulePhaseView'
+)({
   id: SchedulePhaseId,
   order: PhaseOrder,
   durationDays: Schema.NullOr(PhaseDurationDays),
@@ -171,8 +195,8 @@ export class SchedulePhaseView extends Schema.Class<SchedulePhaseView>('Schedule
   startDate: CalendarDate,
   endDate: Schema.NullOr(CalendarDate),
   status: Schema.Literals(['completed', 'current', 'upcoming'] as const),
-  expectedInjections: Schema.NullOr(Schema.Number),
-  completedInjections: Schema.Number,
+  expectedInjections: Schema.NullOr(Schema.Int),
+  completedInjections: Schema.Int,
   injections: Schema.Array(PhaseInjectionSummary),
 }) {}
 
@@ -180,7 +204,7 @@ export class SchedulePhaseView extends Schema.Class<SchedulePhaseView>('Schedule
  * Full schedule view with all phases and their progress.
  * If endDate is null, the schedule has an indefinite final phase.
  */
-export class ScheduleView extends Schema.Class<ScheduleView>('ScheduleView')({
+export class ScheduleView extends Schema.Class<ScheduleView, { readonly brand: unique symbol }>('ScheduleView')({
   id: InjectionScheduleId,
   name: ScheduleName,
   drug: MedicationCompound,
@@ -190,8 +214,8 @@ export class ScheduleView extends Schema.Class<ScheduleView>('ScheduleView')({
   endDate: Schema.NullOr(CalendarDate),
   isActive: Schema.Boolean,
   notes: Schema.NullOr(Notes),
-  totalExpectedInjections: Schema.NullOr(Schema.Number),
-  totalCompletedInjections: Schema.Number,
+  totalExpectedInjections: Schema.NullOr(Schema.Int),
+  totalCompletedInjections: Schema.Int,
   phases: Schema.Array(SchedulePhaseView),
   createdAt: Schema.DateTimeUtc,
   updatedAt: Schema.DateTimeUtc,

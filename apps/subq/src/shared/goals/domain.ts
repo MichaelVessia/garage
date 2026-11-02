@@ -10,6 +10,7 @@ import { Weight } from '../weight/domain.js'
 
 /** UUID identifier for user goals */
 export const GoalId = Schema.String.pipe(Schema.brand('GoalId'))
+
 export type GoalId = typeof GoalId.Type
 
 // ============================================
@@ -18,10 +19,12 @@ export type GoalId = typeof GoalId.Type
 
 /** Pace status relative to projected goal */
 export const PaceStatus = Schema.Literals(['on_track', 'ahead', 'behind', 'not_losing'] as const)
+
 export type PaceStatus = typeof PaceStatus.Type
 
 /** Percentage complete (0-100+) */
-export const PercentComplete = Schema.Number.pipe(Schema.brand('PercentComplete'))
+export const PercentComplete = Schema.Finite.pipe(Schema.brand('PercentComplete'))
+
 export type PercentComplete = typeof PercentComplete.Type
 
 // ============================================
@@ -32,7 +35,7 @@ export type PercentComplete = typeof PercentComplete.Type
  * A user goal tracks the target weight and starting point.
  * Only one goal can be active at a time per user.
  */
-export class UserGoal extends Schema.Class<UserGoal>('UserGoal')({
+export class UserGoal extends Schema.Class<UserGoal, { readonly brand: unique symbol }>('UserGoal')({
   id: GoalId,
   goalWeight: Weight,
   startingWeight: Weight,
@@ -54,7 +57,7 @@ export class UserGoal extends Schema.Class<UserGoal>('UserGoal')({
  * startingWeight is optional - if not provided, uses most recent weight log.
  * startingDate is optional - if not provided, uses current date.
  */
-export class UserGoalCreate extends Schema.Class<UserGoalCreate>('UserGoalCreate')({
+export class UserGoalCreate extends Schema.Class<UserGoalCreate, { readonly brand: unique symbol }>('UserGoalCreate')({
   goalWeight: Weight,
   startingWeight: Schema.optional(Weight),
   startingDate: Schema.OptionFromOptional(CalendarDate),
@@ -65,7 +68,7 @@ export class UserGoalCreate extends Schema.Class<UserGoalCreate>('UserGoalCreate
 /**
  * Payload for updating an existing goal.
  */
-export class UserGoalUpdate extends Schema.Class<UserGoalUpdate>('UserGoalUpdate')({
+export class UserGoalUpdate extends Schema.Class<UserGoalUpdate, { readonly brand: unique symbol }>('UserGoalUpdate')({
   id: GoalId,
   goalWeight: Schema.optional(Weight),
   startingWeight: Schema.optional(Weight),
@@ -78,7 +81,7 @@ export class UserGoalUpdate extends Schema.Class<UserGoalUpdate>('UserGoalUpdate
 /**
  * Payload for deleting a goal.
  */
-export class UserGoalDelete extends Schema.Class<UserGoalDelete>('UserGoalDelete')({
+export class UserGoalDelete extends Schema.Class<UserGoalDelete, { readonly brand: unique symbol }>('UserGoalDelete')({
   id: GoalId,
 }) {}
 
@@ -89,19 +92,21 @@ export class UserGoalDelete extends Schema.Class<UserGoalDelete>('UserGoalDelete
 /**
  * Progress summary for a goal including projection.
  */
-export class GoalProgress extends Schema.Class<GoalProgress>('GoalProgress')({
+export class GoalProgress extends Schema.Class<GoalProgress, { readonly brand: unique symbol }>('GoalProgress')({
   goal: UserGoal,
   currentWeight: Weight,
-  lbsLost: Schema.Number,
-  lbsRemaining: Schema.Number,
+  lbsLost: Schema.Finite,
+  lbsRemaining: Schema.Finite,
   percentComplete: PercentComplete,
   projectedDate: Schema.NullOr(CalendarDate),
   paceStatus: PaceStatus,
-  daysOnPlan: Schema.Number,
-  avgLbsPerWeek: Schema.Number,
+  daysOnPlan: Schema.Int,
+  avgLbsPerWeek: Schema.Finite,
 }) {}
 
-export class GoalProgressResult extends Schema.Class<GoalProgressResult>('GoalProgressResult')({
+export class GoalProgressResult extends Schema.Class<GoalProgressResult, { readonly brand: unique symbol }>(
+  'GoalProgressResult'
+)({
   goal: Schema.NullOr(GoalProgress),
   timezone: IanaTimezone,
 }) {}

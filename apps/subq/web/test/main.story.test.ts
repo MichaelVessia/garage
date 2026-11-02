@@ -1,10 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from '@effect/vitest'
+import { assert, describe, expect, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
-import * as AsyncData from 'foldkit/asyncData'
-import * as Scene from 'foldkit/scene'
-import * as Url from 'foldkit/url'
+import { AsyncData, Scene, Url } from 'foldkit'
 
 import {
   DataImportResult,
@@ -20,17 +19,20 @@ import {
   SucceededFetchSettings as SucceededFetchSettingsMessage,
   settingsLoadErrorMessage,
 } from '../src/data/settings.js'
-import { ChangedUrl, ClickedRetrySettings, init, update, view } from '../src/main.js'
-import { CompletedOpenInjectionForm } from '../src/page/injections.js'
-import { SucceededFetchNextDose } from '../src/page/schedule.js'
-import { SucceededImportData, SucceededUpdateSettingsPreference } from '../src/page/settings.js'
-import { RejectedFetchStats, rangeKey } from '../src/page/stats.js'
-import { CompletedOpenWeightForm } from '../src/page/weight.js'
+import { init, update } from '../src/main.js'
+import { ChangedUrl, ClickedRetrySettings } from '../src/model.js'
+import { CompletedOpenInjectionForm } from '../src/page/injections/model.js'
+import { SucceededFetchNextDose } from '../src/page/schedule/model.js'
+import { SucceededImportData, SucceededUpdateSettingsPreference } from '../src/page/settings/model.js'
+import { RejectedFetchStats, rangeKey } from '../src/page/stats/model.js'
+import { CompletedOpenWeightForm } from '../src/page/weight/model.js'
+import { view } from '../src/view.js'
 
 const detectedTimezone = IanaTimezone.make('America/New_York')
 const persistedTimezone = IanaTimezone.make('Pacific/Auckland')
 const user = { email: 'person@example.com', id: 'user-1', name: 'Person' }
-const settings = new UserSettings({
+
+const settings = UserSettings.make({
   createdAt: DateTime.toDate(DateTime.makeUnsafe('2026-07-01T00:00:00Z')),
   id: 'settings-1',
   timezone: persistedTimezone,
@@ -39,7 +41,7 @@ const settings = new UserSettings({
 })
 
 const settingsAt = (timezone: IanaTimezone) =>
-  new UserSettings({
+  UserSettings.make({
     createdAt: settings.createdAt,
     id: settings.id,
     timezone,
@@ -47,10 +49,14 @@ const settingsAt = (timezone: IanaTimezone) =>
     weightUnit: settings.weightUnit,
   })
 
-const parseUrl = (value: string): Url.Url => Option.getOrThrow(Url.fromString(value))
+const parseUrl = (value: string): Url.Url =>
+  Option.getOrElse(Url.fromString(value), () => assert.fail(`Invalid test URL: ${value}`))
 
 const commandArgs = (commands: NonNullable<ReturnType<typeof update>['commands']>, name: string) =>
-  commands.find((command) => command.name === name)?.args
+  Arr.findFirst(commands, (command) => command.name === name).pipe(
+    Option.map((command) => command.args),
+    Option.getOrUndefined
+  )
 
 const SucceededFetchSettings = (args: { readonly requestGeneration?: number; readonly settings: UserSettings }) =>
   SucceededFetchSettingsMessage({
@@ -70,12 +76,13 @@ describe('application timezone', () => {
 
   it('initializes settings before fetching stats and then uses the persisted timezone', () => {
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
+
     const { model: authenticated, commands: initializationCommands = [] } = update(
       initial,
       SucceededFetchSession({ user })
     )
 
-    expect(initializationCommands.map(({ name }) => name)).toEqual(['FetchSettings'])
+    expect(Arr.map(initializationCommands, ({ name }) => name)).toEqual(['FetchSettings'])
     expect(commandArgs(initializationCommands, 'FetchSettings')).toEqual({
       detectedTimezone,
       requestGeneration: 1,
@@ -113,6 +120,7 @@ describe('application timezone', () => {
       ready,
       SucceededUpdateSettingsPreference()
     )
+
     const { model: reconciliationRefresh, commands: reconciliationCommands = [] } = update(
       preferenceRefresh,
       RejectedFetchStats({
@@ -137,6 +145,7 @@ describe('application timezone', () => {
       reconciliationRefresh,
       SucceededFetchSettings({ requestGeneration: 2, settings: settingsAt(staleTimezone) })
     )
+
     expect(afterStaleSuccess).toBe(reconciliationRefresh)
     expect(staleSuccessCommands).toHaveLength(0)
 
@@ -144,6 +153,7 @@ describe('application timezone', () => {
       reconciliationRefresh,
       FailedFetchSettings({ message: 'older refresh failed', requestGeneration: 2 })
     )
+
     expect(afterStaleFailure).toBe(reconciliationRefresh)
     expect(staleFailureCommands).toHaveLength(0)
 
@@ -151,7 +161,10 @@ describe('application timezone', () => {
       reconciliationRefresh,
       SucceededFetchSettings({ requestGeneration: 3, settings: settingsAt(latestTimezone) })
     )
-    expect(Option.getOrThrow(AsyncData.getData(accepted.settings)).timezone).toBe(latestTimezone)
+
+    expect(Option.map(AsyncData.getData(accepted.settings), ({ timezone }) => timezone)).toEqual(
+      Option.some(latestTimezone)
+    )
     expect(commandArgs(acceptedCommands, 'FetchStats')).toEqual({
       end: null,
       requestGeneration: 2,
@@ -186,6 +199,7 @@ describe('application timezone', () => {
   it('renders actionable legacy migration details instead of leaving the route loading', () => {
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
+
     const details =
       "Cannot migrate user_goal 'goal-17' field 'target_date' with value 'not-a-date'. Correct the stored value and retry."
 
@@ -211,13 +225,14 @@ describe('application timezone', () => {
   })
 
   it('reconciles authoritative stats timezone mismatches and rejects repeated stale responses', () => {
-    const staleSettings = new UserSettings({
+    const staleSettings = UserSettings.make({
       createdAt: settings.createdAt,
       id: settings.id,
       timezone: detectedTimezone,
       updatedAt: settings.updatedAt,
       weightUnit: settings.weightUnit,
     })
+
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: staleReady } = update(authenticated, SucceededFetchSettings({ settings: staleSettings }))
@@ -232,6 +247,7 @@ describe('application timezone', () => {
         timezones: [persistedTimezone],
       })
     )
+
     expect(commandArgs(reconciliationCommands, 'FetchSettings')).toEqual({
       detectedTimezone,
       requestGeneration: 2,
@@ -241,6 +257,7 @@ describe('application timezone', () => {
       reconciling,
       SucceededFetchSettings({ requestGeneration: 2, settings })
     )
+
     expect(commandArgs(refetchCommands, 'FetchStats')).toEqual({
       end: null,
       requestGeneration: 2,
@@ -257,17 +274,19 @@ describe('application timezone', () => {
         timezones: [persistedTimezone],
       })
     )
+
     expect(repeatedCommands).toHaveLength(0)
   })
 
   it('restarts stats when A→B→A reconciliation returns the same persisted timezone', () => {
-    const staleSettings = new UserSettings({
+    const staleSettings = UserSettings.make({
       createdAt: settings.createdAt,
       id: settings.id,
       timezone: detectedTimezone,
       updatedAt: settings.updatedAt,
       weightUnit: settings.weightUnit,
     })
+
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: ready } = update(authenticated, SucceededFetchSettings({ settings: staleSettings }))
@@ -282,12 +301,14 @@ describe('application timezone', () => {
         timezones: [persistedTimezone],
       })
     )
+
     expect(AsyncData.isIdle(reconciling.stats.data)).toBe(true)
 
     const { model: refetching, commands = [] } = update(
       reconciling,
       SucceededFetchSettings({ requestGeneration: 2, settings: staleSettings })
     )
+
     expect(AsyncData.isLoading(refetching.stats.data)).toBe(true)
     expect(commandArgs(commands, 'FetchStats')).toEqual({
       end: null,
@@ -298,13 +319,14 @@ describe('application timezone', () => {
   })
 
   it('reconciles authoritative next-dose timezone mismatches before refetching', () => {
-    const staleSettings = new UserSettings({
+    const staleSettings = UserSettings.make({
       createdAt: settings.createdAt,
       id: settings.id,
       timezone: detectedTimezone,
       updatedAt: settings.updatedAt,
       weightUnit: settings.weightUnit,
     })
+
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/schedule'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: staleReady } = update(authenticated, SucceededFetchSettings({ settings: staleSettings }))
@@ -318,6 +340,7 @@ describe('application timezone', () => {
         timezone: persistedTimezone,
       })
     )
+
     expect(commandArgs(reconciliationCommands, 'FetchSettings')).toEqual({
       detectedTimezone,
       requestGeneration: 2,
@@ -327,6 +350,7 @@ describe('application timezone', () => {
       reconciling,
       SucceededFetchSettings({ requestGeneration: 2, settings })
     )
+
     expect(commandArgs(refetchCommands, 'FetchNextDose')).toEqual({
       requestKey: 2,
       requestedTimezone: persistedTimezone,
@@ -341,17 +365,19 @@ describe('application timezone', () => {
         timezone: persistedTimezone,
       })
     )
+
     expect(repeatedCommands).toHaveLength(0)
   })
 
   it('restarts next dose when A→B→A reconciliation returns the same persisted timezone', () => {
-    const staleSettings = new UserSettings({
+    const staleSettings = UserSettings.make({
       createdAt: settings.createdAt,
       id: settings.id,
       timezone: detectedTimezone,
       updatedAt: settings.updatedAt,
       weightUnit: settings.weightUnit,
     })
+
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/schedule'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: ready } = update(authenticated, SucceededFetchSettings({ settings: staleSettings }))
@@ -365,12 +391,14 @@ describe('application timezone', () => {
         timezone: persistedTimezone,
       })
     )
+
     expect(AsyncData.isIdle(reconciling.schedule.nextDose)).toBe(true)
 
     const { model: refetching, commands = [] } = update(
       reconciling,
       SucceededFetchSettings({ requestGeneration: 2, settings: staleSettings })
     )
+
     expect(AsyncData.isLoading(refetching.schedule.nextDose)).toBe(true)
     expect(commandArgs(commands, 'FetchNextDose')).toEqual({
       requestKey: 2,
@@ -382,7 +410,8 @@ describe('application timezone', () => {
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: ready } = update(authenticated, SucceededFetchSettings({ settings }))
-    const result = new DataImportResult({
+
+    const result = DataImportResult.make({
       goals: 1,
       injectionLogs: 1,
       schedules: 1,
@@ -402,6 +431,7 @@ describe('application timezone', () => {
       imported,
       SucceededFetchSettings({ requestGeneration: 2, settings })
     )
+
     expect(AsyncData.isLoading(refetched.stats.data)).toBe(true)
     expect(commandArgs(statsCommands, 'FetchStats')).toEqual({
       end: null,
@@ -415,7 +445,8 @@ describe('application timezone', () => {
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: ready } = update(authenticated, SucceededFetchSettings({ settings }))
-    const result = new DataImportResult({
+
+    const result = DataImportResult.make({
       goals: 0,
       injectionLogs: 0,
       schedules: 0,
@@ -432,15 +463,18 @@ describe('application timezone', () => {
     const { model: initial } = init({ timezone: detectedTimezone }, parseUrl('https://subq.example/stats'))
     const { model: authenticated } = update(initial, SucceededFetchSession({ user }))
     const { model: ready } = update(authenticated, SucceededFetchSettings({ settings }))
+
     const { model: withWeightForm } = update(
       ready,
       CompletedOpenWeightForm({ log: null, nowLocal: '2026-07-01T09:30' })
     )
+
     const { model: withBothForms } = update(
       withWeightForm,
       CompletedOpenInjectionForm({ log: null, nowLocal: '2026-07-01T09:30' })
     )
-    const changed = new UserSettings({
+
+    const changed = UserSettings.make({
       createdAt: settings.createdAt,
       id: settings.id,
       timezone: IanaTimezone.make('America/Los_Angeles'),

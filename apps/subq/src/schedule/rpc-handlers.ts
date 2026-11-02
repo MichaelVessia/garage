@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 
 import { authedRpc, ScheduleRpcs } from '#shared'
-import type { InjectionScheduleCreate, InjectionScheduleId, InjectionScheduleUpdate } from '#shared'
+import type { AuthUser, InjectionScheduleCreate, InjectionScheduleId, InjectionScheduleUpdate } from '#shared'
 
 import { ScheduleCadenceService } from './schedule-cadence-service.js'
 import { ScheduleRepo } from './schedule-repo.js'
@@ -12,8 +12,8 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
     const scheduleRepo = yield* ScheduleRepo
     const scheduleCadence = yield* ScheduleCadenceService
 
-    const ScheduleList = authedRpc('rpc.schedule.list', (user) =>
-      Effect.gen(function* () {
+    const ScheduleList = authedRpc(
+      Effect.fn('rpc.schedule.list')(function* (user: AuthUser) {
         yield* Effect.logDebug('ScheduleList called').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleList', userId: user.id })
         )
@@ -21,12 +21,13 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
         yield* Effect.logDebug('ScheduleList completed').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleList', count: result.length })
         )
+
         return result
       })
     )
 
-    const ScheduleGetActive = authedRpc('rpc.schedule.getActive', (user) =>
-      Effect.gen(function* () {
+    const ScheduleGetActive = authedRpc(
+      Effect.fn('rpc.schedule.getActive')(function* (user: AuthUser) {
         yield* Effect.logDebug('ScheduleGetActive called').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleGetActive', userId: user.id })
         )
@@ -38,23 +39,25 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
             scheduleId: result?.id ?? 'none',
           })
         )
+
         return result
       })
     )
 
-    const ScheduleGet = authedRpc('rpc.schedule.get', (user, { id }: { id: InjectionScheduleId }) =>
-      Effect.gen(function* () {
+    const ScheduleGet = authedRpc(
+      Effect.fn('rpc.schedule.get')(function* (user: AuthUser, { id }: { id: InjectionScheduleId }) {
         yield* Effect.logDebug('ScheduleGet called').pipe(Effect.annotateLogs({ rpc: 'ScheduleGet', id }))
         const result = yield* scheduleRepo.findById(id, user.id).pipe(Effect.map(Option.getOrNull))
         yield* Effect.logDebug('ScheduleGet completed').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleGet', id, found: result !== null })
         )
+
         return result
       })
     )
 
-    const ScheduleCreate = authedRpc('rpc.schedule.create', (user, data: InjectionScheduleCreate) =>
-      Effect.gen(function* () {
+    const ScheduleCreate = authedRpc(
+      Effect.fn('rpc.schedule.create')(function* (user: AuthUser, data: InjectionScheduleCreate) {
         yield* Effect.logInfo('ScheduleCreate called').pipe(
           Effect.annotateLogs({
             rpc: 'ScheduleCreate',
@@ -69,12 +72,13 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
         yield* Effect.logInfo('ScheduleCreate completed').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleCreate', id: result.id, name: result.name })
         )
+
         return result
       })
     )
 
-    const ScheduleUpdate = authedRpc('rpc.schedule.update', (user, data: InjectionScheduleUpdate) =>
-      Effect.gen(function* () {
+    const ScheduleUpdate = authedRpc(
+      Effect.fn('rpc.schedule.update')(function* (user: AuthUser, data: InjectionScheduleUpdate) {
         yield* Effect.logInfo('ScheduleUpdate called').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleUpdate', id: data.id, isActive: data.isActive })
         )
@@ -82,23 +86,25 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
         yield* Effect.logInfo('ScheduleUpdate completed').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleUpdate', id: data.id })
         )
+
         return result
       })
     )
 
-    const ScheduleDelete = authedRpc('rpc.schedule.delete', (user, { id }: { id: InjectionScheduleId }) =>
-      Effect.gen(function* () {
+    const ScheduleDelete = authedRpc(
+      Effect.fn('rpc.schedule.delete')(function* (user: AuthUser, { id }: { id: InjectionScheduleId }) {
         yield* Effect.logInfo('ScheduleDelete called').pipe(Effect.annotateLogs({ rpc: 'ScheduleDelete', id }))
         const result = yield* scheduleRepo.delete(id, user.id)
         yield* Effect.logInfo('ScheduleDelete completed').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleDelete', id, deleted: result })
         )
+
         return result
       })
     )
 
-    const ScheduleGetNextDose = authedRpc('rpc.schedule.getNextDose', (user) =>
-      Effect.gen(function* () {
+    const ScheduleGetNextDose = authedRpc(
+      Effect.fn('rpc.schedule.getNextDose')(function* (user: AuthUser) {
         yield* Effect.logDebug('ScheduleGetNextDose called').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleGetNextDose', userId: user.id })
         )
@@ -125,8 +131,8 @@ export const ScheduleRpcHandlersLive = ScheduleRpcs.toLayer(
       })
     )
 
-    const ScheduleGetView = authedRpc('rpc.schedule.getView', (user, { id }: { id: InjectionScheduleId }) =>
-      Effect.gen(function* () {
+    const ScheduleGetView = authedRpc(
+      Effect.fn('rpc.schedule.getView')(function* (user: AuthUser, { id }: { id: InjectionScheduleId }) {
         yield* Effect.logDebug('ScheduleGetView called').pipe(
           Effect.annotateLogs({ rpc: 'ScheduleGetView', id, userId: user.id })
         )

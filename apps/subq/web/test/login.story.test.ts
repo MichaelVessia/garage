@@ -57,6 +57,7 @@ describe('login page update', () => {
       name: 'Jane',
       password: 'secret',
     }
+
     const { model: next, commands = [] } = updateLogin(model, SubmittedLogin())
     expect(next.loading).toBe(true)
     expect(commands).toHaveLength(1)

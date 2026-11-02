@@ -1,0 +1,19 @@
+id: no-native-collections
+
+valid:
+  - |
+    HashMap.empty<string, number>()
+  - |
+    const seen: ReadonlySet<string> = HashSet.toValues(set)
+  - |
+    type Index = Map<string, number>
+
+invalid:
+  - |
+    new Map()
+  - |
+    new Map<string, number>()
+  - |
+    new Set(items)
+  - |
+    new Set<string>()

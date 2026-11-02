@@ -9,66 +9,97 @@ import * as Schema from 'effect/Schema'
 // NodeInspectSymbol), so only the schema fields and constructor bodies are
 // centralized here, not the classes themselves.
 
-export const envMissingFields = <const Code extends string>(code: Code) => ({
+// Type aliases rather than interfaces: a Schema field record needs the implicit
+// index signature that only type aliases receive.
+type BaseFields<Code extends string> = Readonly<{
+  code: Schema.Literal<Code>
+  message: Schema.String
+  fix: Schema.String
+}>
+
+type CauseFields<Code extends string> = BaseFields<Code> & Readonly<{ cause: Schema.optional<Schema.Defect> }>
+
+type HttpErrorFields<Code extends string> = BaseFields<Code> & Readonly<{ status: Schema.Int }>
+
+export const envMissingFields = <const Code extends string>(code: Code): BaseFields<Code> => ({
   code: Schema.Literal(code),
   message: Schema.String,
   fix: Schema.String,
 })
 
-export const unreachableFields = <const Code extends string>(code: Code) => ({
+export const unreachableFields = <const Code extends string>(code: Code): CauseFields<Code> => ({
   code: Schema.Literal(code),
   message: Schema.String,
   fix: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 })
 
-export const httpErrorFields = <const Code extends string>(code: Code) => ({
+export const httpErrorFields = <const Code extends string>(code: Code): HttpErrorFields<Code> => ({
   code: Schema.Literal(code),
   message: Schema.String,
   fix: Schema.String,
-  status: Schema.Number,
+  status: Schema.Int,
 })
 
-export const decodeErrorFields = <const Code extends string>(code: Code) => ({
+export const decodeErrorFields = <const Code extends string>(code: Code): CauseFields<Code> => ({
   code: Schema.Literal(code),
   message: Schema.String,
   fix: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 })
+
+export interface ErrorFailure {
+  readonly message: string
+  readonly cause?: unknown
+}
+
+interface ErrorFactoryOptions<Ctor, Code extends string> {
+  readonly error: Ctor
+  readonly code: Code
+  readonly fix: string
+}
 
 export const makeEnvMissing =
-  <const Code extends string, E extends { readonly code: Code }>(
-    Ctor: new (props: { code: Code; message: string; fix: string }) => E,
-    code: Code,
-    fix: string
-  ): ((variable: string) => E) =>
+  <const Code extends string, E extends { readonly code: Code }>({
+    error: Ctor,
+    code,
+    fix,
+  }: ErrorFactoryOptions<new (props: { code: Code; message: string; fix: string }) => E, Code>): ((
+    variable: string
+  ) => E) =>
   (variable) =>
     new Ctor({ code, message: `${variable} is not set`, fix })
 
 export const makeUnreachable =
-  <const Code extends string, E extends { readonly code: Code }>(
-    Ctor: new (props: { code: Code; message: string; fix: string; cause?: unknown }) => E,
-    code: Code,
-    fix: string
-  ): ((message: string, cause?: unknown) => E) =>
-  (message, cause) =>
+  <const Code extends string, E extends { readonly code: Code }>({
+    error: Ctor,
+    code,
+    fix,
+  }: ErrorFactoryOptions<new (props: { code: Code; message: string; fix: string; cause?: unknown }) => E, Code>): ((
+    failure: ErrorFailure
+  ) => E) =>
+  ({ message, cause }) =>
     cause === undefined ? new Ctor({ code, message, fix }) : new Ctor({ code, message, fix, cause })
 
 export const makeHttpError =
-  <const Code extends string, E extends { readonly code: Code }>(
-    Ctor: new (props: { code: Code; message: string; fix: string; status: number }) => E,
-    code: Code,
-    displayName: string,
-    fix: string
-  ): ((status: number) => E) =>
+  <const Code extends string, E extends { readonly code: Code }>({
+    error: Ctor,
+    code,
+    displayName,
+    fix,
+  }: ErrorFactoryOptions<new (props: { code: Code; message: string; fix: string; status: number }) => E, Code> & {
+    readonly displayName: string
+  }): ((status: number) => E) =>
   (status) =>
     new Ctor({ code, message: `${displayName} returned HTTP ${status}`, fix, status })
 
 export const makeDecodeError =
-  <const Code extends string, E extends { readonly code: Code }>(
-    Ctor: new (props: { code: Code; message: string; fix: string; cause?: unknown }) => E,
-    code: Code,
-    fix: string
-  ): ((message: string, cause?: unknown) => E) =>
-  (message, cause) =>
+  <const Code extends string, E extends { readonly code: Code }>({
+    error: Ctor,
+    code,
+    fix,
+  }: ErrorFactoryOptions<new (props: { code: Code; message: string; fix: string; cause?: unknown }) => E, Code>): ((
+    failure: ErrorFailure
+  ) => E) =>
+  ({ message, cause }) =>
     cause === undefined ? new Ctor({ code, message, fix }) : new Ctor({ code, message, fix, cause })

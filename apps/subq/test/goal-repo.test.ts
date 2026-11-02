@@ -1,10 +1,11 @@
 import { assert, describe, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
 
-import { CalendarDate, GoalId, Notes, Weight } from '#shared'
+import { CalendarDate, GoalId, Notes, UserGoalCreate, UserGoalUpdate, Weight } from '#shared'
 
 import { GoalRepo, GoalRepoLive } from '../src/goals/goal-repo.js'
 import { makeInitializedTestLayer } from './helpers/test-db.js'
@@ -17,13 +18,14 @@ describe('GoalRepo', () => {
       it.effect('creates a goal', () =>
         Effect.gen(function* () {
           const repo = yield* GoalRepo
+
           const created = yield* repo.create(
-            {
+            UserGoalCreate.make({
               goalWeight: Weight.make(150),
               startingDate: Option.some(CalendarDate.make('2024-01-01')),
               targetDate: Option.some(CalendarDate.make('2024-06-01')),
               notes: Option.some(Notes.make('Initial goal')),
-            },
+            }),
             180,
             CalendarDate.make('2024-01-01'),
             'user-123'
@@ -36,9 +38,11 @@ describe('GoalRepo', () => {
 
           const sql = yield* SqlClient.SqlClient
           const rows = yield* sql`SELECT calendar_date_migrated FROM user_goals WHERE id = ${created.id}`
+
           const markers = yield* Schema.decodeUnknownEffect(
-            Schema.Array(Schema.Struct({ calendar_date_migrated: Schema.Number }))
+            Schema.Array(Schema.Struct({ calendar_date_migrated: Schema.Int }))
           )(rows)
+
           assert.strictEqual(markers[0]?.calendar_date_migrated, 1)
         })
       )
@@ -50,13 +54,14 @@ describe('GoalRepo', () => {
       it.effect('updates a goal with apostrophe in notes (SQL injection safe)', () =>
         Effect.gen(function* () {
           const repo = yield* GoalRepo
+
           const created = yield* repo.create(
-            {
+            UserGoalCreate.make({
               goalWeight: Weight.make(150),
               startingDate: Option.none(),
               targetDate: Option.none(),
               notes: Option.none(),
-            },
+            }),
             180,
             CalendarDate.make('2024-01-01'),
             'user-123'
@@ -64,10 +69,10 @@ describe('GoalRepo', () => {
 
           // This would have caused SQL injection with the old dynamic SQL string approach
           const updated = yield* repo.update(
-            {
+            UserGoalUpdate.make({
               id: GoalId.make(created.id),
               notes: Notes.make("User's notes with 'apostrophes' and \"quotes\""),
-            },
+            }),
             'user-123'
           )
 
@@ -80,23 +85,24 @@ describe('GoalRepo', () => {
       it.effect('updates goal weight', () =>
         Effect.gen(function* () {
           const repo = yield* GoalRepo
+
           const created = yield* repo.create(
-            {
+            UserGoalCreate.make({
               goalWeight: Weight.make(150),
               startingDate: Option.none(),
               targetDate: Option.none(),
               notes: Option.none(),
-            },
+            }),
             180,
             CalendarDate.make('2024-01-01'),
             'user-123'
           )
 
           const updated = yield* repo.update(
-            {
+            UserGoalUpdate.make({
               id: GoalId.make(created.id),
               goalWeight: Weight.make(145),
-            },
+            }),
             'user-123'
           )
 
@@ -134,23 +140,26 @@ describe('GoalRepo', () => {
           `
 
           const repo = yield* GoalRepo
+
           const updated = yield* repo.update(
-            {
+            UserGoalUpdate.make({
               id: GoalId.make('goal-concurrent-migration'),
               goalWeight: Weight.make(145),
               notes: Notes.make('after'),
-            },
+            }),
             'user-123'
           )
+
           const rows = yield* sql`
             SELECT goal_weight, notes, starting_date, target_date, calendar_date_migrated
             FROM user_goals WHERE id = 'goal-concurrent-migration'
           `
+
           const state = yield* Schema.decodeUnknownEffect(
             Schema.Array(
               Schema.Struct({
-                calendar_date_migrated: Schema.Number,
-                goal_weight: Schema.Number,
+                calendar_date_migrated: Schema.Int,
+                goal_weight: Schema.Finite,
                 notes: Schema.String,
                 starting_date: Schema.String,
                 target_date: Schema.String,
@@ -176,13 +185,14 @@ describe('GoalRepo', () => {
       it.effect('handles null values correctly', () =>
         Effect.gen(function* () {
           const repo = yield* GoalRepo
+
           const created = yield* repo.create(
-            {
+            UserGoalCreate.make({
               goalWeight: Weight.make(150),
               startingDate: Option.none(),
               targetDate: Option.some(CalendarDate.make('2024-06-01')),
               notes: Option.some(Notes.make('Initial notes')),
-            },
+            }),
             180,
             CalendarDate.make('2024-01-01'),
             'user-123'
@@ -190,11 +200,11 @@ describe('GoalRepo', () => {
 
           // Set notes and targetDate to null
           const updated = yield* repo.update(
-            {
+            UserGoalUpdate.make({
               id: GoalId.make(created.id),
               notes: null,
               targetDate: null,
-            },
+            }),
             'user-123'
           )
 
@@ -211,12 +221,12 @@ describe('GoalRepo', () => {
 
           // Create first goal (active)
           yield* repo.create(
-            {
+            UserGoalCreate.make({
               goalWeight: Weight.make(150),
               startingDate: Option.none(),
               targetDate: Option.none(),
               notes: Option.none(),
-            },
+            }),
             180,
             CalendarDate.make('2024-01-01'),
             'user-123'
@@ -224,12 +234,12 @@ describe('GoalRepo', () => {
 
           // Create second goal (becomes active, first deactivated)
           const second = yield* repo.create(
-            {
+            UserGoalCreate.make({
               goalWeight: Weight.make(145),
               startingDate: Option.none(),
               targetDate: Option.none(),
               notes: Option.none(),
-            },
+            }),
             175,
             CalendarDate.make('2024-02-01'),
             'user-123'
@@ -240,19 +250,19 @@ describe('GoalRepo', () => {
 
           // Deactivate second
           yield* repo.update(
-            {
+            UserGoalUpdate.make({
               id: GoalId.make(second.id),
               isActive: false,
-            },
+            }),
             'user-123'
           )
 
           // Reactivate second
           const reactivated = yield* repo.update(
-            {
+            UserGoalUpdate.make({
               id: GoalId.make(second.id),
               isActive: true,
-            },
+            }),
             'user-123'
           )
 
@@ -260,8 +270,8 @@ describe('GoalRepo', () => {
 
           // First should still be inactive
           const first = yield* repo.list('user-123')
-          const firstGoal = first.find((g) => g.id !== second.id)
-          assert.strictEqual(firstGoal?.isActive, false)
+          const firstGoal = yield* Effect.fromOption(Arr.findFirst(first, (g) => g.id !== second.id))
+          assert.strictEqual(firstGoal.isActive, false)
         })
       )
     })

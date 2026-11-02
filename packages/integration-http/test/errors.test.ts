@@ -1,4 +1,5 @@
 import { assert, it } from '@effect/vitest'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 
 import {
@@ -18,33 +19,53 @@ import {
 // own classes) to confirm the factories stay parameterised per class rather
 // than leaking state or identity across packages.
 
-class FooEnvMissingError extends Schema.TaggedError<FooEnvMissingError>()(
+class FooEnvMissingError extends Schema.TaggedError<FooEnvMissingError, { readonly brand: unique symbol }>()(
   'FooEnvMissingError',
   envMissingFields('FOO_ENV_MISSING')
 ) {}
 
-class FooUnreachableError extends Schema.TaggedError<FooUnreachableError>()(
+class FooUnreachableError extends Schema.TaggedError<FooUnreachableError, { readonly brand: unique symbol }>()(
   'FooUnreachableError',
   unreachableFields('FOO_UNREACHABLE')
 ) {}
 
-class FooHttpError extends Schema.TaggedError<FooHttpError>()('FooHttpError', httpErrorFields('FOO_HTTP_ERROR')) {}
+class FooHttpError extends Schema.TaggedError<FooHttpError, { readonly brand: unique symbol }>()(
+  'FooHttpError',
+  httpErrorFields('FOO_HTTP_ERROR')
+) {}
 
-class FooDecodeError extends Schema.TaggedError<FooDecodeError>()(
+class FooDecodeError extends Schema.TaggedError<FooDecodeError, { readonly brand: unique symbol }>()(
   'FooDecodeError',
   decodeErrorFields('FOO_DECODE_ERROR')
 ) {}
 
-class BarEnvMissingError extends Schema.TaggedError<BarEnvMissingError>()(
+class BarEnvMissingError extends Schema.TaggedError<BarEnvMissingError, { readonly brand: unique symbol }>()(
   'BarEnvMissingError',
   envMissingFields('BAR_ENV_MISSING')
 ) {}
 
-const fooEnvMissing = makeEnvMissing(FooEnvMissingError, 'FOO_ENV_MISSING', 'Set FOO_URL.')
-const fooUnreachable = makeUnreachable(FooUnreachableError, 'FOO_UNREACHABLE', 'Check that Foo is reachable.')
-const fooHttpError = makeHttpError(FooHttpError, 'FOO_HTTP_ERROR', 'Foo', 'Check Foo credentials and server logs.')
-const fooDecodeError = makeDecodeError(FooDecodeError, 'FOO_DECODE_ERROR', 'Update the Foo schemas.')
-const barEnvMissing = makeEnvMissing(BarEnvMissingError, 'BAR_ENV_MISSING', 'Set BAR_URL.')
+const fooEnvMissing = makeEnvMissing({ error: FooEnvMissingError, code: 'FOO_ENV_MISSING', fix: 'Set FOO_URL.' })
+
+const fooUnreachable = makeUnreachable({
+  error: FooUnreachableError,
+  code: 'FOO_UNREACHABLE',
+  fix: 'Check that Foo is reachable.',
+})
+
+const fooHttpError = makeHttpError({
+  error: FooHttpError,
+  code: 'FOO_HTTP_ERROR',
+  displayName: 'Foo',
+  fix: 'Check Foo credentials and server logs.',
+})
+
+const fooDecodeError = makeDecodeError({
+  error: FooDecodeError,
+  code: 'FOO_DECODE_ERROR',
+  fix: 'Update the Foo schemas.',
+})
+
+const barEnvMissing = makeEnvMissing({ error: BarEnvMissingError, code: 'BAR_ENV_MISSING', fix: 'Set BAR_URL.' })
 
 it('makeEnvMissing builds the exact code/message/fix shape', () => {
   const error = fooEnvMissing('FOO_URL')
@@ -57,14 +78,14 @@ it('makeEnvMissing builds the exact code/message/fix shape', () => {
 })
 
 it('makeUnreachable omits cause when none is given and carries it when provided', () => {
-  const withoutCause = fooUnreachable('connection refused')
+  const withoutCause = fooUnreachable({ message: 'connection refused' })
   const cause = new Error('ECONNREFUSED')
-  const withCause = fooUnreachable('connection refused', cause)
+  const withCause = fooUnreachable({ message: 'connection refused', cause })
 
   assert.strictEqual(withoutCause.code, 'FOO_UNREACHABLE')
   assert.strictEqual(withoutCause.message, 'connection refused')
   assert.strictEqual(withoutCause.fix, 'Check that Foo is reachable.')
-  assert.strictEqual(Object.hasOwn(withoutCause, 'cause'), false)
+  assert.strictEqual(P.hasProperty(withoutCause, 'cause'), false)
   assert.strictEqual(withCause.cause, cause)
 })
 
@@ -78,13 +99,13 @@ it('makeHttpError formats the display-name message and carries the status', () =
 })
 
 it('makeDecodeError omits cause when none is given and carries it when provided', () => {
-  const withoutCause = fooDecodeError('unexpected shape')
+  const withoutCause = fooDecodeError({ message: 'unexpected shape' })
   const cause = { message: 'schema mismatch' }
-  const withCause = fooDecodeError('unexpected shape', cause)
+  const withCause = fooDecodeError({ message: 'unexpected shape', cause })
 
   assert.strictEqual(withoutCause.code, 'FOO_DECODE_ERROR')
   assert.strictEqual(withoutCause.message, 'unexpected shape')
-  assert.strictEqual(Object.hasOwn(withoutCause, 'cause'), false)
+  assert.strictEqual(P.hasProperty(withoutCause, 'cause'), false)
   assert.strictEqual(withCause.cause, cause)
 })
 

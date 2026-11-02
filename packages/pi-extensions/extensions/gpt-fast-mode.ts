@@ -26,15 +26,17 @@ const modelKey = (model: Option.Option<SelectedModel>): string =>
   })
 
 const runEffect = function <A, E>(effect: Effect.Effect<A, E>): Promise<A> {
+  // oxlint-disable no-restricted-properties -- Pi invokes extension callbacks as Promise-returning entry points; this adapter edge runs their Effect programs.
   // ast-grep-ignore: no-runpromise-in-effect
   return Effect.runPromise(effect)
+  // oxlint-enable no-restricted-properties
 }
 
 /** Register GPT priority-service-tier controls with Pi. */
 export default function gptFastMode(pi: ExtensionAPI): void {
   const enabled = Ref.makeUnsafe(false)
 
-  const updatePowerbar = Effect.fn('PiExtensions.GptFastMode.updatePowerbar')(function* (
+  const updatePowerbar = Effect.fn('piExtensions.gptFastMode.updatePowerbar')(function* (
     ctx: ExtensionContext
   ): Effect.fn.Return<void> {
     const isEnabled = yield* Ref.get(enabled)
@@ -50,7 +52,7 @@ export default function gptFastMode(pi: ExtensionAPI): void {
     })
   })
 
-  const toggle = Effect.fn('PiExtensions.GptFastMode.toggle')(function* (
+  const toggle = Effect.fn('piExtensions.gptFastMode.toggle')(function* (
     ctx: ExtensionContext
   ): Effect.fn.Return<void> {
     const isEnabled = yield* Ref.updateAndGet(enabled, (current) => !current)
@@ -103,7 +105,7 @@ export default function gptFastMode(pi: ExtensionAPI): void {
         Ref.get,
         Effect.map((isEnabled) =>
           Schema.decodeUnknownOption(Schema.Json)(event.payload).pipe(
-            Option.flatMap((payload) => applyFastMode(payload, selectedModel(ctx), isEnabled)),
+            Option.flatMap(applyFastMode({ model: selectedModel(ctx), enabled: isEnabled })),
             Option.getOrUndefined
           )
         )

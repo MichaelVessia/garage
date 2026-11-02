@@ -20,7 +20,8 @@ const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
 export const status: Effect.Effect<StatusResult, AutocaliwebError, AutocaliwebApi> = Effect.gen(function* () {
   const api = yield* AutocaliwebApi
-  return yield* api.status()
+
+  return yield* api.status
 }).pipe(
   Effect.withSpan('autocaliweb.status'),
   Effect.annotateLogs({ package: '@garage/autocaliweb', operation: 'status' })
@@ -33,7 +34,8 @@ export const version: Effect.Effect<StatusResult, AutocaliwebError, AutocaliwebA
 
 export const stats: Effect.Effect<StatsResult, AutocaliwebError, AutocaliwebApi> = Effect.gen(function* () {
   const api = yield* AutocaliwebApi
-  return yield* api.stats()
+
+  return yield* api.stats
 }).pipe(
   Effect.withSpan('autocaliweb.stats'),
   Effect.annotateLogs({ package: '@garage/autocaliweb', operation: 'stats' })
@@ -42,7 +44,8 @@ export const stats: Effect.Effect<StatsResult, AutocaliwebError, AutocaliwebApi>
 export const catalog: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError, AutocaliwebApi> = Effect.gen(
   function* () {
     const api = yield* AutocaliwebApi
-    return yield* api.catalog()
+
+    return yield* api.catalog
   }
 ).pipe(
   Effect.withSpan('autocaliweb.catalog'),
@@ -58,6 +61,7 @@ export const books: (
       'autocaliweb.limit': limitOptions.limit,
     })
     const api = yield* AutocaliwebApi
+
     return yield* api.books(limitOptions)
   },
   Effect.annotateLogs({ package: '@garage/autocaliweb', operation: 'books' })
@@ -72,6 +76,7 @@ export const recent: (
       'autocaliweb.limit': limitOptions.limit,
     })
     const api = yield* AutocaliwebApi
+
     return yield* api.recent(limitOptions)
   },
   Effect.annotateLogs({
@@ -88,6 +93,7 @@ export const search: (options: SearchOptions) => Effect.Effect<SearchResult, Aut
         'autocaliweb.limit': options.limit,
       })
       const api = yield* AutocaliwebApi
+
       return yield* api.search(options)
     },
     Effect.annotateLogs({ package: '@garage/autocaliweb', operation: 'search' })
@@ -101,6 +107,7 @@ export const bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecor
         'autocaliweb.book_uuid_present': options.uuid.length > 0,
       })
       const api = yield* AutocaliwebApi
+
       return yield* api.bookInfo(options)
     },
     Effect.annotateLogs({
@@ -112,7 +119,8 @@ export const bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecor
 export const shelves: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError, AutocaliwebApi> = Effect.gen(
   function* () {
     const api = yield* AutocaliwebApi
-    return yield* api.shelves()
+
+    return yield* api.shelves
   }
 ).pipe(
   Effect.withSpan('autocaliweb.shelves'),

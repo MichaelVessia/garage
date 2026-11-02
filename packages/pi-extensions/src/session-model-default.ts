@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as FileSystem from 'effect/FileSystem'
+import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as Path from 'effect/Path'
 import * as Schema from 'effect/Schema'
@@ -10,10 +11,10 @@ const ModelDefaultSettings = Schema.Struct({
 })
 
 const decodeModelDefaultSettings = Schema.decodeUnknownOption(Schema.fromJsonString(ModelDefaultSettings))
-const encodeJsonString = Schema.encodeSync(Schema.fromJsonString(Schema.String))
+const encodeJsonString = Schema.encodeOption(Schema.fromJsonString(Schema.String))
 
-const defaultProviderPattern = /("defaultProvider"\s*:\s*)"(?:\\.|[^"\\])*"/u
-const defaultModelPattern = /("defaultModel"\s*:\s*)"(?:\\.|[^"\\])*"/u
+const defaultProviderPattern = /(?<prefix>"defaultProvider"\s*:\s*)"(?:\\.|[^"\\])*"/u
+const defaultModelPattern = /(?<prefix>"defaultModel"\s*:\s*)"(?:\\.|[^"\\])*"/u
 
 /** The persisted provider and model that new Pi sessions should select. */
 export interface ModelDefault {
@@ -30,24 +31,32 @@ export const decodeModelDefault = (source: string): Option.Option<ModelDefault> 
     }))
   )
 
+// Replace one JSON string field's value in place, keeping the key and spacing
+// Pi wrote. A replacer callback inserts the encoded value literally;
+// effect/String.replace accepts only replacement patterns, where `$` sequences
+// in a model name would be expanded.
+const replaceStringField = (source: string, pattern: RegExp, encodedValue: string): string =>
+  // @effect-diagnostics-next-line preferEffectString:off
+  source.replace(pattern, (_match, prefix: string) => `${prefix}${encodedValue}`)
+
 /** Restore default-model fields while preserving every other Pi setting. */
-export const restoreModelDefault = (source: string, configuredDefault: ModelDefault): Option.Option<string> =>
-  decodeModelDefaultSettings(source).pipe(
-    Option.map(() =>
-      source
-        .replace(
-          defaultProviderPattern,
-          (_match, prefix: string) => `${prefix}${encodeJsonString(configuredDefault.provider)}`
-        )
-        .replace(
-          defaultModelPattern,
-          (_match, prefix: string) => `${prefix}${encodeJsonString(configuredDefault.model)}`
-        )
+export const restoreModelDefault: {
+  (configuredDefault: ModelDefault): (source: string) => Option.Option<string>
+  (source: string, configuredDefault: ModelDefault): Option.Option<string>
+} = Function.dual(2, (source: string, configuredDefault: ModelDefault): Option.Option<string> =>
+  Option.all({
+    settings: decodeModelDefaultSettings(source),
+    provider: encodeJsonString(configuredDefault.provider),
+    model: encodeJsonString(configuredDefault.model),
+  }).pipe(
+    Option.map(({ provider, model }) =>
+      replaceStringField(replaceStringField(source, defaultProviderPattern, provider), defaultModelPattern, model)
     )
   )
+)
 
 /** Read the default model captured when a Pi session starts. */
-export const loadModelDefault = Effect.fn('PiExtensions.SessionModelDefault.loadModelDefault')(function* (
+export const loadModelDefault = Effect.fn('piExtensions.sessionModelDefault.loadModelDefault')(function* (
   agentDirectory: string
 ): Effect.fn.Return<Option.Option<ModelDefault>, never, FileSystem.FileSystem | Path.Path> {
   const fileSystem = yield* FileSystem.FileSystem
@@ -61,7 +70,7 @@ export const loadModelDefault = Effect.fn('PiExtensions.SessionModelDefault.load
 })
 
 /** Rewrite only Pi's default-model fields after a session-local model cycle. */
-export const persistModelDefault = Effect.fn('PiExtensions.SessionModelDefault.persistModelDefault')(function* (
+export const persistModelDefault = Effect.fn('piExtensions.sessionModelDefault.persistModelDefault')(function* (
   agentDirectory: string,
   configuredDefault: ModelDefault
 ): Effect.fn.Return<void, never, FileSystem.FileSystem | Path.Path> {

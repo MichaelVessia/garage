@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Fiber from 'effect/Fiber'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
 
 import { IanaTimezone, UserSettingsUpdate } from '#shared'
 
@@ -31,6 +31,7 @@ describe('SettingsRepo', () => {
       `
 
       const repo = yield* SettingsRepo
+
       const initialized = yield* Effect.all(
         [
           repo.initializeTimezone(userId, IanaTimezone.make('America/New_York')),
@@ -38,12 +39,14 @@ describe('SettingsRepo', () => {
         ],
         { concurrency: 'unbounded' }
       )
+
       const rows = yield* sql`
         SELECT timezone, timezone_migration_state,
           (SELECT start_date FROM injection_schedules WHERE id = 'schedule-concurrent') AS start_date
         FROM user_settings
         WHERE user_id = ${userId}
       `
+
       const state = yield* Schema.decodeUnknownEffect(
         Schema.Array(
           Schema.Struct({
@@ -53,13 +56,16 @@ describe('SettingsRepo', () => {
           })
         )
       )(rows)
+
       const [winner] = state
 
       assert.lengthOf(state, 1)
       assert.isDefined(winner)
+
       if (winner === undefined) {
         return
       }
+
       assert.strictEqual(initialized[0].timezone, winner.timezone)
       assert.strictEqual(initialized[1].timezone, winner.timezone)
       assert.strictEqual(winner.timezone_migration_state, 'complete')
@@ -83,11 +89,13 @@ describe('SettingsRepo', () => {
 
       const repo = yield* SettingsRepo
       const settings = yield* repo.initializeTimezone(userId, IanaTimezone.make('Pacific/Auckland'))
+
       const rows = yield* sql`
         SELECT timezone, timezone_migration_state, (SELECT start_date FROM injection_schedules WHERE id = 'schedule-pending') AS start_date
         FROM user_settings
         WHERE user_id = ${userId}
       `
+
       const state = yield* Schema.decodeUnknownEffect(
         Schema.Array(
           Schema.Struct({
@@ -137,14 +145,16 @@ describe('SettingsRepo', () => {
 
       const repo = yield* SettingsRepo
       yield* repo.initializeTimezone(userId, IanaTimezone.make('America/New_York'))
+
       const rows = yield* sql`
         SELECT id, starting_date, target_date, calendar_date_migrated
         FROM user_goals WHERE user_id = ${userId} ORDER BY id
       `
+
       const state = yield* Schema.decodeUnknownEffect(
         Schema.Array(
           Schema.Struct({
-            calendar_date_migrated: Schema.Number,
+            calendar_date_migrated: Schema.Int,
             id: Schema.String,
             starting_date: Schema.String,
             target_date: Schema.String,
@@ -188,9 +198,11 @@ describe('SettingsRepo', () => {
         ],
         { concurrency: 'unbounded' }
       )
+
       const rows = yield* sql`
         SELECT id, start_date FROM injection_schedules WHERE id IN ('schedule-user-a', 'schedule-user-b') ORDER BY id
       `
+
       const dates = yield* Schema.decodeUnknownEffect(
         Schema.Array(Schema.Struct({ id: Schema.String, start_date: Schema.String }))
       )(rows)
@@ -206,9 +218,9 @@ describe('SettingsRepo', () => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const audit = '2026-01-01T00:00:00.000Z'
-      yield* insertSettings('settings-positive', 'user-positive', 'lbs')
-      yield* insertSettings('settings-negative', 'user-negative', 'lbs')
-      yield* insertSettings('settings-zero', 'user-zero', 'lbs')
+      yield* insertSettings({ id: 'settings-positive', userId: 'user-positive', weightUnit: 'lbs' })
+      yield* insertSettings({ id: 'settings-negative', userId: 'user-negative', weightUnit: 'lbs' })
+      yield* insertSettings({ id: 'settings-zero', userId: 'user-zero', weightUnit: 'lbs' })
       yield* sql`
         INSERT INTO user_goals (
           id, user_id, goal_weight, starting_weight, starting_date, target_date, is_active, created_at, updated_at
@@ -227,9 +239,11 @@ describe('SettingsRepo', () => {
         ],
         { concurrency: 'unbounded' }
       )
+
       const rows = yield* sql`
         SELECT id, starting_date, target_date FROM user_goals ORDER BY id
       `
+
       const dates = yield* Schema.decodeUnknownEffect(
         Schema.Array(
           Schema.Struct({
@@ -253,7 +267,7 @@ describe('SettingsRepo', () => {
       const userId = 'user-legacy-timezone'
       const sql = yield* SqlClient.SqlClient
       const audit = '2026-01-01T00:00:00.000Z'
-      yield* insertSettings('settings-1', userId, 'kg')
+      yield* insertSettings({ id: 'settings-1', userId, weightUnit: 'kg' })
       yield* sql`
         INSERT INTO injection_schedules (id, name, drug, frequency, start_date, is_active, user_id, created_at, updated_at)
         VALUES ('schedule-1', 'Weekly', 'Semaglutide', 'weekly', '2024-12-05T03:00:00.000Z', 1, ${userId}, ${audit}, ${audit})
@@ -269,6 +283,7 @@ describe('SettingsRepo', () => {
 
       const repo = yield* SettingsRepo
       const settings = yield* repo.initializeTimezone(userId, IanaTimezone.make('America/New_York'))
+
       const rows = yield* sql`
         SELECT
           (SELECT datetime FROM injection_logs WHERE id = 'injection-1') AS injection_datetime,
@@ -276,13 +291,16 @@ describe('SettingsRepo', () => {
           (SELECT starting_date FROM user_goals WHERE id = 'goal-1') AS goal_start,
           (SELECT target_date FROM user_goals WHERE id = 'goal-1') AS goal_target
       `
+
       const planned = yield* Schema.decodeUnknownEffect(Schema.Array(PlannedRows))(rows)
       const [row] = planned
 
       assert.isDefined(row)
+
       if (row === undefined) {
         return
       }
+
       assert.strictEqual(settings.timezone, 'America/New_York')
       assert.strictEqual(settings.weightUnit, 'kg')
       assert.strictEqual(row.schedule_start, '2024-12-04')
@@ -296,23 +314,27 @@ describe('SettingsRepo', () => {
     Effect.gen(function* () {
       const userId = 'user-missing-partial-upserts'
       const repo = yield* SettingsRepo
+
       const weightUpdate = yield* repo
-        .upsert(userId, new UserSettingsUpdate({ weightUnit: 'kg' }))
+        .upsert(userId, UserSettingsUpdate.make({ weightUnit: 'kg' }))
         .pipe(Effect.forkChild)
 
       // Let the weight-only caller observe/claim the missing row before the
       // timezone caller races in, making the old read-then-insert failure deterministic.
       yield* Effect.yieldNow
+
       const timezoneSettings = yield* repo.upsert(
         userId,
-        new UserSettingsUpdate({ timezone: IanaTimezone.make('Pacific/Auckland') })
+        UserSettingsUpdate.make({ timezone: IanaTimezone.make('Pacific/Auckland') })
       )
+
       const weightSettings = yield* Fiber.join(weightUpdate)
       const persisted = yield* repo.get(userId)
 
       assert.strictEqual(timezoneSettings.timezone, 'Pacific/Auckland')
       assert.strictEqual(weightSettings.weightUnit, 'kg')
       assert.strictEqual(Option.isSome(persisted), true)
+
       if (Option.isSome(persisted)) {
         assert.strictEqual(persisted.value.timezone, 'Pacific/Auckland')
         assert.strictEqual(persisted.value.weightUnit, 'kg')
@@ -328,7 +350,8 @@ describe('SettingsRepo', () => {
 
       yield* Effect.forEach(
         userIds,
-        (userId, index) => insertSettings(`settings-partial-upsert-${index}`, userId, 'lbs', 'UTC'),
+        (userId, index) =>
+          insertSettings({ id: `settings-partial-upsert-${index}`, userId, weightUnit: 'lbs', timezone: 'UTC' }),
         { concurrency: 1, discard: true }
       )
       yield* Effect.forEach(
@@ -336,8 +359,8 @@ describe('SettingsRepo', () => {
         (userId) =>
           Effect.all(
             [
-              repo.upsert(userId, new UserSettingsUpdate({ timezone: IanaTimezone.make('Pacific/Auckland') })),
-              repo.upsert(userId, new UserSettingsUpdate({ weightUnit: 'kg' })),
+              repo.upsert(userId, UserSettingsUpdate.make({ timezone: IanaTimezone.make('Pacific/Auckland') })),
+              repo.upsert(userId, UserSettingsUpdate.make({ weightUnit: 'kg' })),
             ],
             { concurrency: 'unbounded', discard: true }
           ),
@@ -350,6 +373,7 @@ describe('SettingsRepo', () => {
         WHERE user_id LIKE 'user-partial-upsert-%'
         ORDER BY user_id
       `
+
       const settings = yield* Schema.decodeUnknownEffect(
         Schema.Array(
           Schema.Struct({
@@ -361,6 +385,7 @@ describe('SettingsRepo', () => {
       )(rows)
 
       assert.lengthOf(settings, userIds.length)
+
       for (const row of settings) {
         assert.strictEqual(row.timezone, 'Pacific/Auckland')
         assert.strictEqual(row.weight_unit, 'kg')
@@ -373,7 +398,7 @@ describe('SettingsRepo', () => {
       const userId = 'user-explicit-timezone'
       const sql = yield* SqlClient.SqlClient
       const audit = '2026-01-01T00:00:00.000Z'
-      yield* insertSettings('settings-explicit', userId, 'lbs', 'America/Los_Angeles')
+      yield* insertSettings({ id: 'settings-explicit', userId, weightUnit: 'lbs', timezone: 'America/Los_Angeles' })
       yield* sql`
         INSERT INTO injection_schedules (id, name, drug, frequency, start_date, is_active, user_id, created_at, updated_at)
         VALUES ('schedule-explicit', 'Weekly', 'Semaglutide', 'weekly', '2026-01-15', 1, ${userId}, ${audit}, ${audit})
@@ -381,11 +406,14 @@ describe('SettingsRepo', () => {
 
       const repo = yield* SettingsRepo
       const initialized = yield* repo.initializeTimezone(userId, IanaTimezone.make('America/New_York'))
+
       const updated = yield* repo.upsert(
         userId,
-        new UserSettingsUpdate({ timezone: IanaTimezone.make('Pacific/Auckland') })
+        UserSettingsUpdate.make({ timezone: IanaTimezone.make('Pacific/Auckland') })
       )
+
       const startRows = yield* sql`SELECT start_date FROM injection_schedules WHERE id = 'schedule-explicit'`
+
       const starts = yield* Schema.decodeUnknownEffect(Schema.Array(Schema.Struct({ start_date: Schema.String })))(
         startRows
       )
@@ -401,7 +429,7 @@ describe('SettingsRepo', () => {
       const userId = 'user-invalid-legacy-date'
       const sql = yield* SqlClient.SqlClient
       const audit = '2026-01-01T00:00:00.000Z'
-      yield* insertSettings('settings-invalid', userId, 'lbs')
+      yield* insertSettings({ id: 'settings-invalid', userId, weightUnit: 'lbs' })
       yield* sql`
         INSERT INTO injection_schedules (id, name, drug, frequency, start_date, is_active, user_id, created_at, updated_at)
         VALUES ('schedule-valid', 'Valid', 'Semaglutide', 'weekly', '2026-01-15T05:00:00.000Z', 1, ${userId}, ${audit}, ${audit})
@@ -413,6 +441,7 @@ describe('SettingsRepo', () => {
 
       const repo = yield* SettingsRepo
       const result = yield* repo.initializeTimezone(userId, IanaTimezone.make('America/New_York')).pipe(Effect.result)
+
       const rows = yield* sql`
         SELECT
           (SELECT start_date FROM injection_schedules WHERE id = 'schedule-valid') AS schedule_start,
@@ -421,6 +450,7 @@ describe('SettingsRepo', () => {
         FROM user_settings
         WHERE user_id = ${userId}
       `
+
       const state = yield* Schema.decodeUnknownEffect(
         Schema.Array(
           Schema.Struct({
@@ -432,14 +462,17 @@ describe('SettingsRepo', () => {
       )(rows)
 
       assert.strictEqual(result._tag, 'Failure')
+
       if (result._tag === 'Failure') {
         assert.strictEqual(result.failure._tag, 'SettingsTemporalMigrationError')
+
         if (result.failure._tag === 'SettingsTemporalMigrationError') {
           assert.strictEqual(result.failure.recordId, 'goal-invalid')
           assert.strictEqual(result.failure.field, 'starting_date')
           assert.strictEqual(result.failure.value, 'not-a-date')
         }
       }
+
       assert.strictEqual(state[0]?.schedule_start, '2026-01-15T05:00:00.000Z')
       assert.strictEqual(state[0]?.timezone, 'America/New_York')
       assert.strictEqual(state[0]?.timezone_migration_state, 'pending')

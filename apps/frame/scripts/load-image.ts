@@ -3,8 +3,10 @@ import * as BunServices from '@effect/platform-bun/BunServices'
 import * as Config from 'effect/Config'
 import * as Console from 'effect/Console'
 import * as Effect from 'effect/Effect'
-import { ChildProcess, ChildProcessSpawner } from 'effect/process'
+import * as ChildProcess from 'effect/process/ChildProcess'
+import * as ChildProcessSpawner from 'effect/process/ChildProcessSpawner'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { ImageLoadFailed } from './errors.js'
 
@@ -24,6 +26,7 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
       stderr: 'ignore',
     })
   )
+
   if (present === 0) {
     return yield* Console.log(`${imageRef} is already on the frame host`)
   }
@@ -34,15 +37,17 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
       stderr: 'inherit',
     })
   )
+
   const loaded = yield* spawner.exitCode(
-    ChildProcess.make(streamImage.trim(), [], { stderr: 'inherit' }).pipe(
+    ChildProcess.make(Str.trim(streamImage), [], { stderr: 'inherit' }).pipe(
       ChildProcess.pipeTo(
         ChildProcess.make('docker', ['-H', dockerHost, 'load'], { stdout: 'inherit', stderr: 'inherit' })
       )
     )
   )
+
   if (loaded !== 0) {
-    return yield* new ImageLoadFailed({
+    return yield* ImageLoadFailed.make({
       image: imageRef,
       exitCode: loaded,
       message: `docker load of ${imageRef} exited with ${loaded}`,

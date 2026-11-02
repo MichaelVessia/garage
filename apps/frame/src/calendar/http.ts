@@ -1,13 +1,18 @@
-import * as GoogleWorkspace from '@distilled.cloud/google-workspace'
-import * as Calendar from '@distilled.cloud/google-workspace/calendar_v3'
+import { Credentials } from '@distilled.cloud/google-workspace'
+import { listEvents } from '@distilled.cloud/google-workspace/calendar_v3'
+import type { ListEventsError } from '@distilled.cloud/google-workspace/calendar_v3'
 import * as Clock from 'effect/Clock'
-import { SecureRandom, Signature } from 'effect/crypto'
+import * as SecureRandom from 'effect/crypto/SecureRandom'
+import * as Signature from 'effect/crypto/Signature'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import * as HashMap from 'effect/HashMap'
-import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/http'
-import { Jwk, Jwt } from 'effect/jose'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
+import * as HttpClientResponse from 'effect/http/HttpClientResponse'
+import * as Jwk from 'effect/jose/Jwk'
+import * as Jwt from 'effect/jose/Jwt'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
@@ -29,8 +34,10 @@ import type { InstantRange } from './services.js'
 
 // The frame polls every few minutes; each window is read from Google at most this often.
 const FEED_TTL = Duration.minutes(5)
+
 // A window nobody has asked for in this long is dropped instead of kept as a fallback.
 const STALE_LIMIT = Duration.days(1)
+
 // Google issues access tokens for at most an hour; the frame renews them a little early.
 const TOKEN_LIFETIME = Duration.hours(1)
 const TOKEN_MARGIN = Duration.minutes(5)
@@ -44,6 +51,7 @@ const Assertion = Schema.Struct({
   iat: Schema.Finite,
   exp: Schema.Finite,
 })
+
 const TokenResponse = Schema.Struct({ access_token: Schema.NonEmptyString, expires_in: Schema.Finite })
 
 const SignatureLive = Signature.layerWebCrypto.pipe(Layer.provide(SecureRandom.layerWebCrypto))
@@ -75,11 +83,11 @@ const STATUS_BY_TAG = {
 } satisfies Record<string, number>
 
 // Google's error messages can echo request details, so only the status survives.
-const toCalendarError = (error: Calendar.ListEventsError): CalendarError =>
+const toCalendarError = (error: ListEventsError): CalendarError =>
   Match.value(error).pipe(
-    Match.tag('HttpClientError', () => calendarUnreachable('Google Calendar could not be reached')),
+    Match.tag('HttpClientError', () => calendarUnreachable({ message: 'Google Calendar could not be reached' })),
     Match.tag('GoogleWorkspaceParseError', () =>
-      calendarDecodeError('Google Calendar returned an unreadable response')
+      calendarDecodeError({ message: 'Google Calendar returned an unreadable response' })
     ),
     Match.tag('UnknownGoogleWorkspaceError', (unknown) => calendarHttpError(unknown.code ?? 500)),
     Match.orElse((known) => calendarHttpError(Option.getOrElse(R.get(STATUS_BY_TAG, known._tag), () => 500)))
@@ -98,15 +106,20 @@ export const CalendarFeedLive: Layer.Layer<
     const { timezone } = yield* FrameTimezone
     const client = yield* HttpClient.HttpClient
     const signature = yield* Signature.Signature
+
     const signingKey = yield* Jwk.importPkcs8(serviceAccount.privateKey, 'RS256').pipe(
-      Effect.mapError(() => envInvalid('GOOGLE_SERVICE_ACCOUNT_KEY', 'private_key is not a PKCS #8 RSA key'))
+      Effect.mapError(() =>
+        envInvalid({ variable: 'GOOGLE_SERVICE_ACCOUNT_KEY', reason: 'private_key is not a PKCS #8 RSA key' })
+      )
     )
+
     const tokens = yield* Ref.make(Option.none<CachedToken>())
     const windows = yield* Ref.make(HashMap.empty<string, CachedWindow>())
 
     // Sign in as the service account with a signed JWT assertion (OAuth 2.0 JWT bearer grant).
     const signIn = Effect.fn('frame.calendar.signIn')(function* (nowMillis: number) {
       const issuedAt = Math.floor(nowMillis / 1000)
+
       const assertion = yield* Jwt.sign(
         Assertion,
         {
@@ -119,21 +132,25 @@ export const CalendarFeedLive: Layer.Layer<
         signingKey
       ).pipe(
         Effect.provideService(Signature.Signature, signature),
-        Effect.mapError(() => calendarDecodeError('The Google sign-in assertion could not be signed'))
+        Effect.mapError(() => calendarDecodeError({ message: 'The Google sign-in assertion could not be signed' }))
       )
+
       const response = yield* client
         .execute(
           HttpClientRequest.post(serviceAccount.tokenUri).pipe(
             HttpClientRequest.bodyUrlParams({ grant_type: JWT_BEARER, assertion: Redacted.value(assertion) })
           )
         )
-        .pipe(Effect.mapError(() => calendarUnreachable('Google sign-in could not be reached')))
+        .pipe(Effect.mapError(() => calendarUnreachable({ message: 'Google sign-in could not be reached' })))
+
       if (response.status < 200 || response.status >= 300) {
         return yield* calendarHttpError(response.status)
       }
+
       const granted = yield* HttpClientResponse.schemaBodyJson(TokenResponse)(response).pipe(
-        Effect.mapError(() => calendarDecodeError('Google sign-in returned an unreadable token'))
+        Effect.mapError(() => calendarDecodeError({ message: 'Google sign-in returned an unreadable token' }))
       )
+
       return {
         token: Redacted.make(granted.access_token),
         expiresAtMillis: nowMillis + granted.expires_in * 1000 - Duration.toMillis(TOKEN_MARGIN),
@@ -143,21 +160,25 @@ export const CalendarFeedLive: Layer.Layer<
     const accessToken = Effect.fn('frame.calendar.accessToken')(function* () {
       const now = yield* Clock.currentTimeMillis
       const cached = yield* Ref.get(tokens)
+
       if (Option.isSome(cached) && now < cached.value.expiresAtMillis) {
         return cached.value.token
       }
+
       const fresh = yield* signIn(now)
       yield* Ref.set(tokens, Option.some(fresh))
+
       return fresh.token
     })
 
     const download = Effect.fn('frame.calendar.download')(function* (range: InstantRange) {
       const token = yield* accessToken()
-      const events = yield* Calendar.listEvents
+
+      const events = yield* listEvents
         .items({ calendarId, ...listWindow(range), singleEvents: true, maxResults: 2500 })
         .pipe(
           Stream.runCollect,
-          Effect.provideService(GoogleWorkspace.Credentials, Effect.succeed({ accessToken: token })),
+          Effect.provideService(Credentials, Effect.succeed({ accessToken: token })),
           Effect.provideService(HttpClient.HttpClient, client),
           // A rejected token is signed in again on the next request.
           Effect.tapError((error) =>
@@ -165,6 +186,7 @@ export const CalendarFeedLive: Layer.Layer<
           ),
           Effect.mapError(toCalendarError)
         )
+
       return yield* toOccurrences(events, timezone)
     })
 
@@ -174,9 +196,11 @@ export const CalendarFeedLive: Layer.Layer<
         const key = windowKey(range)
         const now = yield* Clock.currentTimeMillis
         const cached = HashMap.get(yield* Ref.get(windows), key)
+
         if (Option.isSome(cached) && now - cached.value.fetchedAtMillis < Duration.toMillis(FEED_TTL)) {
           return cached.value.events
         }
+
         return yield* download(range).pipe(
           Effect.tap((events) =>
             Ref.update(windows, (current) =>

@@ -8,12 +8,13 @@ import * as Layer from 'effect/Layer'
 
 import { GarageMcpRoutes } from './server.js'
 
-const AutocaliwebLive = AutocaliwebApiLive.pipe(
-  Layer.provideMerge(AutocaliwebConfigLive),
-  Layer.provide(BunHttpClient.layer)
-)
+const AutocaliwebConfiguredLive = AutocaliwebApiLive.pipe(Layer.provideMerge(AutocaliwebConfigLive))
 
-const SabnzbdLive = SabnzbdApiLive.pipe(Layer.provideMerge(SabnzbdConfigLive), Layer.provide(BunHttpClient.layer))
+const AutocaliwebLive = AutocaliwebConfiguredLive.pipe(Layer.provide(BunHttpClient.layer))
+
+const SabnzbdConfiguredLive = SabnzbdApiLive.pipe(Layer.provideMerge(SabnzbdConfigLive))
+
+const SabnzbdLive = SabnzbdConfiguredLive.pipe(Layer.provide(BunHttpClient.layer))
 
 const GarageServicesLive = Layer.merge(AutocaliwebLive, SabnzbdLive)
 

@@ -1,0 +1,26 @@
+id: no-native-collections
+snapshots:
+  "new Map()\n":
+    labels:
+    - source: new Map()
+      style: primary
+      start: 0
+      end: 9
+  "new Map<string, number>()\n":
+    labels:
+    - source: new Map<string, number>()
+      style: primary
+      start: 0
+      end: 25
+  "new Set(items)\n":
+    labels:
+    - source: new Set(items)
+      style: primary
+      start: 0
+      end: 14
+  "new Set<string>()\n":
+    labels:
+    - source: new Set<string>()
+      style: primary
+      start: 0
+      end: 17

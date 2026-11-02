@@ -4,8 +4,8 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/sql'
-import type { SqlConnection } from 'effect/sql'
+import * as SqlClient from 'effect/sql/SqlClient'
+import type * as SqlConnection from 'effect/sql/SqlConnection'
 
 import type { DataImportResult, InjectionSchedule } from '#shared'
 import {
@@ -19,7 +19,7 @@ import {
 
 import { goalRowToDomain, GoalRow } from '../goals/goal-repo.js'
 import { InjectionLogRow, rowToDomain as injectionLogRowToDomain } from '../injection/injection-log-repo.js'
-import { phaseRowToDomain, PhaseRow, scheduleRowToDomain, ScheduleRow } from '../schedule/schedule-repo.js'
+import { phaseRowToDomain, PhaseRow, scheduleRowToDomain, ScheduleRow } from '../schedule/schedule-rows.js'
 import { randomUuid } from '../shared/common/random-uuid.js'
 import { rowToDomain as weightLogRowToDomain, WeightLogRow } from '../weight/weight-log-repo.js'
 import { planDataImport } from './data-import-plan.js'
@@ -51,8 +51,8 @@ const SettingsRow = Schema.Struct({
 const ExportTemporalStateRow = Schema.Struct({
   migration_state: Schema.NullOr(Schema.String),
   timezone: Schema.NullOr(IanaTimezone),
-  pending_goals: Schema.Number,
-  pending_schedules: Schema.Number,
+  pending_goals: Schema.Int,
+  pending_schedules: Schema.Int,
 })
 
 // ============================================
@@ -64,7 +64,7 @@ export const DataExportServiceLive = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
-    const decodeSchedule = Effect.fn('DataExportService.decodeSchedule')(function* (row: SqlConnection.Row) {
+    const decodeSchedule = Effect.fn('dataExportService.decodeSchedule')(function* (row: SqlConnection.Row) {
       const r = yield* Schema.decodeUnknownEffect(ScheduleRow)(row)
 
       // Fetch phases for this schedule
@@ -73,13 +73,14 @@ export const DataExportServiceLive = Layer.effect(
         FROM schedule_phases WHERE schedule_id = ${r.id}
         ORDER BY "order" ASC
       `
+
       const decodedPhaseRows = yield* Schema.decodeUnknownEffect(Schema.Array(PhaseRow))(phaseRows)
       const phases = Arr.map(decodedPhaseRows, phaseRowToDomain)
 
       return scheduleRowToDomain(r, phases)
     })
 
-    const exportData = Effect.fn('DataExportService.exportData')(
+    const exportData = Effect.fn('dataExportService.exportData')(
       function* (userId: string) {
         const stateRows = yield* sql`
           SELECT
@@ -88,14 +89,16 @@ export const DataExportServiceLive = Layer.effect(
             (SELECT COUNT(*) FROM user_goals WHERE user_id = ${userId} AND calendar_date_migrated = 0) AS pending_goals,
             (SELECT COUNT(*) FROM injection_schedules WHERE user_id = ${userId} AND calendar_date_migrated = 0) AS pending_schedules
         `
+
         const state = yield* Schema.decodeUnknownEffect(ExportTemporalStateRow)(stateRows[0])
+
         if (
           state.migration_state !== 'complete' ||
           state.timezone === null ||
           state.pending_goals > 0 ||
           state.pending_schedules > 0
         ) {
-          return yield* new DataExportTemporalMigrationRequired({
+          return yield* DataExportTemporalMigrationRequired.make({
             message:
               'Complete timezone setup and temporal migration before exporting. Correct any reported legacy date and retry timezone setup.',
             pendingGoals: state.pending_goals,
@@ -110,6 +113,7 @@ export const DataExportServiceLive = Layer.effect(
           FROM weight_logs WHERE user_id = ${userId}
           ORDER BY datetime DESC
         `
+
         const decodedWeightLogRows = yield* Schema.decodeUnknownEffect(Schema.Array(WeightLogRow))(weightLogRows)
         const weightLogs = Arr.map(decodedWeightLogRows, weightLogRowToDomain)
 
@@ -119,9 +123,11 @@ export const DataExportServiceLive = Layer.effect(
           FROM injection_logs WHERE user_id = ${userId}
           ORDER BY datetime DESC
         `
+
         const decodedInjectionLogRows = yield* Schema.decodeUnknownEffect(Schema.Array(InjectionLogRow))(
           injectionLogRows
         )
+
         const injectionLogs = Arr.map(decodedInjectionLogRows, injectionLogRowToDomain)
 
         // Fetch all schedules with phases
@@ -131,6 +137,7 @@ export const DataExportServiceLive = Layer.effect(
           FROM injection_schedules WHERE user_id = ${userId}
           ORDER BY start_date DESC
         `
+
         const schedules = yield* Effect.forEach(scheduleRows, (row) => decodeSchedule(row), {
           concurrency: 1,
         })
@@ -142,6 +149,7 @@ export const DataExportServiceLive = Layer.effect(
           FROM user_goals WHERE user_id = ${userId}
           ORDER BY created_at DESC
         `
+
         const decodedGoalRows = yield* Schema.decodeUnknownEffect(Schema.Array(GoalRow))(goalRows)
         const goals = Arr.map(decodedGoalRows, goalRowToDomain)
 
@@ -149,14 +157,16 @@ export const DataExportServiceLive = Layer.effect(
         const settingsRows = yield* sql`
           SELECT weight_unit, timezone FROM user_settings WHERE user_id = ${userId}
         `
+
         const settings = Arr.isReadonlyArrayNonEmpty(settingsRows)
           ? yield* Schema.decodeUnknownEffect(SettingsRow)(Arr.headNonEmpty(settingsRows)).pipe(
-              Effect.map((r) => new ExportedSettings({ timezone: r.timezone, weightUnit: r.weight_unit }))
+              Effect.map((r) => ExportedSettings.make({ timezone: r.timezone, weightUnit: r.weight_unit }))
             )
           : null
 
         const exportedAt = yield* DateTime.now
-        return new DataExport({
+
+        return DataExport.make({
           version: '3.0.0-alpha.2',
           exportedAt,
           data: {
@@ -176,7 +186,7 @@ export const DataExportServiceLive = Layer.effect(
     )
 
     // Insert one schedule and its phases sequentially so phases follow their parent.
-    const importSchedule = Effect.fn('DataExportService.importSchedule')(function* (
+    const importSchedule = Effect.fn('dataExportService.importSchedule')(function* (
       userId: string,
       schedule: InjectionSchedule
     ) {
@@ -199,7 +209,7 @@ export const DataExportServiceLive = Layer.effect(
       )
     })
 
-    const applyDataImport = Effect.fn('DataExportService.applyDataImport')(function* (
+    const applyDataImport = Effect.fn('dataExportService.applyDataImport')(function* (
       userId: string,
       plan: DataImportPlan
     ) {
@@ -244,7 +254,8 @@ export const DataExportServiceLive = Layer.effect(
       yield* Effect.forEach(
         snapshot.data.goals,
         (goal) => {
-          const completedAt = goal.completedAt !== null ? DateTime.formatIso(goal.completedAt) : null
+          const completedAt = goal.completedAt === null ? null : DateTime.formatIso(goal.completedAt)
+
           return sql`
             INSERT INTO user_goals (
               id, user_id, goal_weight, starting_weight, starting_date, target_date,
@@ -267,7 +278,7 @@ export const DataExportServiceLive = Layer.effect(
       }
     })
 
-    const importData = Effect.fn('DataExportService.importData')(function* (userId: string, data: DataExport) {
+    const importData = Effect.fn('dataExportService.importData')(function* (userId: string, data: DataExport) {
       const plan = yield* planDataImport(data)
       // No transaction: the D1 driver does not support them (withTransaction
       // dies at runtime). A failed import can leave partial data; the import
@@ -275,6 +286,7 @@ export const DataExportServiceLive = Layer.effect(
       yield* applyDataImport(userId, plan).pipe(
         Effect.mapError((cause) => DataImportError.make({ message: 'Failed to import data', cause }))
       )
+
       return plan.result
     })
 

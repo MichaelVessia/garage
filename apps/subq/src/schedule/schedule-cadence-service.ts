@@ -36,29 +36,31 @@ export const ScheduleCadenceServiceLive = Layer.effect(
     const injectionLogRepo = yield* InjectionLogRepo
     const settingsRepo = yield* SettingsRepo
 
-    const getTimezone = Effect.fn('ScheduleCadenceService.getTimezone')(function* (userId: string) {
+    const getTimezone = Effect.fn('scheduleCadenceService.getTimezone')(function* (userId: string) {
       const settings = yield* settingsRepo
         .get(userId)
         .pipe(
           Effect.mapError((error) => ScheduleDatabaseError.make({ operation: error.operation, cause: error.cause }))
         )
+
       return yield* Option.match(settings, {
         onNone: () =>
           Effect.fail(
             ScheduleDatabaseError.make({
               operation: 'query',
-              cause: new SettingsTimezoneNotInitialized({ userId }),
+              cause: SettingsTimezoneNotInitialized.make({ userId }),
             })
           ),
         onSome: ({ timezone }) => Effect.succeed(timezone),
       })
     })
 
-    const getNextScheduledDose = Effect.fn('ScheduleCadenceService.getNextScheduledDose')(function* (userId: string) {
+    const getNextScheduledDose = Effect.fn('scheduleCadenceService.getNextScheduledDose')(function* (userId: string) {
       const timezone = yield* getTimezone(userId)
       const scheduleOpt = yield* scheduleRepo.getActive(userId)
+
       if (Option.isNone(scheduleOpt)) {
-        return new NextScheduledDoseResult({ nextDose: null, timezone })
+        return NextScheduledDoseResult.make({ nextDose: null, timezone })
       }
 
       const schedule = scheduleOpt.value
@@ -67,17 +69,18 @@ export const ScheduleCadenceServiceLive = Layer.effect(
       const lastInjectionDate = Option.map(lastInjection, (instant) => projectInstantToCalendarDate(instant, timezone))
       const today = projectInstantToCalendarDate(now, timezone)
 
-      return new NextScheduledDoseResult({
+      return NextScheduledDoseResult.make({
         nextDose: Option.getOrNull(nextDose(schedule, lastInjectionDate, today)),
         timezone,
       })
     })
 
-    const getScheduleView = Effect.fn('ScheduleCadenceService.getScheduleView')(function* (
+    const getScheduleView = Effect.fn('scheduleCadenceService.getScheduleView')(function* (
       userId: string,
       scheduleId: InjectionScheduleId
     ) {
       const scheduleOpt = yield* scheduleRepo.findById(scheduleId, userId)
+
       if (Option.isNone(scheduleOpt)) {
         return Option.none()
       }
@@ -85,6 +88,7 @@ export const ScheduleCadenceServiceLive = Layer.effect(
       const injections = yield* injectionLogRepo
         .listBySchedule(scheduleId, userId)
         .pipe(Effect.mapError((e) => ScheduleDatabaseError.make({ operation: e.operation, cause: e.cause })))
+
       const timezone = yield* getTimezone(userId)
       const now = yield* DateTime.now
       const today = projectInstantToCalendarDate(now, timezone)

@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-reprovide-ambient-service
+language: tsx
+severity: error
+message: "Do not re-provide a service captured with yield*. Provide its implementing Layer once at the composition root."
+
+utils:
+  function-boundary:
+    any:
+      - kind: arrow_function
+      - kind: function_expression
+      - kind: generator_function
+      - kind: function_declaration
+      - kind: generator_function_declaration
+      - kind: method_definition
+
+rule:
+  any:
+    - pattern: Effect.provideService($TAG, $SERVICE)
+    - pattern: Effect.provideService($OPERATION, $TAG, $SERVICE)
+  # The capture and the provision are in the same function.
+  inside:
+    stopBy:
+      matches: function-boundary
+    matches: function-boundary
+    has:
+      stopBy:
+        matches: function-boundary
+      pattern: const $SERVICE = yield* $TAG
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"

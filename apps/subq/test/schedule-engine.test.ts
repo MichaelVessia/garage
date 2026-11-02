@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 
@@ -30,7 +31,7 @@ const makeSchedule = (
 ) => {
   const scheduleId = InjectionScheduleId.make('schedule-1')
 
-  return new InjectionSchedule({
+  return InjectionSchedule.make({
     id: scheduleId,
     name: ScheduleName.make('Test schedule'),
     drug: MedicationCompound.make('Semaglutide'),
@@ -39,17 +40,16 @@ const makeSchedule = (
     startDate,
     isActive: true,
     notes: null,
-    phases: phases.map(
-      (phase) =>
-        new SchedulePhase({
-          id: SchedulePhaseId.make(`phase-${phase.order}`),
-          scheduleId,
-          order: PhaseOrder.make(phase.order),
-          durationDays: phase.durationDays === null ? null : PhaseDurationDays.make(phase.durationDays),
-          doseMg: DoseMg.make(phase.doseMg),
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        })
+    phases: Arr.map(phases, (phase) =>
+      SchedulePhase.make({
+        id: SchedulePhaseId.make(`phase-${phase.order}`),
+        scheduleId,
+        order: PhaseOrder.make(phase.order),
+        durationDays: phase.durationDays === null ? null : PhaseDurationDays.make(phase.durationDays),
+        doseMg: DoseMg.make(phase.doseMg),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
     ),
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -57,7 +57,7 @@ const makeSchedule = (
 }
 
 const makeInjection = (id: string, datetime: string, doseMg: number, scheduleId: InjectionScheduleId) =>
-  new InjectionLog({
+  InjectionLog.make({
     id: InjectionLogId.make(id),
     datetime: DateTime.makeUnsafe(datetime),
     drug: MedicationCompound.make('Semaglutide'),
@@ -74,8 +74,12 @@ const requireValue = <T>(value: T | null | undefined): T => {
   if (value === null || value === undefined) {
     throw new Error('Expected value to be present')
   }
+
   return value
 }
+
+const requireSome = <A>(option: Option.Option<A>): A =>
+  Option.getOrElse(option, () => expect.unreachable('Expected Option.some'))
 
 describe('ScheduleEngine', () => {
   it('keeps the current phase before an indefinite maintenance phase is reached', () => {
@@ -84,7 +88,7 @@ describe('ScheduleEngine', () => {
       { order: 2, durationDays: null, doseMg: 5 },
     ])
 
-    const active = Option.getOrThrow(currentPhase(schedule, CalendarDate.make('2024-01-20')))
+    const active = requireSome(currentPhase(schedule, CalendarDate.make('2024-01-20')))
 
     expect(active.phase.order).toBe(1)
     expect(active.phase.doseMg).toBe(2.5)
@@ -97,7 +101,7 @@ describe('ScheduleEngine', () => {
       { order: 3, durationDays: null, doseMg: 7.5 },
     ])
 
-    const dose = Option.getOrThrow(
+    const dose = requireSome(
       nextDose(schedule, Option.some(CalendarDate.make('2024-03-08')), CalendarDate.make('2024-03-15'))
     )
 
@@ -113,6 +117,7 @@ describe('ScheduleEngine', () => {
       { order: 1, durationDays: 28, doseMg: 2.5 },
       { order: 2, durationDays: null, doseMg: 5 },
     ])
+
     const injections = [
       makeInjection('injection-1', '2024-01-01T00:00:00Z', 2.5, schedule.id),
       makeInjection('injection-2', '2024-01-08T00:00:00Z', 2.5, schedule.id),
@@ -142,6 +147,7 @@ describe('ScheduleEngine', () => {
       ],
       CalendarDate.make('2024-12-04')
     )
+
     const injections = [makeInjection('injection-1', '2024-12-05T03:00:00Z', 2.5, schedule.id)]
 
     const view = scheduleView(

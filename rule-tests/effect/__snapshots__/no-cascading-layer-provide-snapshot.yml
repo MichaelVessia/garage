@@ -1,0 +1,166 @@
+id: no-cascading-layer-provide
+snapshots:
+  "App.pipe(Layer.provide(A), Layer.provide(B))\n":
+    labels:
+    - source: App.pipe(Layer.provide(A), Layer.provide(B))
+      style: primary
+      start: 0
+      end: 44
+    - source: Layer.provide(B)
+      style: secondary
+      start: 27
+      end: 43
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+  "App.pipe(Layer.provide(A), Layer.provide(B), Layer.provide(C))\n":
+    labels:
+    - source: App.pipe(Layer.provide(A), Layer.provide(B), Layer.provide(C))
+      style: primary
+      start: 0
+      end: 62
+    - source: Layer.provide(B)
+      style: secondary
+      start: 27
+      end: 43
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+  "App.pipe(Layer.provide(A), Layer.provideMerge(B))\n":
+    labels:
+    - source: App.pipe(Layer.provide(A), Layer.provideMerge(B))
+      style: primary
+      start: 0
+      end: 49
+    - source: Layer.provideMerge(B)
+      style: secondary
+      start: 27
+      end: 48
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+  "App.pipe(Layer.provide(A), decorate, Layer.provide(B))\n":
+    labels:
+    - source: App.pipe(Layer.provide(A), decorate, Layer.provide(B))
+      style: primary
+      start: 0
+      end: 54
+    - source: Layer.provide(B)
+      style: secondary
+      start: 37
+      end: 53
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+    - source: Layer.provide(A)
+      style: secondary
+      start: 9
+      end: 25
+  "App.pipe(Layer.provideMerge(A), Layer.provide(B))\n":
+    labels:
+    - source: App.pipe(Layer.provideMerge(A), Layer.provide(B))
+      style: primary
+      start: 0
+      end: 49
+    - source: Layer.provide(B)
+      style: secondary
+      start: 32
+      end: 48
+    - source: Layer.provideMerge(A)
+      style: secondary
+      start: 9
+      end: 30
+    - source: Layer.provideMerge(A)
+      style: secondary
+      start: 9
+      end: 30
+  "App.pipe(Layer.provideMerge(A), Layer.provideMerge(B))\n":
+    labels:
+    - source: App.pipe(Layer.provideMerge(A), Layer.provideMerge(B))
+      style: primary
+      start: 0
+      end: 54
+    - source: Layer.provideMerge(B)
+      style: secondary
+      start: 32
+      end: 53
+    - source: Layer.provideMerge(A)
+      style: secondary
+      start: 9
+      end: 30
+    - source: Layer.provideMerge(A)
+      style: secondary
+      start: 9
+      end: 30
+  "Layer.provide(App, Layer.provide(A, B))\n":
+    labels:
+    - source: Layer.provide(App, Layer.provide(A, B))
+      style: primary
+      start: 0
+      end: 39
+    - source: Layer.provide(A, B)
+      style: secondary
+      start: 19
+      end: 38
+    - source: Layer.provide(A, B)
+      style: secondary
+      start: 19
+      end: 38
+  "Layer.provide(Layer.mergeAll(A.pipe(Layer.provide(B)), C))\n":
+    labels:
+    - source: Layer.provide(Layer.mergeAll(A.pipe(Layer.provide(B)), C))
+      style: primary
+      start: 0
+      end: 58
+    - source: Layer.provide(B)
+      style: secondary
+      start: 36
+      end: 52
+    - source: Layer.provide(B)
+      style: secondary
+      start: 36
+      end: 52
+  "Layer.provide(Layer.provide(A))\n":
+    labels:
+    - source: Layer.provide(Layer.provide(A))
+      style: primary
+      start: 0
+      end: 31
+    - source: Layer.provide(A)
+      style: secondary
+      start: 14
+      end: 30
+    - source: Layer.provide(A)
+      style: secondary
+      start: 14
+      end: 30
+  "Layer.provideMerge(App, Layer.provideMerge(A, B))\n":
+    labels:
+    - source: Layer.provideMerge(App, Layer.provideMerge(A, B))
+      style: primary
+      start: 0
+      end: 49
+    - source: Layer.provideMerge(A, B)
+      style: secondary
+      start: 24
+      end: 48
+    - source: Layer.provideMerge(A, B)
+      style: secondary
+      start: 24
+      end: 48

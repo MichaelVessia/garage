@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: no-cascading-layer-provide
+language: tsx
+severity: error
+message: "Use one Layer.provide or Layer.provideMerge stage per pipe, and name the intermediate layer before a nested provision. Combine independent dependencies with Layer.provide(Layer.mergeAll(...))."
+
+utils:
+  layer-provision:
+    any:
+      - pattern: Layer.provide($$$)
+      - pattern: Layer.provideMerge($$$)
+  function-boundary:
+    any:
+      - kind: arrow_function
+      - kind: function_expression
+      - kind: generator_function
+      - kind: function_declaration
+      - kind: generator_function_declaration
+      - kind: method_definition
+
+rule:
+  any:
+    # Two or more provision stages in one pipe, with or without other operators between them.
+    - pattern: $_LAYER.pipe($$$)
+      has:
+        field: arguments
+        has:
+          matches: layer-provision
+          precedes:
+            stopBy: end
+            matches: layer-provision
+    # A provision inside another provision's arguments. Function bodies are independent.
+    - all:
+        - matches: layer-provision
+        - has:
+            field: arguments
+            has:
+              stopBy:
+                matches: function-boundary
+              matches: layer-provision
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"
+
+ignores:
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"

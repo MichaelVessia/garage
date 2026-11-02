@@ -10,6 +10,7 @@ import { InjectionScheduleId } from '../schedule/domain.js'
 
 /** UUID identifier for injection log entries */
 export const InjectionLogId = Schema.String.pipe(Schema.brand('InjectionLogId'))
+
 export type InjectionLogId = typeof InjectionLogId.Type
 
 // ============================================
@@ -18,45 +19,48 @@ export type InjectionLogId = typeof InjectionLogId.Type
 
 /** Injection site location */
 export const InjectionSite = Schema.NonEmptyString.pipe(Schema.brand('InjectionSite'))
+
 export type InjectionSite = typeof InjectionSite.Type
 
 /** Injections per week rate */
-export const InjectionsPerWeek = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
+export const InjectionsPerWeek = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
   Schema.brand('InjectionsPerWeek')
 )
+
 export type InjectionsPerWeek = typeof InjectionsPerWeek.Type
 
 // ============================================
 // Injection Domain Errors
 // ============================================
 
-export class InjectionLogNotFoundError extends Schema.TaggedClass<InjectionLogNotFoundError>()(
-  'InjectionLogNotFoundError',
-  {
-    id: Schema.String,
-  }
-) {}
+export class InjectionLogNotFoundError extends Schema.TaggedClass<
+  InjectionLogNotFoundError,
+  { readonly brand: unique symbol }
+>()('InjectionLogNotFoundError', {
+  id: Schema.String,
+}) {}
 
-export class InjectionLogDatabaseError extends Schema.TaggedClass<InjectionLogDatabaseError>()(
-  'InjectionLogDatabaseError',
-  {
-    operation: DbOperation,
-    cause: Schema.Defect(),
-  }
-) {}
+export class InjectionLogDatabaseError extends Schema.TaggedClass<
+  InjectionLogDatabaseError,
+  { readonly brand: unique symbol }
+>()('InjectionLogDatabaseError', {
+  operation: DbOperation,
+  cause: Schema.Defect(),
+}) {}
 
-export class ScheduleAssignmentTargetNotFoundError extends Schema.TaggedClass<ScheduleAssignmentTargetNotFoundError>()(
-  'ScheduleAssignmentTargetNotFoundError',
-  {
-    scheduleId: Schema.String,
-  }
-) {}
+export class ScheduleAssignmentTargetNotFoundError extends Schema.TaggedClass<
+  ScheduleAssignmentTargetNotFoundError,
+  { readonly brand: unique symbol }
+>()('ScheduleAssignmentTargetNotFoundError', {
+  scheduleId: Schema.String,
+}) {}
 
 export const InjectionLogError = Schema.Union([
   InjectionLogNotFoundError,
   InjectionLogDatabaseError,
   ScheduleAssignmentTargetNotFoundError,
 ])
+
 export type InjectionLogError = typeof InjectionLogError.Type
 // ============================================
 // Core Domain Type
@@ -66,7 +70,7 @@ export type InjectionLogError = typeof InjectionLogError.Type
  * An injection log entry represents a single injection event.
  * Used for tracking supported GLP medication injections.
  */
-export class InjectionLog extends Schema.Class<InjectionLog>('InjectionLog')({
+export class InjectionLog extends Schema.Class<InjectionLog, { readonly brand: unique symbol }>('InjectionLog')({
   id: InjectionLogId,
   datetime: Schema.DateTimeUtc,
   drug: MedicationCompound,
@@ -86,7 +90,9 @@ export class InjectionLog extends Schema.Class<InjectionLog>('InjectionLog')({
 /**
  * Payload for creating a new injection log entry.
  */
-export class InjectionLogCreate extends Schema.Class<InjectionLogCreate>('InjectionLogCreate')({
+export class InjectionLogCreate extends Schema.Class<InjectionLogCreate, { readonly brand: unique symbol }>(
+  'InjectionLogCreate'
+)({
   datetime: Schema.DateTimeUtc,
   drug: MedicationCompound,
   supplier: Schema.OptionFromOptional(Supplier),
@@ -99,7 +105,9 @@ export class InjectionLogCreate extends Schema.Class<InjectionLogCreate>('Inject
 /**
  * Payload for updating an existing injection log entry.
  */
-export class InjectionLogUpdate extends Schema.Class<InjectionLogUpdate>('InjectionLogUpdate')({
+export class InjectionLogUpdate extends Schema.Class<InjectionLogUpdate, { readonly brand: unique symbol }>(
+  'InjectionLogUpdate'
+)({
   id: InjectionLogId,
   datetime: Schema.optional(Schema.DateTimeUtc),
   drug: Schema.optional(MedicationCompound),
@@ -113,14 +121,18 @@ export class InjectionLogUpdate extends Schema.Class<InjectionLogUpdate>('Inject
 /**
  * Payload for deleting an injection log entry.
  */
-export class InjectionLogDelete extends Schema.Class<InjectionLogDelete>('InjectionLogDelete')({
+export class InjectionLogDelete extends Schema.Class<InjectionLogDelete, { readonly brand: unique symbol }>(
+  'InjectionLogDelete'
+)({
   id: InjectionLogId,
 }) {}
 
 /**
  * Parameters for listing injection logs.
  */
-export class InjectionLogListParams extends Schema.Class<InjectionLogListParams>('InjectionLogListParams')({
+export class InjectionLogListParams extends Schema.Class<InjectionLogListParams, { readonly brand: unique symbol }>(
+  'InjectionLogListParams'
+)({
   limit: Limit.pipe(Schema.withDecodingDefaultType(Effect.succeed(Limit.make(50)))),
   offset: Offset.pipe(Schema.withDecodingDefaultType(Effect.succeed(Offset.make(0)))),
   startDate: Schema.optional(Schema.DateTimeUtc),
@@ -131,9 +143,10 @@ export class InjectionLogListParams extends Schema.Class<InjectionLogListParams>
 /**
  * Payload for bulk assigning injection logs to a schedule.
  */
-export class InjectionLogBulkAssignSchedule extends Schema.Class<InjectionLogBulkAssignSchedule>(
-  'InjectionLogBulkAssignSchedule'
-)({
+export class InjectionLogBulkAssignSchedule extends Schema.Class<
+  InjectionLogBulkAssignSchedule,
+  { readonly brand: unique symbol }
+>('InjectionLogBulkAssignSchedule')({
   ids: Schema.Array(InjectionLogId),
   scheduleId: Schema.NullOr(InjectionScheduleId),
 }) {}

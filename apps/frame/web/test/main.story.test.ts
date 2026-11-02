@@ -3,8 +3,8 @@ import { describe, expect, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
-import * as Scene from 'foldkit/scene'
-import * as Story from 'foldkit/story'
+import * as Str from 'effect/String'
+import { Scene, Story } from 'foldkit'
 
 import { CalendarDate, FrameSettings, IanaTimezone, MediaSnapshot, Weather } from '#shared'
 import type { CalendarEvent } from '#shared'
@@ -27,6 +27,7 @@ import { Message } from '../src/message.js'
 import { view } from '../src/view.js'
 
 const timezone = IanaTimezone.make('America/New_York')
+
 // Monday 2026-11-02, 10:00 in New York.
 const now = DateTime.makeUnsafe('2026-11-02T15:00:00Z')
 const at = (iso: string) => DateTime.makeUnsafe(iso)
@@ -65,7 +66,7 @@ const shopping = [
   { uid: 'b2', summary: 'Eggs', status: 'completed' as const },
 ]
 
-const media = new MediaSnapshot({
+const media = MediaSnapshot.make({
   spotify: null,
   cards: [
     {
@@ -103,6 +104,7 @@ const rendered = (model: Model) => {
       html = JSON.stringify(simulation.html)
     })
   )
+
   return html
 }
 
@@ -111,7 +113,7 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(initial),
-      Story.message(Message.SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })),
+      Story.message(Message.SucceededFetchSettings({ settings: FrameSettings.make({ timezone }) })),
       Story.model((model) => {
         expect(model.anchor).toEqual(Option.some('2026-11-02'))
       }),
@@ -119,8 +121,8 @@ describe('frame app', () => {
       Story.Command.resolve(FetchUpcoming, Message.SucceededFetchUpcoming({ events })),
       Story.Command.resolve(FetchWeek, Message.SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events })),
       Story.model((model) => {
-        expect(Option.getOrThrow(model.upcoming.data)).toHaveLength(2)
-        expect(Option.getOrThrow(model.week.data)).toHaveLength(2)
+        expect(Option.getOrElse(model.upcoming.data, () => [])).toHaveLength(2)
+        expect(Option.getOrElse(model.week.data, () => [])).toHaveLength(2)
       })
     )
   })
@@ -148,7 +150,7 @@ describe('frame app', () => {
       Story.given({ ...ready, shopping: { data: Option.some(shopping), failed: false } }),
       Story.message(Message.ClickedShoppingItem({ uid: 'a1', status: 'completed' })),
       Story.model((model) => {
-        expect(Option.getOrThrow(model.shopping.data)[0]?.status).toBe('completed')
+        expect(Option.getOrElse(model.shopping.data, () => [])[0]?.status).toBe('completed')
       }),
       Story.Command.expectExact(UpdateShoppingItem),
       Story.Command.resolve(
@@ -175,7 +177,7 @@ describe('frame app', () => {
         })
       ),
       Story.model((model) => {
-        expect(Option.getOrThrow(model.shopping.data)).toHaveLength(3)
+        expect(Option.getOrElse(model.shopping.data, () => [])).toHaveLength(3)
       })
     )
   })
@@ -199,7 +201,7 @@ describe('frame app', () => {
       Story.Command.resolve(FetchMedia, Message.SucceededFetchMedia({ media })),
       Story.model((model) => {
         expect(model.screen).toBe('media')
-        expect(Option.getOrThrow(model.media.data).cards).toHaveLength(2)
+        expect(Option.getOrNull(model.media.data)?.cards ?? []).toHaveLength(2)
       })
     )
   })
@@ -210,7 +212,7 @@ describe('frame app', () => {
       Story.given({ ...ready, screen: 'media', media: { data: Option.some(media), failed: false } }),
       Story.message(Message.ClickedMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
       Story.model((model) => {
-        const [, zones] = Option.getOrThrow(model.media.data).cards
+        const [, zones] = Option.getOrNull(model.media.data)?.cards ?? []
         expect(zones?._tag === 'ZonesCard' ? zones.speakers.zones[0]?.isOn : undefined).toBe(true)
       }),
       Story.Command.expectExact(RunMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
@@ -278,7 +280,7 @@ describe('frame app', () => {
       week: { data: Option.some(events), failed: false },
       weather: {
         data: Option.some(
-          new Weather({
+          Weather.make({
             condition: 'partlycloudy',
             temperature: 48,
             temperatureUnit: '°F',
@@ -300,7 +302,7 @@ describe('frame app', () => {
 
     const todayHtml = rendered(loaded)
     // 10:00 renders one fixed-width box per digit, on the Today clock and the rail clock.
-    expect(todayHtml.match(/clock-digit/gu)).toHaveLength(8)
+    expect(Option.getOrNull(Str.match(/clock-digit/gu)(todayHtml))).toHaveLength(8)
     expect(todayHtml).toContain('Monday, November 2')
     expect(todayHtml).toContain('Swim lesson')
     expect(todayHtml).toContain('Grandparents visiting')
@@ -340,12 +342,14 @@ describe('frame app', () => {
         end: at('2026-11-03T16:00:00Z'),
       },
     ]
+
     // Monday 21:00 in New York: today's only event is over.
     const html = rendered({
       ...ready,
       now: at('2026-11-03T02:00:00Z'),
       upcoming: { data: Option.some(later), failed: false },
     })
+
     expect(html).toContain('Nothing else today')
     // The finished day's rows give way to the next event; nothing points at past rows.
     expect(html).not.toContain('Breakfast')
@@ -361,6 +365,7 @@ describe('frame app', () => {
       ...event,
       color: event._tag === 'AllDayEvent' ? 'tomato' : 'peacock',
     }))
+
     const loaded: Model = {
       ...ready,
       upcoming: { data: Option.some(coloured), failed: false },
@@ -413,7 +418,7 @@ describe('frame app', () => {
       Story.message(Message.FailedCheckVersion()),
       Story.model((model) => {
         expect(model.isOffline).toBe(true)
-        expect(Option.getOrThrow(model.upcoming.data)).toHaveLength(2)
+        expect(Option.getOrElse(model.upcoming.data, () => [])).toHaveLength(2)
       }),
       Story.message(Message.SucceededFetchUpcoming({ events })),
       Story.model((model) => {
@@ -441,7 +446,7 @@ describe('frame app', () => {
       Story.Command.expectExact(RetrySettings),
       Story.Command.resolve(
         RetrySettings,
-        Message.SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })
+        Message.SucceededFetchSettings({ settings: FrameSettings.make({ timezone }) })
       ),
       Story.Command.resolve(FetchUpcoming, Message.SucceededFetchUpcoming({ events })),
       Story.Command.resolve(FetchWeek, Message.SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events }))

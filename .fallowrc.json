@@ -2,10 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
     "apps/frame/alchemy.run.ts",
-    "apps/frame/web/src/entry.ts",
-    "apps/garage-mcp/src/main.ts",
+    "apps/frame/web/index.html",
     "apps/subq/alchemy.run.ts",
-    "apps/subq/web/src/entry.ts",
+    "apps/subq/web/index.html",
     "packages/pi-extensions/extensions/*.ts"
   ],
   "dynamicallyLoaded": [
@@ -14,9 +13,79 @@
   "ignorePatterns": [
     "repos/**"
   ],
+  "rulePacks": [
+    "fallow/effect-service-boundaries.jsonc"
+  ],
+  "rules": {
+    "boundary-violation": "error",
+    "policy-violation": "error"
+  },
+  "boundaries": {
+    "zones": [
+      {
+        "name": "roots",
+        "patterns": [
+          "packages/{autocaliweb,sabnzbd}/src/index.ts"
+        ]
+      },
+      {
+        "name": "adapters",
+        "patterns": [
+          "packages/{autocaliweb,sabnzbd}/src/http.ts",
+          "packages/{autocaliweb,sabnzbd}/src/opds.ts"
+        ]
+      },
+      {
+        "name": "contracts",
+        "patterns": [
+          "packages/{autocaliweb,sabnzbd}/src/services.ts",
+          "packages/{autocaliweb,sabnzbd}/src/model.ts",
+          "packages/{autocaliweb,sabnzbd}/src/errors.ts",
+          "packages/{autocaliweb,sabnzbd}/src/api-schema.ts"
+        ]
+      },
+      {
+        "name": "operations",
+        "patterns": [
+          "packages/{autocaliweb,sabnzbd}/src/operations.ts"
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "from": "roots",
+        "allow": [
+          "roots",
+          "contracts",
+          "adapters",
+          "operations"
+        ]
+      },
+      {
+        "from": "adapters",
+        "allow": [
+          "adapters",
+          "contracts",
+          "operations"
+        ]
+      },
+      {
+        "from": "contracts",
+        "allow": [
+          "contracts",
+          "operations"
+        ]
+      },
+      {
+        "from": "operations",
+        "allow": [
+          "contracts",
+          "operations"
+        ]
+      }
+    ]
+  },
   "ignoreDependencies": [
-    "@earendil-works/pi-tui",
-    "@effect/vitest",
     "@oxlint/plugins"
   ],
   "ignoreExports": [
@@ -56,6 +125,7 @@
     {
       "file": "packages/integration-http/src/index.ts",
       "exports": [
+        "ErrorFailure",
         "JsonClientErrors"
       ]
     },

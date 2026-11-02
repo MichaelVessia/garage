@@ -1,5 +1,5 @@
 import * as Effect from 'effect/Effect'
-import type { Headers } from 'effect/http/Headers'
+import type * as Headers from 'effect/http/Headers'
 import * as Layer from 'effect/Layer'
 import * as P from 'effect/Predicate'
 import * as R from 'effect/Record'
@@ -19,8 +19,8 @@ export const AuthRpcMiddlewareLive = Layer.effect(
   Effect.gen(function* () {
     const { auth } = yield* AuthService
 
-    return AuthRpcMiddleware.of((effect, { headers }: { headers: Headers }) => {
-      const authenticate = Effect.fn('AuthRpcMiddleware.authenticate')(function* () {
+    return AuthRpcMiddleware.of((effect, { headers }: { headers: Headers.Headers }) => {
+      const authenticate = Effect.fn('authRpcMiddleware.authenticate')(function* () {
         // Convert Headers to a plain object of string values for better-auth
         const headerObj = R.filterMap(headers, (value) => (P.isString(value) ? Result.succeed(value) : Result.failVoid))
 
@@ -34,6 +34,7 @@ export const AuthRpcMiddlewareLive = Layer.effect(
 
         if (session?.user === undefined) {
           yield* Effect.logDebug('Auth: no session found')
+
           return yield* Effect.fail(Unauthorized.make({ details: 'Not authenticated' }))
         }
 

@@ -1,4 +1,5 @@
 export { makeConfigReaders } from './config'
+
 export {
   decodeErrorFields,
   envMissingFields,
@@ -9,5 +10,9 @@ export {
   makeUnreachable,
   unreachableFields,
 } from './errors'
+
 export { makeJsonClient } from './http'
+
+export type { ErrorFailure } from './errors'
+
 export type { JsonClient, JsonClientErrors } from './http'

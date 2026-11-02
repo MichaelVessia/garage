@@ -31,9 +31,11 @@ describe('Branded Type Property Tests', () => {
     it.effect('accepts exactly the five supported GLP compounds', () =>
       Effect.sync(() => {
         const accepted = ['Semaglutide', 'Tirzepatide', 'Retatrutide', 'Liraglutide', 'Dulaglutide']
+
         for (const compound of accepted) {
           assert.isTrue(Exit.isSuccess(Schema.decodeUnknownExit(MedicationCompound)(compound)))
         }
+
         assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(MedicationCompound)('Ozempic')))
         assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(MedicationCompound)('semaglutide')))
         assert.isTrue(Exit.isFailure(Schema.decodeUnknownExit(MedicationCompound)('Testosterone')))
@@ -66,14 +68,14 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects zero', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Weight)(0)
+        const result = Schema.decodeExit(Weight)(0)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative numbers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Weight)(-1)
+        const result = Schema.decodeExit(Weight)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -87,21 +89,21 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects zero', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Limit)(0)
+        const result = Schema.decodeExit(Limit)(0)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Limit)(-5)
+        const result = Schema.decodeExit(Limit)(-5)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects non-integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Limit)(1.5)
+        const result = Schema.decodeExit(Limit)(1.5)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -126,14 +128,14 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Offset)(-1)
+        const result = Schema.decodeExit(Offset)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects non-integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Offset)(0.5)
+        const result = Schema.decodeExit(Offset)(0.5)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -158,7 +160,7 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(Count)(-1)
+        const result = Schema.decodeExit(Count)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -186,7 +188,7 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects negative numbers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(DaysBetween)(-1)
+        const result = Schema.decodeExit(DaysBetween)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -204,14 +206,14 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects 7', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(DayOfWeek)(7)
+        const result = Schema.decodeExit(DayOfWeek)(7)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(DayOfWeek)(-1)
+        const result = Schema.decodeExit(DayOfWeek)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -229,14 +231,14 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects zero', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(PhaseOrder)(0)
+        const result = Schema.decodeExit(PhaseOrder)(0)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(PhaseOrder)(-1)
+        const result = Schema.decodeExit(PhaseOrder)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -254,14 +256,14 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects zero', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(PhaseDurationDays)(0)
+        const result = Schema.decodeExit(PhaseDurationDays)(0)
         assert.isTrue(Exit.isFailure(result))
       })
     )
 
     it.effect('rejects negative integers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(PhaseDurationDays)(-1)
+        const result = Schema.decodeExit(PhaseDurationDays)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -289,7 +291,7 @@ describe('Branded Type Property Tests', () => {
 
     it.effect('rejects negative numbers', () =>
       Effect.sync(() => {
-        const result = Schema.decodeUnknownExit(InjectionsPerWeek)(-1)
+        const result = Schema.decodeExit(InjectionsPerWeek)(-1)
         assert.isTrue(Exit.isFailure(result))
       })
     )
@@ -309,7 +311,7 @@ describe('frequencyToDays Property Tests', () => {
     weekly: 7,
     every_2_weeks: 14,
     monthly: 30,
-  } satisfies Record<typeof Frequency.Type, number>
+  } satisfies Record<Frequency, number>
 
   it.prop(
     'returns positive integers for all frequency variants (property test)',

@@ -1,3 +1,5 @@
+import * as Arr from 'effect/Array'
+
 import type { DoseMg, MedicationCompound } from '../common/domain.js'
 import { DoseHistoryPoint, DoseHistoryStats } from './domain.js'
 
@@ -10,13 +12,12 @@ export interface DoseHistoryInput {
 
 /** Build dose-history statistics without reparsing persisted values. */
 export const buildDoseHistoryStats = (inputs: ReadonlyArray<DoseHistoryInput>): DoseHistoryStats =>
-  new DoseHistoryStats({
-    points: inputs.map(
-      (input) =>
-        new DoseHistoryPoint({
-          date: input.date,
-          drug: input.drug,
-          doseMg: input.doseMg,
-        })
+  DoseHistoryStats.make({
+    points: Arr.map(inputs, (input) =>
+      DoseHistoryPoint.make({
+        date: input.date,
+        drug: input.drug,
+        doseMg: input.doseMg,
+      })
     ),
   })

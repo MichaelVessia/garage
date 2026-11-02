@@ -1,7 +1,10 @@
 import { Database } from 'bun:sqlite'
 
 import { assert, describe, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
+import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 const migrationSql = await Bun.file(new URL('../drizzle/0013_canonical_medications.sql', import.meta.url)).text()
 
@@ -12,16 +15,18 @@ const ScheduleRows = Schema.Array(
     supplier: Schema.NullOr(Schema.String),
   })
 )
+
 const InjectionRows = Schema.Array(
   Schema.Struct({
     id: Schema.String,
     drug: Schema.String,
     supplier: Schema.NullOr(Schema.String),
-    dose_mg: Schema.Number,
+    dose_mg: Schema.Finite,
     schedule_id: Schema.NullOr(Schema.String),
   })
 )
-const PhaseRows = Schema.Array(Schema.Struct({ id: Schema.String, dose_mg: Schema.Number }))
+
+const PhaseRows = Schema.Array(Schema.Struct({ id: Schema.String, dose_mg: Schema.Finite }))
 const TableInfoRows = Schema.Array(Schema.Struct({ name: Schema.String }))
 
 const makeLegacyDatabase = (): Database => {
@@ -64,12 +69,13 @@ const makeLegacyDatabase = (): Database => {
       updated_at TEXT NOT NULL
     );
   `)
+
   return database
 }
 
 const applyMigration = (database: Database): void => {
-  for (const statement of migrationSql.split('--> statement-breakpoint')) {
-    if (statement.trim() !== '') {
+  for (const statement of Str.split('--> statement-breakpoint')(migrationSql)) {
+    if (Str.trim(statement) !== '') {
       database.run(statement)
     }
   }
@@ -105,104 +111,114 @@ const insertLegacyInjection = (
 }
 
 describe('canonical medication migration', () => {
-  it('normalizes every recognized current label and clear case-insensitive mg string', () => {
-    const database = makeLegacyDatabase()
-    const labels: ReadonlyArray<readonly [string, string]> = [
-      ['Semaglutide', 'Semaglutide'],
-      [' semaglutide (Ozempic) ', 'Semaglutide'],
-      ['Semaglutide (Wegovy)', 'Semaglutide'],
-      ['SEMAGLUTIDE (COMPOUNDED)', 'Semaglutide'],
-      ['Tirzepatide', 'Tirzepatide'],
-      ['Tirzepatide (Mounjaro)', 'Tirzepatide'],
-      ['Tirzepatide (Zepbound)', 'Tirzepatide'],
-      ['TIRZEPATIDE (COMPOUNDED)', 'Tirzepatide'],
-      ['Retatrutide (Compounded)', 'Retatrutide'],
-      ['Liraglutide (Saxenda)', 'Liraglutide'],
-      ['Dulaglutide (Trulicity)', 'Dulaglutide'],
-    ]
+  it.effect('normalizes every recognized current label and clear case-insensitive mg string', () =>
+    Effect.gen(function* () {
+      const database = makeLegacyDatabase()
 
-    for (const [index, [legacy, canonical]] of labels.entries()) {
-      insertLegacySchedule(database, `schedule-${index}`, legacy, index === 0 ? 'Clinic' : null)
-      insertLegacyInjection(database, `injection-${index}`, legacy, index % 2 === 0 ? '0.25 mg' : '5 MG')
-      assert.isNotEmpty(canonical)
-    }
-    database
-      .query(
-        `INSERT INTO schedule_phases
+      const labels: ReadonlyArray<readonly [string, string]> = [
+        ['Semaglutide', 'Semaglutide'],
+        [' semaglutide (Ozempic) ', 'Semaglutide'],
+        ['Semaglutide (Wegovy)', 'Semaglutide'],
+        ['SEMAGLUTIDE (COMPOUNDED)', 'Semaglutide'],
+        ['Tirzepatide', 'Tirzepatide'],
+        ['Tirzepatide (Mounjaro)', 'Tirzepatide'],
+        ['Tirzepatide (Zepbound)', 'Tirzepatide'],
+        ['TIRZEPATIDE (COMPOUNDED)', 'Tirzepatide'],
+        ['Retatrutide (Compounded)', 'Retatrutide'],
+        ['Liraglutide (Saxenda)', 'Liraglutide'],
+        ['Dulaglutide (Trulicity)', 'Dulaglutide'],
+      ]
+
+      for (const [index, [legacy, canonical]] of labels.entries()) {
+        insertLegacySchedule(database, `schedule-${index}`, legacy, index === 0 ? 'Clinic' : null)
+        insertLegacyInjection(database, `injection-${index}`, legacy, index % 2 === 0 ? '0.25 mg' : '5 MG')
+        assert.isNotEmpty(canonical)
+      }
+
+      database
+        .query(
+          `INSERT INTO schedule_phases
          (id, schedule_id, "order", duration_days, dosage, created_at, updated_at)
          VALUES ('phase-1', 'schedule-0', 1, NULL, '0.25mg',
                  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`
-      )
-      .run()
-    database
-      .query("UPDATE injection_logs SET source = 'Pharmacy', schedule_id = 'schedule-0' WHERE id = 'injection-0'")
-      .run()
-
-    applyMigration(database)
-
-    const schedules = Schema.decodeUnknownSync(ScheduleRows)(
-      database
-        .query('SELECT id, drug, supplier FROM injection_schedules ORDER BY CAST(substr(id, 10) AS integer)')
-        .all()
-    )
-    const injections = Schema.decodeUnknownSync(InjectionRows)(
-      database
-        .query(
-          'SELECT id, drug, supplier, dose_mg, schedule_id FROM injection_logs ORDER BY CAST(substr(id, 11) AS integer)'
         )
-        .all()
-    )
-    const phases = Schema.decodeUnknownSync(PhaseRows)(
-      database.query('SELECT id, dose_mg FROM schedule_phases ORDER BY id').all()
-    )
+        .run()
+      database
+        .query("UPDATE injection_logs SET source = 'Pharmacy', schedule_id = 'schedule-0' WHERE id = 'injection-0'")
+        .run()
 
-    assert.deepStrictEqual(
-      schedules.map((row) => row.drug),
-      labels.map(([, canonical]) => canonical)
-    )
-    assert.deepStrictEqual(
-      injections.map((row) => row.drug),
-      labels.map(([, canonical]) => canonical)
-    )
-    assert.strictEqual(schedules[0]?.supplier, 'Clinic')
-    assert.strictEqual(injections[0]?.supplier, 'Pharmacy')
-    assert.strictEqual(injections[0]?.schedule_id, 'schedule-0')
-    assert.deepStrictEqual(phases, [{ id: 'phase-1', dose_mg: 0.25 }])
-    assert.deepStrictEqual(
-      injections.map((row) => row.dose_mg),
-      labels.map((_, index) => (index % 2 === 0 ? 0.25 : 5))
-    )
-    database.close()
-  })
-
-  it('identifies an unsupported compound record and value before changing tables', () => {
-    const database = makeLegacyDatabase()
-    insertLegacyInjection(database, 'bad-compound', 'Ozempic', '1mg')
-
-    assert.throws(() => {
       applyMigration(database)
-    }, "Canonical medication migration rejected injection log drug record 'bad-compound' value 'Ozempic'")
-    const legacyColumns = Schema.decodeUnknownSync(TableInfoRows)(
-      database.query("PRAGMA table_info('injection_logs')").all()
-    )
-    assert.deepStrictEqual(
-      legacyColumns.map((column) => column.name),
-      [
-        'id',
-        'datetime',
-        'drug',
-        'source',
-        'dosage',
-        'injection_site',
-        'notes',
-        'schedule_id',
-        'user_id',
-        'created_at',
-        'updated_at',
-      ]
-    )
-    database.close()
-  })
+
+      const schedules = yield* Schema.decodeUnknownEffect(ScheduleRows)(
+        database
+          .query('SELECT id, drug, supplier FROM injection_schedules ORDER BY CAST(substr(id, 10) AS integer)')
+          .all()
+      )
+
+      const injections = yield* Schema.decodeUnknownEffect(InjectionRows)(
+        database
+          .query(
+            'SELECT id, drug, supplier, dose_mg, schedule_id FROM injection_logs ORDER BY CAST(substr(id, 11) AS integer)'
+          )
+          .all()
+      )
+
+      const phases = yield* Schema.decodeUnknownEffect(PhaseRows)(
+        database.query('SELECT id, dose_mg FROM schedule_phases ORDER BY id').all()
+      )
+
+      assert.deepStrictEqual(
+        Arr.map(schedules, (row) => row.drug),
+        Arr.map(labels, ([, canonical]) => canonical)
+      )
+      assert.deepStrictEqual(
+        Arr.map(injections, (row) => row.drug),
+        Arr.map(labels, ([, canonical]) => canonical)
+      )
+      assert.strictEqual(schedules[0]?.supplier, 'Clinic')
+      assert.strictEqual(injections[0]?.supplier, 'Pharmacy')
+      assert.strictEqual(injections[0]?.schedule_id, 'schedule-0')
+      assert.deepStrictEqual(phases, [{ id: 'phase-1', dose_mg: 0.25 }])
+      assert.deepStrictEqual(
+        Arr.map(injections, (row) => row.dose_mg),
+        Arr.map(labels, (_, index) => (index % 2 === 0 ? 0.25 : 5))
+      )
+      database.close()
+    })
+  )
+
+  it.effect('identifies an unsupported compound record and value before changing tables', () =>
+    Effect.gen(function* () {
+      const database = makeLegacyDatabase()
+      insertLegacyInjection(database, 'bad-compound', 'Ozempic', '1mg')
+
+      assert.throws(() => {
+        applyMigration(database)
+      }, "Canonical medication migration rejected injection log drug record 'bad-compound' value 'Ozempic'")
+
+      const legacyColumns = yield* Schema.decodeUnknownEffect(TableInfoRows)(
+        database.query("PRAGMA table_info('injection_logs')").all()
+      )
+
+      assert.deepStrictEqual(
+        Arr.map(legacyColumns, (column) => column.name),
+        [
+          'id',
+          'datetime',
+          'drug',
+          'source',
+          'dosage',
+          'injection_site',
+          'notes',
+          'schedule_id',
+          'user_id',
+          'created_at',
+          'updated_at',
+        ]
+      )
+      database.close()
+    })
+  )
 
   it('identifies each unsupported dose record and value instead of inferring a conversion', () => {
     const unsupported = [
@@ -214,7 +230,7 @@ describe('canonical medication migration', () => {
       '20 IU',
       'NaN mg',
       'Infinity mg',
-      `${'9'.repeat(400)} mg`,
+      `${Str.repeat(400)('9')} mg`,
       'unknown',
     ]
 

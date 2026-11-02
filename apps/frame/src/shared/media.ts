@@ -2,11 +2,13 @@ import * as Schema from 'effect/Schema'
 
 /** Control groups a media card can offer. */
 const MediaControl = Schema.Literals(['power', 'playback', 'volume', 'mute', 'source'])
+
 /** Control groups a media card can offer. */
 export type MediaControl = typeof MediaControl.Type
 
 /** What a media player is doing, as the frame shows it. */
 const MediaPlayerStatus = Schema.Literals(['off', 'on', 'idle', 'playing', 'paused', 'unavailable'])
+
 /** What a media player is doing, as the frame shows it. */
 export type MediaPlayerStatus = typeof MediaPlayerStatus.Type
 
@@ -25,11 +27,12 @@ const MediaPlayer = Schema.Struct({
   controls: Schema.Array(MediaControl),
   canSkip: Schema.Boolean,
   isMuted: Schema.Boolean,
-  volume: Schema.NullOr(Schema.Number),
+  volume: Schema.NullOr(Schema.Finite),
   source: Schema.NullOr(Schema.String),
   sources: Schema.Array(Schema.String),
   nowPlaying: Schema.NullOr(NowPlaying),
 })
+
 /** One configured Home Assistant media player. */
 export type MediaPlayer = typeof MediaPlayer.Type
 
@@ -40,6 +43,7 @@ const SpeakerZone = Schema.Struct({
   isOn: Schema.Boolean,
   isAvailable: Schema.Boolean,
 })
+
 /** One speaker zone switch. */
 export type SpeakerZone = typeof SpeakerZone.Type
 
@@ -49,6 +53,7 @@ const SpeakerZones = Schema.Struct({
   hasAllOn: Schema.Boolean,
   hasAllOff: Schema.Boolean,
 })
+
 /** The speaker zone card. */
 export type SpeakerZones = typeof SpeakerZones.Type
 
@@ -57,11 +62,12 @@ const MediaCard = Schema.TaggedUnion({
   PlayerCard: { player: MediaPlayer },
   ZonesCard: { speakers: SpeakerZones },
 })
+
 /** One card on the Media screen, in configured order. */
 export type MediaCard = typeof MediaCard.Type
 
 /** Everything the Media screen shows. */
-export class MediaSnapshot extends Schema.Class<MediaSnapshot>('MediaSnapshot')({
+export class MediaSnapshot extends Schema.Class<MediaSnapshot, { readonly brand: unique symbol }>('MediaSnapshot')({
   spotify: Schema.NullOr(MediaPlayer),
   cards: Schema.Array(MediaCard),
 }) {}
@@ -87,5 +93,6 @@ export const MediaAction = Schema.TaggedUnion({
   AllZonesOn: {},
   AllZonesOff: {},
 })
+
 /** A media change the frame may request. */
 export type MediaAction = typeof MediaAction.Type

@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ast-grep/ast-grep/main/schemas/typescript_rule.json
+
+id: effect-fn-span-name
+language: tsx
+severity: error
+message: "Use a dotted scope and operation for the span name, such as frame.calendar.fetchEvents. Each segment must start with a lowercase letter and contain only letters and digits. For templates, the joined static parts must meet this pattern."
+
+utils:
+  string-name:
+    any:
+      - kind: string
+      - kind: template_string
+  # Template substitutions do not count toward the static name.
+  valid-name:
+    any:
+      - kind: string
+        regex: "^['\"][a-z][a-zA-Z0-9]*(\\.[a-z][a-zA-Z0-9]*)+['\"]$"
+      - kind: template_string
+        regex: "^`(\\$\\{[^}]*\\})*[a-z](\\$\\{[^}]*\\})*([a-zA-Z0-9](\\$\\{[^}]*\\})*)*(\\.(\\$\\{[^}]*\\})*[a-z](\\$\\{[^}]*\\})*([a-zA-Z0-9](\\$\\{[^}]*\\})*)*)+`$"
+  function-value:
+    any:
+      - kind: arrow_function
+      - kind: function_expression
+      - kind: generator_function
+rule:
+  any:
+    # Effect.fn("name") names its span. Effect.fn(function* ...) has no name.
+    - pattern: Effect.fn($$$)
+      has:
+        field: arguments
+        has:
+          nthChild: 1
+          regex: "."
+      not:
+        has:
+          field: arguments
+          has:
+            nthChild: 1
+            any:
+              - matches: valid-name
+              - matches: function-value
+    # Data-last Effect.withSpan("name", options?).
+    - pattern: Effect.withSpan($$$)
+      has:
+        field: arguments
+        has:
+          nthChild: 1
+          all:
+            - matches: string-name
+            - not:
+                matches: valid-name
+    # Data-first Effect.withSpan(effect, "name", options?).
+    - pattern: Effect.withSpan($$$)
+      all:
+        - has:
+            field: arguments
+            has:
+              nthChild: 1
+              not:
+                matches: string-name
+        - has:
+            field: arguments
+            has:
+              nthChild: 2
+              all:
+                - matches: string-name
+                - not:
+                    matches: valid-name
+    # A computed name, such as Effect.withSpan(spanName) or Effect.withSpan(spanName, options).
+    - pattern: Effect.withSpan($$$)
+      all:
+        - has:
+            field: arguments
+            has:
+              nthChild: 1
+              not:
+                matches: string-name
+        - not:
+            has:
+              field: arguments
+              has:
+                nthChild: 2
+                matches: string-name
+
+files:
+  - "apps/**/*.ts"
+  - "apps/**/*.tsx"
+  - "packages/**/*.ts"
+  - "packages/**/*.tsx"
+  - "scripts/**/*.ts"

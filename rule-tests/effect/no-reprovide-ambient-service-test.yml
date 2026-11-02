@@ -1,0 +1,61 @@
+id: no-reprovide-ambient-service
+
+valid:
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      return yield* store.load()
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      return Effect.provideService(Store, makeStore(store))
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      return Effect.provideService(OtherStore, store)
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield Store
+      return Effect.provideService(Store, store)
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* loadStore()
+      return Effect.provideService(Store, store)
+    })
+  - |
+    Effect.gen(function* () {
+      let store = yield* Store
+      store = replacement
+      return Effect.provideService(Store, store)
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      return () => Effect.provideService(Store, store)
+    })
+
+invalid:
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      return operation.pipe(Effect.provideService(Store, store))
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      return Effect.provideService(operation, Store, store)
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* Store
+      { return Effect.provideService(Store, store) }
+    })
+  - |
+    Effect.gen(function* () {
+      const store = yield* Services.Store
+      return Effect.provideService(Services.Store, store)
+    })

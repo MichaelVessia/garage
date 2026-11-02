@@ -1,4 +1,7 @@
+import * as Arr from 'effect/Array'
+import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
+import * as P from 'effect/Predicate'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import type { Message } from './message.js'
@@ -205,17 +208,27 @@ const viewStroke = (h: HtmlBuilder<Message>, stroke: IconStroke): Html =>
   })
 
 /** A decorative line icon; the surrounding control carries the accessible name. */
-export const icon = (h: HtmlBuilder<Message>, name: IconName, className = 'icon'): Html =>
-  h.svg(
-    [
-      h.Class(className),
-      h.ViewBox('0 0 24 24'),
-      h.Fill('none'),
-      h.Stroke('currentColor'),
-      h.StrokeWidth('2'),
-      h.StrokeLinecap('round'),
-      h.StrokeLinejoin('round'),
-      h.AriaHidden(true),
-    ],
-    ICONS[name].map((stroke) => viewStroke(h, stroke))
-  )
+export const icon: {
+  (name: IconName, className?: string): (h: HtmlBuilder<Message>) => Html
+  (h: HtmlBuilder<Message>, name: IconName, className?: string): Html
+} = Function.dual(
+  (args) => {
+    const first: unknown = args[0]
+
+    return !P.isString(first)
+  },
+  (h: HtmlBuilder<Message>, name: IconName, className?: string): Html =>
+    h.svg(
+      [
+        h.Class(className ?? 'icon'),
+        h.ViewBox('0 0 24 24'),
+        h.Fill('none'),
+        h.Stroke('currentColor'),
+        h.StrokeWidth('2'),
+        h.StrokeLinecap('round'),
+        h.StrokeLinejoin('round'),
+        h.AriaHidden(true),
+      ],
+      Arr.map(ICONS[name], (stroke) => viewStroke(h, stroke))
+    )
+)

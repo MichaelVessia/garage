@@ -1,0 +1,77 @@
+id: effect-fn-span-name
+
+valid:
+  - |
+    Effect.fn('frame.deploy.uploadBundle')
+  - |
+    Effect.withSpan('subq.injections.record')
+  - |
+    Effect.fn('scope2.run3')
+  - |
+    Effect.fn(`frame.deploy`)
+  - |
+    Effect.fn(`frame.deploy${suffix}`)
+  - |
+    Effect.withSpan(`frame.${prefix}deploy`)
+  - |
+    Effect.withSpan(operation, 'frame.deploy')
+  - |
+    Effect.withSpan('frame.deploy', { attributes: {} })
+  - |
+    Effect.fn(function* () {})
+  - |
+    Effect.fn(() => operation)
+  - |
+    Effect.fn()
+  - |
+    Effect.fnUntraced(function* () {})
+  - |
+    Local.fn('bad')
+  - |
+    Effect.fn('frame.deploy')(function* () {}, Effect.orDie)
+
+invalid:
+  - |
+    Effect.fn('deploy')
+  - |
+    Effect.fn('Frame.deploy')
+  - |
+    Effect.withSpan('frame.Deploy')
+  - |
+    Effect.fn('frame.deploy bundle')
+  - |
+    Effect.fn('frame.upload_bundle')
+  - |
+    Effect.withSpan('feedback-inbox.put')
+  - |
+    Effect.fn('frame..deploy')
+  - |
+    Effect.fn('.frame.deploy')
+  - |
+    Effect.fn('frame.deploy.')
+  - |
+    Effect.fn('frame.2deploy')
+  - |
+    Effect.fn('')
+  - |
+    Effect.fn('frame.déploy')
+  - |
+    Effect.fn(spanName)
+  - |
+    Effect.withSpan(spanName)
+  - |
+    Effect.fn(makeName())
+  - |
+    Effect.withSpan('frame.' + operation)
+  - |
+    Effect.fn(`deploy${suffix}`)
+  - |
+    Effect.fn(`frame.${operation}`)
+  - |
+    Effect.fn(`Frame.${prefix}deploy`)
+  - |
+    Effect.fn(`${spanName}`)
+  - |
+    Effect.withSpan(operation, 'deploy', {})
+  - |
+    Effect.withSpan(spanName, { attributes: {} })

@@ -21,20 +21,20 @@ import type {
 
 export class AutocaliwebConfig extends Context.Service<
   AutocaliwebConfig,
-  { readonly get: () => Effect.Effect<AutocaliwebConfigValue, AutocaliwebError> }
+  { readonly get: Effect.Effect<AutocaliwebConfigValue, AutocaliwebError> }
 >()('@garage/autocaliweb/services/AutocaliwebConfig') {}
 
 export class AutocaliwebApi extends Context.Service<
   AutocaliwebApi,
   {
-    readonly status: () => Effect.Effect<StatusResult, AutocaliwebError>
-    readonly stats: () => Effect.Effect<StatsResult, AutocaliwebError>
-    readonly catalog: () => Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
+    readonly status: Effect.Effect<StatusResult, AutocaliwebError>
+    readonly stats: Effect.Effect<StatsResult, AutocaliwebError>
+    readonly catalog: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
     readonly books: (options: LimitOptions) => Effect.Effect<ListResult<BookRecord>, AutocaliwebError>
     readonly recent: (options: LimitOptions) => Effect.Effect<ListResult<BookRecord>, AutocaliwebError>
     readonly search: (options: SearchOptions) => Effect.Effect<SearchResult, AutocaliwebError>
     readonly bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecord, AutocaliwebError>
-    readonly shelves: () => Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
+    readonly shelves: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
   }
 >()('@garage/autocaliweb/services/AutocaliwebApi') {}
 
@@ -43,16 +43,19 @@ const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
 export const AutocaliwebConfigLive = Layer.effect(
   AutocaliwebConfig,
   Effect.gen(function* () {
-    const readConfig = Effect.fn('AutocaliwebConfig.get')(
+    const readConfig = Effect.fn('autocaliweb.config.get')(
       function* () {
         const url = yield* readRequiredString('AUTOCALIWEB_URL')
         const username = yield* readRequiredString('AUTOCALIWEB_USERNAME')
         const password = yield* readRequiredSecret('AUTOCALIWEB_PASSWORD')
+
         return { url, username, password }
       },
       Effect.annotateLogs({ package: '@garage/autocaliweb', service: 'AutocaliwebConfig', method: 'get' })
     )
+
     const cachedGet = yield* Effect.cached(readConfig())
-    return AutocaliwebConfig.of({ get: () => cachedGet })
+
+    return AutocaliwebConfig.of({ get: cachedGet })
   })
 )

@@ -1,10 +1,11 @@
 import { assert, describe, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import type { RecordingHttpResponse } from '@garage/integration-http/testing'
+import * as Arr from 'effect/Array'
 import * as ConfigProvider from 'effect/ConfigProvider'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
-import { Jwt } from 'effect/jose'
+import * as Jwt from 'effect/jose/Jwt'
 import * as Layer from 'effect/Layer'
 import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
@@ -27,10 +28,12 @@ import {
 } from './fixtures/google-calendar.js'
 
 const timezone = IanaTimezone.make('America/New_York')
+
 const windowOf = (from: string, to: string) => ({
   start: calendarDateStartUtc(CalendarDate.make(from), timezone),
   end: calendarDateStartUtc(CalendarDate.make(to), timezone),
 })
+
 const range = windowOf('2026-11-01', '2026-11-22')
 
 const summary = (event: CalendarEvent) =>
@@ -41,6 +44,7 @@ const summary = (event: CalendarEvent) =>
 const makeFeed = Effect.fn('test.makeFeed')(function* (respond: (url: URL) => RecordingHttpResponse = googleResponse) {
   const serviceAccount = yield* makeServiceAccount
   const fake = yield* makeRecordingHttpClient((_method, url) => respond(url))
+
   const feed = yield* CalendarFeed.pipe(
     Effect.provide(
       CalendarFeedLive.pipe(
@@ -54,6 +58,7 @@ const makeFeed = Effect.fn('test.makeFeed')(function* (respond: (url: URL) => Re
       )
     )
   )
+
   return { feed, requests: fake.requests }
 })
 
@@ -66,7 +71,7 @@ describe('CalendarFeedLive', () => {
 
       const events = yield* feed.occurrences(range)
 
-      assert.deepStrictEqual(events.map(summary), [
+      assert.deepStrictEqual(Arr.map(events, summary), [
         'Swim lesson 2026-11-02T22:00:00.000Z peacock',
         'School call 2026-11-03T15:00:00.000Z -',
         'Grandparents visiting 2026-11-05..2026-11-08 tomato',
@@ -86,9 +91,11 @@ describe('CalendarFeedLive', () => {
       const [signIn, list] = yield* Ref.get(requests)
       assert.strictEqual(signIn?.method, 'POST')
       assert.strictEqual(signIn?.url, tokenUri)
+
       const form = new URLSearchParams(
         P.isTagged(signIn?.raw.body, 'Uint8Array') ? new TextDecoder().decode(signIn.raw.body.body) : ''
       )
+
       assert.strictEqual(form.get('grant_type'), 'urn:ietf:params:oauth:grant-type:jwt-bearer')
       const assertion = yield* Jwt.decodeUnverified(form.get('assertion') ?? '')
       assert.strictEqual(assertion.protectedHeader.alg, 'RS256')
@@ -116,22 +123,25 @@ describe('CalendarFeedLive', () => {
       yield* TestClock.adjust('6 minutes')
       yield* feed.occurrences(range)
 
-      const urls = (yield* Ref.get(requests)).map((request) => request.url)
-      assert.strictEqual(urls.filter((url) => url === tokenUri).length, 1)
-      assert.strictEqual(urls.filter(isEvents).length, 3)
+      const urls = Arr.map(yield* Ref.get(requests), (request) => request.url)
+      assert.strictEqual(Arr.filter(urls, (url) => url === tokenUri).length, 1)
+      assert.strictEqual(Arr.filter(urls, isEvents).length, 3)
     })
   )
 
   it.effect('serves the last good copy when a refresh fails', () =>
     Effect.gen(function* () {
       let lists = 0
+
       const { feed } = yield* makeFeed((url) => {
         if (url.pathname === eventsPath) {
           lists += 1
+
           if (lists > 1) {
             return { status: 403, body: { error: { code: 403, message: 'Rate Limit Exceeded' } } }
           }
         }
+
         return googleResponse(url)
       })
 
@@ -146,13 +156,16 @@ describe('CalendarFeedLive', () => {
   it.effect('signs in again after Google rejects the access token', () =>
     Effect.gen(function* () {
       let lists = 0
+
       const { feed, requests } = yield* makeFeed((url) => {
         if (url.pathname === eventsPath) {
           lists += 1
+
           if (lists === 1) {
             return { status: 401, body: { error: { code: 401, message: 'Invalid Credentials' } } }
           }
         }
+
         return googleResponse(url)
       })
 
@@ -160,8 +173,8 @@ describe('CalendarFeedLive', () => {
       yield* feed.occurrences(range)
 
       assert.strictEqual(error.code, 'CALENDAR_HTTP_ERROR')
-      const urls = (yield* Ref.get(requests)).map((request) => request.url)
-      assert.strictEqual(urls.filter((url) => url === tokenUri).length, 2)
+      const urls = Arr.map(yield* Ref.get(requests), (request) => request.url)
+      assert.strictEqual(Arr.filter(urls, (url) => url === tokenUri).length, 2)
     })
   )
 

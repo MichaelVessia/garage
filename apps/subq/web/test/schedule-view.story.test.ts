@@ -2,8 +2,7 @@
 import { describe, expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
-import * as AsyncData from 'foldkit/asyncData'
-import * as Story from 'foldkit/story'
+import { AsyncData, Story } from 'foldkit'
 
 import {
   CalendarDate,
@@ -15,6 +14,7 @@ import {
   PhaseOrder,
   ScheduleName,
   SchedulePhaseId,
+  SchedulePhaseView,
   ScheduleView,
 } from '#shared'
 
@@ -29,7 +29,7 @@ import type { ScheduleViewModel } from '../src/page/schedule-view.js'
 
 const { Command } = Story
 
-const sampleView = new ScheduleView({
+const sampleView = ScheduleView.make({
   createdAt: DateTime.makeUnsafe('2026-01-01T00:00:00Z'),
   drug: MedicationCompound.make('Semaglutide'),
   endDate: null,
@@ -39,7 +39,7 @@ const sampleView = new ScheduleView({
   name: ScheduleName.make('Titration'),
   notes: Notes.make('taper slowly'),
   phases: [
-    {
+    SchedulePhaseView.make({
       completedInjections: 2,
       doseMg: DoseMg.make(0.25),
       durationDays: PhaseDurationDays.make(28),
@@ -50,7 +50,7 @@ const sampleView = new ScheduleView({
       order: PhaseOrder.make(1),
       startDate: CalendarDate.make('2026-01-01'),
       status: 'current',
-    },
+    }),
   ],
   supplier: null,
   startDate: CalendarDate.make('2026-01-01'),
@@ -74,6 +74,7 @@ describe('schedule-view page', () => {
       scheduleId: 'schedule-1',
       view: AsyncData.succeed(Option.some(sampleView)),
     }
+
     const { model: same, commands = [] } = fetchScheduleView(loaded, 'schedule-1')
     expect(same).toBe(loaded)
     expect(commands).toHaveLength(0)
@@ -84,6 +85,7 @@ describe('schedule-view page', () => {
       scheduleId: 'schedule-1',
       view: AsyncData.succeed(Option.some(sampleView)),
     }
+
     const { model: switched, commands = [] } = fetchScheduleView(loaded, 'schedule-2')
     expect(switched.scheduleId).toBe('schedule-2')
     expect(AsyncData.isLoading(switched.view)).toBe(true)

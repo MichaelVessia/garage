@@ -2,12 +2,14 @@ import * as BunHttpPlatform from '@effect/platform-bun/BunHttpPlatform'
 import * as BunServices from '@effect/platform-bun/BunServices'
 import { afterAll, assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
-import { HttpClient, HttpClientResponse } from 'effect/http'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { IanaTimezone } from '#shared'
 
@@ -41,16 +43,20 @@ const webRoot = new URL('fixtures/web', import.meta.url).pathname
 const respond = (url: URL): Response => {
   if (url.toString() === tokenUri || url.hostname === 'www.googleapis.com') {
     const google = googleResponse(url)
+
     return Response.json(google.body, { status: google.status })
   }
-  if (url.pathname.endsWith('/get_items')) {
+
+  if (Str.endsWith('/get_items')(url.pathname)) {
     return Response.json({
       service_response: { 'todo.shopping': { items: [{ uid: 'a1', summary: 'Eggs', status: 'needs_action' }] } },
     })
   }
+
   if (url.pathname === '/api/states/switch.zone_a') {
     return Response.json({ entity_id: 'switch.zone_a', state: 'on', attributes: { friendly_name: 'Zone A' } })
   }
+
   if (url.pathname === '/api/states/media_player.music') {
     return Response.json({
       entity_id: 'media_player.music',
@@ -62,15 +68,19 @@ const respond = (url: URL): Response => {
       },
     })
   }
-  if (url.pathname.startsWith('/api/states/')) {
+
+  if (Str.startsWith('/api/states/')(url.pathname)) {
     return Response.json({ message: 'Entity not found.' }, { status: 404 })
   }
+
   if (url.pathname === '/api/services/switch/turn_on') {
     return Response.json([])
   }
+
   if (url.pathname === '/api/media_player_proxy/media_player.music') {
     return new Response('PNG', { headers: { 'content-type': 'image/png' } })
   }
+
   return new Response(null, { status: 401 })
 }
 
@@ -97,7 +107,7 @@ const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
 )
 
 const { handler, dispose } = HttpRouter.toWebHandler(
-  frameRoutes(webRoot, Option.none()).pipe(
+  frameRoutes({ webRoot, buildId: Option.none() }).pipe(
     Layer.provide(FrameHandlersLive),
     Layer.provide(ServicesLayer),
     Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
@@ -107,36 +117,46 @@ const { handler, dispose } = HttpRouter.toWebHandler(
 
 afterAll(() => dispose())
 
-class TestRequestError extends Schema.TaggedError<TestRequestError>()('TestRequestError', {
-  cause: Schema.Defect(),
-}) {}
+class TestRequestError extends Schema.TaggedError<TestRequestError, { readonly brand: unique symbol }>()(
+  'TestRequestError',
+  {
+    cause: Schema.Defect(),
+  }
+) {}
 
-const decodeHealth = Schema.decodeUnknownSync(
+const decodeHealth = Schema.decodeEffect(
   Schema.fromJsonString(Schema.Struct({ status: Schema.String, version: Schema.String }))
 )
 
-const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))
+const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))
 
 const send = Effect.fn('test.send')(function* (request: Request) {
   const response = yield* Effect.tryPromise({
     try: () => handler(request),
-    catch: (cause) => new TestRequestError({ cause }),
+    catch: (cause) => TestRequestError.make({ cause }),
   })
+
   const body = yield* Effect.tryPromise({
     try: () => response.text(),
-    catch: (cause) => new TestRequestError({ cause }),
+    catch: (cause) => TestRequestError.make({ cause }),
   })
+
   return { status: response.status, body }
 })
 
 const rpc = (tag: string, payload: Readonly<Record<string, string>> | null) =>
-  send(
-    new Request('http://frame.test/rpc', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: encodeJson({ _tag: 'Request', id: '1', tag, payload, headers: [] }),
-    })
-  ).pipe(Effect.map((response) => response.body))
+  encodeJson({ _tag: 'Request', id: '1', tag, payload, headers: [] }).pipe(
+    Effect.flatMap((body) =>
+      send(
+        new Request('http://frame.test/rpc', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+        })
+      )
+    ),
+    Effect.map((response) => response.body)
+  )
 
 const get = (path: string) => send(new Request(`http://frame.test${path}`))
 
@@ -145,7 +165,7 @@ describe('frame server', () => {
     Effect.gen(function* () {
       const health = yield* get('/health')
       const page = yield* get('/')
-      const { version } = decodeHealth(health.body)
+      const { version } = yield* decodeHealth(health.body)
 
       assert.strictEqual(health.status, 200)
       assert.match(version, /^[\da-f]+-\d+$/u)
@@ -156,20 +176,24 @@ describe('frame server', () => {
   it.effect('reports an injected build id instead of the fingerprint', () =>
     Effect.gen(function* () {
       const injected = HttpRouter.toWebHandler(
-        frameRoutes(webRoot, Option.some('build-42')).pipe(
+        frameRoutes({ webRoot, buildId: Option.some('build-42') }).pipe(
           Layer.provide(FrameHandlersLive),
           Layer.provide(ServicesLayer),
           Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
         ),
         { disableLogger: true }
       )
+
       const response = yield* Effect.tryPromise({
         try: () => injected.handler(new Request('http://frame.test/health')).then((res) => res.text()),
-        catch: (cause) => new TestRequestError({ cause }),
+        catch: (cause) => TestRequestError.make({ cause }),
       })
-      yield* Effect.tryPromise({ try: () => injected.dispose(), catch: (cause) => new TestRequestError({ cause }) })
 
-      assert.strictEqual(decodeHealth(response).version, 'build-42')
+      yield* Effect.tryPromise({ try: () => injected.dispose(), catch: (cause) => TestRequestError.make({ cause }) })
+
+      const decoded = yield* decodeHealth(response)
+
+      assert.strictEqual(decoded.version, 'build-42')
     })
   )
 

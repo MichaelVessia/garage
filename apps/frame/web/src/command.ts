@@ -1,7 +1,8 @@
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
-import { HttpClient, HttpClientResponse } from 'effect/http'
-import type { RpcClientError } from 'effect/rpc/RpcClientError'
+import * as HttpClient from 'effect/http/HttpClient'
+import * as HttpClientResponse from 'effect/http/HttpClientResponse'
+import type * as RpcClientError from 'effect/rpc/RpcClientError'
 import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
 
@@ -34,7 +35,9 @@ const Health = Schema.Struct({ version: Schema.String })
 // An upstream failure means the frame server answered; a client error means it could not be reached.
 const recoverWith =
   <B>(toFailure: (isServerReachable: boolean) => B) =>
-  <A, R>(effect: Effect.Effect<A, UpstreamUnavailable | RpcClientError, R>): Effect.Effect<A | B, never, R> =>
+  <A, R>(
+    effect: Effect.Effect<A, UpstreamUnavailable | RpcClientError.RpcClientError, R>
+  ): Effect.Effect<A | B, never, R> =>
     effect.pipe(
       Effect.catchTags({
         UpstreamUnavailable: () => Effect.succeed(toFailure(true)),
@@ -45,6 +48,7 @@ const recoverWith =
 const fetchSettings = Effect.fn('frame.fetchSettings')(function* () {
   const api = yield* Api
   const settings = yield* api.GetSettings()
+
   return Message.SucceededFetchSettings({ settings })
 })
 
@@ -72,6 +76,7 @@ export const CheckVersion = Command.define('CheckVersion', {
     const client = yield* HttpClient.HttpClient
     const response = yield* client.get('/health')
     const health = yield* HttpClientResponse.schemaBodyJson(Health)(response)
+
     return Message.CheckedVersion({ version: health.version })
   }).pipe(
     Effect.tapError((failure) => Effect.logInfo('Frame server unreachable', failure)),
@@ -83,6 +88,7 @@ export const ReloadPage = Command.define('ReloadPage', {
   messages: [Message.StartedReload],
   execute: Effect.sync(() => {
     globalThis.location.reload()
+
     return Message.StartedReload()
   }),
 })
@@ -93,7 +99,8 @@ export const FetchUpcoming = Command.define('FetchUpcoming', {
   execute: ({ from }) =>
     Effect.gen(function* () {
       const api = yield* Api
-      const events = yield* api.GetCalendar(new CalendarWindow({ from, to: addCalendarDays(from, UPCOMING_DAYS) }))
+      const events = yield* api.GetCalendar(CalendarWindow.make({ from, to: addCalendarDays(from, UPCOMING_DAYS) }))
+
       return Message.SucceededFetchUpcoming({ events })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchUpcoming', failure)),
@@ -107,7 +114,8 @@ export const FetchWeek = Command.define('FetchWeek', {
   execute: ({ from }) =>
     Effect.gen(function* () {
       const api = yield* Api
-      const events = yield* api.GetCalendar(new CalendarWindow({ from, to: addCalendarDays(from, 7) }))
+      const events = yield* api.GetCalendar(CalendarWindow.make({ from, to: addCalendarDays(from, 7) }))
+
       return Message.SucceededFetchWeek({ from, events })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchWeek', failure)),
@@ -120,6 +128,7 @@ export const FetchWeather = Command.define('FetchWeather', {
   execute: Effect.gen(function* () {
     const api = yield* Api
     const weather = yield* api.GetWeather()
+
     return Message.SucceededFetchWeather({ weather })
   }).pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchWeather', failure)),
@@ -132,6 +141,7 @@ export const FetchShopping = Command.define('FetchShopping', {
   execute: Effect.gen(function* () {
     const api = yield* Api
     const items = yield* api.GetShopping()
+
     return Message.SucceededFetchShopping({ items })
   }).pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
@@ -144,6 +154,7 @@ export const FetchMedia = Command.define('FetchMedia', {
   execute: Effect.gen(function* () {
     const api = yield* Api
     const media = yield* api.GetMedia()
+
     return Message.SucceededFetchMedia({ media })
   }).pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchMedia', failure)),
@@ -158,6 +169,7 @@ export const RunMediaAction = Command.define('RunMediaAction', {
     Effect.gen(function* () {
       const api = yield* Api
       const media = yield* api.RunMediaAction(action)
+
       return Message.SucceededFetchMedia({ media })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedMediaAction', failure)),
@@ -171,7 +183,8 @@ export const AddShoppingItem = Command.define('AddShoppingItem', {
   execute: ({ summary }) =>
     Effect.gen(function* () {
       const api = yield* Api
-      const items = yield* api.AddShoppingItem(new ShoppingItemAddition({ summary }))
+      const items = yield* api.AddShoppingItem(ShoppingItemAddition.make({ summary }))
+
       return Message.SucceededFetchShopping({ items })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
@@ -185,7 +198,8 @@ export const UpdateShoppingItem = Command.define('UpdateShoppingItem', {
   execute: ({ uid, status }) =>
     Effect.gen(function* () {
       const api = yield* Api
-      const items = yield* api.UpdateShoppingItem(new ShoppingItemUpdate({ uid, status }))
+      const items = yield* api.UpdateShoppingItem(ShoppingItemUpdate.make({ uid, status }))
+
       return Message.SucceededFetchShopping({ items })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),

@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as FileSystem from 'effect/FileSystem'
+import * as Function from 'effect/Function'
 import * as HashSet from 'effect/HashSet'
 import * as Option from 'effect/Option'
 import * as Path from 'effect/Path'
@@ -51,11 +52,12 @@ export const isFastModeSupported = (model: Option.Option<SelectedModel>): boolea
 /** Decode whether fast mode is enabled from the Pi settings JSON document. */
 export const decodeConfiguredDefault = (source: string): boolean => {
   const settings = decodeSettings(source)
+
   return Option.isSome(settings) && settings.value[CONFIG_FIELD]?.enabled === true
 }
 
 /** Read fast mode's configured default, falling back to disabled for any read or decode failure. */
-export const loadConfiguredDefault = Effect.fn('PiExtensions.GptFastMode.loadConfiguredDefault')(function* (
+export const loadConfiguredDefault = Effect.fn('piExtensions.gptFastMode.loadConfiguredDefault')(function* (
   agentDirectory: string
 ): Effect.fn.Return<boolean, never, FileSystem.FileSystem | Path.Path> {
   const fileSystem = yield* FileSystem.FileSystem
@@ -70,22 +72,30 @@ export const loadConfiguredDefault = Effect.fn('PiExtensions.GptFastMode.loadCon
   )
 })
 
+/** The selected model and session toggle that decide whether a request uses fast mode. */
+export interface FastModeState {
+  /** Model selected for the request. */
+  readonly model: Option.Option<SelectedModel>
+  /** Whether fast mode is enabled for the session. */
+  readonly enabled: boolean
+}
+
 /** Add the priority service tier when fast-mode request policy permits it. */
-export const applyFastMode = (
-  payload: Schema.Json,
-  model: Option.Option<SelectedModel>,
-  enabled: boolean
-): Option.Option<Schema.JsonObject> => {
+export const applyFastMode: {
+  (state: FastModeState): (payload: Schema.Json) => Option.Option<Schema.JsonObject>
+  (payload: Schema.Json, state: FastModeState): Option.Option<Schema.JsonObject>
+} = Function.dual(2, (payload: Schema.Json, { model, enabled }: FastModeState): Option.Option<Schema.JsonObject> => {
   if (!enabled || !isFastModeSupported(model)) {
     return Option.none()
   }
 
   return Option.flatMap(model, (selected) => {
     const object = decodeJsonObject(payload)
+
     if (Option.isNone(object) || object.value.model !== selected.id) {
       return Option.none()
     }
 
     return Option.some({ ...object.value, service_tier: 'priority' })
   })
-}
+})

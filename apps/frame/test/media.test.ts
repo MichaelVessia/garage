@@ -16,6 +16,7 @@ import type { MediaConfig, MediaPlayerConfig } from '../src/home-assistant/media
 
 // TURN_ON + TURN_OFF + VOLUME_SET + VOLUME_STEP + VOLUME_MUTE + SELECT_SOURCE + PLAY_MEDIA + SOUND_MODE
 const RECEIVER_FEATURES = 69_516
+
 // PAUSE + PLAY + PREVIOUS + NEXT + VOLUME_SET + SELECT_SOURCE
 const MUSIC_FEATURES = 18_485
 
@@ -80,6 +81,7 @@ describe('media players', () => {
           attributes: { supported_features: RECEIVER_FEATURES, source_list: ['AUX', 'NETWORK'] },
         })
       ).controls
+
     const music = toMediaPlayer(
       { entityId: 'media_player.music', controls: Option.none() },
       Option.some({
@@ -108,6 +110,7 @@ describe('media players', () => {
         entity_picture: '/api/media_player_proxy/media_player.music?token=art-token&cache=1',
       },
     }
+
     const player = toMediaPlayer({ entityId: 'media_player.music', controls: Option.none() }, Option.some(state))
 
     assert.strictEqual(player.status, 'playing')

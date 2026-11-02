@@ -1,8 +1,7 @@
 id: no-it-live
 snapshots:
-  ? |
-    it.live("waits in real time", () => program);
-  : labels:
+  "it.live(\"waits in real time\", () => program);\n":
+    labels:
     - source: it.live("waits in real time", () => program)
       style: primary
       start: 0

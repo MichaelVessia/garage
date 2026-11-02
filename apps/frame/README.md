@@ -12,7 +12,7 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 - `src/calendar/` — Google Calendar API adapter: service-account sign-in, expanded events with their Google colours, a 5-minute cache per window, and a stale fallback.
 - `src/home-assistant/` — weather, shopping list, and media adapter over Home Assistant REST; `media.ts` owns the media configuration, state mapping, and action allowlist.
 - `src/shared/` — schemas and the RPC group shared with the browser (imported as `#shared`).
-- `web/` — Foldkit SPA: `main.ts` (Model, update, subscriptions), `message.ts`, `command.ts`, `view.ts`.
+- `web/` — Foldkit SPA: `main.ts` (Model, update, subscriptions), `message.ts`, `command.ts`, `view.ts` (root view) and `view/` (screen and shared rendering modules).
 - `scripts/check-webview-compat.ts` — fails the build if `web/dist` uses features WebView 106 lacks.
 - `alchemy.run.ts`, `scripts/load-image.ts`, and `scripts/verify-deploy.ts` — the deploy.
 

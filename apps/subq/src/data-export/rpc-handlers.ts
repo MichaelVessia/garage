@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
 
 import { authedRpc, DataExportRpcs } from '#shared'
-import type { DataExport as DataExportType } from '#shared'
+import type { AuthUser, DataExport as DataExportType } from '#shared'
 
 import { DataExportService } from './data-export-service.js'
 
@@ -9,8 +9,8 @@ export const DataExportRpcHandlersLive = DataExportRpcs.toLayer(
   Effect.gen(function* () {
     const service = yield* DataExportService
 
-    const UserDataExport = authedRpc('rpc.data-export.export', (user) =>
-      Effect.gen(function* () {
+    const UserDataExport = authedRpc(
+      Effect.fn('rpc.dataExport.export')(function* (user: AuthUser) {
         yield* Effect.logInfo('UserDataExport called').pipe(
           Effect.annotateLogs({ rpc: 'UserDataExport', userId: user.id })
         )
@@ -24,12 +24,13 @@ export const DataExportRpcHandlersLive = DataExportRpcs.toLayer(
             goals: result.data.goals.length,
           })
         )
+
         return result
       })
     )
 
-    const UserDataImport = authedRpc('rpc.data-export.import', (user, data: DataExportType) =>
-      Effect.gen(function* () {
+    const UserDataImport = authedRpc(
+      Effect.fn('rpc.dataExport.import')(function* (user: AuthUser, data: DataExportType) {
         yield* Effect.logInfo('UserDataImport called').pipe(
           Effect.annotateLogs({
             rpc: 'UserDataImport',
@@ -51,6 +52,7 @@ export const DataExportRpcHandlersLive = DataExportRpcs.toLayer(
             settingsUpdated: result.settingsUpdated,
           })
         )
+
         return result
       })
     )

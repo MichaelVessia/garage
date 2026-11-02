@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
+import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
-import * as Story from 'foldkit/story'
+import { Story } from 'foldkit'
 
 import { IanaTimezone, Notes, Weight, WeightLog, WeightLogId } from '#shared'
 
+import { DeleteWeight, FetchWeightLogs, OpenWeightForm, SaveWeight } from '../src/page/weight/command.js'
 import {
   ChangedWeightDatetime,
   ChangedWeightNotes,
@@ -15,27 +18,23 @@ import {
   ClickedEditWeight,
   ClickedWeightPage,
   ClickedWeightSort,
-  ConfirmedDeleteWeight,
-  DeleteWeight,
-  FailedSaveWeight,
-  FetchWeightLogs,
-  OpenWeightForm,
   CompletedOpenWeightForm,
+  ConfirmedDeleteWeight,
+  FailedSaveWeight,
   RequestedDeleteWeight,
-  SaveWeight,
   SubmittedWeightForm,
   SucceededDeleteWeight,
   SucceededFetchWeightLogs,
   SucceededSaveWeight,
   initialWeightModel,
-  updateWeight,
-} from '../src/page/weight.js'
-import type { WeightMessage, WeightModel } from '../src/page/weight.js'
+} from '../src/page/weight/model.js'
+import type { WeightMessage, WeightModel } from '../src/page/weight/model.js'
+import { updateWeight } from '../src/page/weight/update.js'
 
 const { Command } = Story
 const timezone = IanaTimezone.make('America/New_York')
 
-const sampleLog = new WeightLog({
+const sampleLog = WeightLog.make({
   createdAt: DateTime.makeUnsafe('2026-07-01T00:00:00Z'),
   datetime: DateTime.makeUnsafe('2026-07-01T08:00:00Z'),
   id: WeightLogId.make('log-1'),
@@ -45,7 +44,7 @@ const sampleLog = new WeightLog({
 })
 
 const weightAt = (id: string, datetime: string): WeightLog =>
-  new WeightLog({
+  WeightLog.make({
     createdAt: sampleLog.createdAt,
     datetime: DateTime.makeUnsafe(datetime),
     id: WeightLogId.make(id),
@@ -55,6 +54,15 @@ const weightAt = (id: string, datetime: string): WeightLog =>
   })
 
 const update = (model: WeightModel, message: WeightMessage) => updateWeight(model, message, timezone)
+
+// The ISO instant SaveWeight would persist, or undefined when no valid save was dispatched.
+const savedDatetimeIso = (commands: ReturnType<typeof update>['commands'] = []): string | undefined =>
+  Arr.findFirst(commands, (command) => command.name === SaveWeight.name).pipe(
+    Option.flatMap((command) => Option.fromNullishOr(command.args?.datetime)),
+    Option.filter(Schema.is(Schema.DateTimeUtc)),
+    Option.map(DateTime.formatIso),
+    Option.getOrUndefined
+  )
 
 describe('weight page update', () => {
   it('opens the add form via a command that supplies "now"', () => {
@@ -74,18 +82,15 @@ describe('weight page update', () => {
   it('preserves sub-minute UTC precision for a note-only edit', () => {
     const preciseLog = weightAt('log-precise', '2026-07-01T08:00:45.123Z')
     const { model: opening } = update(initialWeightModel, ClickedEditWeight({ log: preciseLog }))
+
     const { model: opened } = update(
       opening,
       CompletedOpenWeightForm({ log: preciseLog, nowLocal: '2026-07-03T10:00' })
     )
-    const { model: noted } = update(opened, ChangedWeightNotes({ value: 'updated note' }))
-    const { commands = [] } = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
-    const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
 
-    expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
-    if (Schema.is(Schema.DateTimeUtc)(datetime)) {
-      expect(DateTime.formatIso(datetime)).toBe('2026-07-01T08:00:45.123Z')
-    }
+    const { model: noted } = update(opened, ChangedWeightNotes({ value: 'updated note' }))
+    const { commands } = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
+    expect(savedDatetimeIso(commands)).toBe('2026-07-01T08:00:45.123Z')
   })
 
   it('preserves both DST-overlap UTC identities for note-only edits', () => {
@@ -93,18 +98,15 @@ describe('weight page update', () => {
 
     for (const [index, instant] of overlapInstants.entries()) {
       const log = weightAt(`log-overlap-${index}`, instant)
+
       const { model: opened } = update(
         initialWeightModel,
         CompletedOpenWeightForm({ log, nowLocal: '2026-11-02T09:00' })
       )
-      const { model: noted } = update(opened, ChangedWeightNotes({ value: `overlap ${index}` }))
-      const { commands = [] } = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
-      const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
 
-      expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
-      if (Schema.is(Schema.DateTimeUtc)(datetime)) {
-        expect(DateTime.formatIso(datetime)).toBe(instant)
-      }
+      const { model: noted } = update(opened, ChangedWeightNotes({ value: `overlap ${index}` }))
+      const { commands } = update(noted, SubmittedWeightForm({ unit: 'lbs' }))
+      expect(savedDatetimeIso(commands)).toBe(instant)
     }
   })
 
@@ -112,13 +114,8 @@ describe('weight page update', () => {
     const { model: opening } = update(initialWeightModel, ClickedEditWeight({ log: sampleLog }))
     const { model: opened } = update(opening, CompletedOpenWeightForm({ log: sampleLog, nowLocal: '2026-07-03T10:00' }))
     const { model: changed } = update(opened, ChangedWeightDatetime({ value: '2026-07-01T05:15' }))
-    const { commands = [] } = update(changed, SubmittedWeightForm({ unit: 'lbs' }))
-    const datetime = commands.find((command) => command.name === SaveWeight.name)?.args?.datetime
-
-    expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
-    if (Schema.is(Schema.DateTimeUtc)(datetime)) {
-      expect(DateTime.formatIso(datetime)).toBe('2026-07-01T09:15:00.000Z')
-    }
+    const { commands } = update(changed, SubmittedWeightForm({ unit: 'lbs' }))
+    expect(savedDatetimeIso(commands)).toBe('2026-07-01T09:15:00.000Z')
   })
 
   it('submit validates weight before dispatching SaveWeight', () => {
@@ -135,6 +132,7 @@ describe('weight page update', () => {
         weight: 'not-a-number',
       },
     }
+
     Story.story(
       update,
       Story.given(withForm),
@@ -160,6 +158,7 @@ describe('weight page update', () => {
         weight: '185.5',
       },
     }
+
     Story.story(
       update,
       Story.given(withForm),
@@ -193,6 +192,7 @@ describe('weight page update', () => {
         weight: '185.5',
       },
     }
+
     Story.story(
       update,
       Story.given(withForm),
@@ -271,18 +271,16 @@ describe('weight page update', () => {
         weight: '84.0',
       },
     }
+
     Story.story(
       update,
       Story.given(withForm),
       Story.message(SubmittedWeightForm({ unit: 'kg' })),
       (simulation: Story.StorySimulation<WeightModel, WeightMessage>) => {
         const [command] = simulation.commands
-        expect(command).toBeDefined()
         const weightLbs = command?.args?.weightLbs
-        expect(P.isNumber(weightLbs)).toBe(true)
-        if (P.isNumber(weightLbs)) {
-          expect(weightLbs).toBeCloseTo(185.19, 1)
-        }
+        expect(P.isNumber(weightLbs) ? weightLbs : Number.NaN).toBeCloseTo(185.19, 1)
+
         return simulation
       },
       Command.resolveAll([SaveWeight, SucceededSaveWeight()], [FetchWeightLogs, SucceededFetchWeightLogs({ logs: [] })])

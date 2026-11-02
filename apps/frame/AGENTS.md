@@ -14,7 +14,7 @@ This context owns all of `apps/frame`: the wall-display SPA for the PF1007L phot
 - `GOOGLE_SERVICE_ACCOUNT_KEY`, the Google access tokens it mints, and `HOME_ASSISTANT_TOKEN` are credentials. Keep them out of logs, span attributes, error messages, fixtures, and browser responses.
 - Calendar and Home Assistant fixtures are synthetic. Never copy a real feed, event title, or household detail into the repository.
 - The browser is Android System WebView 106. Do not ship CSS nesting, `:has()`, `oklch()`, `color-mix()`, dynamic viewport units, 4- or 8-digit hex colours, or JavaScript APIs newer than Chrome 106; `bun run build` enforces this.
-- Keep `web/src/main.ts` as Model/update/subscriptions, `message.ts` as messages, `command.ts` as commands, and `view.ts` as rendering.
+- Keep `web/src/main.ts` as Model/update/subscriptions, `message.ts` as messages, `command.ts` as commands, and `view.ts` with its `view/` screen modules as rendering.
 - Do not run deployment or production commands without explicit authorization.
 
 ## Validation

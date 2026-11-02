@@ -5,6 +5,7 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "preserve",
     "moduleResolution": "bundler",
+    "types": ["bun", "vite/client"],
     "noEmit": true,
     "declaration": false,
     "declarationMap": false
