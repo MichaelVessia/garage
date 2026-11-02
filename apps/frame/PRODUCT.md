@@ -18,7 +18,7 @@ Frame is the household's wall dashboard on a rooted 10-inch photo frame in the k
 
 - Mounted on or near the kitchen counter, landscape, viewed while standing and moving; hands may be busy or wet.
 - Always on. After idle time, and sooner at night, it switches to a dim ambient clock; a tap wakes it.
-- Data comes from the family Google calendar (one shared calendar, no per-person colours), Home Assistant weather, the Home Assistant shopping list, and Home Assistant media players, speaker zones, and Spotify.
+- Data comes from the family Google calendar (one shared calendar, with the event colours picked in Google), Home Assistant weather, the Home Assistant shopping list, and Home Assistant media players, speaker zones, and Spotify.
 - Updates ship over the network and the page reloads itself; the device is rarely touched for maintenance.
 
 ## Capabilities and Constraints

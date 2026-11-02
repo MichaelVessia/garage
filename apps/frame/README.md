@@ -9,7 +9,7 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 - `src/main.ts` — composition root: configuration, adapters, Bun HTTP server.
 - `src/server.ts` — routes: `GET /health` (readiness and build id), `POST /rpc`, `GET /media/art/<entity>` (artwork proxy for configured players), and the SPA with an `index.html` fallback.
 - `src/handlers.ts` — RPC handlers; map upstream failures to a credential-free `UpstreamUnavailable`.
-- `src/calendar/` — iCalendar feed adapter (5-minute cache, stale fallback) and recurrence expansion with `ical.js`.
+- `src/calendar/` — Google Calendar API adapter: service-account sign-in, expanded events with their Google colours, a 5-minute cache per window, and a stale fallback.
 - `src/home-assistant/` — weather, shopping list, and media adapter over Home Assistant REST; `media.ts` owns the media configuration, state mapping, and action allowlist.
 - `src/shared/` — schemas and the RPC group shared with the browser (imported as `#shared`).
 - `web/` — Foldkit SPA: `main.ts` (Model, update, subscriptions), `message.ts`, `command.ts`, `view.ts`.
@@ -20,7 +20,8 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `CALENDAR_ICS_URL` | yes | none | Redacted secret iCalendar address of the family calendar |
+| `GOOGLE_CALENDAR_ID` | yes | none | Calendar ID of the family calendar (Google Calendar settings, "Integrate calendar") |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | yes | none | Redacted JSON key file of a Google service account the calendar is shared with |
 | `HOME_ASSISTANT_URL` | yes | none | Home Assistant base URL, for example `http://192.0.2.10:8123` |
 | `HOME_ASSISTANT_TOKEN` | yes | none | Redacted long-lived access token; a non-admin user is enough |
 | `HOME_ASSISTANT_WEATHER_ENTITY` | no | `weather.forecast_home` | Weather entity |
@@ -37,7 +38,18 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 
 The server accepts media changes only for these entities and only the listed controls; anything else is refused with `MediaActionRejected`. Artwork is fetched by the server from Home Assistant's media player proxy, so the frame never needs to reach Home Assistant. An invalid media entry fails startup with `FRAME_ENV_INVALID`.
 
-Supply credentials through a root-readable environment file on the host, never through command arguments, images, repository files, or logs. Resetting the secret address in Google Calendar invalidates the old URL.
+Supply credentials through a root-readable environment file on the host, never through command arguments, images, repository files, or logs.
+
+### Google Calendar access
+
+The frame reads the calendar as a Google service account, so it sees each event's colour as set in Google Calendar.
+
+1. In a Google Cloud project, enable the Google Calendar API and create a service account. Give it no project roles.
+2. Create a JSON key for the service account. Store the whole file as `GOOGLE_SERVICE_ACCOUNT_KEY`.
+3. In Google Calendar, share the family calendar with the service account's email address and select "Make changes to events". Google sends `colorId` only to accounts that can change events; with "See all event details" every event arrives uncoloured. The frame still only reads, because it requests the `calendar.readonly` scope.
+4. Copy the calendar ID from the calendar's "Integrate calendar" settings into `GOOGLE_CALENDAR_ID`.
+
+To revoke access, delete the key in Google Cloud or remove the service account from the calendar's sharing settings.
 
 ## Development
 
@@ -62,7 +74,8 @@ The frame server runs as a Docker container on a Proxmox LXC with Docker. One co
    | --- | --- |
    | `FRAME_DOCKER_HOST` (`ssh://root@<frame-host>`) | yes |
    | `FRAME_URL` (`http://<frame-host>:8080`) | yes |
-   | `CALENDAR_ICS_URL` | yes |
+   | `GOOGLE_CALENDAR_ID` | yes |
+   | `GOOGLE_SERVICE_ACCOUNT_KEY` | yes |
    | `HOME_ASSISTANT_URL` | yes |
    | `HOME_ASSISTANT_TOKEN` | yes |
    | `FRAME_TIMEZONE` | no |

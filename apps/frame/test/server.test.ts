@@ -19,7 +19,7 @@ import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantConfig } from '../src/home-assistant/services.js'
 import { frameRoutes } from '../src/server.js'
 import { FrameTimezone } from '../src/settings.js'
-import fixture from './fixtures/synthetic.ics?raw'
+import { calendarId, googleResponse, makeServiceAccount, tokenUri } from './fixtures/google-calendar.js'
 
 const testMedia: MediaConfig = {
   slots: [
@@ -39,8 +39,9 @@ const testMedia: MediaConfig = {
 const webRoot = new URL('fixtures/web', import.meta.url).pathname
 
 const respond = (url: URL): Response => {
-  if (url.hostname === 'calendar.example.test') {
-    return new Response(fixture, { headers: { 'content-type': 'text/calendar' } })
+  if (url.toString() === tokenUri || url.hostname === 'www.googleapis.com') {
+    const google = googleResponse(url)
+    return Response.json(google.body, { status: google.status })
   }
   if (url.pathname.endsWith('/get_items')) {
     return Response.json({
@@ -79,7 +80,10 @@ const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
   Layer.provideMerge(
     Layer.mergeAll(
       Layer.succeed(FrameTimezone, { timezone: IanaTimezone.make('America/New_York') }),
-      Layer.succeed(CalendarConfig, { icsUrl: Redacted.make('https://calendar.example.test/private-token/basic.ics') }),
+      Layer.effect(
+        CalendarConfig,
+        makeServiceAccount.pipe(Effect.map((serviceAccount) => CalendarConfig.of({ calendarId, serviceAccount })))
+      ),
       Layer.succeed(HomeAssistantConfig, {
         url: 'http://ha.example.test:8123',
         token: Redacted.make('ha-token'),

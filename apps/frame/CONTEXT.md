@@ -7,7 +7,8 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 ## Ubiquitous language
 
 - **Frame**: the PF1007L display (1280 × 800, Android 6, System WebView 106) running a full-screen kiosk.
-- **Family calendar**: one shared Google calendar read from its secret iCalendar address.
+- **Family calendar**: one shared Google calendar read through the Google Calendar API as a service account it is shared with.
+- **Event colour**: the colour picked for an event in Google Calendar, shown with Google's own shade; events without one stay neutral.
 - **Occurrence**: one expanded instance of a calendar event inside a requested window; either timed (UTC instants) or all-day (local dates, exclusive end).
 - **Calendar window**: a local-date range, `to` exclusive, resolved to instants in the frame timezone.
 - **Frame timezone**: the household IANA timezone the server owns; it places all-day events, floating times, and "today".
@@ -42,7 +43,7 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 
 ## Boundaries and dependencies
 
-External systems are Google Calendar (secret iCalendar URL over HTTPS) and Home Assistant REST. Alchemy (`alchemy.run.ts`) deploys the Nix-built image to a Docker host over SSH. `src/calendar/` and `src/home-assistant/` each own one adapter; `src/handlers.ts` maps them to the shared RPC contract in `src/shared/`; `src/main.ts` composes configuration, adapters, and the Bun server.
+External systems are Google Calendar (the Calendar API through `@distilled.cloud/google-workspace`, signed in with a service account key) and Home Assistant REST. Alchemy (`alchemy.run.ts`) deploys the Nix-built image to a Docker host over SSH. `src/calendar/` and `src/home-assistant/` each own one adapter; `src/handlers.ts` maps them to the shared RPC contract in `src/shared/`; `src/main.ts` composes configuration, adapters, and the Bun server.
 
 ## References
 
