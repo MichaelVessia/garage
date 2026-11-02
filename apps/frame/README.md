@@ -46,7 +46,7 @@ The frame reads the calendar as a Google service account, so it sees each event'
 
 1. In a Google Cloud project, enable the Google Calendar API and create a service account. Give it no project roles.
 2. Create a JSON key for the service account. Store the whole file as `GOOGLE_SERVICE_ACCOUNT_KEY`.
-3. In Google Calendar, share the family calendar with the service account's email address and select "See all event details".
+3. In Google Calendar, share the family calendar with the service account's email address and select "Make changes to events". Google sends `colorId` only to accounts that can change events; with "See all event details" every event arrives uncoloured. The frame still only reads, because it requests the `calendar.readonly` scope.
 4. Copy the calendar ID from the calendar's "Integrate calendar" settings into `GOOGLE_CALENDAR_ID`.
 
 To revoke access, delete the key in Google Cloud or remove the service account from the calendar's sharing settings.
