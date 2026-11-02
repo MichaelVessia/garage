@@ -12,7 +12,6 @@ Repository Engineering is the supporting context that makes independently owned 
 - **Release-grade validation**: `bun run validate:release`, which adds deliverable builds and Nix smoke tests.
 - **Structural rule**: an ast-grep policy under `rules/` with executable fixtures under `rule-tests/`.
 - **Artifact input**: a root file whose change can alter multiple workspace or Nix deliverables, including locks and shared TypeScript configuration.
-- **Vendored reference**: read-only third-party source under `repos/`, used for evidence but never imported or edited.
 
 ## Responsibilities
 
@@ -28,7 +27,7 @@ Repository Engineering is the supporting context that makes independently owned 
 - It does not own an integration's upstream vocabulary, operations, MCP tool semantics, or external adapter mapping.
 - It does not own the shared HTTP-adapter infrastructure in `packages/integration-http`.
 - It does not own Subq's health-tracking model or deployment behavior.
-- It does not turn `repos/`, generated output, or dependency directories into first-party workspaces.
+- It does not turn generated output or dependency directories into first-party workspaces.
 
 ## Important policy objects
 
@@ -47,7 +46,7 @@ Repository Engineering is the supporting context that makes independently owned 
 - The fast validation gate runs before release-grade deliverable checks.
 - Deployments and releases consume validated source and must not race.
 - A production change to `packages/integration-http` or a root artifact input is treated as a cross-workspace risk.
-- `bun.nix` is generated from `bun.lock`; `repos/` is read-only.
+- `bun.nix` is generated from `bun.lock`.
 - Conventional commits are enforced.
 
 ## Boundaries and dependencies

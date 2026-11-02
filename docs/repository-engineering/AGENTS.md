@@ -12,7 +12,7 @@ This context owns root tooling and manifests, `scripts/`, `rules/`, `rule-tests/
 
 ## Local constraints
 
-- Never edit `repos/` or generated dependency/build output; refresh the vendored subtree only with `bun run vendor:update`.
+- Never edit generated dependency/build output.
 - Do not add an ast-grep rule that duplicates an oxlint Effect-plugin rule; every structural rule needs fixtures.
 - Regenerate `bun.nix` from `bun.lock` using the documented Nix procedure; do not hand-edit it.
 - Preserve exact-SHA validation and concurrency safety in deployment or release workflows.

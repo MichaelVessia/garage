@@ -41,7 +41,6 @@ HTTP, XML, process, session, or file access is an adapter choice rather than rep
 - **Tagged error**: a schema-tagged value in an Effect error channel.
 - **Validation gate**: `bun run validate`.
 - **Workspace**: an independently owned package or app.
-- **Vendored reference**: read-only third-party evidence under `repos/`.
 
 ## Cross-workspace imports
 
@@ -71,11 +70,6 @@ ast-grep rule that duplicates an oxlint plugin rule.
 Judgment the lints cannot check (where layers are provided, what a service
 requires, what the tests prove) lives in
 [docs/guardrails/](../guardrails/README.md).
-
-For exact Effect v4 API behavior, read the vendored source at `repos/effect/`,
-which tracks `Effect-TS/effect` `main` (start at `LLMS.md`, then `ai-docs/`, then
-`packages/effect/src/`). Cite it as `repos/effect/<path>:<line>`. Never edit or
-import from `repos/`; refresh the subtree only with `bun run vendor:update`.
 
 ## Integration package responsibilities
 

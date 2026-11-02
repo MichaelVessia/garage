@@ -106,10 +106,3 @@ spans across all layers.
 - Is an in-memory layer present only when its semantics warrant reuse?
 - Are spans operation-level, useful, and free of duplicate forwarding spans and
   secrets?
-
-## References
-
-- `repos/effect/ai-docs/src/01_effect/03_services/` — services, references,
-  layer composition, and `Layer.unwrap`.
-- `repos/effect/ai-docs/src/09_testing/` — Effect test layers.
-- `repos/effect/ai-docs/src/50_http-client/` — `HttpClient` composition.
