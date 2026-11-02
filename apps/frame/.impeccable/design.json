@@ -1,0 +1,741 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T05:02:51+00:00",
+  "title": "Design System: Frame",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Cool Ground",
+        "canonical": "#f3f4f6",
+        "tonalRamp": [
+          "#21242c",
+          "#393f4c",
+          "#515a6c",
+          "#69758c",
+          "#8891a5",
+          "#a8afbd",
+          "#cbcfd8",
+          "#f0f2f4"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#424242",
+          "#5e5e5e",
+          "#7a7a7a",
+          "#969696",
+          "#b2b2b2",
+          "#d1d1d1",
+          "#f2f2f2"
+        ]
+      },
+      "rail": {
+        "role": "neutral",
+        "displayName": "Rail White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#424242",
+          "#5e5e5e",
+          "#7a7a7a",
+          "#969696",
+          "#b2b2b2",
+          "#d1d1d1",
+          "#f2f2f2"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#14171c",
+        "tonalRamp": [
+          "#20252d",
+          "#37404d",
+          "#4f5a6e",
+          "#66758f",
+          "#8592a8",
+          "#a6afbf",
+          "#c9cfd9",
+          "#f0f2f4"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "#5b6270",
+        "tonalRamp": [
+          "#22252a",
+          "#3b4049",
+          "#555b68",
+          "#6e7687",
+          "#8c93a1",
+          "#abb0ba",
+          "#ccd0d6",
+          "#f1f2f4"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#e4e7ec",
+        "tonalRamp": [
+          "#20252d",
+          "#373f4e",
+          "#4e5a6f",
+          "#657590",
+          "#8492a9",
+          "#a5afc0",
+          "#c9cfd9",
+          "#f0f2f4"
+        ]
+      },
+      "sunken": {
+        "role": "neutral",
+        "displayName": "Sunken Grey",
+        "canonical": "#eef0f3",
+        "tonalRamp": [
+          "#20252d",
+          "#37404e",
+          "#4e5b6f",
+          "#657690",
+          "#8493a8",
+          "#a5b0c0",
+          "#c9d0d9",
+          "#f0f2f4"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Kitchen Indigo",
+        "canonical": "#4f5bd5",
+        "tonalRamp": [
+          "#0f133e",
+          "#1a216b",
+          "#242f98",
+          "#2f3dc6",
+          "#5662d7",
+          "#838ce2",
+          "#b5baed",
+          "#eaecfa"
+        ]
+      },
+      "accent-ink": {
+        "role": "primary",
+        "displayName": "Deep Indigo Ink",
+        "canonical": "#3b46b8",
+        "tonalRamp": [
+          "#13163a",
+          "#202664",
+          "#2e368f",
+          "#3b47b9",
+          "#616acc",
+          "#8b92da",
+          "#b9bee9",
+          "#ecedf9"
+        ]
+      },
+      "accent-tint": {
+        "role": "primary",
+        "displayName": "Indigo Wash",
+        "canonical": "#eceefd",
+        "tonalRamp": [
+          "#070f45",
+          "#0d1978",
+          "#1224ab",
+          "#172fdd",
+          "#4256eb",
+          "#7583f0",
+          "#acb5f6",
+          "#e8eafd"
+        ]
+      },
+      "on-accent": {
+        "role": "neutral",
+        "displayName": "On Accent White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#424242",
+          "#5e5e5e",
+          "#7a7a7a",
+          "#969696",
+          "#b2b2b2",
+          "#d1d1d1",
+          "#f2f2f2"
+        ]
+      },
+      "good": {
+        "role": "secondary",
+        "displayName": "Pantry Green",
+        "canonical": "#1f8a4c",
+        "tonalRamp": [
+          "#0e3e22",
+          "#186c3c",
+          "#239a55",
+          "#2dc86e",
+          "#54d98c",
+          "#82e3ab",
+          "#b4eecc",
+          "#eafaf1"
+        ]
+      },
+      "good-tint": {
+        "role": "secondary",
+        "displayName": "Green Wash",
+        "canonical": "#e2f3e9",
+        "tonalRamp": [
+          "#163623",
+          "#275e3d",
+          "#378557",
+          "#48ad71",
+          "#6bc28f",
+          "#93d2ad",
+          "#bee4ce",
+          "#edf8f1"
+        ]
+      },
+      "bad": {
+        "role": "secondary",
+        "displayName": "Signal Red",
+        "canonical": "#c2332b",
+        "tonalRamp": [
+          "#3f100e",
+          "#6d1d18",
+          "#9a2922",
+          "#c8352c",
+          "#d95b54",
+          "#e38782",
+          "#eeb7b4",
+          "#faebea"
+        ]
+      },
+      "ground-night": {
+        "role": "neutral",
+        "displayName": "Cool Ground (night)",
+        "canonical": "#0e1014",
+        "tonalRamp": [
+          "#1f242d",
+          "#373e4e",
+          "#4e596f",
+          "#657390",
+          "#8490a9",
+          "#a5aec0",
+          "#c9ced9",
+          "#f0f2f4"
+        ]
+      },
+      "card-night": {
+        "role": "neutral",
+        "displayName": "Card White (night)",
+        "canonical": "#191c22",
+        "tonalRamp": [
+          "#20242c",
+          "#383f4c",
+          "#505a6d",
+          "#68748d",
+          "#8791a6",
+          "#a7afbe",
+          "#cacfd8",
+          "#f0f2f4"
+        ]
+      },
+      "rail-night": {
+        "role": "neutral",
+        "displayName": "Rail White (night)",
+        "canonical": "#14161b",
+        "tonalRamp": [
+          "#21242c",
+          "#383e4c",
+          "#50586c",
+          "#68738d",
+          "#8790a6",
+          "#a7aebe",
+          "#caced8",
+          "#f0f1f4"
+        ]
+      },
+      "ink-night": {
+        "role": "neutral",
+        "displayName": "Ink (night)",
+        "canonical": "#eef0f3",
+        "tonalRamp": [
+          "#20252d",
+          "#37404e",
+          "#4e5b6f",
+          "#657690",
+          "#8493a8",
+          "#a5b0c0",
+          "#c9d0d9",
+          "#f0f2f4"
+        ]
+      },
+      "ink-2-night": {
+        "role": "neutral",
+        "displayName": "Slate (night)",
+        "canonical": "#a3a9b6",
+        "tonalRamp": [
+          "#22252b",
+          "#3b3f4a",
+          "#535a69",
+          "#6c7588",
+          "#8a92a2",
+          "#aaafbb",
+          "#cccfd6",
+          "#f1f2f4"
+        ]
+      },
+      "line-night": {
+        "role": "neutral",
+        "displayName": "Hairline (night)",
+        "canonical": "#2a2e37",
+        "tonalRamp": [
+          "#21242b",
+          "#393f4b",
+          "#52596b",
+          "#6a748b",
+          "#8891a4",
+          "#a8afbd",
+          "#cbcfd7",
+          "#f1f2f4"
+        ]
+      },
+      "sunken-night": {
+        "role": "neutral",
+        "displayName": "Sunken Grey (night)",
+        "canonical": "#22262e",
+        "tonalRamp": [
+          "#21242c",
+          "#383f4c",
+          "#505a6d",
+          "#68748d",
+          "#8791a6",
+          "#a7afbe",
+          "#cacfd8",
+          "#f0f2f4"
+        ]
+      },
+      "accent-night": {
+        "role": "primary",
+        "displayName": "Kitchen Indigo (night)",
+        "canonical": "#5e69e0",
+        "tonalRamp": [
+          "#0c1140",
+          "#151d6f",
+          "#1e299e",
+          "#2836cd",
+          "#505cdd",
+          "#7f87e6",
+          "#b2b7f0",
+          "#eaebfb"
+        ]
+      },
+      "accent-ink-night": {
+        "role": "primary",
+        "displayName": "Deep Indigo Ink (night)",
+        "canonical": "#a9b0ff",
+        "tonalRamp": [
+          "#00064c",
+          "#000b85",
+          "#000fbd",
+          "#0014f5",
+          "#2e3fff",
+          "#6672ff",
+          "#a3abff",
+          "#e5e8ff"
+        ]
+      },
+      "accent-tint-night": {
+        "role": "primary",
+        "displayName": "Indigo Wash (night)",
+        "canonical": "#252a4a",
+        "tonalRamp": [
+          "#191d33",
+          "#2c3258",
+          "#3f477e",
+          "#525da3",
+          "#747db9",
+          "#99a0cc",
+          "#c2c6e0",
+          "#eeeff6"
+        ]
+      },
+      "good-night": {
+        "role": "secondary",
+        "displayName": "Pantry Green (night)",
+        "canonical": "#4cc27f",
+        "tonalRamp": [
+          "#133924",
+          "#22633e",
+          "#308d58",
+          "#3eb772",
+          "#63ca8f",
+          "#8dd8ad",
+          "#bbe8ce",
+          "#ecf9f1"
+        ]
+      },
+      "good-tint-night": {
+        "role": "secondary",
+        "displayName": "Green Wash (night)",
+        "canonical": "#1c3326",
+        "tonalRamp": [
+          "#1b3125",
+          "#2f5640",
+          "#437a5b",
+          "#579e76",
+          "#78b592",
+          "#9cc9b0",
+          "#c4decf",
+          "#eff6f2"
+        ]
+      },
+      "bad-night": {
+        "role": "secondary",
+        "displayName": "Signal Red (night)",
+        "canonical": "#f07a71",
+        "tonalRamp": [
+          "#450c07",
+          "#78140d",
+          "#ab1d12",
+          "#dd2517",
+          "#eb4e42",
+          "#f07d75",
+          "#f6b1ac",
+          "#fde9e8"
+        ]
+      },
+      "ambient-ground": {
+        "role": "neutral",
+        "displayName": "Ambient Black",
+        "canonical": "#050608",
+        "tonalRamp": [
+          "#1d232f",
+          "#333d52",
+          "#495774",
+          "#5e7197",
+          "#7e8eaf",
+          "#a1adc4",
+          "#c7cedc",
+          "#eff1f5"
+        ]
+      },
+      "ambient-time": {
+        "role": "neutral",
+        "displayName": "Ambient Time",
+        "canonical": "#e3e5ea",
+        "tonalRamp": [
+          "#21242c",
+          "#393e4c",
+          "#51596c",
+          "#69738c",
+          "#8890a5",
+          "#a8aebd",
+          "#cbced8",
+          "#f0f1f4"
+        ]
+      },
+      "ambient-ink": {
+        "role": "neutral",
+        "displayName": "Ambient Ink",
+        "canonical": "#c9ccd3",
+        "tonalRamp": [
+          "#22252a",
+          "#3c4049",
+          "#555a68",
+          "#6e7587",
+          "#8c92a1",
+          "#abafba",
+          "#cccfd6",
+          "#f1f2f4"
+        ]
+      },
+      "ambient-muted": {
+        "role": "neutral",
+        "displayName": "Ambient Muted",
+        "canonical": "#8b909b",
+        "tonalRamp": [
+          "#232529",
+          "#3d4047",
+          "#575c65",
+          "#717783",
+          "#8f949e",
+          "#adb0b8",
+          "#ced0d4",
+          "#f1f2f3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "ambient-clock": {
+        "displayName": "Ambient clock",
+        "purpose": "Time on the near-black ambient screen only."
+      },
+      "display": {
+        "displayName": "Display clock",
+        "purpose": "The Today screen clock; digits in fixed-width boxes."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Current temperature."
+      },
+      "emphasis": {
+        "displayName": "Emphasis",
+        "purpose": "Title of the next event on the Today card only."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Screen titles, now-playing title, date under the clock, Today rows."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default UI text; floor for anything read from across the room."
+      },
+      "body-strong": {
+        "displayName": "Body strong",
+        "purpose": "Buttons, row titles, card titles (650)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Rail labels, weekday names, statuses, locations, week events. Up close only."
+      },
+      "numeric": {
+        "displayName": "Numeric",
+        "purpose": "Any changing number other than the clocks; tabular figures."
+      }
+    },
+    "shadows": [
+      {
+        "name": "elevation-day",
+        "value": "0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 16px rgba(16, 24, 40, 0.06)",
+        "purpose": "Every card and the active segmented item in the light theme."
+      },
+      {
+        "name": "edge-night",
+        "value": "0 0 0 1px #2a2e37",
+        "purpose": "Replaces the card shadow in the dark theme."
+      },
+      {
+        "name": "rail-divider",
+        "value": "1px 0 0 var(--line)",
+        "purpose": "Separates the rail from the content."
+      },
+      {
+        "name": "row-divider",
+        "value": "inset 0 -1px 0 var(--line)",
+        "purpose": "Agenda row divider that does not change row height."
+      },
+      {
+        "name": "switch-thumb",
+        "value": "0 1px 3px rgba(16, 24, 40, 0.3)",
+        "purpose": "Switch thumb only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-change",
+        "value": "160ms ease-out",
+        "purpose": "Switch track colour and thumb slide. The only animated transitions."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "frame",
+        "value": "1280px x 800px",
+        "purpose": "The single fixed canvas (density 160, landscape). No responsive breakpoints."
+      }
+    ],
+    "themes": {
+      "light": {
+        "selector": ":root / .theme-light",
+        "when": "Day hours"
+      },
+      "dark": {
+        "selector": ".theme-dark",
+        "when": "Night hours (isDarkHour)"
+      },
+      "ambient": {
+        "selector": ".ambient",
+        "when": "After idle time, sooner at night; tap wakes"
+      }
+    },
+    "platform": {
+      "engine": "Android System WebView 106 (Chromium 106), 1 GB RAM",
+      "forbidden": [
+        "CSS nesting",
+        ":has()",
+        "oklch()",
+        "color-mix()",
+        "dvh/svh/lvh",
+        "4- or 8-digit hex colours",
+        "JavaScript APIs newer than Chrome 106",
+        "network fonts or icon packages"
+      ],
+      "enforcedBy": "bun run build (Chromium 106 preflight)"
+    }
+  },
+  "components": [
+    {
+      "name": "Rail Item",
+      "kind": "nav",
+      "refersTo": "rail-item-active",
+      "description": "88 px labelled icon item in the 104 px rail; the active screen fills indigo.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-item is-active\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span>Today</span></button><button class=\"ds-rail-item\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 2v3\"/><path d=\"M16 2v3\"/><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M3 9h18\"/></svg><span>Calendar</span></button></nav>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-rail{display:flex;flex-direction:column;align-items:center;gap:8px;width:104px;padding:24px 0;background:var(--card);box-shadow:1px 0 0 var(--line);font-family:var(--sans)}.ds-rail-item{width:88px;height:88px;border:0;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:none;color:var(--ink-2);font:600 16px var(--sans);cursor:pointer}.ds-rail-item svg{width:28px;height:28px}.ds-rail-item:active{background:var(--sunken)}.ds-rail-item:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.ds-rail-item.is-active{background:var(--accent);color:var(--on-accent)}"
+    },
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "56 px Sunken Grey pill; pressed state on :active.",
+      "html": "<button class=\"ds-btn\">Today</button>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:56px;padding:0 22px;border:0;border-radius:28px;background:var(--sunken);color:var(--ink);font:600 22px var(--sans);cursor:pointer}.ds-btn:active{background:var(--line)}.ds-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ink-filled pill for the one committing action, such as Add.",
+      "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add</button>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:56px;padding:0 22px;border:0;border-radius:28px;background:var(--ink);color:var(--card);font:600 22px var(--sans);cursor:pointer}.ds-btn-primary svg{width:24px;height:24px}.ds-btn-primary:active{background:var(--ink-2)}.ds-btn-primary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Round Icon Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "56 px circular control; green wash when the device is on.",
+      "html": "<div class=\"ds-row\"><button class=\"ds-icon-btn\" aria-label=\"Play\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\"/></svg></button><button class=\"ds-icon-btn is-on\" aria-label=\"Power\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\"/></svg></button></div>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-row{display:flex;gap:8px}.ds-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border:0;border-radius:50%;background:var(--sunken);color:var(--ink);cursor:pointer}.ds-icon-btn svg{width:28px;height:28px}.ds-icon-btn:active{background:var(--line)}.ds-icon-btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.ds-icon-btn.is-on{background:var(--good-tint);color:var(--good)}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "56 px text field with hairline border; border turns indigo on focus.",
+      "html": "<input class=\"ds-field\" placeholder=\"Add an item\">",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-field{height:56px;width:420px;padding:0 18px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--card);color:var(--ink);font:400 22px var(--sans);caret-color:var(--accent);outline:none}.ds-field::placeholder{color:var(--ink-2)}.ds-field:focus{border-color:var(--accent)}"
+    },
+    {
+      "name": "Chips and Badge",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "All-day chip, count pill, and the indigo time-until badge.",
+      "html": "<div class=\"ds-chips\"><span class=\"ds-chip\">Recycling night</span><span class=\"ds-count\">9</span><span class=\"ds-badge\">in 1 h 32 min</span></div>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-chips{display:flex;align-items:center;gap:8px;font-family:var(--sans)}.ds-chip{display:flex;align-items:center;height:44px;padding:0 16px;border-radius:22px;background:var(--sunken);color:var(--ink);font-size:22px;font-weight:550}.ds-count{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 12px;border-radius:20px;background:var(--sunken);color:var(--ink);font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}.ds-badge{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:18px;background:var(--accent);color:var(--on-accent);font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Agenda Card",
+      "kind": "card",
+      "refersTo": "agenda-row-next",
+      "description": "Card with hairline-divided agenda rows; the next event is an indigo-washed band.",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-card-title\">Today</h2><div class=\"ds-agenda-row is-past\"><span class=\"ds-agenda-time\">8:00 AM</span><span class=\"ds-agenda-title\">School drop-off</span></div><div class=\"ds-agenda-row is-next\"><span class=\"ds-agenda-time\">3:30 PM</span><span class=\"ds-agenda-main\"><span class=\"ds-agenda-title\">Piano lesson</span><span class=\"ds-agenda-where\">Park Studio</span></span><span class=\"ds-badge\">in 1 h 32 min</span></div><div class=\"ds-agenda-row\"><span class=\"ds-agenda-time\">6:30 PM</span><span class=\"ds-agenda-title\">Dinner</span></div></section>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-card{width:560px;padding:24px;border-radius:var(--r);background:var(--card);box-shadow:var(--elevation),var(--edge);font-family:var(--sans);color:var(--ink);}.ds-card-title{margin:0 0 12px;font-size:22px;font-weight:650}.ds-agenda-row{display:grid;grid-template-columns:112px minmax(0,1fr) auto;align-items:baseline;column-gap:16px;padding:14px 0;box-shadow:inset 0 -1px 0 var(--line);font-size:22px}.ds-agenda-row:last-child{box-shadow:none}.ds-agenda-time{font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}.ds-agenda-main{display:flex;flex-direction:column}.ds-agenda-title{font-weight:600}.ds-agenda-where{font-size:16px;color:var(--ink-2)}.ds-agenda-row.is-next{margin:0 -16px;padding:14px 16px;border-radius:var(--r-sm);background:var(--accent-tint);box-shadow:none}.ds-agenda-row.is-next .ds-agenda-time{color:var(--accent-ink)}.ds-agenda-row.is-past .ds-agenda-title{color:var(--ink-2)}.ds-badge{align-self:center;display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:18px;background:var(--accent);color:var(--on-accent);font-size:16px;font-weight:650}"
+    },
+    {
+      "name": "Shopping Row",
+      "kind": "custom",
+      "refersTo": "shopping-row",
+      "description": "64 px tappable row with a round check; done items fill green and strike through.",
+      "html": "<div class=\"ds-shop\"><button class=\"ds-shop-item\"><span class=\"ds-check\"></span><span>Milk</span></button><button class=\"ds-shop-item is-done\"><span class=\"ds-check\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg></span><span>Eggs</span></button></div>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-shop{display:grid;grid-template-columns:repeat(2,240px);gap:8px 24px}.ds-shop-item{height:64px;display:flex;align-items:center;gap:16px;padding:0 12px;border:0;border-radius:var(--r-sm);background:none;color:var(--ink);font:550 22px var(--sans);cursor:pointer;text-align:left}.ds-shop-item:active{background:var(--sunken)}.ds-shop-item:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.ds-check{width:36px;height:36px;flex:none;border-radius:50%;border:2px solid var(--ink-2);display:flex;align-items:center;justify-content:center}.ds-check svg{width:22px;height:22px}.ds-shop-item.is-done .ds-check{border-color:var(--good);background:var(--good);color:var(--on-accent)}.ds-shop-item.is-done span:last-child{color:var(--ink-2);text-decoration:line-through}"
+    },
+    {
+      "name": "Media Tile",
+      "kind": "card",
+      "refersTo": "media-tile",
+      "description": "Card in a fixed 208 px row: icon well, name and status, round controls; green when on.",
+      "html": "<section class=\"ds-tile is-on\"><div class=\"ds-tile-head\"><span class=\"ds-tile-icon\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m17 2-5 5-5-5\"/><rect x=\"2\" y=\"7\" width=\"20\" height=\"15\" rx=\"2\"/></svg></span><span class=\"ds-tile-text\"><span class=\"ds-tile-name\">Kitchen TV</span><span class=\"ds-tile-status\">On · 32%</span></span></div><div class=\"ds-row\"><button class=\"ds-icon-btn\" aria-label=\"Play\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\"/></svg></button></div></section>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-tile{width:528px;height:208px;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:24px;border-radius:var(--r);background:var(--card);box-shadow:var(--elevation),var(--edge);font-family:var(--sans);color:var(--ink);}.ds-tile-head{display:flex;align-items:center;gap:16px}.ds-tile-icon{width:56px;height:56px;border-radius:50%;background:var(--sunken);color:var(--ink-2);display:flex;align-items:center;justify-content:center}.ds-tile-icon svg{width:28px;height:28px}.ds-tile-text{display:flex;flex-direction:column}.ds-tile-name{font-size:22px;font-weight:650}.ds-tile-status{font-size:16px;color:var(--ink-2)}.ds-tile.is-on .ds-tile-icon{background:var(--good-tint);color:var(--good)}.ds-tile.is-on .ds-tile-status{color:var(--good)}.ds-row{display:flex;gap:8px}.ds-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border:0;border-radius:50%;background:var(--sunken);color:var(--ink);cursor:pointer}.ds-icon-btn svg{width:28px;height:28px}.ds-icon-btn:active{background:var(--line)}"
+    },
+    {
+      "name": "Zone Switch",
+      "kind": "custom",
+      "refersTo": "switch",
+      "description": "64 px speaker-zone switch; the track turns green and the thumb slides 24 px.",
+      "html": "<button class=\"ds-switch is-on\"><span>Kitchen</span><span class=\"ds-track\"><span class=\"ds-thumb\"></span></span></button>",
+      "css": ":root{--ground:#f3f4f6;--card:#ffffff;--ink:#14171c;--ink-2:#5b6270;--line:#e4e7ec;--sunken:#eef0f3;--accent:#4f5bd5;--accent-ink:#3b46b8;--accent-tint:#eceefd;--on-accent:#ffffff;--good:#1f8a4c;--good-tint:#e2f3e9;--elevation:0 1px 2px rgba(16,24,40,0.06),0 6px 16px rgba(16,24,40,0.06);--edge:0 0 0 1px transparent;--sans:'Figtree Variable','Roboto',system-ui,sans-serif;--r:16px;--r-sm:12px}.ds-switch{width:320px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px 0 20px;border:0;border-radius:var(--r-sm);background:var(--sunken);color:var(--ink);font:600 22px var(--sans);cursor:pointer}.ds-switch:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.ds-track{width:56px;height:32px;border-radius:16px;background:var(--line);padding:4px;box-sizing:border-box;transition:background-color 160ms ease-out}.ds-thumb{display:block;width:24px;height:24px;border-radius:50%;background:#ffffff;box-shadow:0 1px 3px rgba(16,24,40,0.3);transition:transform 160ms ease-out}.ds-switch.is-on .ds-track{background:var(--good)}.ds-switch.is-on .ds-thumb{transform:translateX(24px)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Kitchen Wall, Done Properly",
+    "overview": "**Creative North Star: \"The Kitchen Wall, Done Properly\"**\n\nFrame is the family wall dashboard as its category ships it at its best: Skylight and Hearth for the calendar, Home Assistant's newer tile dashboards for controls. It invents no world. Its distinction is finish: a cool neutral ground, white cards that lift slightly, one grotesk at a few large sizes, line icons from one set, and a single indigo accent that marks only what is happening now or next, or what is selected. By day the frame is light. At night it turns dark, and after idle time it falls to a near-black ambient clock.\n\nDensity is low because the reader is 1 to 3 metres away. The clock and today's agenda take the most space and the most contrast. Everything else yields. Every control is a large, labelled touch target that shows its new state at once, because there is no hover and no keyboard.\n\nThe screen is a fixed 1280 × 800 canvas inside Android System WebView 106. That engine sets hard limits on the CSS the system may use; they are rules, not preferences.",
+    "keyCharacteristics": [
+      "Cool grey ground, white cards, flat dark cards at night.",
+      "One indigo accent, only for now, next, and selection.",
+      "Green for \"on\" and \"done\", red only for \"offline\". No other state hues.",
+      "Figtree Variable at 16, 22, 30 px for UI, plus the clock sizes.",
+      "Fixed-width digits wherever a number changes in place.",
+      "Lucide line icons, 24 px grid, 2 px stroke.",
+      "Fixed 104 px rail plus a 12-column grid with 24 px gutters and padding."
+    ],
+    "rules": [
+      {
+        "name": "The Now-and-Next Rule",
+        "body": "Indigo marks only what is happening now, what comes next, and what is selected. It is never decoration, never a heading colour, never a second button style.",
+        "section": "colors"
+      },
+      {
+        "name": "The State-Only Rule",
+        "body": "Green means on, playing, or done. Red means offline. A colour that is not one of these states stays neutral. There are no per-person or per-calendar colours.",
+        "section": "colors"
+      },
+      {
+        "name": "The Six-Digit Rule",
+        "body": "Colours are 6-digit hex or `rgba()`. WebView 106 cannot use `oklch()`, `color-mix()`, or 4- and 8-digit hex.",
+        "section": "colors"
+      },
+      {
+        "name": "The Steady Clock Rule",
+        "body": "Clock digits are Figtree's proportional figures, each in a fixed-width box (0.6 em per digit, 0.28 em for the colon). The time does not shift as minutes change, and the \"1\" keeps its plain form.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Every other changing number (event times, counts, temperatures, volume, the until-badge, week dates) uses `font-variant-numeric: tabular-nums`.",
+        "section": "typography"
+      },
+      {
+        "name": "The Four-Size Rule",
+        "body": "UI text uses 16, 22, and 30 px. The 36, 64, 152, and 200 px sizes have one job each. Do not add sizes between them.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed Canvas Rule",
+        "body": "Design for exactly 1280 × 800 CSS pixels. Use `height: 100%` and absolute insets, never `dvh`, `svh`, or `lvh`.",
+        "section": "layout"
+      },
+      {
+        "name": "The Whole Row Rule",
+        "body": "A scrolling grid shows whole rows. Fix the row height so rows and gutters fill the area exactly, and snap to row starts.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Lift Rule",
+        "body": "There is one elevation level. Cards sit on the ground; nothing floats above a card.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep indigo for now, next, and selection only (the Now-and-Next Rule).",
+      "**Do** give every changing number tabular figures, and put clock digits in fixed-width boxes (0.6 em digits, 0.28 em colon).",
+      "**Do** make touch targets at least 56 px (44 px for chips and text buttons) and show the pressed state with `:active`.",
+      "**Do** define every themed colour as a custom property in both `:root` and `.theme-dark`, and replace the day card shadow with the 1 px night edge.",
+      "**Do** place cards on the 12-column, 24 px grid and use the 4, 8, 12, 16, 24 px spacing steps.",
+      "**Do** truncate overflowing text with an ellipsis and keep the page itself from scrolling.",
+      "**Do** use only synthetic events, items, and devices in fixtures and screenshots."
+    ],
+    "donts": [
+      "**Don't** use CSS nesting, `:has()`, `oklch()`, `color-mix()`, `dvh`/`svh`/`lvh`, 4- or 8-digit hex, or JavaScript APIs newer than Chrome 106. The WebView 106 build check rejects them.",
+      "**Don't** load fonts or icons from the network. The frame is offline; Figtree is self-hosted and icons are inline SVG.",
+      "**Don't** add per-person or per-calendar colours, or state colours other than green and red.",
+      "**Don't** add text smaller than 16 px, or put information meant for across the room below 22 px.",
+      "**Don't** rely on hover or keyboard focus for any state; the frame is touch only.",
+      "**Don't** animate anything except short state transitions (160 ms ease-out), and keep rendering light for the 1 GB device.",
+      "**Don't** add a second elevation level or a shadow at night."
+    ]
+  }
+}
