@@ -6,10 +6,11 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { Command } from 'foldkit'
+import type { Update } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   CalendarDate,
@@ -97,59 +98,59 @@ export const initialScheduleModel: ScheduleModel = {
 // Messages
 // ============================================
 
-export const SucceededFetchSchedules = m('SucceededFetchSchedules', {
+export const SucceededFetchSchedules = taggedStruct('SucceededFetchSchedules', {
   schedules: Schema.Array(InjectionSchedule),
 })
-export const FailedFetchSchedules = m('FailedFetchSchedules', { message: Schema.String })
-export const SucceededFetchNextDose = m('SucceededFetchNextDose', {
+export const FailedFetchSchedules = taggedStruct('FailedFetchSchedules', { message: Schema.String })
+export const SucceededFetchNextDose = taggedStruct('SucceededFetchNextDose', {
   nextDose: Schema.NullOr(NextScheduledDose),
   requestKey: Schema.Number,
   requestedTimezone: IanaTimezone,
   timezone: IanaTimezone,
 })
-export const FailedFetchNextDose = m('FailedFetchNextDose', {
+export const FailedFetchNextDose = taggedStruct('FailedFetchNextDose', {
   message: Schema.String,
   requestKey: Schema.Number,
   requestedTimezone: IanaTimezone,
 })
-export const CompletedOpenScheduleForm = m('CompletedOpenScheduleForm', {
+export const CompletedOpenScheduleForm = taggedStruct('CompletedOpenScheduleForm', {
   todayLocal: Schema.String,
   schedule: Schema.NullOr(InjectionSchedule),
 })
-export const ClickedAddSchedule = m('ClickedAddSchedule')
-export const ClickedEditSchedule = m('ClickedEditSchedule', { schedule: InjectionSchedule })
-export const ClickedCancelScheduleForm = m('ClickedCancelScheduleForm')
-export const ChangedScheduleName = m('ChangedScheduleName', { value: Schema.String })
-export const ChangedScheduleDrug = m('ChangedScheduleDrug', { value: Schema.String })
-export const ChangedScheduleSupplier = m('ChangedScheduleSupplier', { value: Schema.String })
-export const ChangedScheduleFrequency = m('ChangedScheduleFrequency', { value: Frequency })
-export const ChangedScheduleStartDate = m('ChangedScheduleStartDate', { value: Schema.String })
-export const ChangedScheduleNotes = m('ChangedScheduleNotes', { value: Schema.String })
-export const AddedSchedulePhase = m('AddedSchedulePhase')
-export const RemovedSchedulePhase = m('RemovedSchedulePhase', { index: Schema.Number })
-export const ChangedSchedulePhaseDoseMg = m('ChangedSchedulePhaseDoseMg', {
+export const ClickedAddSchedule = taggedStruct('ClickedAddSchedule')
+export const ClickedEditSchedule = taggedStruct('ClickedEditSchedule', { schedule: InjectionSchedule })
+export const ClickedCancelScheduleForm = taggedStruct('ClickedCancelScheduleForm')
+export const ChangedScheduleName = taggedStruct('ChangedScheduleName', { value: Schema.String })
+export const ChangedScheduleDrug = taggedStruct('ChangedScheduleDrug', { value: Schema.String })
+export const ChangedScheduleSupplier = taggedStruct('ChangedScheduleSupplier', { value: Schema.String })
+export const ChangedScheduleFrequency = taggedStruct('ChangedScheduleFrequency', { value: Frequency })
+export const ChangedScheduleStartDate = taggedStruct('ChangedScheduleStartDate', { value: Schema.String })
+export const ChangedScheduleNotes = taggedStruct('ChangedScheduleNotes', { value: Schema.String })
+export const AddedSchedulePhase = taggedStruct('AddedSchedulePhase')
+export const RemovedSchedulePhase = taggedStruct('RemovedSchedulePhase', { index: Schema.Number })
+export const ChangedSchedulePhaseDoseMg = taggedStruct('ChangedSchedulePhaseDoseMg', {
   index: Schema.Number,
   value: Schema.String,
 })
-export const ChangedSchedulePhaseDuration = m('ChangedSchedulePhaseDuration', {
+export const ChangedSchedulePhaseDuration = taggedStruct('ChangedSchedulePhaseDuration', {
   index: Schema.Number,
   value: Schema.String,
 })
-export const ToggledSchedulePhaseIndefinite = m('ToggledSchedulePhaseIndefinite', {
+export const ToggledSchedulePhaseIndefinite = taggedStruct('ToggledSchedulePhaseIndefinite', {
   index: Schema.Number,
   checked: Schema.Boolean,
 })
-export const SubmittedScheduleForm = m('SubmittedScheduleForm')
-export const SucceededSaveSchedule = m('SucceededSaveSchedule')
-export const FailedSaveSchedule = m('FailedSaveSchedule', { message: Schema.String })
-export const RequestedDeleteSchedule = m('RequestedDeleteSchedule', { id: InjectionScheduleId })
-export const CancelledDeleteSchedule = m('CancelledDeleteSchedule')
-export const ConfirmedDeleteSchedule = m('ConfirmedDeleteSchedule')
-export const SucceededDeleteSchedule = m('SucceededDeleteSchedule')
-export const FailedDeleteSchedule = m('FailedDeleteSchedule', { message: Schema.String })
-export const ClickedActivateSchedule = m('ClickedActivateSchedule', { schedule: InjectionSchedule })
-export const SucceededActivateSchedule = m('SucceededActivateSchedule')
-export const FailedActivateSchedule = m('FailedActivateSchedule', { message: Schema.String })
+export const SubmittedScheduleForm = taggedStruct('SubmittedScheduleForm')
+export const SucceededSaveSchedule = taggedStruct('SucceededSaveSchedule')
+export const FailedSaveSchedule = taggedStruct('FailedSaveSchedule', { message: Schema.String })
+export const RequestedDeleteSchedule = taggedStruct('RequestedDeleteSchedule', { id: InjectionScheduleId })
+export const CancelledDeleteSchedule = taggedStruct('CancelledDeleteSchedule')
+export const ConfirmedDeleteSchedule = taggedStruct('ConfirmedDeleteSchedule')
+export const SucceededDeleteSchedule = taggedStruct('SucceededDeleteSchedule')
+export const FailedDeleteSchedule = taggedStruct('FailedDeleteSchedule', { message: Schema.String })
+export const ClickedActivateSchedule = taggedStruct('ClickedActivateSchedule', { schedule: InjectionSchedule })
+export const SucceededActivateSchedule = taggedStruct('SucceededActivateSchedule')
+export const FailedActivateSchedule = taggedStruct('FailedActivateSchedule', { message: Schema.String })
 
 export const ScheduleMessage = Schema.Union([
   SucceededFetchSchedules,
@@ -219,7 +220,7 @@ export const FetchNextDose = Command.define('FetchNextDose', {
     ),
 })
 
-const OpenScheduleForm = Command.define('OpenScheduleForm', {
+export const OpenScheduleForm = Command.define('OpenScheduleForm', {
   args: { schedule: Schema.NullOr(InjectionSchedule), timezone: IanaTimezone },
   messages: [CompletedOpenScheduleForm],
   execute: ({ schedule, timezone }) =>
@@ -228,7 +229,7 @@ const OpenScheduleForm = Command.define('OpenScheduleForm', {
     ),
 })
 
-const SaveSchedule = Command.define('SaveSchedule', {
+export const SaveSchedule = Command.define('SaveSchedule', {
   args: {
     editingId: Schema.NullOr(InjectionScheduleId),
     name: Schema.String,
@@ -289,7 +290,7 @@ const SaveSchedule = Command.define('SaveSchedule', {
     }).pipe(toCommandResult(FailedSaveSchedule, 'Failed to save schedule')),
 })
 
-const DeleteSchedule = Command.define('DeleteSchedule', {
+export const DeleteSchedule = Command.define('DeleteSchedule', {
   args: { id: InjectionScheduleId },
   messages: [SucceededDeleteSchedule, FailedDeleteSchedule],
   execute: ({ id }) =>
@@ -300,7 +301,7 @@ const DeleteSchedule = Command.define('DeleteSchedule', {
     }).pipe(toCommandResult(FailedDeleteSchedule, 'Failed to delete schedule')),
 })
 
-const ActivateSchedule = Command.define('ActivateSchedule', {
+export const ActivateSchedule = Command.define('ActivateSchedule', {
   args: { id: InjectionScheduleId },
   messages: [SucceededActivateSchedule, FailedActivateSchedule],
   execute: ({ id }) =>
@@ -330,29 +331,29 @@ type ScheduleCommandMessage =
   | typeof SucceededActivateSchedule.Type
   | typeof FailedActivateSchedule.Type
 
-type UpdateReturn = readonly [ScheduleModel, ReadonlyArray<Command.Command<ScheduleCommandMessage, never, Api>>]
+type UpdateReturn = Update.Return<ScheduleModel, ScheduleCommandMessage, Api>
 
 const fetchNextDose = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn => {
   const requestKey = model.nextDoseRequestKey + 1
-  return [
-    evo(model, { nextDose: () => AsyncData.Loading(), nextDoseRequestKey: () => requestKey }),
-    [FetchNextDose({ requestKey, requestedTimezone: timezone })],
-  ]
+  return {
+    model: modifyFields(model, { nextDose: () => AsyncData.Loading(), nextDoseRequestKey: () => requestKey }),
+    commands: [FetchNextDose({ requestKey, requestedTimezone: timezone })],
+  }
 }
 
 export const fetchScheduleIfIdle = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn => {
   const commands: Array<Command.Command<ScheduleCommandMessage, never, Api>> = []
   let next = model
   if (AsyncData.isIdle(next.schedules)) {
-    next = evo(next, { schedules: () => AsyncData.Loading() })
+    next = modifyFields(next, { schedules: () => AsyncData.Loading() })
     commands.push(FetchSchedules())
   }
   if (AsyncData.isIdle(next.nextDose)) {
-    const [nextWithDose, nextDoseCommands] = fetchNextDose(next, timezone)
+    const { model: nextWithDose, commands: nextDoseCommands = [] } = fetchNextDose(next, timezone)
     next = nextWithDose
     commands.push(...nextDoseCommands)
   }
-  return [next, commands]
+  return { model: next, commands }
 }
 
 const defaultPhase = (order: number): SchedulePhaseForm => ({
@@ -363,7 +364,7 @@ const defaultPhase = (order: number): SchedulePhaseForm => ({
 })
 
 const reorderPhases = (phases: ReadonlyArray<SchedulePhaseForm>): ReadonlyArray<SchedulePhaseForm> =>
-  phases.map((phase, index) => evo(phase, { order: () => index + 1 }))
+  phases.map((phase, index) => modifyFields(phase, { order: () => index + 1 }))
 
 const updatePhase = (
   phases: ReadonlyArray<SchedulePhaseForm>,
@@ -410,12 +411,15 @@ const validateScheduleForm = (form: ScheduleForm): Option.Option<string> => {
 }
 
 const refreshSchedules = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn => {
-  const [withNextDose, nextDoseCommands] = fetchNextDose(model, timezone)
-  return [evo(withNextDose, { schedules: () => AsyncData.Loading() }), [FetchSchedules(), ...nextDoseCommands]]
+  const { model: withNextDose, commands: nextDoseCommands = [] } = fetchNextDose(model, timezone)
+  return {
+    model: modifyFields(withNextDose, { schedules: () => AsyncData.Loading() }),
+    commands: [FetchSchedules(), ...nextDoseCommands],
+  }
 }
 
 const ignoreStaleNextDose = (model: ScheduleModel, timezone: IanaTimezone): UpdateReturn =>
-  AsyncData.isIdle(model.nextDose) ? fetchNextDose(model, timezone) : [model, []]
+  AsyncData.isIdle(model.nextDose) ? fetchNextDose(model, timezone) : { model }
 
 export const updateSchedule = (
   model: ScheduleModel,
@@ -426,52 +430,53 @@ export const updateSchedule = (
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      AddedSchedulePhase: () => [
-        withForm(model, (form) => ({
+      AddedSchedulePhase: () => ({
+        model: withForm(model, (form) => ({
           phases: [
             ...form.phases.map((phase) =>
-              phase.isIndefinite ? evo(phase, { durationDays: () => '28', isIndefinite: () => false }) : phase
+              phase.isIndefinite ? modifyFields(phase, { durationDays: () => '28', isIndefinite: () => false }) : phase
             ),
             defaultPhase(form.phases.length + 1),
           ],
         })),
-        [],
-      ],
-      CancelledDeleteSchedule: () => [evo(model, { pendingDeleteId: () => null }), []],
-      ChangedScheduleDrug: ({ value }) => [withForm(model, () => ({ drug: value })), []],
-      ChangedScheduleSupplier: ({ value }) => [withForm(model, () => ({ supplier: value })), []],
-      ChangedScheduleFrequency: ({ value }) => [withForm(model, () => ({ frequency: value })), []],
-      ChangedScheduleName: ({ value }) => [withForm(model, () => ({ name: value })), []],
-      ChangedScheduleNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
-      ChangedSchedulePhaseDoseMg: ({ index, value }) => [
-        withForm(model, (form) => ({
-          phases: updatePhase(form.phases, index, (phase) => evo(phase, { doseMg: () => value })),
+      }),
+      CancelledDeleteSchedule: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+      ChangedScheduleDrug: ({ value }) => ({ model: withForm(model, () => ({ drug: value })) }),
+      ChangedScheduleSupplier: ({ value }) => ({ model: withForm(model, () => ({ supplier: value })) }),
+      ChangedScheduleFrequency: ({ value }) => ({ model: withForm(model, () => ({ frequency: value })) }),
+      ChangedScheduleName: ({ value }) => ({ model: withForm(model, () => ({ name: value })) }),
+      ChangedScheduleNotes: ({ value }) => ({ model: withForm(model, () => ({ notes: value })) }),
+      ChangedSchedulePhaseDoseMg: ({ index, value }) => ({
+        model: withForm(model, (form) => ({
+          phases: updatePhase(form.phases, index, (phase) => modifyFields(phase, { doseMg: () => value })),
         })),
-        [],
-      ],
-      ChangedSchedulePhaseDuration: ({ index, value }) => [
-        withForm(model, (form) => ({
-          phases: updatePhase(form.phases, index, (phase) => evo(phase, { durationDays: () => value })),
+      }),
+      ChangedSchedulePhaseDuration: ({ index, value }) => ({
+        model: withForm(model, (form) => ({
+          phases: updatePhase(form.phases, index, (phase) => modifyFields(phase, { durationDays: () => value })),
         })),
-        [],
-      ],
-      ChangedScheduleStartDate: ({ value }) => [withForm(model, () => ({ startDate: value })), []],
-      ClickedActivateSchedule: ({ schedule }) => [model, [ActivateSchedule({ id: schedule.id })]],
-      ClickedAddSchedule: () => [model, [OpenScheduleForm({ schedule: null, timezone })]],
-      ClickedCancelScheduleForm: () => [evo(model, { form: () => null }), []],
-      ClickedEditSchedule: ({ schedule }) => [model, [OpenScheduleForm({ schedule, timezone })]],
+      }),
+      ChangedScheduleStartDate: ({ value }) => ({ model: withForm(model, () => ({ startDate: value })) }),
+      ClickedActivateSchedule: ({ schedule }) => ({ model, commands: [ActivateSchedule({ id: schedule.id })] }),
+      ClickedAddSchedule: () => ({ model, commands: [OpenScheduleForm({ schedule: null, timezone })] }),
+      ClickedCancelScheduleForm: () => ({ model: modifyFields(model, { form: () => null }) }),
+      ClickedEditSchedule: ({ schedule }) => ({ model, commands: [OpenScheduleForm({ schedule, timezone })] }),
       ConfirmedDeleteSchedule: () =>
-        model.pendingDeleteId === null ? [model, []] : [model, [DeleteSchedule({ id: model.pendingDeleteId })]],
-      FailedActivateSchedule: () => [model, []],
-      FailedDeleteSchedule: () => [evo(model, { pendingDeleteId: () => null }), []],
+        model.pendingDeleteId === null
+          ? { model }
+          : { model, commands: [DeleteSchedule({ id: model.pendingDeleteId })] },
+      FailedActivateSchedule: () => ({ model }),
+      FailedDeleteSchedule: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
       FailedFetchNextDose: ({ message: error, requestKey, requestedTimezone }) =>
         requestKey !== model.nextDoseRequestKey || requestedTimezone !== timezone
           ? ignoreStaleNextDose(model, timezone)
-          : [evo(model, { nextDose: () => AsyncData.Failure({ error }) }), []],
-      FailedFetchSchedules: ({ message: error }) => [evo(model, { schedules: () => AsyncData.Failure({ error }) }), []],
-      FailedSaveSchedule: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
-      CompletedOpenScheduleForm: ({ schedule, todayLocal }) => [
-        evo(model, {
+          : { model: modifyFields(model, { nextDose: () => AsyncData.Failure({ error }) }) },
+      FailedFetchSchedules: ({ message: error }) => ({
+        model: modifyFields(model, { schedules: () => AsyncData.Failure({ error }) }),
+      }),
+      FailedSaveSchedule: ({ message: error }) => ({ model: withForm(model, () => ({ error, submitting: false })) }),
+      CompletedOpenScheduleForm: ({ schedule, todayLocal }) => ({
+        model: modifyFields(model, {
           form: () =>
             schedule === null
               ? {
@@ -507,32 +512,32 @@ export const updateSchedule = (
                 },
           pendingDeleteId: () => null,
         }),
-        [],
-      ],
-      RemovedSchedulePhase: ({ index }) => [
-        withForm(model, (form) =>
+      }),
+      RemovedSchedulePhase: ({ index }) => ({
+        model: withForm(model, (form) =>
           form.phases.length <= 1
             ? {}
             : { phases: reorderPhases(form.phases.filter((_, current) => current !== index)) }
         ),
-        [],
-      ],
-      RequestedDeleteSchedule: ({ id }) => [evo(model, { form: () => null, pendingDeleteId: () => id }), []],
+      }),
+      RequestedDeleteSchedule: ({ id }) => ({
+        model: modifyFields(model, { form: () => null, pendingDeleteId: () => id }),
+      }),
       SubmittedScheduleForm: () => {
         if (model.form === null) {
-          return [model, []]
+          return { model }
         }
         const validationError = validateScheduleForm(model.form)
         if (Option.isSome(validationError)) {
-          return [withForm(model, () => ({ error: validationError.value, submitting: false })), []]
+          return { model: withForm(model, () => ({ error: validationError.value, submitting: false })) }
         }
         const startDate = Schema.decodeUnknownOption(CalendarDate)(model.form.startDate)
         if (Option.isNone(startDate)) {
-          return [withForm(model, () => ({ error: 'Enter a valid start date', submitting: false })), []]
+          return { model: withForm(model, () => ({ error: 'Enter a valid start date', submitting: false })) }
         }
-        return [
-          withForm(model, () => ({ error: null, submitting: true })),
-          [
+        return {
+          model: withForm(model, () => ({ error: null, submitting: true })),
+          commands: [
             SaveSchedule({
               drug: model.form.drug,
               supplier: model.form.supplier,
@@ -544,36 +549,37 @@ export const updateSchedule = (
               startDate: startDate.value,
             }),
           ],
-        ]
+        }
       },
       SucceededActivateSchedule: () => refreshSchedules(model, timezone),
-      SucceededDeleteSchedule: () => refreshSchedules(evo(model, { pendingDeleteId: () => null }), timezone),
+      SucceededDeleteSchedule: () => refreshSchedules(modifyFields(model, { pendingDeleteId: () => null }), timezone),
       SucceededFetchNextDose: ({ nextDose, requestKey, requestedTimezone, timezone: responseTimezone }) => {
         const currentRequest = requestKey === model.nextDoseRequestKey && requestedTimezone === timezone
         if (!currentRequest) {
           return ignoreStaleNextDose(model, timezone)
         }
         if (responseTimezone !== timezone) {
-          return [
-            evo(model, { nextDose: () => AsyncData.Idle() }),
-            [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
-          ]
+          return {
+            model: modifyFields(model, { nextDose: () => AsyncData.Idle() }),
+            commands: [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
+          }
         }
-        return [evo(model, { nextDose: () => AsyncData.succeed(Option.fromNullOr(nextDose)) }), []]
+        return { model: modifyFields(model, { nextDose: () => AsyncData.succeed(Option.fromNullOr(nextDose)) }) }
       },
-      SucceededFetchSchedules: ({ schedules }) => [evo(model, { schedules: () => AsyncData.succeed(schedules) }), []],
-      SucceededSaveSchedule: () => refreshSchedules(evo(model, { form: () => null }), timezone),
-      ToggledSchedulePhaseIndefinite: ({ checked, index }) => [
-        withForm(model, (form) => ({
+      SucceededFetchSchedules: ({ schedules }) => ({
+        model: modifyFields(model, { schedules: () => AsyncData.succeed(schedules) }),
+      }),
+      SucceededSaveSchedule: () => refreshSchedules(modifyFields(model, { form: () => null }), timezone),
+      ToggledSchedulePhaseIndefinite: ({ checked, index }) => ({
+        model: withForm(model, (form) => ({
           phases: updatePhase(form.phases, index, (phase) =>
-            evo(phase, {
+            modifyFields(phase, {
               durationDays: () => (checked ? '' : '28'),
               isIndefinite: () => checked,
             })
           ),
         })),
-        [],
-      ],
+      }),
     })
   )
 
@@ -1011,17 +1017,14 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
               [h.Class('mb-4')],
               [
                 h.label([h.For('schedule-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
-                h.textarea(
-                  [
-                    h.Class(input({ class: 'h-auto' })),
-                    h.Id('schedule-notes'),
-                    h.Rows(2),
-                    h.Placeholder('Any additional instructions or notes...'),
-                    h.Value(form.notes),
-                    h.OnInput((value) => ChangedScheduleNotes({ value })),
-                  ],
-                  []
-                ),
+                h.textarea([
+                  h.Class(input({ class: 'h-auto' })),
+                  h.Id('schedule-notes'),
+                  h.Rows(2),
+                  h.Placeholder('Any additional instructions or notes...'),
+                  h.Value(form.notes),
+                  h.OnInput((value) => ChangedScheduleNotes({ value })),
+                ]),
               ]
             ),
             form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),

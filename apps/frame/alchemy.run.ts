@@ -1,5 +1,5 @@
+import * as Docker from '@alchemy.run/docker'
 import * as Alchemy from 'alchemy'
-import * as Docker from 'alchemy/Docker'
 import * as Arr from 'effect/Array'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
@@ -22,7 +22,7 @@ const OPTIONAL_SETTINGS = [
 
 const optionalSettings = Effect.forEach(
   OPTIONAL_SETTINGS,
-  (name) => Config.nonEmptyString(name).pipe(Config.option, Effect.map(Option.map((value) => [name, value] as const))),
+  (name) => Config.NonEmptyString(name).pipe(Config.option, Effect.map(Option.map((value) => [name, value] as const))),
   { concurrency: 1 }
 ).pipe(Effect.map((entries) => R.fromEntries(Arr.getSomes(entries))))
 
@@ -40,10 +40,10 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     // `deploy:prod` sets this from the Nix image tag and loads that image onto the host first
     // (`scripts/load-image.ts`). A plain tag lets Alchemy diff it and replace the container.
-    const tag = yield* Config.nonEmptyString('FRAME_IMAGE_TAG')
+    const tag = yield* Config.NonEmptyString('FRAME_IMAGE_TAG')
     const imageRef = `garage-frame:${tag}`
     // The frame host's Docker endpoint, e.g. `ssh://root@<host>`, reached with the workstation's SSH key.
-    const dockerHost = yield* Config.nonEmptyString('FRAME_DOCKER_HOST')
+    const dockerHost = yield* Config.NonEmptyString('FRAME_DOCKER_HOST')
 
     const host = yield* Docker.Context('frame-host', {
       docker: `host=${dockerHost}`,
@@ -58,9 +58,9 @@ export default Alchemy.Stack(
       restart: 'unless-stopped',
       environment: {
         ...(yield* optionalSettings),
-        CALENDAR_ICS_URL: yield* Config.redacted('CALENDAR_ICS_URL'),
-        HOME_ASSISTANT_URL: yield* Config.nonEmptyString('HOME_ASSISTANT_URL'),
-        HOME_ASSISTANT_TOKEN: yield* Config.redacted('HOME_ASSISTANT_TOKEN'),
+        CALENDAR_ICS_URL: yield* Config.Redacted('CALENDAR_ICS_URL'),
+        HOME_ASSISTANT_URL: yield* Config.NonEmptyString('HOME_ASSISTANT_URL'),
+        HOME_ASSISTANT_TOKEN: yield* Config.Redacted('HOME_ASSISTANT_TOKEN'),
       },
       healthcheck: {
         cmd: `wget --quiet --spider http://127.0.0.1:${PORT}/health || exit 1`,

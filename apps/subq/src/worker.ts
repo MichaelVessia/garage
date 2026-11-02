@@ -1,14 +1,14 @@
+import * as Cloudflare from '@alchemy.run/cloudflare'
 import { D1Client } from '@effect/sql-d1'
-import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
+import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
+import { RpcSerialization, RpcServer } from 'effect/rpc'
 import * as Schema from 'effect/Schema'
-import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
-import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 
 import { AppRpcs } from '#shared'
 
@@ -29,9 +29,8 @@ import { WeightLogRepoLive, WeightRpcHandlersLive } from './weight/index.js'
 // `drizzle_migrations`).
 export const Database = Cloudflare.D1.Database('Database', {
   // Prod pins the existing database name so state recovery adopts it instead of creating an empty replacement.
-  name: Config.string('SUBQ_DATABASE_NAME').pipe(Config.option, Config.map(Option.getOrUndefined)),
-  migrationsDir: './drizzle',
-  migrationsTable: 'drizzle_migrations',
+  name: Config.String('SUBQ_DATABASE_NAME').pipe(Config.option, Config.map(Option.getOrUndefined)),
+  migrations: { dir: './drizzle', table: 'drizzle_migrations' },
 })
 
 const RpcHandlersLive = Layer.mergeAll(
@@ -75,7 +74,7 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
     main: import.meta.filename,
     // Custom domain, set only in prod's env file (.env.prod); dev stages
     // stay on workers.dev.
-    domain: Config.string('SUBQ_DOMAIN').pipe(Config.option, Config.map(Option.getOrUndefined)),
+    domain: Config.String('SUBQ_DOMAIN').pipe(Config.option, Config.map(Option.getOrUndefined)),
     compatibility: {
       // Cloudflare native Effect tracing requires tracing.startActiveSpan (GA from 2026-07-28).
       date: '2026-07-28',
@@ -93,8 +92,8 @@ export default class SubqWorker extends Cloudflare.Worker<SubqWorker>()(
     // Raw binding access must stay lazy — bindings only exist at runtime.
     const db = yield* Cloudflare.D1.QueryDatabase(Database)
     const workerEnvironment = yield* Cloudflare.WorkerEnvironment
-    const authSecret = yield* Config.redacted('BETTER_AUTH_SECRET')
-    const authUrl = yield* Config.string('BETTER_AUTH_URL')
+    const authSecret = yield* Config.Redacted('BETTER_AUTH_SECRET')
+    const authUrl = yield* Config.String('BETTER_AUTH_URL')
 
     const auth = yield* Effect.cached(
       db.raw.pipe(

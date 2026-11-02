@@ -12,22 +12,22 @@ import * as Schema from 'effect/Schema'
 
 const envFix = "Provision SABNZBD_URL and SABNZBD_API_KEY through the consuming application's secret environment."
 
-class SabnzbdEnvMissingError extends Schema.TaggedErrorClass<SabnzbdEnvMissingError>()(
+class SabnzbdEnvMissingError extends Schema.TaggedError<SabnzbdEnvMissingError>()(
   'SabnzbdEnvMissingError',
   envMissingFields('SABNZBD_ENV_MISSING')
 ) {}
 
-class SabnzbdUnreachableError extends Schema.TaggedErrorClass<SabnzbdUnreachableError>()(
+class SabnzbdUnreachableError extends Schema.TaggedError<SabnzbdUnreachableError>()(
   'SabnzbdUnreachableError',
   unreachableFields('SABNZBD_UNREACHABLE')
 ) {}
 
-class SabnzbdHttpError extends Schema.TaggedErrorClass<SabnzbdHttpError>()(
+class SabnzbdHttpError extends Schema.TaggedError<SabnzbdHttpError>()(
   'SabnzbdHttpError',
   httpErrorFields('SABNZBD_HTTP_ERROR')
 ) {}
 
-class SabnzbdDecodeError extends Schema.TaggedErrorClass<SabnzbdDecodeError>()(
+class SabnzbdDecodeError extends Schema.TaggedError<SabnzbdDecodeError>()(
   'SabnzbdDecodeError',
   decodeErrorFields('SABNZBD_DECODE_ERROR')
 ) {}

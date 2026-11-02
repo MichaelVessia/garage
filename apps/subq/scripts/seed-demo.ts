@@ -15,13 +15,13 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as HashMap from 'effect/HashMap'
 import * as HashSet from 'effect/HashSet'
+import { Cookies, FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Random from 'effect/Random'
 import * as Ref from 'effect/Ref'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
 import * as Schema from 'effect/Schema'
-import { Cookies, FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/unstable/http'
-import { RpcClient, RpcSerialization } from 'effect/unstable/rpc'
 
 import { AppRpcs, DataExport, DEMO_USER, IanaTimezone, projectInstantToCalendarDate } from '#shared'
 
@@ -455,7 +455,7 @@ const authenticate = Effect.fn('seed.authenticate')(function* (baseUrl: string) 
 // ndjson serialization is broken with toHttpEffect on effect beta.93; use JSON
 const ProtocolLive = Layer.unwrap(
   Effect.gen(function* () {
-    const baseUrl = yield* Config.string('BETTER_AUTH_URL')
+    const baseUrl = yield* Config.String('BETTER_AUTH_URL')
     yield* Effect.log('Seeding demo data').pipe(Effect.annotateLogs({ baseUrl }))
     const cookie = yield* authenticate(baseUrl)
     return RpcClient.layerProtocolHttp({

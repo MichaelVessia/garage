@@ -4,8 +4,8 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
-import { SqlClient } from 'effect/unstable/sql'
-import type { SqlConnection } from 'effect/unstable/sql'
+import { SqlClient } from 'effect/sql'
+import type { SqlConnection } from 'effect/sql'
 
 import type { DataImportResult, InjectionSchedule } from '#shared'
 import {

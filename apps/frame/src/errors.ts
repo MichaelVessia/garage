@@ -10,42 +10,42 @@ import {
 } from '@garage/integration-http'
 import * as Schema from 'effect/Schema'
 
-class FrameEnvMissingError extends Schema.TaggedErrorClass<FrameEnvMissingError>()(
+class FrameEnvMissingError extends Schema.TaggedError<FrameEnvMissingError>()(
   'FrameEnvMissingError',
   envMissingFields('FRAME_ENV_MISSING')
 ) {}
 
-class FrameEnvInvalidError extends Schema.TaggedErrorClass<FrameEnvInvalidError>()(
+class FrameEnvInvalidError extends Schema.TaggedError<FrameEnvInvalidError>()(
   'FrameEnvInvalidError',
   envMissingFields('FRAME_ENV_INVALID')
 ) {}
 
-class CalendarUnreachableError extends Schema.TaggedErrorClass<CalendarUnreachableError>()(
+class CalendarUnreachableError extends Schema.TaggedError<CalendarUnreachableError>()(
   'CalendarUnreachableError',
   unreachableFields('CALENDAR_UNREACHABLE')
 ) {}
 
-class CalendarHttpError extends Schema.TaggedErrorClass<CalendarHttpError>()(
+class CalendarHttpError extends Schema.TaggedError<CalendarHttpError>()(
   'CalendarHttpError',
   httpErrorFields('CALENDAR_HTTP_ERROR')
 ) {}
 
-class CalendarDecodeError extends Schema.TaggedErrorClass<CalendarDecodeError>()(
+class CalendarDecodeError extends Schema.TaggedError<CalendarDecodeError>()(
   'CalendarDecodeError',
   decodeErrorFields('CALENDAR_DECODE_ERROR')
 ) {}
 
-class HomeAssistantUnreachableError extends Schema.TaggedErrorClass<HomeAssistantUnreachableError>()(
+class HomeAssistantUnreachableError extends Schema.TaggedError<HomeAssistantUnreachableError>()(
   'HomeAssistantUnreachableError',
   unreachableFields('HOME_ASSISTANT_UNREACHABLE')
 ) {}
 
-class HomeAssistantHttpError extends Schema.TaggedErrorClass<HomeAssistantHttpError>()(
+class HomeAssistantHttpError extends Schema.TaggedError<HomeAssistantHttpError>()(
   'HomeAssistantHttpError',
   httpErrorFields('HOME_ASSISTANT_HTTP_ERROR')
 ) {}
 
-class HomeAssistantDecodeError extends Schema.TaggedErrorClass<HomeAssistantDecodeError>()(
+class HomeAssistantDecodeError extends Schema.TaggedError<HomeAssistantDecodeError>()(
   'HomeAssistantDecodeError',
   decodeErrorFields('HOME_ASSISTANT_DECODE_ERROR')
 ) {}

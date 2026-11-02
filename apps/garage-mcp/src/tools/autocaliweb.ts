@@ -1,3 +1,4 @@
+import type { AutocaliwebError } from '@garage/autocaliweb'
 import {
   AutocaliwebApi,
   BookInfoRecord,
@@ -18,10 +19,10 @@ import {
   status,
   version,
 } from '@garage/autocaliweb'
+import * as Tool from 'effect/ai/Tool'
+import * as Toolkit from 'effect/ai/Toolkit'
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
-import * as Tool from 'effect/unstable/ai/Tool'
-import * as Toolkit from 'effect/unstable/ai/Toolkit'
 
 import { GarageMcpToolError, autocaliwebToolError } from '../errors.js'
 
@@ -72,7 +73,6 @@ const AutocaliwebStatusTool = readToolAnnotations(
     description: 'Return AutoCaliWeb catalog metadata and aggregate library statistics.',
     success: StatusResult,
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Status'
 )
@@ -83,7 +83,6 @@ const AutocaliwebVersionTool = readToolAnnotations(
     description: 'Return the AutoCaliWeb status representation currently used for version discovery.',
     success: StatusResult,
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Version'
 )
@@ -94,7 +93,6 @@ const AutocaliwebStatsTool = readToolAnnotations(
     description: 'Return AutoCaliWeb book, author, category, and series counts.',
     success: StatsResult,
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Statistics'
 )
@@ -105,7 +103,6 @@ const AutocaliwebCatalogTool = readToolAnnotations(
     description: 'Return top-level AutoCaliWeb OPDS catalog navigation entries.',
     success: ListResult(CatalogEntry),
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Catalog'
 )
@@ -117,7 +114,6 @@ const AutocaliwebBooksTool = readToolAnnotations(
     parameters: LimitParameters,
     success: ListResult(BookRecord),
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Books'
 )
@@ -129,7 +125,6 @@ const AutocaliwebRecentTool = readToolAnnotations(
     parameters: LimitParameters,
     success: ListResult(BookRecord),
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Recent Books'
 )
@@ -141,7 +136,6 @@ const AutocaliwebSearchTool = readToolAnnotations(
     parameters: SearchParameters,
     success: SearchResult,
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'Search AutoCaliWeb'
 )
@@ -153,7 +147,6 @@ const AutocaliwebBookInfoTool = readToolAnnotations(
     parameters: BookInfoParameters,
     success: BookInfoRecord,
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Book Information'
 )
@@ -164,7 +157,6 @@ const AutocaliwebShelvesTool = readToolAnnotations(
     description: 'Return AutoCaliWeb OPDS shelf navigation entries.',
     success: ListResult(CatalogEntry),
     failure: GarageMcpToolError,
-    dependencies: [AutocaliwebApi],
   }),
   'AutoCaliWeb Shelves'
 )
@@ -184,15 +176,21 @@ export const AutocaliwebToolkit = Toolkit.make(
 
 /** Handler layer adapting AutoCaliWeb MCP tools to package domain operations. */
 export const AutocaliwebToolkitHandlers = AutocaliwebToolkit.toLayer(
-  AutocaliwebToolkit.of({
-    autocaliweb_status: () => status.pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_version: () => version.pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_stats: () => stats.pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_catalog: () => catalog.pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_books: ({ limit }) => books({ limit }).pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_recent: ({ limit }) => recent({ limit }).pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_search: ({ query, limit }) => search({ query, limit }).pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_book_info: ({ uuid }) => bookInfo({ uuid }).pipe(Effect.mapError(autocaliwebToolError)),
-    autocaliweb_shelves: () => shelves.pipe(Effect.mapError(autocaliwebToolError)),
+  Effect.gen(function* () {
+    const api = yield* AutocaliwebApi
+    const run = <A>(operation: Effect.Effect<A, AutocaliwebError, AutocaliwebApi>) =>
+      operation.pipe(Effect.provideService(AutocaliwebApi, api), Effect.mapError(autocaliwebToolError))
+
+    return AutocaliwebToolkit.of({
+      autocaliweb_status: () => run(status),
+      autocaliweb_version: () => run(version),
+      autocaliweb_stats: () => run(stats),
+      autocaliweb_catalog: () => run(catalog),
+      autocaliweb_books: ({ limit }) => run(books({ limit })),
+      autocaliweb_recent: ({ limit }) => run(recent({ limit })),
+      autocaliweb_search: ({ query, limit }) => run(search({ query, limit })),
+      autocaliweb_book_info: ({ uuid }) => run(bookInfo({ uuid })),
+      autocaliweb_shelves: () => run(shelves),
+    })
   })
 )

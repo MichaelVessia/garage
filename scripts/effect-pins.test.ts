@@ -9,7 +9,7 @@ import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import { describe } from 'vitest'
 
-const effectBeta = '4.0.0-beta.103'
+const effectVersion = '4.1.2'
 
 const DependencyMap = Schema.Record(Schema.String, Schema.String)
 const Manifest = Schema.Struct({
@@ -45,7 +45,7 @@ const isPinnedEffectDependency = (name: string): boolean =>
   name.startsWith('@effect/sql-')
 
 describe('Effect dependency pins', () => {
-  it.effect('exact-pins first-party runtime and test packages to one beta', () =>
+  it.effect('exact-pins first-party runtime and test packages to one version', () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem
       const paths = yield* discoverManifests
@@ -57,7 +57,7 @@ describe('Effect dependency pins', () => {
             Effect.map((manifest) => ({ ...manifest.dependencies, ...manifest.devDependencies })),
             Effect.map(R.toEntries),
             Effect.map((dependencies) =>
-              Arr.filter(dependencies, ([name, version]) => isPinnedEffectDependency(name) && version !== effectBeta)
+              Arr.filter(dependencies, ([name, version]) => isPinnedEffectDependency(name) && version !== effectVersion)
             ),
             Effect.map((dependencies) => Arr.map(dependencies, ([name, version]) => `${path}: ${name}=${version}`))
           ),

@@ -22,28 +22,7 @@ import {
 } from '../src/command.js'
 import { init, update } from '../src/main.js'
 import type { Model } from '../src/main.js'
-import {
-  ChangedShoppingDraft,
-  ClickedMediaAction,
-  FailedMediaAction,
-  SucceededFetchMedia,
-  CheckedVersion,
-  ClickedScreen,
-  FailedCheckVersion,
-  FailedFetchSettings,
-  FailedFetchWeather,
-  RefreshDue,
-  StartedReload,
-  SubmittedShoppingItem,
-  ClickedShift,
-  ClickedShoppingItem,
-  Interacted,
-  SucceededFetchSettings,
-  SucceededFetchShopping,
-  SucceededFetchUpcoming,
-  SucceededFetchWeek,
-  TickedClock,
-} from '../src/message.js'
+import { Message } from '../src/message.js'
 import { view } from '../src/view.js'
 
 const timezone = IanaTimezone.make('America/New_York')
@@ -51,7 +30,7 @@ const timezone = IanaTimezone.make('America/New_York')
 const now = DateTime.makeUnsafe('2026-11-02T15:00:00Z')
 const at = (iso: string) => DateTime.makeUnsafe(iso)
 
-const [initial] = init({ now, bootVersion: Option.some('build-1') })
+const initial = init({ now, bootVersion: Option.some('build-1') }).model
 
 const ready: Model = {
   ...initial,
@@ -131,13 +110,13 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(initial),
-      Story.message(SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })),
+      Story.message(Message.SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })),
       Story.model((model) => {
         expect(model.anchor).toEqual(Option.some('2026-11-02'))
       }),
       Story.Command.expectExact(FetchUpcoming, FetchWeek),
-      Story.Command.resolve(FetchUpcoming, SucceededFetchUpcoming({ events })),
-      Story.Command.resolve(FetchWeek, SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events })),
+      Story.Command.resolve(FetchUpcoming, Message.SucceededFetchUpcoming({ events })),
+      Story.Command.resolve(FetchWeek, Message.SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events })),
       Story.model((model) => {
         expect(Option.getOrThrow(model.upcoming.data)).toHaveLength(2)
         expect(Option.getOrThrow(model.week.data)).toHaveLength(2)
@@ -149,13 +128,13 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(ready),
-      Story.message(ClickedShift({ direction: 1 })),
+      Story.message(Message.ClickedShift({ direction: 1 })),
       Story.model((model) => {
         expect(model.anchor).toEqual(Option.some('2026-11-09'))
         expect(model.week.data).toEqual(Option.none())
       }),
       Story.Command.expectExact(FetchWeek),
-      Story.Command.resolve(FetchWeek, SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events })),
+      Story.Command.resolve(FetchWeek, Message.SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events })),
       Story.model((model) => {
         expect(model.week.data).toEqual(Option.none())
       })
@@ -166,14 +145,14 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given({ ...ready, shopping: { data: Option.some(shopping), failed: false } }),
-      Story.message(ClickedShoppingItem({ uid: 'a1', status: 'completed' })),
+      Story.message(Message.ClickedShoppingItem({ uid: 'a1', status: 'completed' })),
       Story.model((model) => {
         expect(Option.getOrThrow(model.shopping.data)[0]?.status).toBe('completed')
       }),
       Story.Command.expectExact(UpdateShoppingItem),
       Story.Command.resolve(
         UpdateShoppingItem,
-        SucceededFetchShopping({ items: [{ uid: 'a1', summary: 'Milk', status: 'completed' }] })
+        Message.SucceededFetchShopping({ items: [{ uid: 'a1', summary: 'Milk', status: 'completed' }] })
       )
     )
   })
@@ -182,15 +161,17 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given({ ...ready, shopping: { data: Option.some(shopping), failed: false } }),
-      Story.message(ChangedShoppingDraft({ value: '  Bread  ' })),
-      Story.message(SubmittedShoppingItem()),
+      Story.message(Message.ChangedShoppingDraft({ value: '  Bread  ' })),
+      Story.message(Message.SubmittedShoppingItem()),
       Story.model((model) => {
         expect(model.shoppingDraft).toBe('')
       }),
       Story.Command.expectExact(AddShoppingItem({ summary: 'Bread' })),
       Story.Command.resolve(
         AddShoppingItem,
-        SucceededFetchShopping({ items: [...shopping, { uid: 'c3', summary: 'Bread', status: 'needs_action' }] })
+        Message.SucceededFetchShopping({
+          items: [...shopping, { uid: 'c3', summary: 'Bread', status: 'needs_action' }],
+        })
       ),
       Story.model((model) => {
         expect(Option.getOrThrow(model.shopping.data)).toHaveLength(3)
@@ -202,8 +183,8 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(ready),
-      Story.message(ChangedShoppingDraft({ value: '   ' })),
-      Story.message(SubmittedShoppingItem()),
+      Story.message(Message.ChangedShoppingDraft({ value: '   ' })),
+      Story.message(Message.SubmittedShoppingItem()),
       Story.Command.expectNone()
     )
   })
@@ -212,9 +193,9 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(ready),
-      Story.message(ClickedScreen({ screen: 'media' })),
+      Story.message(Message.ClickedScreen({ screen: 'media' })),
       Story.Command.expectExact(FetchMedia),
-      Story.Command.resolve(FetchMedia, SucceededFetchMedia({ media })),
+      Story.Command.resolve(FetchMedia, Message.SucceededFetchMedia({ media })),
       Story.model((model) => {
         expect(model.screen).toBe('media')
         expect(Option.getOrThrow(model.media.data).cards).toHaveLength(2)
@@ -226,13 +207,13 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given({ ...ready, screen: 'media', media: { data: Option.some(media), failed: false } }),
-      Story.message(ClickedMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
+      Story.message(Message.ClickedMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
       Story.model((model) => {
         const [, zones] = Option.getOrThrow(model.media.data).cards
         expect(zones?._tag === 'ZonesCard' ? zones.speakers.zones[0]?.isOn : undefined).toBe(true)
       }),
       Story.Command.expectExact(RunMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
-      Story.Command.resolve(RunMediaAction, SucceededFetchMedia({ media }))
+      Story.Command.resolve(RunMediaAction, Message.SucceededFetchMedia({ media }))
     )
   })
 
@@ -240,9 +221,9 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given({ ...ready, screen: 'media', media: { data: Option.some(media), failed: false } }),
-      Story.message(FailedMediaAction()),
+      Story.message(Message.FailedMediaAction()),
       Story.Command.expectExact(FetchMedia),
-      Story.Command.resolve(FetchMedia, SucceededFetchMedia({ media }))
+      Story.Command.resolve(FetchMedia, Message.SucceededFetchMedia({ media }))
     )
   })
 
@@ -250,12 +231,12 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(ready),
-      Story.message(ClickedScreen({ screen: 'shopping' })),
+      Story.message(Message.ClickedScreen({ screen: 'shopping' })),
       Story.model((model) => {
         expect(model.screen).toBe('shopping')
       }),
       Story.Command.expectExact(FetchShopping),
-      Story.Command.resolve(FetchShopping, SucceededFetchShopping({ items: shopping }))
+      Story.Command.resolve(FetchShopping, Message.SucceededFetchShopping({ items: shopping }))
     )
   })
 
@@ -263,15 +244,15 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(ready),
-      Story.message(TickedClock({ now: at('2026-11-02T15:04:00Z') })),
+      Story.message(Message.TickedClock({ now: at('2026-11-02T15:04:00Z') })),
       Story.model((model) => {
         expect(model.isAmbient).toBe(false)
       }),
-      Story.message(TickedClock({ now: at('2026-11-02T15:06:00Z') })),
+      Story.message(Message.TickedClock({ now: at('2026-11-02T15:06:00Z') })),
       Story.model((model) => {
         expect(model.isAmbient).toBe(true)
       }),
-      Story.message(Interacted()),
+      Story.message(Message.Interacted()),
       Story.model((model) => {
         expect(model.isAmbient).toBe(false)
       })
@@ -282,7 +263,7 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(late),
-      Story.message(TickedClock({ now: at('2026-11-03T04:01:30Z') })),
+      Story.message(Message.TickedClock({ now: at('2026-11-03T04:01:30Z') })),
       Story.model((model) => {
         expect(model.isAmbient).toBe(true)
       })
@@ -386,13 +367,13 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(ready),
-      Story.message(RefreshDue({ source: 'version' })),
-      Story.Command.resolve(CheckVersion, CheckedVersion({ version: 'build-1' })),
+      Story.message(Message.RefreshDue({ source: 'version' })),
+      Story.Command.resolve(CheckVersion, Message.CheckedVersion({ version: 'build-1' })),
       Story.Command.expectNone(),
-      Story.message(RefreshDue({ source: 'version' })),
-      Story.Command.resolve(CheckVersion, CheckedVersion({ version: 'build-2' })),
+      Story.message(Message.RefreshDue({ source: 'version' })),
+      Story.Command.resolve(CheckVersion, Message.CheckedVersion({ version: 'build-2' })),
       Story.Command.expectExact(ReloadPage),
-      Story.Command.resolve(ReloadPage, StartedReload())
+      Story.Command.resolve(ReloadPage, Message.StartedReload())
     )
   })
 
@@ -400,7 +381,7 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given({ ...ready, bootVersion: Option.none() }),
-      Story.message(CheckedVersion({ version: 'build-2' })),
+      Story.message(Message.CheckedVersion({ version: 'build-2' })),
       Story.Command.expectNone()
     )
   })
@@ -410,17 +391,17 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(withEvents),
-      Story.message(FailedCheckVersion()),
+      Story.message(Message.FailedCheckVersion()),
       Story.model((model) => {
         expect(model.isOffline).toBe(true)
         expect(Option.getOrThrow(model.upcoming.data)).toHaveLength(2)
       }),
-      Story.message(SucceededFetchUpcoming({ events })),
+      Story.message(Message.SucceededFetchUpcoming({ events })),
       Story.model((model) => {
         expect(model.isOffline).toBe(false)
       }),
       // An upstream failure means the frame server answered.
-      Story.message(FailedFetchWeather({ isServerReachable: true })),
+      Story.message(Message.FailedFetchWeather({ isServerReachable: true })),
       Story.model((model) => {
         expect(model.isOffline).toBe(false)
         expect(model.weather.failed).toBe(true)
@@ -434,14 +415,17 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given(initial),
-      Story.message(FailedFetchSettings({ isServerReachable: false })),
+      Story.message(Message.FailedFetchSettings({ isServerReachable: false })),
       Story.model((model) => {
         expect(model.isOffline).toBe(true)
       }),
       Story.Command.expectExact(RetrySettings),
-      Story.Command.resolve(RetrySettings, SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })),
-      Story.Command.resolve(FetchUpcoming, SucceededFetchUpcoming({ events })),
-      Story.Command.resolve(FetchWeek, SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events }))
+      Story.Command.resolve(
+        RetrySettings,
+        Message.SucceededFetchSettings({ settings: new FrameSettings({ timezone }) })
+      ),
+      Story.Command.resolve(FetchUpcoming, Message.SucceededFetchUpcoming({ events })),
+      Story.Command.resolve(FetchWeek, Message.SucceededFetchWeek({ from: CalendarDate.make('2026-11-01'), events }))
     )
   })
 })

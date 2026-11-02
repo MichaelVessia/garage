@@ -1,6 +1,6 @@
 import * as Schema from 'effect/Schema'
 
-export class DataExportTemporalMigrationRequired extends Schema.TaggedErrorClass<DataExportTemporalMigrationRequired>()(
+export class DataExportTemporalMigrationRequired extends Schema.TaggedError<DataExportTemporalMigrationRequired>()(
   'DataExportTemporalMigrationRequired',
   {
     userId: Schema.String,

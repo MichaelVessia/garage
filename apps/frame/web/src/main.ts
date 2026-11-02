@@ -7,8 +7,9 @@ import * as Option from 'effect/Option'
 import * as Schedule from 'effect/Schedule'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
-import { Subscription } from 'foldkit'
-import { evo } from 'foldkit/struct'
+import { Dom, Subscription } from 'foldkit'
+import type { Update } from 'foldkit'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   CalendarDate,
@@ -35,9 +36,8 @@ import {
   RunMediaAction,
   UpdateShoppingItem,
 } from './command.js'
-import type { Commands } from './command.js'
-import { CalendarMode, Interacted, RefreshDue, Screen, TickedClock } from './message.js'
-import type { Message } from './message.js'
+import type { CommandServices, Commands } from './command.js'
+import { CalendarMode, Message, Screen } from './message.js'
 import { localHour, today, weekStart } from './time.js'
 
 // ============================================
@@ -83,10 +83,12 @@ const IDLE_NIGHT = Duration.minutes(1)
 // Init
 // ============================================
 
+type UpdateReturn = Update.Return<Model, Message, CommandServices>
+
 const emptyFeed = { data: Option.none(), failed: false }
 
-export const init = (flags: Flags): readonly [Model, Commands] => [
-  {
+export const init = (flags: Flags): UpdateReturn => ({
+  model: {
     now: flags.now,
     bootVersion: flags.bootVersion,
     isOffline: false,
@@ -103,17 +105,17 @@ export const init = (flags: Flags): readonly [Model, Commands] => [
     shoppingDraft: '',
     media: emptyFeed,
   },
-  [FetchSettings(), FetchWeather(), FetchShopping()],
-]
+  commands: [FetchSettings(), FetchWeather(), FetchShopping()],
+})
 
 // ============================================
 // Update
 // ============================================
 
 const succeeded = <A>(data: A) => ({ data: Option.some(data), failed: false })
-const online = (model: Model): Model => evo(model, { isOffline: () => false })
+const online = (model: Model): Model => modifyFields(model, { isOffline: () => false })
 const reachability = (model: Model, isServerReachable: boolean): Model =>
-  evo(model, { isOffline: () => !isServerReachable })
+  modifyFields(model, { isOffline: () => !isServerReachable })
 const failed = <A>(current: { readonly data: Option.Option<A> }) => ({ data: current.data, failed: true })
 
 /** The first day the calendar screen shows for its current mode. */
@@ -139,57 +141,60 @@ const shouldBeAmbient = (model: Model, now: DateTime.Utc): boolean => {
 }
 
 const shiftAnchor = (model: Model, direction: -1 | 1): Model =>
-  evo(model, {
+  modifyFields(model, {
     anchor: (anchor) =>
       Option.map(anchor, (date) => addCalendarDays(date, direction * (model.calendarMode === 'week' ? 7 : 1))),
   })
-
-type UpdateReturn = readonly [Model, Commands]
 
 const onShift = (model: Model, direction: -1 | 1): UpdateReturn => {
   const next = shiftAnchor(model, direction)
   const previousWeek = Option.map(model.anchor, weekStart)
   return Option.match(Option.map(next.anchor, weekStart), {
-    onNone: (): UpdateReturn => [next, []],
+    onNone: (): UpdateReturn => ({ model: next }),
     onSome: (from): UpdateReturn =>
-      Option.contains(previousWeek, from) ? [next, []] : [evo(next, { week: () => emptyFeed }), [FetchWeek({ from })]],
+      Option.contains(previousWeek, from)
+        ? { model: next }
+        : { model: modifyFields(next, { week: () => emptyFeed }), commands: [FetchWeek({ from })] },
   })
 }
 
 const onTick = (model: Model, now: DateTime.Utc): UpdateReturn => {
-  const next = evo(model, { now: () => now, isAmbient: () => shouldBeAmbient(model, now) })
+  const next = modifyFields(model, { now: () => now, isAmbient: () => shouldBeAmbient(model, now) })
   // At local midnight the upcoming window moves forward a day.
   const newDay = Option.filter(
     Option.map(model.timezone, (timezone) => today(now, timezone)),
     (date) => Option.exists(model.timezone, (timezone) => today(model.now, timezone) !== date)
   )
-  return [next, Arr.map(Arr.fromOption(newDay), (from) => FetchUpcoming({ from }))]
+  return { model: next, commands: Arr.map(Arr.fromOption(newDay), (from) => FetchUpcoming({ from })) }
 }
 
 const onSettings = (model: Model, timezone: IanaTimezone): UpdateReturn => {
-  const next = evo(model, {
+  const next = modifyFields(model, {
     timezone: () => Option.some(timezone),
     anchor: (anchor) => Option.orElse(anchor, () => Option.some(today(model.now, timezone))),
   })
-  return [next, calendarCommands(next)]
+  return { model: next, commands: calendarCommands(next) }
 }
 
 const onShoppingItem = (model: Model, uid: string, status: ShoppingItemStatus): UpdateReturn => {
   const items = Option.map(model.shopping.data, (current) =>
     Arr.map(current, (item) => (item.uid === uid ? { ...item, status } : item))
   )
-  return [
-    evo(model, { shopping: (shopping) => ({ data: items, failed: shopping.failed }) }),
-    [UpdateShoppingItem({ uid, status })],
-  ]
+  return {
+    model: modifyFields(model, { shopping: (shopping) => ({ data: items, failed: shopping.failed }) }),
+    commands: [UpdateShoppingItem({ uid, status })],
+  }
 }
 
 // Blank drafts are ignored; the server trims and length-checks the summary again.
 const onSubmitShoppingItem = (model: Model): UpdateReturn => {
   const summary = model.shoppingDraft.trim()
   return summary === ''
-    ? [model, []]
-    : [evo(model, { shoppingDraft: () => '' }), [AddShoppingItem({ summary: summary.slice(0, 200) })]]
+    ? { model }
+    : {
+        model: modifyFields(model, { shoppingDraft: () => '' }),
+        commands: [AddShoppingItem({ summary: summary.slice(0, 200) })],
+      }
 }
 
 // Applies the change the frame expects so taps feel immediate; the action's response replaces it.
@@ -228,8 +233,8 @@ const optimisticCard = (card: MediaCard, action: MediaAction): MediaCard =>
     }),
   })
 
-const onMediaAction = (model: Model, action: MediaAction): UpdateReturn => [
-  evo(model, {
+const onMediaAction = (model: Model, action: MediaAction): UpdateReturn => ({
+  model: modifyFields(model, {
     media: (media) => ({
       data: Option.map(
         media.data,
@@ -242,8 +247,8 @@ const onMediaAction = (model: Model, action: MediaAction): UpdateReturn => [
       failed: media.failed,
     }),
   }),
-  [RunMediaAction({ action })],
-]
+  commands: [RunMediaAction({ action })],
+})
 
 const REFRESH = {
   calendar: calendarCommands,
@@ -254,78 +259,78 @@ const REFRESH = {
 }
 
 // A new deploy serves a different version than this page booted with; reload to pick it up.
-const onVersion = (model: Model, version: string): UpdateReturn => [
-  online(model),
-  Option.exists(model.bootVersion, (booted) => booted !== version) ? [ReloadPage()] : [],
-]
+const onVersion = (model: Model, version: string): UpdateReturn => ({
+  model: online(model),
+  commands: Option.exists(model.bootVersion, (booted) => booted !== version) ? [ReloadPage()] : [],
+})
 
-export const update = (model: Model, message: Message): UpdateReturn =>
-  Match.valueTags(message, {
+export const update = (model: Model, message: Message) =>
+  Message.match<UpdateReturn>(message, {
     TickedClock: ({ now }) => onTick(model, now),
-    Interacted: (): UpdateReturn => [evo(model, { lastInteraction: () => model.now, isAmbient: () => false }), []],
-    ClickedScreen: ({ screen }): UpdateReturn => [
-      evo(model, { screen: () => screen }),
-      Match.value(screen).pipe(
+    Interacted: () => ({ model: modifyFields(model, { lastInteraction: () => model.now, isAmbient: () => false }) }),
+    ClickedScreen: ({ screen }) => ({
+      model: modifyFields(model, { screen: () => screen }),
+      commands: Match.value(screen).pipe(
         Match.when('shopping', (): Commands => [FetchShopping()]),
         Match.when('media', (): Commands => [FetchMedia()]),
         Match.orElse((): Commands => [])
       ),
-    ],
-    ClickedCalendarMode: ({ mode }): UpdateReturn => [evo(model, { calendarMode: () => mode }), []],
+    }),
+    ClickedCalendarMode: ({ mode }) => ({ model: modifyFields(model, { calendarMode: () => mode }) }),
     ClickedShift: ({ direction }) => onShift(model, direction),
-    ClickedToday: (): UpdateReturn => {
-      const next = evo(model, { anchor: () => Option.map(model.timezone, (timezone) => today(model.now, timezone)) })
-      return [next, calendarCommands(next)]
+    ClickedToday: () => {
+      const next = modifyFields(model, {
+        anchor: () => Option.map(model.timezone, (timezone) => today(model.now, timezone)),
+      })
+      return { model: next, commands: calendarCommands(next) }
     },
     ClickedShoppingItem: ({ uid, status }) => onShoppingItem(model, uid, status),
-    ChangedShoppingDraft: ({ value }): UpdateReturn => [evo(model, { shoppingDraft: () => value }), []],
+    ChangedShoppingDraft: ({ value }) => ({ model: modifyFields(model, { shoppingDraft: () => value }) }),
     SubmittedShoppingItem: () => onSubmitShoppingItem(model),
-    RefreshDue: ({ source }): UpdateReturn => [model, REFRESH[source](model)],
+    RefreshDue: ({ source }) => ({ model, commands: REFRESH[source](model) }),
     SucceededFetchSettings: ({ settings }) => onSettings(online(model), settings.timezone),
-    FailedFetchSettings: ({ isServerReachable }): UpdateReturn => [
-      reachability(model, isServerReachable),
-      [RetrySettings()],
-    ],
-    SucceededFetchUpcoming: ({ events }): UpdateReturn => [
-      evo(online(model), { upcoming: () => succeeded(events) }),
-      [],
-    ],
-    FailedFetchUpcoming: ({ isServerReachable }): UpdateReturn => [
-      evo(reachability(model, isServerReachable), { upcoming: failed }),
-      [],
-    ],
+    FailedFetchSettings: ({ isServerReachable }) => ({
+      model: reachability(model, isServerReachable),
+      commands: [RetrySettings()],
+    }),
+    SucceededFetchUpcoming: ({ events }) => ({
+      model: modifyFields(online(model), { upcoming: () => succeeded(events) }),
+    }),
+    FailedFetchUpcoming: ({ isServerReachable }) => ({
+      model: modifyFields(reachability(model, isServerReachable), { upcoming: failed }),
+    }),
     // Ignore a week that arrives after the user has paged elsewhere.
-    SucceededFetchWeek: ({ from, events }): UpdateReturn =>
-      Option.contains(Option.map(model.anchor, weekStart), from)
-        ? [evo(online(model), { week: () => succeeded(events) }), []]
-        : [online(model), []],
-    FailedFetchWeek: ({ isServerReachable }): UpdateReturn => [
-      evo(reachability(model, isServerReachable), { week: failed }),
-      [],
-    ],
-    SucceededFetchWeather: ({ weather }): UpdateReturn => [
-      evo(online(model), { weather: () => succeeded(weather) }),
-      [],
-    ],
-    FailedFetchWeather: ({ isServerReachable }): UpdateReturn => [
-      evo(reachability(model, isServerReachable), { weather: failed }),
-      [],
-    ],
-    SucceededFetchShopping: ({ items }): UpdateReturn => [evo(online(model), { shopping: () => succeeded(items) }), []],
-    FailedFetchShopping: ({ isServerReachable }): UpdateReturn => [
-      evo(reachability(model, isServerReachable), { shopping: failed }),
-      [],
-    ],
+    SucceededFetchWeek: ({ from, events }) => ({
+      model: Option.contains(Option.map(model.anchor, weekStart), from)
+        ? modifyFields(online(model), { week: () => succeeded(events) })
+        : online(model),
+    }),
+    FailedFetchWeek: ({ isServerReachable }) => ({
+      model: modifyFields(reachability(model, isServerReachable), { week: failed }),
+    }),
+    SucceededFetchWeather: ({ weather }) => ({
+      model: modifyFields(online(model), { weather: () => succeeded(weather) }),
+    }),
+    FailedFetchWeather: ({ isServerReachable }) => ({
+      model: modifyFields(reachability(model, isServerReachable), { weather: failed }),
+    }),
+    SucceededFetchShopping: ({ items }) => ({
+      model: modifyFields(online(model), { shopping: () => succeeded(items) }),
+    }),
+    FailedFetchShopping: ({ isServerReachable }) => ({
+      model: modifyFields(reachability(model, isServerReachable), { shopping: failed }),
+    }),
     ClickedMediaAction: ({ action }) => onMediaAction(model, action),
-    SucceededFetchMedia: ({ media }): UpdateReturn => [evo(online(model), { media: () => succeeded(media) }), []],
-    FailedFetchMedia: ({ isServerReachable }): UpdateReturn => [
-      evo(reachability(model, isServerReachable), { media: failed }),
-      [],
-    ],
-    FailedMediaAction: (): UpdateReturn => [model, [FetchMedia()]],
+    SucceededFetchMedia: ({ media }) => ({
+      model: modifyFields(online(model), { media: () => succeeded(media) }),
+    }),
+    FailedFetchMedia: ({ isServerReachable }) => ({
+      model: modifyFields(reachability(model, isServerReachable), { media: failed }),
+    }),
+    FailedMediaAction: () => ({ model, commands: [FetchMedia()] }),
     CheckedVersion: ({ version }) => onVersion(model, version),
-    FailedCheckVersion: (): UpdateReturn => [reachability(model, false), []],
-    StartedReload: (): UpdateReturn => [model, []],
+    FailedCheckVersion: () => ({ model: reachability(model, false) }),
+    StartedReload: () => ({ model }),
   })
 
 // ============================================
@@ -340,7 +345,9 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: () => ({}),
       dependenciesToStream: () =>
-        every('15 seconds').pipe(Stream.mapEffect(() => DateTime.now.pipe(Effect.map((now) => TickedClock({ now }))))),
+        every('15 seconds').pipe(
+          Stream.mapEffect(() => DateTime.now.pipe(Effect.map((now) => Message.TickedClock({ now }))))
+        ),
     }
   ),
   touches: entry(
@@ -348,28 +355,28 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: () => ({}),
       dependenciesToStream: () =>
-        Subscription.fromEvent({ target: () => document, type: 'pointerdown', toMessage: () => Interacted() }),
+        Dom.streamFromEvent({ target: () => document, type: 'pointerdown', mapEvent: () => Message.Interacted() }),
     }
   ),
   calendarRefresh: entry(
     {},
     {
       modelToDependencies: () => ({}),
-      dependenciesToStream: () => every('5 minutes').pipe(Stream.map(() => RefreshDue({ source: 'calendar' }))),
+      dependenciesToStream: () => every('5 minutes').pipe(Stream.map(() => Message.RefreshDue({ source: 'calendar' }))),
     }
   ),
   weatherRefresh: entry(
     {},
     {
       modelToDependencies: () => ({}),
-      dependenciesToStream: () => every('15 minutes').pipe(Stream.map(() => RefreshDue({ source: 'weather' }))),
+      dependenciesToStream: () => every('15 minutes').pipe(Stream.map(() => Message.RefreshDue({ source: 'weather' }))),
     }
   ),
   versionCheck: entry(
     {},
     {
       modelToDependencies: () => ({}),
-      dependenciesToStream: () => every('5 minutes').pipe(Stream.map(() => RefreshDue({ source: 'version' }))),
+      dependenciesToStream: () => every('5 minutes').pipe(Stream.map(() => Message.RefreshDue({ source: 'version' }))),
     }
   ),
   // Media state changes from remotes and other apps, so poll it only while the Media screen is open.
@@ -378,14 +385,14 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: (model) => ({ isVisible: model.screen === 'media' }),
       dependenciesToStream: ({ isVisible }) =>
-        isVisible ? every('5 seconds').pipe(Stream.map(() => RefreshDue({ source: 'media' }))) : Stream.empty,
+        isVisible ? every('5 seconds').pipe(Stream.map(() => Message.RefreshDue({ source: 'media' }))) : Stream.empty,
     }
   ),
   shoppingRefresh: entry(
     {},
     {
       modelToDependencies: () => ({}),
-      dependenciesToStream: () => every('1 minute').pipe(Stream.map(() => RefreshDue({ source: 'shopping' }))),
+      dependenciesToStream: () => every('1 minute').pipe(Stream.map(() => Message.RefreshDue({ source: 'shopping' }))),
     }
   ),
 }))

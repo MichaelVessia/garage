@@ -7,11 +7,12 @@ import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
+import type { Update } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
 import { pushUrl } from 'foldkit/navigation'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   addCalendarDays,
@@ -130,47 +131,47 @@ export const distinctStatsResultTimezones = (
 // Messages
 // ============================================
 
-export const SucceededFetchStats = m('SucceededFetchStats', {
+export const SucceededFetchStats = taggedStruct('SucceededFetchStats', {
   bundle: StatsBundle,
   key: Schema.String,
   requestedTimezone: IanaTimezone,
   requestGeneration: Schema.Number,
   timezone: IanaTimezone,
 })
-export const RejectedFetchStats = m('RejectedFetchStats', {
+export const RejectedFetchStats = taggedStruct('RejectedFetchStats', {
   key: Schema.String,
   requestedTimezone: IanaTimezone,
   requestGeneration: Schema.Number,
   timezones: Schema.Array(IanaTimezone),
 })
-export const FailedFetchStats = m('FailedFetchStats', {
+export const FailedFetchStats = taggedStruct('FailedFetchStats', {
   key: Schema.String,
   requestedTimezone: IanaTimezone,
   requestGeneration: Schema.Number,
   message: Schema.String,
 })
-export const ClickedStatsPreset = m('ClickedStatsPreset', {
+export const ClickedStatsPreset = taggedStruct('ClickedStatsPreset', {
   preset: Schema.Literals(['1m', '3m', '6m', '1y', 'all']),
 })
-export const ChangedCustomStart = m('ChangedCustomStart', { value: Schema.String })
-export const ChangedCustomEnd = m('ChangedCustomEnd', { value: Schema.String })
-export const CommittedCustomRange = m('CommittedCustomRange')
-export const ClickedSetGoal = m('ClickedSetGoal')
-export const CompletedOpenGoalForm = m('CompletedOpenGoalForm', { todayLocal: CalendarDate })
-export const ClickedEditGoal = m('ClickedEditGoal')
-export const ClickedCancelGoalForm = m('ClickedCancelGoalForm')
-export const ChangedGoalWeight = m('ChangedGoalWeight', { value: Schema.String })
-export const ChangedGoalStartDate = m('ChangedGoalStartDate', { value: Schema.String })
-export const ChangedGoalTargetDate = m('ChangedGoalTargetDate', { value: Schema.String })
-export const ChangedGoalNotes = m('ChangedGoalNotes', { value: Schema.String })
-export const SubmittedGoalForm = m('SubmittedGoalForm', { unit: Schema.Literals(['lbs', 'kg']) })
-export const SucceededSaveGoal = m('SucceededSaveGoal')
-export const FailedSaveGoal = m('FailedSaveGoal', { message: Schema.String })
-export const RequestedDeleteGoal = m('RequestedDeleteGoal')
-export const CancelledDeleteGoal = m('CancelledDeleteGoal')
-export const ConfirmedDeleteGoal = m('ConfirmedDeleteGoal', { goalId: GoalId })
-export const SucceededDeleteGoal = m('SucceededDeleteGoal')
-export const NavigatedStats = m('NavigatedStats')
+export const ChangedCustomStart = taggedStruct('ChangedCustomStart', { value: Schema.String })
+export const ChangedCustomEnd = taggedStruct('ChangedCustomEnd', { value: Schema.String })
+export const CommittedCustomRange = taggedStruct('CommittedCustomRange')
+export const ClickedSetGoal = taggedStruct('ClickedSetGoal')
+export const CompletedOpenGoalForm = taggedStruct('CompletedOpenGoalForm', { todayLocal: CalendarDate })
+export const ClickedEditGoal = taggedStruct('ClickedEditGoal')
+export const ClickedCancelGoalForm = taggedStruct('ClickedCancelGoalForm')
+export const ChangedGoalWeight = taggedStruct('ChangedGoalWeight', { value: Schema.String })
+export const ChangedGoalStartDate = taggedStruct('ChangedGoalStartDate', { value: Schema.String })
+export const ChangedGoalTargetDate = taggedStruct('ChangedGoalTargetDate', { value: Schema.String })
+export const ChangedGoalNotes = taggedStruct('ChangedGoalNotes', { value: Schema.String })
+export const SubmittedGoalForm = taggedStruct('SubmittedGoalForm', { unit: Schema.Literals(['lbs', 'kg']) })
+export const SucceededSaveGoal = taggedStruct('SucceededSaveGoal')
+export const FailedSaveGoal = taggedStruct('FailedSaveGoal', { message: Schema.String })
+export const RequestedDeleteGoal = taggedStruct('RequestedDeleteGoal')
+export const CancelledDeleteGoal = taggedStruct('CancelledDeleteGoal')
+export const ConfirmedDeleteGoal = taggedStruct('ConfirmedDeleteGoal', { goalId: GoalId })
+export const SucceededDeleteGoal = taggedStruct('SucceededDeleteGoal')
+export const NavigatedStats = taggedStruct('NavigatedStats')
 
 const FetchStatsResult = Schema.Union([SucceededFetchStats, RejectedFetchStats])
 
@@ -412,8 +413,7 @@ type StatsCommandMessage =
   | typeof SucceededFetchSettings.Type
   | typeof FailedFetchSettings.Type
 
-type StatsCommands = ReadonlyArray<Command.Command<StatsCommandMessage, never, Api>>
-type UpdateReturn = readonly [StatsModel, StatsCommands]
+type UpdateReturn = Update.Return<StatsModel, StatsCommandMessage, Api>
 
 const fetchStatsCommand = (range: StatsRange, timezone: IanaTimezone, requestGeneration: number) =>
   FetchStats({
@@ -425,8 +425,8 @@ const fetchStatsCommand = (range: StatsRange, timezone: IanaTimezone, requestGen
 
 const startStatsFetch = (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn => {
   const requestGeneration = model.requestGeneration + 1
-  return [
-    evo(model, {
+  return {
+    model: modifyFields(model, {
       customEnd: () => Option.getOrElse(range.end, () => ''),
       customStart: () => Option.getOrElse(range.start, () => ''),
       data: () => AsyncData.Loading(),
@@ -434,15 +434,15 @@ const startStatsFetch = (model: StatsModel, range: StatsRange, timezone: IanaTim
       fetchedTimezone: () => timezone,
       requestGeneration: () => requestGeneration,
     }),
-    [fetchStatsCommand(range, timezone, requestGeneration)],
-  ]
+    commands: [fetchStatsCommand(range, timezone, requestGeneration)],
+  }
 }
 
 // Called by the app root when the stats route is entered or its range changes.
 export const syncStatsFetch = (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn => {
   const key = rangeKey(range)
   return model.fetchedRange === key && model.fetchedTimezone === timezone && !AsyncData.isIdle(model.data)
-    ? [model, []]
+    ? { model }
     : startStatsFetch(model, range, timezone)
 }
 
@@ -462,7 +462,7 @@ const parseOptionalCalendarDate = (value: string): Option.Option<Option.Option<C
     : Schema.decodeUnknownOption(CalendarDate)(value).pipe(Option.map(Option.some))
 
 const prepareStatsTimezoneReconciliation = (model: StatsModel): StatsModel =>
-  evo(model, {
+  modifyFields(model, {
     data: () => AsyncData.Idle(),
     fetchedRange: () => null,
     fetchedTimezone: () => null,
@@ -488,47 +488,51 @@ export const updateStats = (
 ): UpdateReturn => {
   if (isChartMessage(message)) {
     const [chart, zoom] = updateChart(model.chart, message)
-    const next = evo(model, { chart: () => chart })
+    const next = modifyFields(model, { chart: () => chart })
     return Option.match(zoom, {
-      onNone: (): UpdateReturn => [next, []],
+      onNone: (): UpdateReturn => ({ model: next }),
       onSome: (committed) => {
         const start = dateToCalendarDate(epochToDate(committed.startMs), timezone)
         const end = dateToCalendarDate(epochToDate(committed.endMs), timezone)
-        return [next, [NavigateStatsRange({ end, start })]]
+        return { model: next, commands: [NavigateStatsRange({ end, start })] }
       },
     })
   }
   return Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      CancelledDeleteGoal: () => [evo(model, { goalDeleteConfirm: () => false }), []],
-      ChangedCustomEnd: ({ value }) => [evo(model, { customEnd: () => value }), []],
-      ChangedCustomStart: ({ value }) => [evo(model, { customStart: () => value }), []],
-      ChangedGoalNotes: ({ value }) => [
-        evo(model, { goalForm: (form) => (form === null ? null : evo(form, { notes: () => value })) }),
-        [],
-      ],
-      ChangedGoalStartDate: ({ value }) => [
-        evo(model, { goalForm: (form) => (form === null ? null : evo(form, { startDate: () => value })) }),
-        [],
-      ],
-      ChangedGoalTargetDate: ({ value }) => [
-        evo(model, { goalForm: (form) => (form === null ? null : evo(form, { targetDate: () => value })) }),
-        [],
-      ],
-      ChangedGoalWeight: ({ value }) => [
-        evo(model, { goalForm: (form) => (form === null ? null : evo(form, { goalWeight: () => value })) }),
-        [],
-      ],
-      ClickedCancelGoalForm: () => [evo(model, { goalForm: () => null }), []],
+      CancelledDeleteGoal: () => ({ model: modifyFields(model, { goalDeleteConfirm: () => false }) }),
+      ChangedCustomEnd: ({ value }) => ({ model: modifyFields(model, { customEnd: () => value }) }),
+      ChangedCustomStart: ({ value }) => ({ model: modifyFields(model, { customStart: () => value }) }),
+      ChangedGoalNotes: ({ value }) => ({
+        model: modifyFields(model, {
+          goalForm: (form) => (form === null ? null : modifyFields(form, { notes: () => value })),
+        }),
+      }),
+      ChangedGoalStartDate: ({ value }) => ({
+        model: modifyFields(model, {
+          goalForm: (form) => (form === null ? null : modifyFields(form, { startDate: () => value })),
+        }),
+      }),
+      ChangedGoalTargetDate: ({ value }) => ({
+        model: modifyFields(model, {
+          goalForm: (form) => (form === null ? null : modifyFields(form, { targetDate: () => value })),
+        }),
+      }),
+      ChangedGoalWeight: ({ value }) => ({
+        model: modifyFields(model, {
+          goalForm: (form) => (form === null ? null : modifyFields(form, { goalWeight: () => value })),
+        }),
+      }),
+      ClickedCancelGoalForm: () => ({ model: modifyFields(model, { goalForm: () => null }) }),
       ClickedEditGoal: () => {
         const bundle = AsyncData.getData(model.data)
         const goal = Option.isSome(bundle) ? bundle.value.goal : null
         if (goal === null) {
-          return [model, []]
+          return { model }
         }
-        return [
-          evo(model, {
+        return {
+          model: modifyFields(model, {
             goalForm: () => ({
               editingId: goal.goal.id,
               error: null,
@@ -539,35 +543,37 @@ export const updateStats = (
               targetDate: goal.goal.targetDate ?? '',
             }),
           }),
-          [],
-        ]
+        }
       },
-      ClickedSetGoal: () => [model, [OpenGoalForm({ timezone })]],
-      ClickedStatsPreset: ({ preset }) => [model, [ApplyPreset({ preset, timezone })]],
+      ClickedSetGoal: () => ({ model, commands: [OpenGoalForm({ timezone })] }),
+      ClickedStatsPreset: ({ preset }) => ({ model, commands: [ApplyPreset({ preset, timezone })] }),
       CommittedCustomRange: () => {
         if (model.customStart === '' || model.customEnd === '' || model.customStart >= model.customEnd) {
-          return [model, []]
+          return { model }
         }
         const start = Schema.decodeUnknownOption(CalendarDate)(model.customStart)
         const end = Schema.decodeUnknownOption(CalendarDate)(model.customEnd)
         return Option.isSome(start) && Option.isSome(end)
-          ? [model, [NavigateStatsRange({ end: end.value, start: start.value })]]
-          : [model, []]
+          ? { model, commands: [NavigateStatsRange({ end: end.value, start: start.value })] }
+          : { model }
       },
-      ConfirmedDeleteGoal: ({ goalId }) => [evo(model, { goalDeleteConfirm: () => false }), [DeleteGoal({ goalId })]],
+      ConfirmedDeleteGoal: ({ goalId }) => ({
+        model: modifyFields(model, { goalDeleteConfirm: () => false }),
+        commands: [DeleteGoal({ goalId })],
+      }),
       FailedFetchStats: ({ key, message: error, requestedTimezone, requestGeneration }) =>
         isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)
-          ? [evo(model, { data: () => AsyncData.Failure({ error }) }), []]
-          : [model, []],
-      NavigatedStats: () => [model, []],
-      FailedSaveGoal: ({ message: error }) => [
-        evo(model, {
-          goalForm: (form) => (form === null ? null : evo(form, { error: () => error, submitting: () => false })),
+          ? { model: modifyFields(model, { data: () => AsyncData.Failure({ error }) }) }
+          : { model },
+      NavigatedStats: () => ({ model }),
+      FailedSaveGoal: ({ message: error }) => ({
+        model: modifyFields(model, {
+          goalForm: (form) =>
+            form === null ? null : modifyFields(form, { error: () => error, submitting: () => false }),
         }),
-        [],
-      ],
-      CompletedOpenGoalForm: ({ todayLocal }) => [
-        evo(model, {
+      }),
+      CompletedOpenGoalForm: ({ todayLocal }) => ({
+        model: modifyFields(model, {
           goalForm: () => ({
             editingId: null,
             error: null,
@@ -578,45 +584,45 @@ export const updateStats = (
             targetDate: '',
           }),
         }),
-        [],
-      ],
+      }),
       RejectedFetchStats: ({ key, requestedTimezone, requestGeneration }) =>
         isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)
-          ? [
-              prepareStatsTimezoneReconciliation(model),
-              [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
-            ]
-          : [model, []],
-      RequestedDeleteGoal: () => [evo(model, { goalDeleteConfirm: () => true }), []],
+          ? {
+              model: prepareStatsTimezoneReconciliation(model),
+              commands: [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
+            }
+          : { model },
+      RequestedDeleteGoal: () => ({ model: modifyFields(model, { goalDeleteConfirm: () => true }) }),
       SubmittedGoalForm: ({ unit }) => {
         if (model.goalForm === null) {
-          return [model, []]
+          return { model }
         }
         const parsed = Number.parseFloat(model.goalForm.goalWeight)
         if (Number.isNaN(parsed) || parsed <= 0) {
-          return [
-            evo(model, {
-              goalForm: (form) => (form === null ? null : evo(form, { error: () => 'Enter a valid goal weight' })),
+          return {
+            model: modifyFields(model, {
+              goalForm: (form) =>
+                form === null ? null : modifyFields(form, { error: () => 'Enter a valid goal weight' }),
             }),
-            [],
-          ]
+          }
         }
         const startDate = parseOptionalCalendarDate(model.goalForm.startDate)
         const targetDate = parseOptionalCalendarDate(model.goalForm.targetDate)
         if (Option.isNone(startDate) || Option.isNone(targetDate)) {
-          return [
-            evo(model, {
-              goalForm: (form) => (form === null ? null : evo(form, { error: () => 'Enter valid goal dates' })),
+          return {
+            model: modifyFields(model, {
+              goalForm: (form) =>
+                form === null ? null : modifyFields(form, { error: () => 'Enter valid goal dates' }),
             }),
-            [],
-          ]
+          }
         }
         const lbs = unit === 'kg' ? parsed * 2.2046226 : parsed
-        return [
-          evo(model, {
-            goalForm: (form) => (form === null ? null : evo(form, { error: () => null, submitting: () => true })),
+        return {
+          model: modifyFields(model, {
+            goalForm: (form) =>
+              form === null ? null : modifyFields(form, { error: () => null, submitting: () => true }),
           }),
-          [
+          commands: [
             SaveGoal({
               editingId: model.goalForm.editingId,
               goalWeightLbs: lbs,
@@ -625,25 +631,25 @@ export const updateStats = (
               targetDate: Option.getOrNull(targetDate.value),
             }),
           ],
-        ]
+        }
       },
       SucceededDeleteGoal: () =>
-        model.fetchedRange === null ? [model, []] : startStatsFetch(model, splitRangeKey(model.fetchedRange), timezone),
+        model.fetchedRange === null ? { model } : startStatsFetch(model, splitRangeKey(model.fetchedRange), timezone),
       SucceededFetchStats: ({ bundle, key, requestedTimezone, requestGeneration, timezone: responseTimezone }) => {
         if (!isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)) {
-          return [model, []]
+          return { model }
         }
         return responseTimezone === timezone
-          ? [evo(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }), []]
-          : [
-              prepareStatsTimezoneReconciliation(model),
-              [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
-            ]
+          ? { model: modifyFields(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }) }
+          : {
+              model: prepareStatsTimezoneReconciliation(model),
+              commands: [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
+            }
       },
       SucceededSaveGoal: () => {
-        const next = evo(model, { goalForm: () => null })
+        const next = modifyFields(model, { goalForm: () => null })
         return model.fetchedRange === null
-          ? [next, []]
+          ? { model: next }
           : startStatsFetch(next, splitRangeKey(model.fetchedRange), timezone)
       },
     })

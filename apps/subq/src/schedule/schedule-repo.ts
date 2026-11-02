@@ -6,8 +6,8 @@ import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
+import { SqlClient } from 'effect/sql'
 import * as Str from 'effect/String'
-import { SqlClient } from 'effect/unstable/sql'
 
 import {
   CalendarDate,

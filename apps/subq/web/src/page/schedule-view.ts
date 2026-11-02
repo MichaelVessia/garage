@@ -5,10 +5,11 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { Command } from 'foldkit'
+import type { Update } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import { InjectionScheduleId, ScheduleView } from '#shared'
 import type { IanaTimezone, SchedulePhaseView } from '#shared'
@@ -42,10 +43,10 @@ export const initialScheduleViewModel: ScheduleViewModel = {
 // Messages
 // ============================================
 
-export const SucceededFetchScheduleView = m('SucceededFetchScheduleView', {
+export const SucceededFetchScheduleView = taggedStruct('SucceededFetchScheduleView', {
   view: Schema.NullOr(ScheduleView),
 })
-export const FailedFetchScheduleView = m('FailedFetchScheduleView', { message: Schema.String })
+export const FailedFetchScheduleView = taggedStruct('FailedFetchScheduleView', { message: Schema.String })
 
 export const ScheduleViewMessage = Schema.Union([SucceededFetchScheduleView, FailedFetchScheduleView])
 export type ScheduleViewMessage = typeof ScheduleViewMessage.Type
@@ -71,28 +72,29 @@ const FetchScheduleView = Command.define('FetchScheduleView', {
 
 type ScheduleViewCommandMessage = typeof SucceededFetchScheduleView.Type | typeof FailedFetchScheduleView.Type
 
-type UpdateReturn = readonly [ScheduleViewModel, ReadonlyArray<Command.Command<ScheduleViewCommandMessage, never, Api>>]
+type UpdateReturn = Update.Return<ScheduleViewModel, ScheduleViewCommandMessage, Api>
 
 export const fetchScheduleView = (model: ScheduleViewModel, scheduleId: string): UpdateReturn =>
   model.scheduleId !== scheduleId || AsyncData.isIdle(model.view)
-    ? [
-        evo(model, {
+    ? {
+        model: modifyFields(model, {
           scheduleId: () => scheduleId,
           view: () => AsyncData.Loading(),
         }),
-        [FetchScheduleView({ scheduleId })],
-      ]
-    : [model, []]
+        commands: [FetchScheduleView({ scheduleId })],
+      }
+    : { model }
 
 export const updateScheduleView = (model: ScheduleViewModel, message: ScheduleViewMessage): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      FailedFetchScheduleView: ({ message: error }) => [evo(model, { view: () => AsyncData.Failure({ error }) }), []],
-      SucceededFetchScheduleView: ({ view }) => [
-        evo(model, { view: () => AsyncData.succeed(Option.fromNullOr(view)) }),
-        [],
-      ],
+      FailedFetchScheduleView: ({ message: error }) => ({
+        model: modifyFields(model, { view: () => AsyncData.Failure({ error }) }),
+      }),
+      SucceededFetchScheduleView: ({ view }) => ({
+        model: modifyFields(model, { view: () => AsyncData.succeed(Option.fromNullOr(view)) }),
+      }),
     })
   )
 

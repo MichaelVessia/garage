@@ -1,8 +1,8 @@
 import { BunHttpClient, BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
+import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
-import * as HttpRouter from 'effect/unstable/http/HttpRouter'
 
 import { CalendarFeedLive } from './calendar/http.js'
 import { CalendarConfigLive } from './calendar/services.js'
@@ -23,9 +23,9 @@ const FrameServicesLive = Layer.merge(CalendarLive, HomeAssistantLive).pipe(
 
 const HttpServerLive = Layer.unwrap(
   Effect.gen(function* () {
-    const port = yield* Config.int('FRAME_PORT').pipe(Config.withDefault(8080))
-    const webRoot = yield* Config.nonEmptyString('FRAME_WEB_ROOT').pipe(Config.withDefault('web/dist'))
-    const buildId = yield* Config.nonEmptyString('FRAME_BUILD_ID').pipe(Config.option)
+    const port = yield* Config.Int('FRAME_PORT').pipe(Config.withDefault(8080))
+    const webRoot = yield* Config.NonEmptyString('FRAME_WEB_ROOT').pipe(Config.withDefault('web/dist'))
+    const buildId = yield* Config.NonEmptyString('FRAME_BUILD_ID').pipe(Config.option)
 
     return HttpRouter.serve(
       frameRoutes(webRoot, buildId).pipe(Layer.provide(FrameHandlersLive), Layer.provide(FrameServicesLive))

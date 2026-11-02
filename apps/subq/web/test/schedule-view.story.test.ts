@@ -61,7 +61,7 @@ const sampleView = new ScheduleView({
 
 describe('schedule-view page', () => {
   it('fetchScheduleView loads when the schedule id changes and marks the view as loading', () => {
-    const [loading, commands] = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
+    const { model: loading, commands = [] } = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
     expect(loading.scheduleId).toBe('schedule-1')
     expect(AsyncData.isLoading(loading.view)).toBe(true)
     expect(commands).toHaveLength(1)
@@ -74,7 +74,7 @@ describe('schedule-view page', () => {
       scheduleId: 'schedule-1',
       view: AsyncData.succeed(Option.some(sampleView)),
     }
-    const [same, commands] = fetchScheduleView(loaded, 'schedule-1')
+    const { model: same, commands = [] } = fetchScheduleView(loaded, 'schedule-1')
     expect(same).toBe(loaded)
     expect(commands).toHaveLength(0)
   })
@@ -84,7 +84,7 @@ describe('schedule-view page', () => {
       scheduleId: 'schedule-1',
       view: AsyncData.succeed(Option.some(sampleView)),
     }
-    const [switched, commands] = fetchScheduleView(loaded, 'schedule-2')
+    const { model: switched, commands = [] } = fetchScheduleView(loaded, 'schedule-2')
     expect(switched.scheduleId).toBe('schedule-2')
     expect(AsyncData.isLoading(switched.view)).toBe(true)
     expect(commands).toHaveLength(1)
@@ -92,7 +92,7 @@ describe('schedule-view page', () => {
   })
 
   it('a successful fetch resolves to the found schedule view', () => {
-    const [loading] = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
+    const { model: loading } = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
     Story.story(
       updateScheduleView,
       Story.given(loading),
@@ -105,7 +105,7 @@ describe('schedule-view page', () => {
   })
 
   it('a successful fetch for a schedule that no longer exists resolves to None', () => {
-    const [loading] = fetchScheduleView(initialScheduleViewModel, 'missing-schedule')
+    const { model: loading } = fetchScheduleView(initialScheduleViewModel, 'missing-schedule')
     Story.story(
       updateScheduleView,
       Story.given(loading),
@@ -118,7 +118,7 @@ describe('schedule-view page', () => {
   })
 
   it('a failed fetch surfaces the error message', () => {
-    const [loading] = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
+    const { model: loading } = fetchScheduleView(initialScheduleViewModel, 'schedule-1')
     Story.story(
       updateScheduleView,
       Story.given(loading),

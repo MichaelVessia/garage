@@ -19,29 +19,29 @@ import type { LoginModel } from '../src/page/login.js'
 
 describe('login page update', () => {
   it('field changes update the model', () => {
-    const [withEmail] = updateLogin(initialLoginModel, ChangedLoginEmail({ value: 'a@example.com' }))
+    const { model: withEmail } = updateLogin(initialLoginModel, ChangedLoginEmail({ value: 'a@example.com' }))
     expect(withEmail.email).toBe('a@example.com')
 
-    const [withPassword] = updateLogin(withEmail, ChangedLoginPassword({ value: 'secret' }))
+    const { model: withPassword } = updateLogin(withEmail, ChangedLoginPassword({ value: 'secret' }))
     expect(withPassword.password).toBe('secret')
 
-    const [withName] = updateLogin(withPassword, ChangedLoginName({ value: 'Jane' }))
+    const { model: withName } = updateLogin(withPassword, ChangedLoginName({ value: 'Jane' }))
     expect(withName.name).toBe('Jane')
   })
 
   it('toggling mode flips signin/signup and clears any error', () => {
     const withError: LoginModel = { ...initialLoginModel, error: 'boom' }
-    const [signup] = updateLogin(withError, ToggledLoginMode())
+    const { model: signup } = updateLogin(withError, ToggledLoginMode())
     expect(signup.mode).toBe('signup')
     expect(signup.error).toBeNull()
 
-    const [signin] = updateLogin(signup, ToggledLoginMode())
+    const { model: signin } = updateLogin(signup, ToggledLoginMode())
     expect(signin.mode).toBe('signin')
   })
 
   it('submitting in signin mode dispatches SignIn with the entered credentials', () => {
     const model: LoginModel = { ...initialLoginModel, email: 'a@example.com', mode: 'signin', password: 'secret' }
-    const [next, commands] = updateLogin(model, SubmittedLogin())
+    const { model: next, commands = [] } = updateLogin(model, SubmittedLogin())
     expect(next.loading).toBe(true)
     expect(next.error).toBeNull()
     expect(commands).toHaveLength(1)
@@ -57,7 +57,7 @@ describe('login page update', () => {
       name: 'Jane',
       password: 'secret',
     }
-    const [next, commands] = updateLogin(model, SubmittedLogin())
+    const { model: next, commands = [] } = updateLogin(model, SubmittedLogin())
     expect(next.loading).toBe(true)
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('SignUp')
@@ -66,7 +66,7 @@ describe('login page update', () => {
 
   it('the demo login button signs in with the shared demo account regardless of form state', () => {
     const model: LoginModel = { ...initialLoginModel, email: 'someone-else@example.com', mode: 'signin' }
-    const [next, commands] = updateLogin(model, ClickedDemoLogin())
+    const { model: next, commands = [] } = updateLogin(model, ClickedDemoLogin())
     expect(next.loading).toBe(true)
     expect(next.error).toBeNull()
     expect(commands).toHaveLength(1)

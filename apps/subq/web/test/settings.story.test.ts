@@ -16,10 +16,13 @@ import {
   ClickedSelectImportFile,
   ClickedSettingsWeightUnit,
   ConfirmedImportData,
+  ExportData,
   FailedExportData,
   FailedImportData,
   FailedUpdateSettingsPreference,
   PreparedImportData,
+  ReadImportFile,
+  SelectImportFile,
   SelectedImportFile,
   SubmittedSettingsPassword,
   SubmittedSettingsTimezone,
@@ -61,7 +64,7 @@ const update = (model: SettingsModel, message: SettingsPageMessage) =>
 
 describe('settings page update', () => {
   it('selecting a weight unit dispatches the update command and marks submitting', () => {
-    const [next, commands] = update(initialSettingsModel, ClickedSettingsWeightUnit({ unit: 'kg' }))
+    const { model: next, commands = [] } = update(initialSettingsModel, ClickedSettingsWeightUnit({ unit: 'kg' }))
     expect(next.preferenceSubmitting).toBe(true)
     expect(next.preferenceError).toBeNull()
     expect(commands).toHaveLength(1)
@@ -70,8 +73,8 @@ describe('settings page update', () => {
   })
 
   it('submitting a validated IANA timezone dispatches the preference update', () => {
-    const [edited] = update(initialSettingsModel, ChangedSettingsTimezone({ value: 'Pacific/Auckland' }))
-    const [submitting, commands] = update(edited, SubmittedSettingsTimezone())
+    const { model: edited } = update(initialSettingsModel, ChangedSettingsTimezone({ value: 'Pacific/Auckland' }))
+    const { model: submitting, commands = [] } = update(edited, SubmittedSettingsTimezone())
 
     expect(submitting.preferenceSubmitting).toBe(true)
     expect(submitting.preferenceError).toBeNull()
@@ -81,8 +84,8 @@ describe('settings page update', () => {
   })
 
   it('rejects an invalid timezone before dispatching an update', () => {
-    const [edited] = update(initialSettingsModel, ChangedSettingsTimezone({ value: 'Not/A_Zone' }))
-    const [invalid, commands] = update(edited, SubmittedSettingsTimezone())
+    const { model: edited } = update(initialSettingsModel, ChangedSettingsTimezone({ value: 'Not/A_Zone' }))
+    const { model: invalid, commands = [] } = update(edited, SubmittedSettingsTimezone())
 
     expect(invalid.preferenceError).toBe('Enter a valid IANA timezone')
     expect(commands).toHaveLength(0)
@@ -90,7 +93,7 @@ describe('settings page update', () => {
 
   it('a successful preference update clears submitting and refetches settings', () => {
     const submitting: SettingsModel = { ...initialSettingsModel, preferenceSubmitting: true }
-    const [next, commands] = update(submitting, SucceededUpdateSettingsPreference())
+    const { model: next, commands = [] } = update(submitting, SucceededUpdateSettingsPreference())
     expect(next.preferenceSubmitting).toBe(false)
     expect(next.preferenceError).toBeNull()
     expect(commands).toHaveLength(1)
@@ -100,7 +103,7 @@ describe('settings page update', () => {
 
   it('a failed preference update surfaces the error and stops submitting', () => {
     const submitting: SettingsModel = { ...initialSettingsModel, preferenceSubmitting: true }
-    const [next, commands] = update(
+    const { model: next, commands = [] } = update(
       submitting,
       FailedUpdateSettingsPreference({ message: 'Failed to update display preferences' })
     )
@@ -168,7 +171,7 @@ describe('settings page update', () => {
         newPassword: 'newpassword',
       },
     }
-    const [next, commands] = update(valid, SubmittedSettingsPassword())
+    const { model: next, commands = [] } = update(valid, SubmittedSettingsPassword())
     expect(next.password.submitting).toBe(true)
     expect(next.password.error).toBeNull()
     expect(commands).toHaveLength(1)
@@ -254,7 +257,7 @@ describe('settings page update', () => {
         expect(model.dataError).toBeNull()
         expect(model.dataSuccess).toBeNull()
       }),
-      Command.resolveAll([{ name: 'ExportData' }, SucceededExportData()]),
+      Command.resolveAll([ExportData, SucceededExportData()]),
       Story.model((model: SettingsModel) => {
         expect(model.exportStatus).toBe('idle')
         expect(model.dataSuccess).toBe('Data exported successfully')
@@ -267,10 +270,7 @@ describe('settings page update', () => {
       update,
       Story.given(initialSettingsModel),
       Story.message(ClickedExportData()),
-      Command.resolveAll([
-        { name: 'ExportData' },
-        FailedExportData({ message: 'Failed to export data. Please try again.' }),
-      ]),
+      Command.resolveAll([ExportData, FailedExportData({ message: 'Failed to export data. Please try again.' })]),
       Story.model((model: SettingsModel) => {
         expect(model.exportStatus).toBe('idle')
         expect(model.dataError).toBe('Failed to export data. Please try again.')
@@ -286,7 +286,7 @@ describe('settings page update', () => {
       Story.model((model: SettingsModel) => {
         expect(model.importStatus).toBe('reading')
       }),
-      Command.resolveAll([{ name: 'SelectImportFile' }, CancelledSelectImportFile()]),
+      Command.resolveAll([SelectImportFile, CancelledSelectImportFile()]),
       Story.model((model: SettingsModel) => {
         expect(model.importStatus).toBe('idle')
         expect(model.dataError).toBeNull()
@@ -301,8 +301,8 @@ describe('settings page update', () => {
       Story.given(initialSettingsModel),
       Story.message(ClickedSelectImportFile()),
       Command.resolveAll(
-        [{ name: 'SelectImportFile' }, SelectedImportFile({ file })],
-        [{ name: 'ReadImportFile' }, PreparedImportData({ data: sampleExport })]
+        [SelectImportFile, SelectedImportFile({ file })],
+        [ReadImportFile, PreparedImportData({ data: sampleExport })]
       ),
       Story.model((model: SettingsModel) => {
         expect(model.importConfirm).toEqual(sampleExport)
@@ -318,9 +318,9 @@ describe('settings page update', () => {
       Story.given(initialSettingsModel),
       Story.message(ClickedSelectImportFile()),
       Command.resolveAll(
-        [{ name: 'SelectImportFile' }, SelectedImportFile({ file })],
+        [SelectImportFile, SelectedImportFile({ file })],
         [
-          { name: 'ReadImportFile' },
+          ReadImportFile,
           FailedImportData({ message: 'Invalid export file. Only Subq 3.0.0-alpha.2 exports are supported.' }),
         ]
       ),
@@ -348,7 +348,7 @@ describe('settings page update', () => {
 
   it('confirming an import dispatches ImportData with the pending export', () => {
     const withConfirm: SettingsModel = { ...initialSettingsModel, importConfirm: sampleExport }
-    const [next, commands] = update(withConfirm, ConfirmedImportData())
+    const { model: next, commands = [] } = update(withConfirm, ConfirmedImportData())
     expect(next.importStatus).toBe('importing')
     expect(commands).toHaveLength(1)
     expect(commands[0]?.name).toBe('ImportData')
@@ -356,14 +356,14 @@ describe('settings page update', () => {
   })
 
   it('confirming an import with nothing pending is a no-op', () => {
-    const [next, commands] = update(initialSettingsModel, ConfirmedImportData())
+    const { model: next, commands = [] } = update(initialSettingsModel, ConfirmedImportData())
     expect(next).toBe(initialSettingsModel)
     expect(commands).toHaveLength(0)
   })
 
   it('a successful import surfaces the summary, clears the confirmation, and refetches settings', () => {
     const importing: SettingsModel = { ...initialSettingsModel, importConfirm: sampleExport, importStatus: 'importing' }
-    const [next, commands] = update(importing, SucceededImportData({ result: sampleImportResult }))
+    const { model: next, commands = [] } = update(importing, SucceededImportData({ result: sampleImportResult }))
     expect(next.dataSuccess).toBe('Successfully imported: 3 weight logs, 2 injection logs, 1 schedules, 1 goals')
     expect(next.importConfirm).toBeNull()
     expect(next.importStatus).toBe('idle')

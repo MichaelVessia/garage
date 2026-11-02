@@ -36,8 +36,8 @@ bun run validate
 
 - Bun pinned by `packageManager` in the root `package.json`; CI installs that
   version, so keep it equal to the Nix dev shell's `bun --version`.
-- TypeScript, Bun, and one exact Effect beta across first-party manifests
-  (currently `4.0.0-beta.103`; always copy current manifests).
+- TypeScript, Bun, and one exact Effect version across first-party manifests
+  (currently `4.1.2`; always copy current manifests).
 - Tests: `vitest` (plus `@effect/vitest` for Effect matchers and `it.effect`).
 - Lint: `oxlint` (with the Effect plugin). Dead-code analysis: `fallow`.
   Format: `oxfmt`. Structural lint: `ast-grep`. Configs live at the repo root

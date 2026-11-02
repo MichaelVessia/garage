@@ -1,6 +1,6 @@
 import * as Schema from 'effect/Schema'
 
-export class SettingsTemporalMigrationError extends Schema.TaggedErrorClass<SettingsTemporalMigrationError>()(
+export class SettingsTemporalMigrationError extends Schema.TaggedError<SettingsTemporalMigrationError>()(
   'SettingsTemporalMigrationError',
   {
     entity: Schema.Literals(['injection_schedule', 'user_goal'] as const),
@@ -10,7 +10,7 @@ export class SettingsTemporalMigrationError extends Schema.TaggedErrorClass<Sett
   }
 ) {}
 
-export class SettingsTimezoneNotInitialized extends Schema.TaggedErrorClass<SettingsTimezoneNotInitialized>()(
+export class SettingsTimezoneNotInitialized extends Schema.TaggedError<SettingsTimezoneNotInitialized>()(
   'SettingsTimezoneNotInitialized',
   { userId: Schema.String }
 ) {}

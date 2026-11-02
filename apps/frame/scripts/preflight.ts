@@ -7,14 +7,14 @@ import * as Console from 'effect/Console'
 import * as Deferred from 'effect/Deferred'
 import * as Effect from 'effect/Effect'
 import * as HashMap from 'effect/HashMap'
+import { HttpClient, HttpClientResponse } from 'effect/http'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import * as Ref from 'effect/Ref'
 import * as Schedule from 'effect/Schedule'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
-import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process'
-import { Socket } from 'effect/unstable/socket'
+import { Socket } from 'effect/socket'
 
 import { PreflightFailed } from './errors.js'
 
@@ -112,7 +112,8 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
     Effect.mapError(() => fail('browser', 'could not open a DevTools page'))
   )
   const socket = yield* Socket.makeWebSocket(target.webSocketDebuggerUrl)
-  const write = yield* socket.writer
+  const pull = yield* Socket.readerString(socket)
+  const { write } = yield* socket.writer
   const nextId = yield* Ref.make(0)
   const replies = yield* Ref.make(HashMap.empty<number, Deferred.Deferred<unknown>>())
   const scriptErrors = yield* Ref.make<ReadonlyArray<string>>([])
@@ -132,26 +133,31 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
     }
   })
 
-  yield* socket
-    .runString((frame) =>
-      Schema.decodeUnknownEffect(CdpMessage)(frame).pipe(
-        Effect.flatMap((message) =>
-          message.id === undefined
-            ? onEvent(message)
-            : Ref.get(replies).pipe(
-                Effect.flatMap((pending) =>
-                  Option.match(HashMap.get(pending, message.id ?? -1), {
-                    onNone: () => Effect.void,
-                    onSome: (reply) => Deferred.succeed(reply, message.result),
-                  })
-                )
+  const onFrame = (frame: string) =>
+    Schema.decodeUnknownEffect(CdpMessage)(frame).pipe(
+      Effect.flatMap((message) =>
+        message.id === undefined
+          ? onEvent(message)
+          : Ref.get(replies).pipe(
+              Effect.flatMap((pending) =>
+                Option.match(HashMap.get(pending, message.id ?? -1), {
+                  onNone: () => Effect.void,
+                  onSome: (reply) => Deferred.succeed(reply, message.result),
+                })
               )
-        ),
-        Effect.tapError((failure) => Effect.logDebug('Unreadable DevTools frame', failure)),
-        Effect.ignore
-      )
+            )
+      ),
+      Effect.tapError((failure) => Effect.logDebug('Unreadable DevTools frame', failure)),
+      Effect.ignore
     )
-    .pipe(Effect.forkScoped)
+
+  yield* pull.pipe(
+    Effect.flatMap((frames) => Effect.forEach(frames, onFrame, { concurrency: 1, discard: true })),
+    Effect.forever,
+    Effect.tapError((failure) => Effect.logDebug('DevTools socket closed', failure)),
+    Effect.ignore,
+    Effect.forkScoped
+  )
 
   const send = Effect.fn('frame.preflight.send')(function* (method: string, params: CdpParams = {}) {
     const id = yield* Ref.updateAndGet(nextId, (n) => n + 1)
@@ -214,7 +220,7 @@ const preflight = Effect.fn('frame.preflight')(function* () {
     FRAME_WEB_ROOT: artifacts.web,
     FRAME_BUILD_ID: 'preflight',
   })
-  const profile = yield* Config.string('TMPDIR').pipe(Config.withDefault('/tmp'))
+  const profile = yield* Config.String('TMPDIR').pipe(Config.withDefault('/tmp'))
   yield* spawnScoped(
     `${artifacts.chromium}/bin/chromium-webview-106`,
     [

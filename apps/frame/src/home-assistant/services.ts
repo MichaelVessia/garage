@@ -54,13 +54,13 @@ export class HomeAssistantApi extends Context.Service<
 const { readRequiredSecret, readRequiredString } = makeConfigReaders(envMissing)
 
 const readEntity = (name: string, fallback: string) =>
-  Config.nonEmptyString(name).pipe(
+  Config.NonEmptyString(name).pipe(
     Config.withDefault(fallback),
     Effect.mapError(() => envMissing(name))
   )
 
 const readOptional = (name: string) =>
-  Config.string(name).pipe(
+  Config.String(name).pipe(
     Config.withDefault(''),
     Effect.mapError(() => envMissing(name))
   )

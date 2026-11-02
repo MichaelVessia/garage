@@ -3,9 +3,9 @@ import * as BunRuntime from '@effect/platform-bun/BunRuntime'
 import * as Config from 'effect/Config'
 import * as Console from 'effect/Console'
 import * as Effect from 'effect/Effect'
+import { HttpClient, HttpClientResponse } from 'effect/http'
 import * as Schedule from 'effect/Schedule'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 
 import { DeployNotLive } from './errors.js'
 
@@ -15,7 +15,7 @@ const Health = Schema.Struct({ status: Schema.Literal('ready'), version: Schema.
 // Waits for the deployed server to report the build that was just shipped.
 const verifyDeploy = Effect.fn('frame.verifyDeploy')(function* () {
   const [expected] = yield* Schema.decodeUnknownEffect(Arguments)(process.argv.slice(2))
-  const baseUrl = yield* Config.nonEmptyString('FRAME_URL')
+  const baseUrl = yield* Config.NonEmptyString('FRAME_URL')
   const client = yield* HttpClient.HttpClient
   const observe = client.get(`${baseUrl}/health`).pipe(
     Effect.flatMap(HttpClientResponse.schemaBodyJson(Health)),

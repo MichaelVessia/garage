@@ -35,14 +35,18 @@ import {
   ClickedEditInjection,
   ClickedInjectionPage,
   ClickedInjectionSort,
+  CompletedOpenInjectionForm,
   ConfirmedDeleteInjection,
   ConfirmedInjectionOffSchedule,
+  DeleteInjection,
   FailedDeleteInjection,
   FailedFetchInjectionSites,
   FailedSaveInjection,
   FetchInjectionLogs,
-  CompletedOpenInjectionForm,
+  FetchInjectionSites,
+  OpenInjectionForm,
   RequestedDeleteInjection,
+  SaveInjection,
   SubmittedInjectionForm,
   SucceededDeleteInjection,
   SucceededFetchInjectionLogs,
@@ -130,10 +134,7 @@ describe('injections page update', () => {
       update,
       Story.given(initialInjectionsModel),
       Story.message(ClickedAddInjection()),
-      Command.resolveAll([
-        { name: 'OpenInjectionForm' },
-        CompletedOpenInjectionForm({ log: null, nowLocal: '2026-07-04T09:00' }),
-      ]),
+      Command.resolveAll([OpenInjectionForm, CompletedOpenInjectionForm({ log: null, nowLocal: '2026-07-04T09:00' })]),
       Story.model((model: InjectionsModel) => {
         expect(model.form).not.toBeNull()
         expect(model.form?.datetime).toBe('2026-07-04T09:00')
@@ -150,7 +151,7 @@ describe('injections page update', () => {
       Story.given(initialInjectionsModel),
       Story.message(ClickedEditInjection({ log: sampleLog })),
       Command.resolveAll([
-        { name: 'OpenInjectionForm' },
+        OpenInjectionForm,
         CompletedOpenInjectionForm({ log: sampleLog, nowLocal: '2026-07-04T09:00' }),
       ]),
       Story.model((model: InjectionsModel) => {
@@ -173,7 +174,7 @@ describe('injections page update', () => {
       Story.given(initialInjectionsModel),
       Story.message(ClickedEditInjection({ log: bareLog })),
       Command.resolveAll([
-        { name: 'OpenInjectionForm' },
+        OpenInjectionForm,
         CompletedOpenInjectionForm({ log: bareLog, nowLocal: '2026-07-04T09:00' }),
       ]),
       Story.model((model: InjectionsModel) => {
@@ -187,12 +188,12 @@ describe('injections page update', () => {
 
   it('preserves sub-minute UTC precision for a note-only edit', () => {
     const preciseLog = injectionAt('inj-precise', '2026-07-01T08:00:45.123Z')
-    const [opened] = update(
+    const { model: opened } = update(
       initialInjectionsModel,
       CompletedOpenInjectionForm({ log: preciseLog, nowLocal: '2026-07-04T09:00' })
     )
-    const [noted] = update(opened, ChangedInjectionNotes({ value: 'updated note' }))
-    const [, commands] = update(noted, SubmittedInjectionForm())
+    const { model: noted } = update(opened, ChangedInjectionNotes({ value: 'updated note' }))
+    const { commands = [] } = update(noted, SubmittedInjectionForm())
     const datetime = commands.find((command) => command.name === 'SaveInjection')?.args?.datetime
 
     expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
@@ -210,9 +211,12 @@ describe('injections page update', () => {
 
     for (const [index, instant] of overlapInstants.entries()) {
       const log = injectionAt(`inj-overlap-${index}`, instant)
-      const [opened] = update(initialInjectionsModel, CompletedOpenInjectionForm({ log, nowLocal: '2026-11-02T09:00' }))
-      const [noted] = update(opened, ChangedInjectionNotes({ value: `overlap ${index}` }))
-      const [, commands] = update(noted, SubmittedInjectionForm())
+      const { model: opened } = update(
+        initialInjectionsModel,
+        CompletedOpenInjectionForm({ log, nowLocal: '2026-11-02T09:00' })
+      )
+      const { model: noted } = update(opened, ChangedInjectionNotes({ value: `overlap ${index}` }))
+      const { commands = [] } = update(noted, SubmittedInjectionForm())
       const datetime = commands.find((command) => command.name === 'SaveInjection')?.args?.datetime
 
       expect(Schema.is(Schema.DateTimeUtc)(datetime)).toBe(true)
@@ -397,9 +401,9 @@ describe('injections page update', () => {
         return simulation
       },
       Command.resolveAll(
-        [{ name: 'SaveInjection' }, SucceededSaveInjection()],
+        [SaveInjection, SucceededSaveInjection()],
         [FetchInjectionLogs, SucceededFetchInjectionLogs({ logs: [] })],
-        [{ name: 'FetchInjectionSites' }, SucceededFetchInjectionSites({ sites: [] })]
+        [FetchInjectionSites, SucceededFetchInjectionSites({ sites: [] })]
       ),
       Story.model((model: InjectionsModel) => {
         expect(model.form).toBeNull()
@@ -431,7 +435,7 @@ describe('injections page update', () => {
       update,
       Story.given(withForm),
       Story.message(SubmittedInjectionForm()),
-      Command.resolveAll([{ name: 'SaveInjection' }, FailedSaveInjection({ message: 'Failed to save injection log' })]),
+      Command.resolveAll([SaveInjection, FailedSaveInjection({ message: 'Failed to save injection log' })]),
       Story.model((model: InjectionsModel) => {
         expect(model.form).not.toBeNull()
         expect(model.form?.error).toBe('Failed to save injection log')
@@ -470,7 +474,7 @@ describe('injections page update', () => {
       }),
       Story.message(ConfirmedDeleteInjection()),
       Command.resolveAll(
-        [{ name: 'DeleteInjection' }, SucceededDeleteInjection()],
+        [DeleteInjection, SucceededDeleteInjection()],
         [FetchInjectionLogs, SucceededFetchInjectionLogs({ logs: [sampleLog] })]
       ),
       Story.model((model: InjectionsModel) => {
@@ -499,10 +503,7 @@ describe('injections page update', () => {
       update,
       Story.given(withPending),
       Story.message(ConfirmedDeleteInjection()),
-      Command.resolveAll([
-        { name: 'DeleteInjection' },
-        FailedDeleteInjection({ message: 'Failed to delete injection log' }),
-      ]),
+      Command.resolveAll([DeleteInjection, FailedDeleteInjection({ message: 'Failed to delete injection log' })]),
       Story.model((model: InjectionsModel) => {
         expect(model.pendingDeleteId).toBeNull()
       })
@@ -569,7 +570,7 @@ describe('injections page update', () => {
       },
     }
 
-    const [updated] = updateInjections(withForm, ChangedInjectionSupplier({ value: 'Clinic' }), timezone)
+    const { model: updated } = updateInjections(withForm, ChangedInjectionSupplier({ value: 'Clinic' }), timezone)
 
     expect(updated.form?.supplier).toBe('Clinic')
   })
@@ -625,24 +626,24 @@ describe('injections page update', () => {
         submitting: false,
       },
     }
-    const [afterDoseMg] = updateInjections(confirmed, ChangedInjectionDoseMg({ value: '10' }), timezone)
+    const { model: afterDoseMg } = updateInjections(confirmed, ChangedInjectionDoseMg({ value: '10' }), timezone)
     expect(afterDoseMg.form?.confirmedOffSchedule).toBe(false)
     expect(afterDoseMg.form?.doseMg).toBe('10')
 
-    const [afterSchedule] = update(confirmed, ChangedInjectionSchedule({ value: 'sched-2' }))
+    const { model: afterSchedule } = update(confirmed, ChangedInjectionSchedule({ value: 'sched-2' }))
     expect(afterSchedule.form?.confirmedOffSchedule).toBe(false)
     expect(afterSchedule.form?.scheduleId).toBe('sched-2')
   })
 
   it('site and schedule lookups populate on success and record failures', () => {
-    const [withSites] = updateInjections(
+    const { model: withSites } = updateInjections(
       initialInjectionsModel,
       FailedFetchInjectionSites({ message: 'Failed to load site suggestions' }),
       timezone
     )
     expect(withSites.sites).toEqual(AsyncData.Failure({ error: 'Failed to load site suggestions' }))
 
-    const [withSchedules] = update(
+    const { model: withSchedules } = update(
       initialInjectionsModel,
       SucceededFetchInjectionSchedules({ schedules: [sampleSchedule] })
     )
@@ -650,7 +651,7 @@ describe('injections page update', () => {
   })
 
   it('fetchInjectionsIfIdle dispatches all three fetches when idle, and is a no-op once loaded', () => {
-    const [loading, commands] = fetchInjectionsIfIdle(initialInjectionsModel)
+    const { model: loading, commands = [] } = fetchInjectionsIfIdle(initialInjectionsModel)
     expect(commands.map((command) => command.name).toSorted()).toEqual(
       ['FetchInjectionLogs', 'FetchInjectionSchedules', 'FetchInjectionSites'].toSorted()
     )
@@ -664,7 +665,7 @@ describe('injections page update', () => {
       schedules: AsyncData.succeed([]),
       sites: AsyncData.succeed([]),
     }
-    const [same, noCommands] = fetchInjectionsIfIdle(loaded)
+    const { model: same, commands: noCommands = [] } = fetchInjectionsIfIdle(loaded)
     expect(same).toBe(loaded)
     expect(noCommands).toHaveLength(0)
   })

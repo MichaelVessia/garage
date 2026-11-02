@@ -1,8 +1,8 @@
 import * as Effect from 'effect/Effect'
+import { HttpClientRequest, HttpClientResponse } from 'effect/http'
+import type { HttpClient } from 'effect/http'
 import type * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
-import { HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
-import type { HttpClient } from 'effect/unstable/http'
 
 // Shared HTTP-adapter pipeline for retained integration packages: build a URL
 // from a base plus optional fixed path/query values, apply integration-owned

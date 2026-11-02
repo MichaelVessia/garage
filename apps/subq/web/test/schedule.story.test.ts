@@ -21,21 +21,24 @@ import {
 } from '#shared'
 
 import {
+  ActivateSchedule,
   AddedSchedulePhase,
   CancelledDeleteSchedule,
   ChangedScheduleDrug,
-  ChangedScheduleSupplier,
   ChangedScheduleFrequency,
   ChangedScheduleName,
   ChangedScheduleNotes,
   ChangedSchedulePhaseDoseMg,
   ChangedSchedulePhaseDuration,
   ChangedScheduleStartDate,
+  ChangedScheduleSupplier,
   ClickedActivateSchedule,
   ClickedAddSchedule,
   ClickedCancelScheduleForm,
   ClickedEditSchedule,
+  CompletedOpenScheduleForm,
   ConfirmedDeleteSchedule,
+  DeleteSchedule,
   FailedActivateSchedule,
   FailedDeleteSchedule,
   FailedFetchNextDose,
@@ -43,9 +46,10 @@ import {
   FailedSaveSchedule,
   FetchNextDose,
   FetchSchedules,
-  CompletedOpenScheduleForm,
+  OpenScheduleForm,
   RemovedSchedulePhase,
   RequestedDeleteSchedule,
+  SaveSchedule,
   SubmittedScheduleForm,
   SucceededActivateSchedule,
   SucceededDeleteSchedule,
@@ -125,10 +129,7 @@ describe('schedule page update', () => {
         update,
         Story.given(initialScheduleModel),
         Story.message(ClickedAddSchedule()),
-        Command.resolveAll([
-          { name: 'OpenScheduleForm' },
-          CompletedOpenScheduleForm({ schedule: null, todayLocal: '2026-07-03' }),
-        ]),
+        Command.resolveAll([OpenScheduleForm, CompletedOpenScheduleForm({ schedule: null, todayLocal: '2026-07-03' })]),
         Story.model((model: ScheduleModel) => {
           expect(model.form).not.toBeNull()
           expect(model.form?.editingId).toBeNull()
@@ -145,7 +146,7 @@ describe('schedule page update', () => {
         Story.given(initialScheduleModel),
         Story.message(ClickedEditSchedule({ schedule: sampleSchedule })),
         Command.resolveAll([
-          { name: 'OpenScheduleForm' },
+          OpenScheduleForm,
           CompletedOpenScheduleForm({ schedule: sampleSchedule, todayLocal: '2026-07-03' }),
         ]),
         Story.model((model: ScheduleModel) => {
@@ -168,8 +169,8 @@ describe('schedule page update', () => {
         schedule: sampleSchedule,
         todayLocal: CalendarDate.make('2026-07-03'),
       })
-      const [newYork] = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('America/New_York'), 1)
-      const [auckland] = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('Pacific/Auckland'), 1)
+      const { model: newYork } = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('America/New_York'), 1)
+      const { model: auckland } = updateSchedule(initialScheduleModel, opened, IanaTimezone.make('Pacific/Auckland'), 1)
 
       expect(newYork.form?.startDate).toBe('2026-01-15')
       expect(auckland.form?.startDate).toBe('2026-01-15')
@@ -462,7 +463,7 @@ describe('schedule page update', () => {
           return simulation
         },
         Command.resolveAll(
-          [{ name: 'SaveSchedule' }, SucceededSaveSchedule()],
+          [SaveSchedule, SucceededSaveSchedule()],
           [FetchSchedules, SucceededFetchSchedules({ schedules: [sampleSchedule] })],
           [FetchNextDose, succeededNextDose()]
         ),
@@ -480,7 +481,7 @@ describe('schedule page update', () => {
         update,
         Story.given(withForm),
         Story.message(SubmittedScheduleForm()),
-        Command.resolveAll([{ name: 'SaveSchedule' }, FailedSaveSchedule({ message: 'Failed to save schedule' })]),
+        Command.resolveAll([SaveSchedule, FailedSaveSchedule({ message: 'Failed to save schedule' })]),
         Story.model((model: ScheduleModel) => {
           expect(model.form).not.toBeNull()
           expect(model.form?.error).toBe('Failed to save schedule')
@@ -534,7 +535,7 @@ describe('schedule page update', () => {
         Story.given(withPending),
         Story.message(ConfirmedDeleteSchedule()),
         Command.resolveAll(
-          [{ name: 'DeleteSchedule' }, SucceededDeleteSchedule()],
+          [DeleteSchedule, SucceededDeleteSchedule()],
           [FetchSchedules, SucceededFetchSchedules({ schedules: [] })],
           [FetchNextDose, succeededNextDose()]
         ),
@@ -551,10 +552,7 @@ describe('schedule page update', () => {
         update,
         Story.given(withPending),
         Story.message(ConfirmedDeleteSchedule()),
-        Command.resolveAll([
-          { name: 'DeleteSchedule' },
-          FailedDeleteSchedule({ message: 'Failed to delete schedule' }),
-        ]),
+        Command.resolveAll([DeleteSchedule, FailedDeleteSchedule({ message: 'Failed to delete schedule' })]),
         Story.model((model: ScheduleModel) => {
           expect(model.pendingDeleteId).toBeNull()
         })
@@ -569,7 +567,7 @@ describe('schedule page update', () => {
         Story.given(initialScheduleModel),
         Story.message(ClickedActivateSchedule({ schedule: sampleSchedule })),
         Command.resolveAll(
-          [{ name: 'ActivateSchedule' }, SucceededActivateSchedule()],
+          [ActivateSchedule, SucceededActivateSchedule()],
           [FetchSchedules, SucceededFetchSchedules({ schedules: [sampleSchedule] })],
           [FetchNextDose, succeededNextDose()]
         ),
@@ -584,10 +582,7 @@ describe('schedule page update', () => {
         update,
         Story.given(initialScheduleModel),
         Story.message(ClickedActivateSchedule({ schedule: sampleSchedule })),
-        Command.resolveAll([
-          { name: 'ActivateSchedule' },
-          FailedActivateSchedule({ message: 'Failed to activate schedule' }),
-        ]),
+        Command.resolveAll([ActivateSchedule, FailedActivateSchedule({ message: 'Failed to activate schedule' })]),
         Story.model((model: ScheduleModel) => {
           expect(model).toEqual(initialScheduleModel)
         })
@@ -620,7 +615,7 @@ describe('schedule page update', () => {
 
   describe('fetchScheduleIfIdle', () => {
     it('dispatches both fetches when everything is idle', () => {
-      const [loading, commands] = fetchScheduleIfIdle(initialScheduleModel, timezone)
+      const { model: loading, commands = [] } = fetchScheduleIfIdle(initialScheduleModel, timezone)
       expect(AsyncData.isLoading(loading.schedules)).toBe(true)
       expect(AsyncData.isLoading(loading.nextDose)).toBe(true)
       expect(commands.map((command) => command.name)).toEqual(['FetchSchedules', 'FetchNextDose'])
@@ -629,11 +624,11 @@ describe('schedule page update', () => {
 
     it('rejects old-zone success and failure responses after reset and refetches when needed', () => {
       const oldTimezone = IanaTimezone.make('America/New_York')
-      const [oldLoading] = fetchScheduleIfIdle(initialScheduleModel, oldTimezone)
+      const { model: oldLoading } = fetchScheduleIfIdle(initialScheduleModel, oldTimezone)
       const reset = { ...oldLoading, nextDose: AsyncData.Idle() }
-      const [currentLoading] = fetchScheduleIfIdle(reset, timezone)
+      const { model: currentLoading } = fetchScheduleIfIdle(reset, timezone)
 
-      const [afterOldSuccess, successCommands] = update(
+      const { model: afterOldSuccess, commands: successCommands = [] } = update(
         currentLoading,
         SucceededFetchNextDose({
           nextDose: null,
@@ -645,7 +640,7 @@ describe('schedule page update', () => {
       expect(AsyncData.isLoading(afterOldSuccess.nextDose)).toBe(true)
       expect(successCommands).toHaveLength(0)
 
-      const [afterOldFailure, failureCommands] = update(
+      const { model: afterOldFailure, commands: failureCommands = [] } = update(
         reset,
         FailedFetchNextDose({
           message: 'old request failed',
@@ -663,7 +658,7 @@ describe('schedule page update', () => {
         nextDose: AsyncData.succeed(Option.none()),
         schedules: AsyncData.succeed([sampleSchedule]),
       }
-      const [same, commands] = fetchScheduleIfIdle(alreadyLoaded, timezone)
+      const { model: same, commands = [] } = fetchScheduleIfIdle(alreadyLoaded, timezone)
       expect(same).toBe(alreadyLoaded)
       expect(commands).toHaveLength(0)
     })

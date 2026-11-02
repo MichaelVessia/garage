@@ -17,10 +17,6 @@ if (container === null) {
 const application = Runtime.makeApplication({
   Flags,
   Model,
-  flags: Effect.sync(() => ({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })).pipe(
-    Effect.flatMap(Schema.decodeUnknownEffect(Flags)),
-    Effect.orDie
-  ),
   init,
   update,
   view,
@@ -32,4 +28,9 @@ const application = Runtime.makeApplication({
   },
 })
 
-Runtime.run(application)
+Runtime.run(application, {
+  flags: Effect.sync(() => ({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })).pipe(
+    Effect.flatMap(Schema.decodeUnknownEffect(Flags)),
+    Effect.orDie
+  ),
+})

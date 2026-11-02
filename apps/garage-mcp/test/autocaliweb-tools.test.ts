@@ -39,31 +39,23 @@ const makeApiLayer = Effect.gen(function* () {
 it.effect('adapts every API/catalog tool to the AutoCaliWeb package operations', () =>
   Effect.gen(function* () {
     const fake = yield* makeApiLayer
-    const toolkit = yield* AutocaliwebToolkit.pipe(Effect.provide(AutocaliwebToolkitHandlers))
+    const toolkit = yield* AutocaliwebToolkit.pipe(
+      Effect.provide(AutocaliwebToolkitHandlers.pipe(Layer.provide(fake.layer)))
+    )
 
-    const statusResults = yield* toolkit
-      .handle('autocaliweb_status', {})
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    const versionResults = yield* toolkit
-      .handle('autocaliweb_version', {})
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    const statsResults = yield* toolkit
-      .handle('autocaliweb_stats', {})
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    yield* toolkit.handle('autocaliweb_catalog', {}).pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    yield* toolkit
-      .handle('autocaliweb_books', { limit: 5 })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    yield* toolkit
-      .handle('autocaliweb_recent', { limit: 6 })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+    const statusResults = yield* toolkit.handle('autocaliweb_status', {}).pipe(Effect.flatMap(Stream.runCollect))
+    const versionResults = yield* toolkit.handle('autocaliweb_version', {}).pipe(Effect.flatMap(Stream.runCollect))
+    const statsResults = yield* toolkit.handle('autocaliweb_stats', {}).pipe(Effect.flatMap(Stream.runCollect))
+    yield* toolkit.handle('autocaliweb_catalog', {}).pipe(Effect.flatMap(Stream.runCollect))
+    yield* toolkit.handle('autocaliweb_books', { limit: 5 }).pipe(Effect.flatMap(Stream.runCollect))
+    yield* toolkit.handle('autocaliweb_recent', { limit: 6 }).pipe(Effect.flatMap(Stream.runCollect))
     const searchResults = yield* toolkit
       .handle('autocaliweb_search', { query: 'fixture', limit: 7 })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+      .pipe(Effect.flatMap(Stream.runCollect))
     const infoResults = yield* toolkit
       .handle('autocaliweb_book_info', { uuid: 'fixture-uuid' })
-      .pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
-    yield* toolkit.handle('autocaliweb_shelves', {}).pipe(Effect.flatMap(Stream.runCollect), Effect.provide(fake.layer))
+      .pipe(Effect.flatMap(Stream.runCollect))
+    yield* toolkit.handle('autocaliweb_shelves', {}).pipe(Effect.flatMap(Stream.runCollect))
 
     assert.deepStrictEqual(statusResults[0]?.encodedResult, {
       catalogCount: 2,

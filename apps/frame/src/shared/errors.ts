@@ -6,12 +6,12 @@ const UpstreamSource = Schema.Literals(['calendar', 'home-assistant'])
 export type UpstreamSource = typeof UpstreamSource.Type
 
 /** The server refused a media change that is not configured or not allowed. */
-export class MediaActionRejected extends Schema.TaggedErrorClass<MediaActionRejected>()('MediaActionRejected', {
+export class MediaActionRejected extends Schema.TaggedError<MediaActionRejected>()('MediaActionRejected', {
   message: Schema.String,
 }) {}
 
 /** A credential-free failure the frame can show and retry. */
-export class UpstreamUnavailable extends Schema.TaggedErrorClass<UpstreamUnavailable>()('UpstreamUnavailable', {
+export class UpstreamUnavailable extends Schema.TaggedError<UpstreamUnavailable>()('UpstreamUnavailable', {
   source: UpstreamSource,
   message: Schema.String,
 }) {}

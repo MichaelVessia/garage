@@ -13,7 +13,7 @@ const GarageMcpFailure = Schema.Struct({
 export type GarageMcpFailure = typeof GarageMcpFailure.Type
 
 /** Declared tool error whose MCP text content contains a structured, credential-free failure. */
-export class GarageMcpToolError extends Schema.TaggedErrorClass<GarageMcpToolError>()('GarageMcpToolError', {
+export class GarageMcpToolError extends Schema.TaggedError<GarageMcpToolError>()('GarageMcpToolError', {
   code: Schema.String,
   detail: Schema.String,
   fix: Schema.String,

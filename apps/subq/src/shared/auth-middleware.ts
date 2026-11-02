@@ -1,7 +1,7 @@
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
+import * as RpcMiddleware from 'effect/rpc/RpcMiddleware'
 import * as Schema from 'effect/Schema'
-import * as RpcMiddleware from 'effect/unstable/rpc/RpcMiddleware'
 
 // Minimal user/session types (matches better-auth structure)
 export interface AuthUser {

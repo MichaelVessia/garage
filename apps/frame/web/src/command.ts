@@ -1,8 +1,8 @@
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import { HttpClient, HttpClientResponse } from 'effect/http'
+import type { RpcClientError } from 'effect/rpc/RpcClientError'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
-import type { RpcClientError } from 'effect/unstable/rpc/RpcClientError'
 import { Command } from 'foldkit'
 
 import {
@@ -17,28 +17,13 @@ import {
 import type { UpstreamUnavailable } from '#shared'
 
 import { Api } from './api.js'
-import {
-  CheckedVersion,
-  FailedCheckVersion,
-  FailedFetchMedia,
-  FailedFetchSettings,
-  FailedMediaAction,
-  FailedFetchShopping,
-  FailedFetchUpcoming,
-  FailedFetchWeather,
-  FailedFetchWeek,
-  SucceededFetchMedia,
-  SucceededFetchSettings,
-  SucceededFetchShopping,
-  SucceededFetchUpcoming,
-  SucceededFetchWeather,
-  SucceededFetchWeek,
-  StartedReload,
-} from './message.js'
-import type { Message } from './message.js'
+import { Message } from './message.js'
+
+/** Services the frame's commands need. */
+export type CommandServices = Api | HttpClient.HttpClient
 
 /** Commands the frame runs. */
-export type Commands = ReadonlyArray<Command.Command<Message, never, Api | HttpClient.HttpClient>>
+export type Commands = ReadonlyArray<Command.Command<Message, never, CommandServices>>
 
 // Days of events the Today screen and ambient clock keep loaded.
 const UPCOMING_DAYS = 3
@@ -60,150 +45,150 @@ const recoverWith =
 const fetchSettings = Effect.fn('frame.fetchSettings')(function* () {
   const api = yield* Api
   const settings = yield* api.GetSettings()
-  return SucceededFetchSettings({ settings })
+  return Message.SucceededFetchSettings({ settings })
 })
 
 export const FetchSettings = Command.define('FetchSettings', {
-  messages: [SucceededFetchSettings, FailedFetchSettings],
+  messages: [Message.SucceededFetchSettings, Message.FailedFetchSettings],
   execute: fetchSettings().pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchSettings', failure)),
-    recoverWith((isServerReachable) => FailedFetchSettings({ isServerReachable }))
+    recoverWith((isServerReachable) => Message.FailedFetchSettings({ isServerReachable }))
   ),
 })
 
 // Without settings the frame shows only its start screen, so retry steadily until the server answers.
 export const RetrySettings = Command.define('RetrySettings', {
-  messages: [SucceededFetchSettings, FailedFetchSettings],
+  messages: [Message.SucceededFetchSettings, Message.FailedFetchSettings],
   execute: Effect.sleep(SETTINGS_RETRY).pipe(
     Effect.andThen(fetchSettings()),
     Effect.tapError((failure) => Effect.logWarning('FailedFetchSettings', failure)),
-    recoverWith((isServerReachable) => FailedFetchSettings({ isServerReachable }))
+    recoverWith((isServerReachable) => Message.FailedFetchSettings({ isServerReachable }))
   ),
 })
 
 export const CheckVersion = Command.define('CheckVersion', {
-  messages: [CheckedVersion, FailedCheckVersion],
+  messages: [Message.CheckedVersion, Message.FailedCheckVersion],
   execute: Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
     const response = yield* client.get('/health')
     const health = yield* HttpClientResponse.schemaBodyJson(Health)(response)
-    return CheckedVersion({ version: health.version })
+    return Message.CheckedVersion({ version: health.version })
   }).pipe(
     Effect.tapError((failure) => Effect.logInfo('Frame server unreachable', failure)),
-    Effect.orElseSucceed(() => FailedCheckVersion())
+    Effect.orElseSucceed(() => Message.FailedCheckVersion())
   ),
 })
 
 export const ReloadPage = Command.define('ReloadPage', {
-  messages: [StartedReload],
+  messages: [Message.StartedReload],
   execute: Effect.sync(() => {
     globalThis.location.reload()
-    return StartedReload()
+    return Message.StartedReload()
   }),
 })
 
 export const FetchUpcoming = Command.define('FetchUpcoming', {
   args: { from: CalendarDate },
-  messages: [SucceededFetchUpcoming, FailedFetchUpcoming],
+  messages: [Message.SucceededFetchUpcoming, Message.FailedFetchUpcoming],
   execute: ({ from }) =>
     Effect.gen(function* () {
       const api = yield* Api
       const events = yield* api.GetCalendar(new CalendarWindow({ from, to: addCalendarDays(from, UPCOMING_DAYS) }))
-      return SucceededFetchUpcoming({ events })
+      return Message.SucceededFetchUpcoming({ events })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchUpcoming', failure)),
-      recoverWith((isServerReachable) => FailedFetchUpcoming({ isServerReachable }))
+      recoverWith((isServerReachable) => Message.FailedFetchUpcoming({ isServerReachable }))
     ),
 })
 
 export const FetchWeek = Command.define('FetchWeek', {
   args: { from: CalendarDate },
-  messages: [SucceededFetchWeek, FailedFetchWeek],
+  messages: [Message.SucceededFetchWeek, Message.FailedFetchWeek],
   execute: ({ from }) =>
     Effect.gen(function* () {
       const api = yield* Api
       const events = yield* api.GetCalendar(new CalendarWindow({ from, to: addCalendarDays(from, 7) }))
-      return SucceededFetchWeek({ from, events })
+      return Message.SucceededFetchWeek({ from, events })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchWeek', failure)),
-      recoverWith((isServerReachable) => FailedFetchWeek({ isServerReachable }))
+      recoverWith((isServerReachable) => Message.FailedFetchWeek({ isServerReachable }))
     ),
 })
 
 export const FetchWeather = Command.define('FetchWeather', {
-  messages: [SucceededFetchWeather, FailedFetchWeather],
+  messages: [Message.SucceededFetchWeather, Message.FailedFetchWeather],
   execute: Effect.gen(function* () {
     const api = yield* Api
     const weather = yield* api.GetWeather()
-    return SucceededFetchWeather({ weather })
+    return Message.SucceededFetchWeather({ weather })
   }).pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchWeather', failure)),
-    recoverWith((isServerReachable) => FailedFetchWeather({ isServerReachable }))
+    recoverWith((isServerReachable) => Message.FailedFetchWeather({ isServerReachable }))
   ),
 })
 
 export const FetchShopping = Command.define('FetchShopping', {
-  messages: [SucceededFetchShopping, FailedFetchShopping],
+  messages: [Message.SucceededFetchShopping, Message.FailedFetchShopping],
   execute: Effect.gen(function* () {
     const api = yield* Api
     const items = yield* api.GetShopping()
-    return SucceededFetchShopping({ items })
+    return Message.SucceededFetchShopping({ items })
   }).pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
-    recoverWith((isServerReachable) => FailedFetchShopping({ isServerReachable }))
+    recoverWith((isServerReachable) => Message.FailedFetchShopping({ isServerReachable }))
   ),
 })
 
 export const FetchMedia = Command.define('FetchMedia', {
-  messages: [SucceededFetchMedia, FailedFetchMedia],
+  messages: [Message.SucceededFetchMedia, Message.FailedFetchMedia],
   execute: Effect.gen(function* () {
     const api = yield* Api
     const media = yield* api.GetMedia()
-    return SucceededFetchMedia({ media })
+    return Message.SucceededFetchMedia({ media })
   }).pipe(
     Effect.tapError((failure) => Effect.logWarning('FailedFetchMedia', failure)),
-    recoverWith((isServerReachable) => FailedFetchMedia({ isServerReachable }))
+    recoverWith((isServerReachable) => Message.FailedFetchMedia({ isServerReachable }))
   ),
 })
 
 export const RunMediaAction = Command.define('RunMediaAction', {
   args: { action: MediaAction },
-  messages: [SucceededFetchMedia, FailedMediaAction],
+  messages: [Message.SucceededFetchMedia, Message.FailedMediaAction],
   execute: ({ action }) =>
     Effect.gen(function* () {
       const api = yield* Api
       const media = yield* api.RunMediaAction(action)
-      return SucceededFetchMedia({ media })
+      return Message.SucceededFetchMedia({ media })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedMediaAction', failure)),
-      Effect.orElseSucceed(() => FailedMediaAction())
+      Effect.orElseSucceed(() => Message.FailedMediaAction())
     ),
 })
 
 export const AddShoppingItem = Command.define('AddShoppingItem', {
   args: { summary: Schema.String },
-  messages: [SucceededFetchShopping, FailedFetchShopping],
+  messages: [Message.SucceededFetchShopping, Message.FailedFetchShopping],
   execute: ({ summary }) =>
     Effect.gen(function* () {
       const api = yield* Api
       const items = yield* api.AddShoppingItem(new ShoppingItemAddition({ summary }))
-      return SucceededFetchShopping({ items })
+      return Message.SucceededFetchShopping({ items })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
-      recoverWith((isServerReachable) => FailedFetchShopping({ isServerReachable }))
+      recoverWith((isServerReachable) => Message.FailedFetchShopping({ isServerReachable }))
     ),
 })
 
 export const UpdateShoppingItem = Command.define('UpdateShoppingItem', {
   args: { uid: Schema.String, status: ShoppingItemStatus },
-  messages: [SucceededFetchShopping, FailedFetchShopping],
+  messages: [Message.SucceededFetchShopping, Message.FailedFetchShopping],
   execute: ({ uid, status }) =>
     Effect.gen(function* () {
       const api = yield* Api
       const items = yield* api.UpdateShoppingItem(new ShoppingItemUpdate({ uid, status }))
-      return SucceededFetchShopping({ items })
+      return Message.SucceededFetchShopping({ items })
     }).pipe(
       Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
-      recoverWith((isServerReachable) => FailedFetchShopping({ isServerReachable }))
+      recoverWith((isServerReachable) => Message.FailedFetchShopping({ isServerReachable }))
     ),
 })

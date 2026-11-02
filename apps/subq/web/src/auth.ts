@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
-import { m } from 'foldkit/message'
+import { taggedStruct } from 'foldkit/schema'
 
 import { changePassword, fetchSession, SessionUser, signIn, signOut, signUp } from './adapter/better-auth-http.js'
 import type { BetterAuthHttpError } from './errors.js'
@@ -13,16 +13,16 @@ export { SessionUser }
 // Messages
 // ============================================
 
-export const SucceededFetchSession = m('SucceededFetchSession', {
+export const SucceededFetchSession = taggedStruct('SucceededFetchSession', {
   user: Schema.NullOr(SessionUser),
 })
-export const SucceededSignIn = m('SucceededSignIn', { user: SessionUser })
-export const FailedSignIn = m('FailedSignIn', { message: Schema.String })
-export const SucceededSignUp = m('SucceededSignUp', { user: SessionUser })
-export const FailedSignUp = m('FailedSignUp', { message: Schema.String })
-export const SucceededSignOut = m('SucceededSignOut')
-export const SucceededChangePassword = m('SucceededChangePassword')
-export const FailedChangePassword = m('FailedChangePassword', { message: Schema.String })
+export const SucceededSignIn = taggedStruct('SucceededSignIn', { user: SessionUser })
+export const FailedSignIn = taggedStruct('FailedSignIn', { message: Schema.String })
+export const SucceededSignUp = taggedStruct('SucceededSignUp', { user: SessionUser })
+export const FailedSignUp = taggedStruct('FailedSignUp', { message: Schema.String })
+export const SucceededSignOut = taggedStruct('SucceededSignOut')
+export const SucceededChangePassword = taggedStruct('SucceededChangePassword')
+export const FailedChangePassword = taggedStruct('FailedChangePassword', { message: Schema.String })
 
 export const AuthMessage = Schema.Union([
   SucceededFetchSession,

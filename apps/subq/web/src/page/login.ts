@@ -1,10 +1,10 @@
+import type { HttpClient } from 'effect/http'
 import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
-import type { HttpClient } from 'effect/unstable/http'
-import type { Command } from 'foldkit'
+import type { Update } from 'foldkit'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import { DEMO_USER } from '#shared'
 
@@ -38,12 +38,12 @@ export const initialLoginModel: LoginModel = {
 // Messages
 // ============================================
 
-export const ChangedLoginEmail = m('ChangedLoginEmail', { value: Schema.String })
-export const ChangedLoginPassword = m('ChangedLoginPassword', { value: Schema.String })
-export const ChangedLoginName = m('ChangedLoginName', { value: Schema.String })
-export const ToggledLoginMode = m('ToggledLoginMode')
-export const SubmittedLogin = m('SubmittedLogin')
-export const ClickedDemoLogin = m('ClickedDemoLogin')
+export const ChangedLoginEmail = taggedStruct('ChangedLoginEmail', { value: Schema.String })
+export const ChangedLoginPassword = taggedStruct('ChangedLoginPassword', { value: Schema.String })
+export const ChangedLoginName = taggedStruct('ChangedLoginName', { value: Schema.String })
+export const ToggledLoginMode = taggedStruct('ToggledLoginMode')
+export const SubmittedLogin = taggedStruct('SubmittedLogin')
+export const ClickedDemoLogin = taggedStruct('ClickedDemoLogin')
 
 export const LoginMessage = Schema.Union([
   ChangedLoginEmail,
@@ -65,43 +65,41 @@ type AuthCommandMessage =
   | typeof SucceededSignUp.Type
   | typeof FailedSignUp.Type
 
-type UpdateReturn = readonly [
-  LoginModel,
-  ReadonlyArray<Command.Command<AuthCommandMessage, never, HttpClient.HttpClient>>,
-]
+type UpdateReturn = Update.Return<LoginModel, AuthCommandMessage, HttpClient.HttpClient>
 
 export const updateLogin = (model: LoginModel, message: LoginMessage): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      ChangedLoginEmail: ({ value }) => [evo(model, { email: () => value }), []],
-      ChangedLoginName: ({ value }) => [evo(model, { name: () => value }), []],
-      ChangedLoginPassword: ({ value }) => [evo(model, { password: () => value }), []],
-      ClickedDemoLogin: () => [
-        evo(model, { error: () => null, loading: () => true }),
-        [SignIn({ email: DEMO_USER.email, password: DEMO_USER.password })],
-      ],
-      SubmittedLogin: () => [
-        evo(model, { error: () => null, loading: () => true }),
-        model.mode === 'signup'
-          ? [SignUp({ email: model.email, name: model.name, password: model.password })]
-          : [SignIn({ email: model.email, password: model.password })],
-      ],
-      ToggledLoginMode: () => [
-        evo(model, {
+      ChangedLoginEmail: ({ value }) => ({ model: modifyFields(model, { email: () => value }) }),
+      ChangedLoginName: ({ value }) => ({ model: modifyFields(model, { name: () => value }) }),
+      ChangedLoginPassword: ({ value }) => ({ model: modifyFields(model, { password: () => value }) }),
+      ClickedDemoLogin: () => ({
+        model: modifyFields(model, { error: () => null, loading: () => true }),
+        commands: [SignIn({ email: DEMO_USER.email, password: DEMO_USER.password })],
+      }),
+      SubmittedLogin: () => ({
+        model: modifyFields(model, { error: () => null, loading: () => true }),
+        commands:
+          model.mode === 'signup'
+            ? [SignUp({ email: model.email, name: model.name, password: model.password })]
+            : [SignIn({ email: model.email, password: model.password })],
+      }),
+      ToggledLoginMode: () => ({
+        model: modifyFields(model, {
           error: () => null,
           mode: (mode) => (mode === 'signin' ? 'signup' : 'signin'),
         }),
-        [],
-      ],
+      }),
     })
   )
 
 // Results of the auth commands, applied by the parent update.
-export const loginSucceeded = (model: LoginModel): LoginModel => evo(model, { error: () => null, loading: () => false })
+export const loginSucceeded = (model: LoginModel): LoginModel =>
+  modifyFields(model, { error: () => null, loading: () => false })
 
 export const loginFailed = (model: LoginModel, message: string): LoginModel =>
-  evo(model, { error: () => message, loading: () => false })
+  modifyFields(model, { error: () => message, loading: () => false })
 
 // ============================================
 // View

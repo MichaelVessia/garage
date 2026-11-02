@@ -13,22 +13,22 @@ import * as Schema from 'effect/Schema'
 const envFix =
   'Provision AUTOCALIWEB_URL, AUTOCALIWEB_USERNAME, and AUTOCALIWEB_PASSWORD in the application environment.'
 
-class AutocaliwebEnvMissingError extends Schema.TaggedErrorClass<AutocaliwebEnvMissingError>()(
+class AutocaliwebEnvMissingError extends Schema.TaggedError<AutocaliwebEnvMissingError>()(
   'AutocaliwebEnvMissingError',
   envMissingFields('AUTOCALIWEB_ENV_MISSING')
 ) {}
 
-class AutocaliwebUnreachableError extends Schema.TaggedErrorClass<AutocaliwebUnreachableError>()(
+class AutocaliwebUnreachableError extends Schema.TaggedError<AutocaliwebUnreachableError>()(
   'AutocaliwebUnreachableError',
   unreachableFields('AUTOCALIWEB_UNREACHABLE')
 ) {}
 
-class AutocaliwebHttpError extends Schema.TaggedErrorClass<AutocaliwebHttpError>()(
+class AutocaliwebHttpError extends Schema.TaggedError<AutocaliwebHttpError>()(
   'AutocaliwebHttpError',
   httpErrorFields('AUTOCALIWEB_HTTP_ERROR')
 ) {}
 
-class AutocaliwebDecodeError extends Schema.TaggedErrorClass<AutocaliwebDecodeError>()(
+class AutocaliwebDecodeError extends Schema.TaggedError<AutocaliwebDecodeError>()(
   'AutocaliwebDecodeError',
   decodeErrorFields('AUTOCALIWEB_DECODE_ERROR')
 ) {}

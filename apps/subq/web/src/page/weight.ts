@@ -5,10 +5,11 @@ import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { Command } from 'foldkit'
+import type { Update } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
 import type { HtmlBuilder } from 'foldkit/html'
-import { m } from 'foldkit/message'
-import { evo } from 'foldkit/struct'
+import { taggedStruct } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 
 import {
   IanaTimezone,
@@ -76,34 +77,34 @@ export const initialWeightModel: WeightModel = {
 // Messages
 // ============================================
 
-export const SucceededFetchWeightLogs = m('SucceededFetchWeightLogs', {
+export const SucceededFetchWeightLogs = taggedStruct('SucceededFetchWeightLogs', {
   logs: Schema.Array(WeightLog),
 })
-export const FailedFetchWeightLogs = m('FailedFetchWeightLogs', { message: Schema.String })
-export const CompletedOpenWeightForm = m('CompletedOpenWeightForm', {
+export const FailedFetchWeightLogs = taggedStruct('FailedFetchWeightLogs', { message: Schema.String })
+export const CompletedOpenWeightForm = taggedStruct('CompletedOpenWeightForm', {
   nowLocal: Schema.String,
   log: Schema.NullOr(WeightLog),
 })
-export const ClickedAddWeight = m('ClickedAddWeight')
-export const ClickedEditWeight = m('ClickedEditWeight', { log: WeightLog })
-export const ClickedCancelWeightForm = m('ClickedCancelWeightForm')
-export const ChangedWeightDatetime = m('ChangedWeightDatetime', { value: Schema.String })
-export const ChangedWeightValue = m('ChangedWeightValue', { value: Schema.String })
-export const ChangedWeightNotes = m('ChangedWeightNotes', { value: Schema.String })
-export const SubmittedWeightForm = m('SubmittedWeightForm', {
+export const ClickedAddWeight = taggedStruct('ClickedAddWeight')
+export const ClickedEditWeight = taggedStruct('ClickedEditWeight', { log: WeightLog })
+export const ClickedCancelWeightForm = taggedStruct('ClickedCancelWeightForm')
+export const ChangedWeightDatetime = taggedStruct('ChangedWeightDatetime', { value: Schema.String })
+export const ChangedWeightValue = taggedStruct('ChangedWeightValue', { value: Schema.String })
+export const ChangedWeightNotes = taggedStruct('ChangedWeightNotes', { value: Schema.String })
+export const SubmittedWeightForm = taggedStruct('SubmittedWeightForm', {
   unit: Schema.Literals(['lbs', 'kg']),
 })
-export const SucceededSaveWeight = m('SucceededSaveWeight')
-export const FailedSaveWeight = m('FailedSaveWeight', { message: Schema.String })
-export const RequestedDeleteWeight = m('RequestedDeleteWeight', { id: WeightLogId })
-export const CancelledDeleteWeight = m('CancelledDeleteWeight')
-export const ConfirmedDeleteWeight = m('ConfirmedDeleteWeight')
-export const SucceededDeleteWeight = m('SucceededDeleteWeight')
-export const FailedDeleteWeight = m('FailedDeleteWeight', { message: Schema.String })
-export const ClickedWeightSort = m('ClickedWeightSort', {
+export const SucceededSaveWeight = taggedStruct('SucceededSaveWeight')
+export const FailedSaveWeight = taggedStruct('FailedSaveWeight', { message: Schema.String })
+export const RequestedDeleteWeight = taggedStruct('RequestedDeleteWeight', { id: WeightLogId })
+export const CancelledDeleteWeight = taggedStruct('CancelledDeleteWeight')
+export const ConfirmedDeleteWeight = taggedStruct('ConfirmedDeleteWeight')
+export const SucceededDeleteWeight = taggedStruct('SucceededDeleteWeight')
+export const FailedDeleteWeight = taggedStruct('FailedDeleteWeight', { message: Schema.String })
+export const ClickedWeightSort = taggedStruct('ClickedWeightSort', {
   column: Schema.Literals(['datetime', 'weight']),
 })
-export const ClickedWeightPage = m('ClickedWeightPage', { delta: Schema.Number })
+export const ClickedWeightPage = taggedStruct('ClickedWeightPage', { delta: Schema.Number })
 
 export const WeightMessage = Schema.Union([
   SucceededFetchWeightLogs,
@@ -200,38 +201,41 @@ type WeightCommandMessage =
   | typeof SucceededDeleteWeight.Type
   | typeof FailedDeleteWeight.Type
 
-type UpdateReturn = readonly [WeightModel, ReadonlyArray<Command.Command<WeightCommandMessage, never, Api>>]
+type UpdateReturn = Update.Return<WeightModel, WeightCommandMessage, Api>
 
 export const fetchWeightLogsIfIdle = (model: WeightModel): UpdateReturn =>
-  AsyncData.isIdle(model.logs) ? [evo(model, { logs: () => AsyncData.Loading() }), [FetchWeightLogs()]] : [model, []]
+  AsyncData.isIdle(model.logs)
+    ? { model: modifyFields(model, { logs: () => AsyncData.Loading() }), commands: [FetchWeightLogs()] }
+    : { model }
 
 export const updateWeight = (model: WeightModel, message: WeightMessage, timezone: IanaTimezone): UpdateReturn =>
   Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      CancelledDeleteWeight: () => [evo(model, { pendingDeleteId: () => null }), []],
-      ChangedWeightDatetime: ({ value }) => [withForm(model, () => ({ datetime: value })), []],
-      ChangedWeightNotes: ({ value }) => [withForm(model, () => ({ notes: value })), []],
-      ChangedWeightValue: ({ value }) => [withForm(model, () => ({ weight: value })), []],
-      ClickedAddWeight: () => [model, [OpenWeightForm({ log: null, timezone })]],
-      ClickedCancelWeightForm: () => [evo(model, { form: () => null }), []],
-      ClickedEditWeight: ({ log }) => [model, [OpenWeightForm({ log, timezone })]],
-      ClickedWeightPage: ({ delta }) => [evo(model, { page: (page) => page + delta }), []],
-      ClickedWeightSort: ({ column }) => [
-        evo(model, {
+      CancelledDeleteWeight: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+      ChangedWeightDatetime: ({ value }) => ({ model: withForm(model, () => ({ datetime: value })) }),
+      ChangedWeightNotes: ({ value }) => ({ model: withForm(model, () => ({ notes: value })) }),
+      ChangedWeightValue: ({ value }) => ({ model: withForm(model, () => ({ weight: value })) }),
+      ClickedAddWeight: () => ({ model, commands: [OpenWeightForm({ log: null, timezone })] }),
+      ClickedCancelWeightForm: () => ({ model: modifyFields(model, { form: () => null }) }),
+      ClickedEditWeight: ({ log }) => ({ model, commands: [OpenWeightForm({ log, timezone })] }),
+      ClickedWeightPage: ({ delta }) => ({ model: modifyFields(model, { page: (page) => page + delta }) }),
+      ClickedWeightSort: ({ column }) => ({
+        model: modifyFields(model, {
           page: () => 0,
           sortColumn: () => column,
           sortDesc: (desc) => (model.sortColumn === column ? !desc : true),
         }),
-        [],
-      ],
+      }),
       ConfirmedDeleteWeight: () =>
-        model.pendingDeleteId === null ? [model, []] : [model, [DeleteWeight({ id: model.pendingDeleteId })]],
-      FailedDeleteWeight: () => [evo(model, { pendingDeleteId: () => null }), []],
-      FailedFetchWeightLogs: ({ message: error }) => [evo(model, { logs: () => AsyncData.Failure({ error }) }), []],
-      FailedSaveWeight: ({ message: error }) => [withForm(model, () => ({ error, submitting: false })), []],
-      CompletedOpenWeightForm: ({ log, nowLocal }) => [
-        evo(model, {
+        model.pendingDeleteId === null ? { model } : { model, commands: [DeleteWeight({ id: model.pendingDeleteId })] },
+      FailedDeleteWeight: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+      FailedFetchWeightLogs: ({ message: error }) => ({
+        model: modifyFields(model, { logs: () => AsyncData.Failure({ error }) }),
+      }),
+      FailedSaveWeight: ({ message: error }) => ({ model: withForm(model, () => ({ error, submitting: false })) }),
+      CompletedOpenWeightForm: ({ log, nowLocal }) => ({
+        model: modifyFields(model, {
           form: () =>
             log === null
               ? {
@@ -256,12 +260,13 @@ export const updateWeight = (model: WeightModel, message: WeightMessage, timezon
                 },
           pendingDeleteId: () => null,
         }),
-        [],
-      ],
-      RequestedDeleteWeight: ({ id }) => [evo(model, { form: () => null, pendingDeleteId: () => id }), []],
+      }),
+      RequestedDeleteWeight: ({ id }) => ({
+        model: modifyFields(model, { form: () => null, pendingDeleteId: () => id }),
+      }),
       SubmittedWeightForm: ({ unit }) => {
         if (model.form === null) {
-          return [model, []]
+          return { model }
         }
         const datetime =
           model.form.originalDatetime !== null &&
@@ -269,15 +274,15 @@ export const updateWeight = (model: WeightModel, message: WeightMessage, timezon
             ? Option.some(model.form.originalDatetime)
             : fromLocalDatetimeString(model.form.datetime, timezone)
         if (Option.isNone(datetime)) {
-          return [withForm(model, () => ({ error: 'Date & time is invalid in your timezone' })), []]
+          return { model: withForm(model, () => ({ error: 'Date & time is invalid in your timezone' })) }
         }
         const parsed = Number.parseFloat(model.form.weight)
         if (Number.isNaN(parsed) || parsed <= 0 || parsed > 1000) {
-          return [withForm(model, () => ({ error: 'Enter a valid weight' })), []]
+          return { model: withForm(model, () => ({ error: 'Enter a valid weight' })) }
         }
-        return [
-          withForm(model, () => ({ error: null, submitting: true })),
-          [
+        return {
+          model: withForm(model, () => ({ error: null, submitting: true })),
+          commands: [
             SaveWeight({
               datetime: datetime.value,
               editingId: model.form.editingId,
@@ -285,17 +290,17 @@ export const updateWeight = (model: WeightModel, message: WeightMessage, timezon
               weightLbs: toStorageLbs(unit, parsed),
             }),
           ],
-        ]
+        }
       },
-      SucceededDeleteWeight: () => [
-        evo(model, { logs: () => AsyncData.Loading(), pendingDeleteId: () => null }),
-        [FetchWeightLogs()],
-      ],
-      SucceededFetchWeightLogs: ({ logs }) => [evo(model, { logs: () => AsyncData.succeed(logs) }), []],
-      SucceededSaveWeight: () => [
-        evo(model, { form: () => null, logs: () => AsyncData.Loading() }),
-        [FetchWeightLogs()],
-      ],
+      SucceededDeleteWeight: () => ({
+        model: modifyFields(model, { logs: () => AsyncData.Loading(), pendingDeleteId: () => null }),
+        commands: [FetchWeightLogs()],
+      }),
+      SucceededFetchWeightLogs: ({ logs }) => ({ model: modifyFields(model, { logs: () => AsyncData.succeed(logs) }) }),
+      SucceededSaveWeight: () => ({
+        model: modifyFields(model, { form: () => null, logs: () => AsyncData.Loading() }),
+        commands: [FetchWeightLogs()],
+      }),
     })
   )
 
@@ -380,17 +385,14 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
               [h.Class('mb-5')],
               [
                 h.label([h.For('weight-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
-                h.textarea(
-                  [
-                    h.Class(input({ class: 'h-auto' })),
-                    h.Id('weight-notes'),
-                    h.Rows(2),
-                    h.Placeholder('e.g., Morning weigh-in, after workout, fasted...'),
-                    h.Value(form.notes),
-                    h.OnInput((value) => ChangedWeightNotes({ value })),
-                  ],
-                  []
-                ),
+                h.textarea([
+                  h.Class(input({ class: 'h-auto' })),
+                  h.Id('weight-notes'),
+                  h.Rows(2),
+                  h.Placeholder('e.g., Morning weigh-in, after workout, fasted...'),
+                  h.Value(form.notes),
+                  h.OnInput((value) => ChangedWeightNotes({ value })),
+                ]),
               ]
             ),
             form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),

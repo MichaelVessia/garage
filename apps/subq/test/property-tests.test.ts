@@ -6,7 +6,6 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Schema from 'effect/Schema'
-import { FastCheck as FC } from 'effect/testing'
 
 import {
   Count,
@@ -23,17 +22,6 @@ import {
   PhaseOrder,
   Weight,
 } from '#shared'
-
-/**
- * Helper to run property tests within Effect context.
- * Uses fast-check directly since bun-test-effect doesn't have it.effect.prop.
- */
-const runProperty = <A>(arbitrary: FC.Arbitrary<A>, predicate: (value: A) => boolean, numRuns = 100): void => {
-  FC.assert(
-    FC.property(arbitrary, (value) => predicate(value)),
-    { numRuns }
-  )
-}
 
 describe('Branded Type Property Tests', () => {
   // ============================================
@@ -74,12 +62,7 @@ describe('Branded Type Property Tests', () => {
   // Weight - positive number
   // ============================================
   describe('Weight', () => {
-    it.effect('accepts any positive number (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(Weight)
-        runProperty(arbitrary, (value) => value > 0)
-      })
-    )
+    it.prop('accepts any positive number (property test)', [Weight], ([value]) => value > 0)
 
     it.effect('rejects zero', () =>
       Effect.sync(() => {
@@ -100,12 +83,7 @@ describe('Branded Type Property Tests', () => {
   // Limit - positive integer
   // ============================================
   describe('Limit', () => {
-    it.effect('accepts any positive integer (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(Limit)
-        runProperty(arbitrary, (value) => value > 0 && Number.isInteger(value))
-      })
-    )
+    it.prop('accepts any positive integer (property test)', [Limit], ([value]) => value > 0 && Number.isInteger(value))
 
     it.effect('rejects zero', () =>
       Effect.sync(() => {
@@ -133,11 +111,10 @@ describe('Branded Type Property Tests', () => {
   // Offset - non-negative integer
   // ============================================
   describe('Offset', () => {
-    it.effect('accepts any non-negative integer (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(Offset)
-        runProperty(arbitrary, (value) => value >= 0 && Number.isInteger(value))
-      })
+    it.prop(
+      'accepts any non-negative integer (property test)',
+      [Offset],
+      ([value]) => value >= 0 && Number.isInteger(value)
     )
 
     it.effect('accepts zero', () =>
@@ -166,11 +143,10 @@ describe('Branded Type Property Tests', () => {
   // Count - non-negative integer
   // ============================================
   describe('Count', () => {
-    it.effect('accepts any non-negative integer (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(Count)
-        runProperty(arbitrary, (value) => value >= 0 && Number.isInteger(value))
-      })
+    it.prop(
+      'accepts any non-negative integer (property test)',
+      [Count],
+      ([value]) => value >= 0 && Number.isInteger(value)
     )
 
     it.effect('accepts zero', () =>
@@ -192,12 +168,7 @@ describe('Branded Type Property Tests', () => {
   // DaysBetween - non-negative number
   // ============================================
   describe('DaysBetween', () => {
-    it.effect('accepts any non-negative number (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(DaysBetween)
-        runProperty(arbitrary, (value) => value >= 0)
-      })
-    )
+    it.prop('accepts any non-negative number (property test)', [DaysBetween], ([value]) => value >= 0)
 
     it.effect('accepts zero', () =>
       Effect.sync(() => {
@@ -225,11 +196,10 @@ describe('Branded Type Property Tests', () => {
   // DayOfWeek - integer 0-6
   // ============================================
   describe('DayOfWeek', () => {
-    it.effect('accepts integers 0-6 (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(DayOfWeek)
-        runProperty(arbitrary, (value) => value >= 0 && value <= 6 && Number.isInteger(value))
-      })
+    it.prop(
+      'accepts integers 0-6 (property test)',
+      [DayOfWeek],
+      ([value]) => value >= 0 && value <= 6 && Number.isInteger(value)
     )
 
     it.effect('rejects 7', () =>
@@ -251,11 +221,10 @@ describe('Branded Type Property Tests', () => {
   // PhaseOrder - positive integer
   // ============================================
   describe('PhaseOrder', () => {
-    it.effect('accepts any positive integer (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(PhaseOrder)
-        runProperty(arbitrary, (value) => value > 0 && Number.isInteger(value))
-      })
+    it.prop(
+      'accepts any positive integer (property test)',
+      [PhaseOrder],
+      ([value]) => value > 0 && Number.isInteger(value)
     )
 
     it.effect('rejects zero', () =>
@@ -277,11 +246,10 @@ describe('Branded Type Property Tests', () => {
   // PhaseDurationDays - positive integer
   // ============================================
   describe('PhaseDurationDays', () => {
-    it.effect('accepts any positive integer (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(PhaseDurationDays)
-        runProperty(arbitrary, (value) => value > 0 && Number.isInteger(value))
-      })
+    it.prop(
+      'accepts any positive integer (property test)',
+      [PhaseDurationDays],
+      ([value]) => value > 0 && Number.isInteger(value)
     )
 
     it.effect('rejects zero', () =>
@@ -303,12 +271,7 @@ describe('Branded Type Property Tests', () => {
   // InjectionsPerWeek - non-negative number
   // ============================================
   describe('InjectionsPerWeek', () => {
-    it.effect('accepts any non-negative number (property test)', () =>
-      Effect.sync(() => {
-        const arbitrary = Schema.toArbitrary(InjectionsPerWeek)
-        runProperty(arbitrary, (value) => value >= 0)
-      })
-    )
+    it.prop('accepts any non-negative number (property test)', [InjectionsPerWeek], ([value]) => value >= 0)
 
     it.effect('accepts zero', () =>
       Effect.sync(() => {
@@ -348,14 +311,10 @@ describe('frequencyToDays Property Tests', () => {
     monthly: 30,
   } satisfies Record<typeof Frequency.Type, number>
 
-  it.effect('returns positive integers for all frequency variants (property test)', () =>
-    Effect.sync(() => {
-      const arbitrary = Schema.toArbitrary(Frequency)
-      runProperty(
-        arbitrary,
-        (frequency) => frequencyToDays(frequency) > 0 && Number.isInteger(frequencyToDays(frequency))
-      )
-    })
+  it.prop(
+    'returns positive integers for all frequency variants (property test)',
+    [Frequency],
+    ([frequency]) => frequencyToDays(frequency) > 0 && Number.isInteger(frequencyToDays(frequency))
   )
 
   it.effect('daily returns 1', () =>
@@ -388,11 +347,10 @@ describe('frequencyToDays Property Tests', () => {
     })
   )
 
-  it.effect('all variants map to correct day counts (property test)', () =>
-    Effect.sync(() => {
-      const arbitrary = Schema.toArbitrary(Frequency)
-      runProperty(arbitrary, (frequency) => frequencyToDays(frequency) === expectedDays[frequency])
-    })
+  it.prop(
+    'all variants map to correct day counts (property test)',
+    [Frequency],
+    ([frequency]) => frequencyToDays(frequency) === expectedDays[frequency]
   )
 
   it.effect('unknown frequency defaults to 7', () =>

@@ -1,7 +1,7 @@
 import * as Effect from 'effect/Effect'
+import { HttpClient, HttpClientRequest } from 'effect/http'
 import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
-import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
 
 import { BetterAuthHttpError } from '../errors.js'
 

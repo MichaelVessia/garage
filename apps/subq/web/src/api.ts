@@ -1,8 +1,8 @@
 import * as Context from 'effect/Context'
 import type * as Effect from 'effect/Effect'
+import { FetchHttpClient } from 'effect/http'
 import * as Layer from 'effect/Layer'
-import { FetchHttpClient } from 'effect/unstable/http'
-import { RpcClient, RpcSerialization } from 'effect/unstable/rpc'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
 
 import { AppRpcs } from '#shared'
 

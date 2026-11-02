@@ -1,10 +1,10 @@
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import type { RpcClientError } from 'effect/rpc/RpcClientError'
 import * as Schema from 'effect/Schema'
-import type { RpcClientError } from 'effect/unstable/rpc/RpcClientError'
 import { Command } from 'foldkit'
 import * as AsyncData from 'foldkit/asyncData'
-import { m } from 'foldkit/message'
+import { taggedStruct } from 'foldkit/schema'
 
 import {
   DEFAULT_WEIGHT_UNIT,
@@ -27,11 +27,11 @@ import { Api } from '../api.js'
 export const SettingsData = AsyncData.Schema(UserSettings, Schema.String).schema
 export type SettingsData = AsyncData.AsyncData<UserSettings, string>
 
-export const SucceededFetchSettings = m('SucceededFetchSettings', {
+export const SucceededFetchSettings = taggedStruct('SucceededFetchSettings', {
   requestGeneration: Schema.Number,
   settings: UserSettings,
 })
-export const FailedFetchSettings = m('FailedFetchSettings', {
+export const FailedFetchSettings = taggedStruct('FailedFetchSettings', {
   message: Schema.String,
   requestGeneration: Schema.Number,
 })

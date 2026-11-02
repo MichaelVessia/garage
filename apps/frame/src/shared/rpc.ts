@@ -1,5 +1,5 @@
+import { Rpc, RpcGroup } from 'effect/rpc'
 import * as Schema from 'effect/Schema'
-import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
 import { MediaActionRejected, UpstreamUnavailable } from './errors.js'
 import { MediaAction, MediaSnapshot } from './media.js'
