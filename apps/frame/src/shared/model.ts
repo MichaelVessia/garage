@@ -12,22 +12,10 @@ export class FrameSettings extends Schema.Class<FrameSettings, { readonly brand:
   timezone: IanaTimezone,
 }) {}
 
-/** A colour picked for an event in Google Calendar, by Google's name for it. */
-const EventColor = Schema.Literals([
-  'lavender',
-  'sage',
-  'grape',
-  'flamingo',
-  'banana',
-  'tangerine',
-  'peacock',
-  'graphite',
-  'blueberry',
-  'basil',
-  'tomato',
-])
+/** The colour Google Calendar shows an event in, as lowercase `#rrggbb`. */
+export const EventColor = Schema.String.check(Schema.isPattern(/^#[0-9a-f]{6}$/u))
 
-/** A colour picked for an event in Google Calendar, by Google's name for it. */
+/** The colour Google Calendar shows an event in, as lowercase `#rrggbb`. */
 export type EventColor = typeof EventColor.Type
 
 /** An event occurrence with start and end instants. */

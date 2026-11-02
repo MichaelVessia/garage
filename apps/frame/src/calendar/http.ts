@@ -1,6 +1,6 @@
 import { Credentials } from '@distilled.cloud/google-workspace'
-import { listEvents } from '@distilled.cloud/google-workspace/calendar_v3'
-import type { ListEventsError } from '@distilled.cloud/google-workspace/calendar_v3'
+import { getCalendars, listEvents } from '@distilled.cloud/google-workspace/calendar_v3'
+import type { GetCalendarsError, ListEventsError } from '@distilled.cloud/google-workspace/calendar_v3'
 import * as Clock from 'effect/Clock'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
 import * as Signature from 'effect/crypto/Signature'
@@ -28,7 +28,7 @@ import type { CalendarEvent } from '#shared'
 import { calendarDecodeError, calendarHttpError, calendarUnreachable, envInvalid } from '../errors.js'
 import type { CalendarError } from '../errors.js'
 import { FrameTimezone } from '../settings.js'
-import { listWindow, toOccurrences } from './google.js'
+import { labelColors, listWindow, toOccurrences } from './google.js'
 import { CalendarConfig, CalendarFeed } from './services.js'
 import type { InstantRange } from './services.js'
 
@@ -83,7 +83,7 @@ const STATUS_BY_TAG = {
 } satisfies Record<string, number>
 
 // Google's error messages can echo request details, so only the status survives.
-const toCalendarError = (error: ListEventsError): CalendarError =>
+const toCalendarError = (error: ListEventsError | GetCalendarsError): CalendarError =>
   Match.value(error).pipe(
     Match.tag('HttpClientError', () => calendarUnreachable({ message: 'Google Calendar could not be reached' })),
     Match.tag('GoogleWorkspaceParseError', () =>
@@ -102,7 +102,7 @@ export const CalendarFeedLive: Layer.Layer<
 > = Layer.effect(
   CalendarFeed,
   Effect.gen(function* () {
-    const { calendarId, serviceAccount } = yield* CalendarConfig
+    const { calendarId, serviceAccount, calendarColor } = yield* CalendarConfig
     const { timezone } = yield* FrameTimezone
     const client = yield* HttpClient.HttpClient
     const signature = yield* Signature.Signature
@@ -174,20 +174,26 @@ export const CalendarFeedLive: Layer.Layer<
     const download = Effect.fn('frame.calendar.download')(function* (range: InstantRange) {
       const token = yield* accessToken()
 
-      const events = yield* listEvents
-        .items({ calendarId, ...listWindow(range), singleEvents: true, maxResults: 2500 })
-        .pipe(
-          Stream.runCollect,
-          Effect.provideService(Credentials, Effect.succeed({ accessToken: token })),
-          Effect.provideService(HttpClient.HttpClient, client),
-          // A rejected token is signed in again on the next request.
-          Effect.tapError((error) =>
-            P.isTagged(error, 'Unauthorized') ? Ref.set(tokens, Option.none()) : Effect.void
-          ),
-          Effect.mapError(toCalendarError)
-        )
+      // The calendar carries the event labels; reading it with the events keeps label colour changes current.
+      const { events, calendar } = yield* Effect.all(
+        {
+          events: listEvents
+            .items({ calendarId, ...listWindow(range), singleEvents: true, maxResults: 2500 })
+            .pipe(Stream.runCollect),
+          calendar: getCalendars({ calendarId }),
+        },
+        { concurrency: 2 }
+      ).pipe(
+        Effect.provideService(Credentials, Effect.succeed({ accessToken: token })),
+        Effect.provideService(HttpClient.HttpClient, client),
+        // A rejected token is signed in again on the next request.
+        Effect.tapError((error) => (P.isTagged(error, 'Unauthorized') ? Ref.set(tokens, Option.none()) : Effect.void)),
+        Effect.mapError(toCalendarError)
+      )
 
-      return yield* toOccurrences(events, timezone)
+      const labels = labelColors(calendar.labelProperties?.eventLabels ?? [])
+
+      return yield* toOccurrences(events, { timezone, palette: { labels, calendarColor } })
     })
 
     return CalendarFeed.of({

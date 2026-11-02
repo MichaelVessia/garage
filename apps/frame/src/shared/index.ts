@@ -15,6 +15,7 @@ export {
   AllDayEvent,
   CalendarEvent,
   CalendarWindow,
+  EventColor,
   FrameSettings,
   FrameVersion,
   ShoppingItem,
@@ -25,7 +26,7 @@ export {
   Weather,
 } from './model.js'
 
-export type { EventColor, ForecastDay } from './model.js'
+export type { ForecastDay } from './model.js'
 
 export { MediaAction, MediaSnapshot } from './media.js'
 

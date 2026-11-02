@@ -8,7 +8,7 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 
 - **Frame**: the PF1007L display (1280 × 800, Android 6, System WebView 106) running a full-screen kiosk.
 - **Family calendar**: one shared Google calendar read through the Google Calendar API as a service account it is shared with.
-- **Event colour**: the colour picked for an event in Google Calendar, shown with Google's own shade; events without one stay neutral.
+- **Event colour**: the colour Google Calendar shows an event in: its label colour, else its classic colour, else the calendar's colour (`GOOGLE_CALENDAR_COLOR`); events with none stay neutral.
 - **Occurrence**: one expanded instance of a calendar event inside a requested window; either timed (UTC instants) or all-day (local dates, exclusive end).
 - **Calendar window**: a local-date range, `to` exclusive, resolved to instants in the frame timezone.
 - **Frame timezone**: the household IANA timezone the server owns; it places all-day events, floating times, and "today".
