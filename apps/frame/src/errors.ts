@@ -52,6 +52,7 @@ class HomeAssistantDecodeError extends Schema.TaggedError<HomeAssistantDecodeErr
 
 const CalendarError = Schema.Union([
   FrameEnvMissingError,
+  FrameEnvInvalidError,
   CalendarUnreachableError,
   CalendarHttpError,
   CalendarDecodeError,
@@ -75,24 +76,25 @@ export const envMissing = makeEnvMissing(FrameEnvMissingError, 'FRAME_ENV_MISSIN
 export const envInvalid = (variable: string, reason: string) =>
   new FrameEnvInvalidError({ code: 'FRAME_ENV_INVALID', message: `${variable} is invalid: ${reason}`, fix: envFix })
 
-// The calendar URL is a credential, so adapter messages never include it or an upstream error message.
+// The service account key and access tokens are credentials, so adapter messages never include them or an
+// upstream error message.
 export const calendarUnreachable = makeUnreachable(
   CalendarUnreachableError,
   'CALENDAR_UNREACHABLE',
-  'Verify this host can reach Google Calendar and CALENDAR_ICS_URL is the secret iCal address.'
+  'Verify this host can reach oauth2.googleapis.com and www.googleapis.com.'
 )
 
 export const calendarHttpError = makeHttpError(
   CalendarHttpError,
   'CALENDAR_HTTP_ERROR',
-  'The calendar feed',
-  'Check that CALENDAR_ICS_URL is current; resetting the secret address in Google invalidates the old one.'
+  'Google Calendar',
+  'Check that GOOGLE_SERVICE_ACCOUNT_KEY is a current key and GOOGLE_CALENDAR_ID is shared with that account.'
 )
 
 export const calendarDecodeError = makeDecodeError(
   CalendarDecodeError,
   'CALENDAR_DECODE_ERROR',
-  'Inspect the calendar feed for malformed iCalendar data.'
+  'Update the calendar mapping to match the Google Calendar event shape.'
 )
 
 export const homeAssistantUnreachable = makeUnreachable(

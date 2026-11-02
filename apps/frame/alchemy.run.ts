@@ -58,7 +58,8 @@ export default Alchemy.Stack(
       restart: 'unless-stopped',
       environment: {
         ...(yield* optionalSettings),
-        CALENDAR_ICS_URL: yield* Config.Redacted('CALENDAR_ICS_URL'),
+        GOOGLE_CALENDAR_ID: yield* Config.NonEmptyString('GOOGLE_CALENDAR_ID'),
+        GOOGLE_SERVICE_ACCOUNT_KEY: yield* Config.Redacted('GOOGLE_SERVICE_ACCOUNT_KEY'),
         HOME_ASSISTANT_URL: yield* Config.NonEmptyString('HOME_ASSISTANT_URL'),
         HOME_ASSISTANT_TOKEN: yield* Config.Redacted('HOME_ASSISTANT_TOKEN'),
       },

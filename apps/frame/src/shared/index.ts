@@ -21,7 +21,7 @@ export {
   TimedEvent,
   Weather,
 } from './model.js'
-export type { ForecastDay } from './model.js'
+export type { EventColor, ForecastDay } from './model.js'
 export { MediaAction, MediaSnapshot } from './media.js'
 export type { MediaCard, MediaControl, MediaPlayer, MediaPlayerStatus, SpeakerZone, SpeakerZones } from './media.js'
 export { FrameRpcs } from './rpc.js'

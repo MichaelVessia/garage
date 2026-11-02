@@ -114,6 +114,9 @@ const viewClockDigits = (h: H, time: string): ReadonlyArray<Html> =>
 const classes = (...names: ReadonlyArray<string | false>): string =>
   names.filter((name): name is string => name !== false && name !== '').join(' ')
 
+// The colour picked for the event in Google Calendar; uncoloured events keep the neutral mark.
+const colorClass = (event: CalendarEvent): string | false => event.color !== null && `ev-${event.color}`
+
 // ============================================
 // Shared pieces
 // ============================================
@@ -121,7 +124,7 @@ const classes = (...names: ReadonlyArray<string | false>): string =>
 const viewNotice = (h: H, text: string) => h.p([h.Class('notice')], [text])
 
 const viewChip = (h: H, event: CalendarEvent) =>
-  h.li([h.Key(event.id), h.Class('chip')], [h.span([h.Class('chip-text')], [event.title])])
+  h.li([h.Key(event.id), h.Class(classes('chip', colorClass(event)))], [h.span([h.Class('chip-text')], [event.title])])
 
 const viewEventRow = (
   h: H,
@@ -131,7 +134,10 @@ const viewEventRow = (
   options: { readonly isNext: boolean; readonly day: Option.Option<string> }
 ) =>
   h.li(
-    [h.Key(event.id), h.Class(classes('row', options.isNext && 'is-next', hasEnded(event, now) && 'is-past'))],
+    [
+      h.Key(event.id),
+      h.Class(classes('row', colorClass(event), options.isNext && 'is-next', hasEnded(event, now) && 'is-past')),
+    ],
     [
       h.span([h.Class('row-time num')], [eventTime(event, timezone)]),
       h.span(
@@ -518,6 +524,7 @@ const viewWeekEvent = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: 
       h.Class(
         classes(
           'wk-ev',
+          colorClass(event),
           isAllDay(event) && 'is-allday',
           isHappening(event, now) && 'is-now',
           hasEnded(event, now) && 'is-past'

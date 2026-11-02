@@ -466,6 +466,53 @@ select.field {
   box-shadow: var(--elevation), var(--edge);
 }
 
+/* ---------------------------------------------------------------- event colours */
+/* Google Calendar's event palette, so an event picked a colour in Google shows that colour here.
+   Uncoloured events fall back to the neutral line colour. */
+.ev-lavender {
+  --ev: #7986cb;
+}
+
+.ev-sage {
+  --ev: #33b679;
+}
+
+.ev-grape {
+  --ev: #8e24aa;
+}
+
+.ev-flamingo {
+  --ev: #e67c73;
+}
+
+.ev-banana {
+  --ev: #f6bf26;
+}
+
+.ev-tangerine {
+  --ev: #f4511e;
+}
+
+.ev-peacock {
+  --ev: #039be5;
+}
+
+.ev-graphite {
+  --ev: #616161;
+}
+
+.ev-blueberry {
+  --ev: #3f51b5;
+}
+
+.ev-basil {
+  --ev: #0b8043;
+}
+
+.ev-tomato {
+  --ev: #d50000;
+}
+
 /* ---------------------------------------------------------------- agenda pieces */
 .chips {
   display: flex;
@@ -481,6 +528,16 @@ select.field {
   background: var(--sunken);
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.chip::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--ev, var(--line));
 }
 
 .chip-text {
@@ -524,6 +581,8 @@ select.field {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  padding-left: 14px;
+  box-shadow: inset 4px 0 0 var(--ev, var(--line));
 }
 
 .row-title {
@@ -868,9 +927,11 @@ select.field {
 
 .wk-ev {
   flex: none;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 14px;
   border-radius: 10px;
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow:
+    inset 4px 0 0 var(--ev, var(--line)),
+    inset 0 0 0 1px var(--line);
 }
 
 .wk-time {
@@ -893,12 +954,12 @@ select.field {
 
 .wk-ev.is-allday {
   background: var(--sunken);
-  box-shadow: none;
+  box-shadow: inset 4px 0 0 var(--ev, var(--line));
 }
 
 .wk-ev.is-now {
   background: var(--accent-tint);
-  box-shadow: none;
+  box-shadow: inset 4px 0 0 var(--ev, var(--line));
 }
 
 .wk-ev.is-now .wk-time {

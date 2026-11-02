@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from '@effect/vitest'
+import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
 import * as Scene from 'foldkit/scene'
@@ -353,6 +354,24 @@ describe('frame app', () => {
     expect(html).toContain('Dentist')
     expect(html).toContain('Tomorrow')
     expect(html).toContain('in 13 h')
+  })
+
+  it('marks each event with the colour picked in Google Calendar', () => {
+    const coloured = Arr.map(events, (event): CalendarEvent => ({
+      ...event,
+      color: event._tag === 'AllDayEvent' ? 'tomato' : 'peacock',
+    }))
+    const loaded: Model = {
+      ...ready,
+      upcoming: { data: Option.some(coloured), failed: false },
+      week: { data: Option.some(coloured), failed: false },
+    }
+
+    const todayHtml = rendered(loaded)
+    expect(todayHtml).toContain('"ev-peacock":true')
+    expect(todayHtml).toContain('"ev-tomato":true')
+    expect(rendered({ ...loaded, screen: 'calendar' })).toContain('"ev-peacock":true')
+    expect(rendered(ready)).not.toContain('"ev-')
   })
 
   it('uses the light theme by day and the dark theme from 20:00 to 06:59', () => {

@@ -12,12 +12,29 @@ export class FrameSettings extends Schema.Class<FrameSettings>('FrameSettings')(
   timezone: IanaTimezone,
 }) {}
 
+/** A colour picked for an event in Google Calendar, by Google's name for it. */
+const EventColor = Schema.Literals([
+  'lavender',
+  'sage',
+  'grape',
+  'flamingo',
+  'banana',
+  'tangerine',
+  'peacock',
+  'graphite',
+  'blueberry',
+  'basil',
+  'tomato',
+])
+/** A colour picked for an event in Google Calendar, by Google's name for it. */
+export type EventColor = typeof EventColor.Type
+
 /** An event occurrence with start and end instants. */
 export const TimedEvent = Schema.TaggedStruct('TimedEvent', {
   id: Schema.String,
   title: Schema.String,
   location: Schema.NullOr(Schema.String),
-  color: Schema.NullOr(Schema.String),
+  color: Schema.NullOr(EventColor),
   start: Schema.DateTimeUtc,
   end: Schema.DateTimeUtc,
 })
@@ -29,7 +46,7 @@ export const AllDayEvent = Schema.TaggedStruct('AllDayEvent', {
   id: Schema.String,
   title: Schema.String,
   location: Schema.NullOr(Schema.String),
-  color: Schema.NullOr(Schema.String),
+  color: Schema.NullOr(EventColor),
   startDate: CalendarDate,
   endDate: CalendarDate,
 })

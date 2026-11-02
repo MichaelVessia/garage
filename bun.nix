@@ -397,6 +397,10 @@
     url = "https://registry.npmjs.org/@distilled.cloud/core/-/core-1.0.0-rc.17.tgz";
     hash = "sha512-BHcVEtqIbyyqU3S3o8DjUtqoAJ4FLnsb4BX3nTK2+mcDARS2Puc+Qak6sn+b+W5CRKOOWyrhltbc+kaYDUwxeQ==";
   };
+  "@distilled.cloud/google-workspace@1.0.0-rc.17" = fetchurl {
+    url = "https://registry.npmjs.org/@distilled.cloud/google-workspace/-/google-workspace-1.0.0-rc.17.tgz";
+    hash = "sha512-VDt6IiDHWN+Nw7ZJqk4tVhGaxnLUZ8jSpyJss9C8UmITqbcPqn6WuY7c2l6QulujAPKcRhtWkaycpxxkxWyzvA==";
+  };
   "@distilled.cloud/iceberg@1.0.0-rc.17" = fetchurl {
     url = "https://registry.npmjs.org/@distilled.cloud/iceberg/-/iceberg-1.0.0-rc.17.tgz";
     hash = "sha512-hO9Kqc91dq7SLBCagxlr2RDSTbp7/urqjfxNitSNaaOyKIsUr85llsADT/rS6H85ezOsGf2vSP5y1Qk0kQWLCg==";
@@ -2551,10 +2555,6 @@
   "human-signals@8.0.1" = fetchurl {
     url = "https://registry.npmjs.org/human-signals/-/human-signals-8.0.1.tgz";
     hash = "sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==";
-  };
-  "ical.js@2.2.1" = fetchurl {
-    url = "https://registry.npmjs.org/ical.js/-/ical.js-2.2.1.tgz";
-    hash = "sha512-yK/UlPbEs316igb/tjRgbFA8ZV75rCsBJp/hWOatpyaPNlgw0dGDmU+FoicOcwX4xXkeXOkYiOmCqNPFpNPkQg==";
   };
   "iconv-lite@0.6.3" = fetchurl {
     url = "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.6.3.tgz";
