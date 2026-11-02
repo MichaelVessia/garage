@@ -115,7 +115,7 @@ const classes = (...names: ReadonlyArray<string | false>): string =>
   names.filter((name): name is string => name !== false && name !== '').join(' ')
 
 // The colour picked for the event in Google Calendar; uncoloured events keep the neutral mark.
-const colorClass = (event: CalendarEvent): string | false => event.color !== null && `ev-${event.color}`
+const colorClass = (event: CalendarEvent): string | false => event.color !== null && `is-coloured ev-${event.color}`
 
 // ============================================
 // Shared pieces

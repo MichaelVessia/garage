@@ -467,50 +467,62 @@ select.field {
 }
 
 /* ---------------------------------------------------------------- event colours */
-/* Google Calendar's event palette, so an event picked a colour in Google shows that colour here.
-   Uncoloured events fall back to the neutral line colour. */
+/* Google Calendar's event palette as solid fills, so an event coloured in Google reads as that
+   colour from across the room. `--on-ev` is white or Ink, whichever passes 4.5:1 on the fill.
+   Uncoloured events stay neutral. */
 .ev-lavender {
   --ev: #7986cb;
+  --on-ev: #14171c;
 }
 
 .ev-sage {
   --ev: #33b679;
+  --on-ev: #14171c;
 }
 
 .ev-grape {
   --ev: #8e24aa;
+  --on-ev: #ffffff;
 }
 
 .ev-flamingo {
   --ev: #e67c73;
+  --on-ev: #14171c;
 }
 
 .ev-banana {
   --ev: #f6bf26;
+  --on-ev: #14171c;
 }
 
 .ev-tangerine {
   --ev: #f4511e;
+  --on-ev: #14171c;
 }
 
 .ev-peacock {
   --ev: #039be5;
+  --on-ev: #14171c;
 }
 
 .ev-graphite {
   --ev: #616161;
+  --on-ev: #ffffff;
 }
 
 .ev-blueberry {
   --ev: #3f51b5;
+  --on-ev: #ffffff;
 }
 
 .ev-basil {
   --ev: #0b8043;
+  --on-ev: #ffffff;
 }
 
 .ev-tomato {
   --ev: #d50000;
+  --on-ev: #ffffff;
 }
 
 /* ---------------------------------------------------------------- agenda pieces */
@@ -537,7 +549,16 @@ select.field {
   width: 12px;
   height: 12px;
   border-radius: 6px;
-  background: var(--ev, var(--line));
+  background: var(--line);
+}
+
+.chip.is-coloured {
+  background: var(--ev);
+  color: var(--on-ev);
+}
+
+.chip.is-coloured::before {
+  display: none;
 }
 
 .chip-text {
@@ -582,7 +603,7 @@ select.field {
   flex-direction: column;
   min-width: 0;
   padding-left: 14px;
-  box-shadow: inset 4px 0 0 var(--ev, var(--line));
+  box-shadow: inset 4px 0 0 var(--line);
 }
 
 .row-title {
@@ -619,6 +640,29 @@ select.field {
 
 .more:active {
   color: var(--ink);
+}
+
+.row.is-coloured {
+  margin: 4px -16px;
+  padding: 14px 16px;
+  border-radius: var(--r-sm);
+  background: var(--ev);
+  box-shadow: none;
+}
+
+.row.is-coloured .row-main {
+  padding-left: 0;
+  box-shadow: none;
+}
+
+.row.is-coloured .row-time,
+.row.is-coloured .row-title,
+.row.is-coloured .row-where {
+  color: var(--on-ev);
+}
+
+.row.is-coloured.is-past {
+  opacity: 0.55;
 }
 
 .row.is-next .row-time {
@@ -929,9 +973,7 @@ select.field {
   flex: none;
   padding: 8px 10px 8px 14px;
   border-radius: 10px;
-  box-shadow:
-    inset 4px 0 0 var(--ev, var(--line)),
-    inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .wk-time {
@@ -954,12 +996,29 @@ select.field {
 
 .wk-ev.is-allday {
   background: var(--sunken);
-  box-shadow: inset 4px 0 0 var(--ev, var(--line));
+  box-shadow: none;
 }
 
 .wk-ev.is-now {
   background: var(--accent-tint);
-  box-shadow: inset 4px 0 0 var(--ev, var(--line));
+  box-shadow: none;
+}
+
+.wk-ev.is-coloured {
+  background: var(--ev);
+  color: var(--on-ev);
+  box-shadow: none;
+}
+
+.wk-ev.is-coloured .wk-time {
+  color: var(--on-ev);
+}
+
+/* A coloured event happening now keeps its colour and gains an Ink ring. */
+.wk-ev.is-coloured.is-now {
+  box-shadow:
+    0 0 0 2px var(--card),
+    0 0 0 4px var(--ink);
 }
 
 .wk-ev.is-now .wk-time {

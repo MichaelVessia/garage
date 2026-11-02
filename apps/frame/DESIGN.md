@@ -250,7 +250,7 @@ A cool, low-chroma neutral palette with one indigo accent and two state colours,
 
 **The State-Only Rule.** Green means on, playing, or done. Red means offline. A colour that is not one of these states stays neutral. The one exception is the Event-Colour Rule.
 
-**The Event-Colour Rule.** An event shows the colour picked for it in Google Calendar, in Google's own shade, as a 4 px bar on agenda rows and week cards or a 12 px dot on all-day chips. The mark never fills a card, colours text, or replaces the indigo now-and-next tint. Events without a Google colour show the bar in Hairline.
+**The Event-Colour Rule.** An event coloured in Google Calendar fills its row, week card, or all-day chip with Google's own shade, so the colour coding reads from across the room. Its text is white or Ink, whichever passes 4.5:1 on that fill. Uncoloured events stay neutral. A coloured next event keeps the indigo countdown badge, and a coloured event happening now gains an Ink ring.
 
 **The Six-Digit Rule.** Colours are 6-digit hex or `rgba()`. WebView 106 cannot use `oklch()`, `color-mix()`, or 4- and 8-digit hex.
 
@@ -385,7 +385,7 @@ Soft, consistent corners. Cards and rail items use 16 px. Inner surfaces (fields
 ### Don't:
 - **Don't** use CSS nesting, `:has()`, `oklch()`, `color-mix()`, `dvh`/`svh`/`lvh`, 4- or 8-digit hex, or JavaScript APIs newer than Chrome 106. The WebView 106 build check rejects them.
 - **Don't** load fonts or icons from the network. The frame is offline; Figtree is self-hosted and icons are inline SVG.
-- **Don't** add colours other than green and red states and Google's event colours, or let an event colour fill a card or tint its text.
+- **Don't** add colours other than green and red states and Google's event colours, or put text on an event fill below 4.5:1 contrast.
 - **Don't** add text smaller than 16 px, or put information meant for across the room below 22 px.
 - **Don't** rely on hover or keyboard focus for any state; the frame is touch only.
 - **Don't** animate anything except short state transitions (160 ms ease-out), and keep rendering light for the 1 GB device.
