@@ -34,10 +34,11 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 - Credentials never reach the browser, logs, spans, or error messages; RPC failures carry a fixed `UpstreamUnavailable` message.
 - Calendar fixtures are synthetic.
 - Built assets stay within Chromium 106 JavaScript and the CSS the frame's WebView accepts.
+- `/health` reports the build id the page was stamped with; the frame reloads when it changes.
 
 ## Boundaries and dependencies
 
-External systems are Google Calendar (secret iCalendar URL over HTTPS) and Home Assistant REST. `src/calendar/` and `src/home-assistant/` each own one adapter; `src/handlers.ts` maps them to the shared RPC contract in `src/shared/`; `src/main.ts` composes configuration, adapters, and the Bun server.
+External systems are Google Calendar (secret iCalendar URL over HTTPS) and Home Assistant REST. Alchemy (`alchemy.run.ts`) deploys the Nix-built image to a Docker host over SSH. `src/calendar/` and `src/home-assistant/` each own one adapter; `src/handlers.ts` maps them to the shared RPC contract in `src/shared/`; `src/main.ts` composes configuration, adapters, and the Bun server.
 
 ## References
 

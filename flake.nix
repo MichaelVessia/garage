@@ -103,6 +103,77 @@
           };
         };
       };
+      framePackageJson = builtins.fromJSON (builtins.readFile ./apps/frame/package.json);
+      garageFrame = mkBunExecutable {
+        name = "garage-frame";
+        workspace = "frame";
+        entrypoint = "apps/frame/src/main.ts";
+      };
+      # The frame's SPA, built and checked against Android WebView 106 from source.
+      garageFrameWeb = pkgs.stdenv.mkDerivation {
+        pname = "garage-frame-web";
+        version = framePackageJson.version;
+        src = ./.;
+
+        nativeBuildInputs = [
+          bun2nix'.hook
+          pkgs.bun
+        ];
+
+        inherit bunDeps bunInstallFlags;
+
+        dontUseBunBuild = true;
+        dontUseBunCheck = true;
+        dontUseBunInstall = true;
+        dontRunLifecycleScripts = true;
+
+        buildPhase = ''
+          runHook preBuild
+
+          cd apps/frame
+          bun --bun run build
+
+          runHook postBuild
+        '';
+
+        installPhase = ''
+          runHook preInstall
+
+          cp -r web/dist "$out"
+
+          runHook postInstall
+        '';
+      };
+      # Names one server + SPA build: the image tag, and the version /health reports so the frame reloads.
+      garageFrameBuildId = builtins.substring 0 16 (builtins.hashString "sha256"
+        (builtins.unsafeDiscardStringContext "${garageFrame}${garageFrameWeb}"));
+      garageFrameImage = pkgs.dockerTools.buildLayeredImage {
+        name = "garage-frame";
+        tag = garageFrameBuildId;
+        contents = [
+          garageFrame
+          pkgs.busybox
+          pkgs.cacert
+        ];
+        config = {
+          Cmd = ["${garageFrame}/bin/garage-frame"];
+          User = "65532:65532";
+          Env = [
+            "FRAME_BUILD_ID=${garageFrameBuildId}"
+            "FRAME_PORT=8080"
+            "FRAME_WEB_ROOT=${garageFrameWeb}"
+            "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+          ];
+          ExposedPorts = {"8080/tcp" = {};};
+          Healthcheck = {
+            Test = ["CMD" "${pkgs.busybox}/bin/wget" "--quiet" "--spider" "http://127.0.0.1:8080/health"];
+            Interval = 30000000000;
+            Timeout = 5000000000;
+            Retries = 3;
+            StartPeriod = 5000000000;
+          };
+        };
+      };
       piExtensionsPackageJson = builtins.fromJSON (builtins.readFile ./packages/pi-extensions/package.json);
       piExtensions = pkgs.stdenv.mkDerivation {
         pname = "garage-pi-extensions";
@@ -150,6 +221,10 @@
       packages = rec {
         garage-mcp = garageMcp;
         garage-mcp-image = garageMcpImage;
+
+        garage-frame = garageFrame;
+        garage-frame-web = garageFrameWeb;
+        garage-frame-image = garageFrameImage;
 
         pi-extensions = piExtensions;
 

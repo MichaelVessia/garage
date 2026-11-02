@@ -4,3 +4,9 @@ import * as Schema from 'effect/Schema'
 export class WebviewIncompatible extends Schema.TaggedErrorClass<WebviewIncompatible>()('WebviewIncompatible', {
   findings: Schema.Array(Schema.String),
 }) {}
+
+/** The deployed server did not report the expected build in time. */
+export class DeployNotLive extends Schema.TaggedErrorClass<DeployNotLive>()('DeployNotLive', {
+  expected: Schema.String,
+  observed: Schema.String,
+}) {}
