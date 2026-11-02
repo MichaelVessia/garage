@@ -28,16 +28,18 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
     return yield* Console.log(`${imageRef} is already on the frame host`)
   }
 
-  const tarball = yield* spawner.string(
+  // The image output is a script that streams the uncompressed image tar; pipe it into the host.
+  const streamImage = yield* spawner.string(
     ChildProcess.make('nix', ['build', '--no-link', '--print-out-paths', '../..#garage-frame-image'], {
       stderr: 'inherit',
     })
   )
   const loaded = yield* spawner.exitCode(
-    ChildProcess.make('docker', ['-H', dockerHost, 'load', '-i', tarball.trim()], {
-      stdout: 'inherit',
-      stderr: 'inherit',
-    })
+    ChildProcess.make(streamImage.trim(), [], { stderr: 'inherit' }).pipe(
+      ChildProcess.pipeTo(
+        ChildProcess.make('docker', ['-H', dockerHost, 'load'], { stdout: 'inherit', stderr: 'inherit' })
+      )
+    )
   )
   if (loaded !== 0) {
     return yield* new ImageLoadFailed({
