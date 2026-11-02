@@ -5,6 +5,12 @@ export class WebviewIncompatible extends Schema.TaggedErrorClass<WebviewIncompat
   findings: Schema.Array(Schema.String),
 }) {}
 
+/** The frame host's Docker daemon did not load the Nix-built image. */
+export class ImageLoadFailed extends Schema.TaggedErrorClass<ImageLoadFailed>()('ImageLoadFailed', {
+  image: Schema.String,
+  exitCode: Schema.Number,
+}) {}
+
 /** The deployed server did not report the expected build in time. */
 export class DeployNotLive extends Schema.TaggedErrorClass<DeployNotLive>()('DeployNotLive', {
   expected: Schema.String,

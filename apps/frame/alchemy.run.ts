@@ -1,11 +1,8 @@
 import * as Alchemy from 'alchemy'
-import * as Command from 'alchemy/Command'
 import * as Docker from 'alchemy/Docker'
-import * as Output from 'alchemy/Output'
 import * as Arr from 'effect/Array'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
-import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as R from 'effect/Record'
 
@@ -20,22 +17,20 @@ const optionalSettings = Effect.forEach(
   { concurrency: 1 }
 ).pipe(Effect.map((entries) => R.fromEntries(Arr.getSomes(entries))))
 
-// Alchemy 2.0.0-beta.70 types Command.providers() with an `any` requirement; nothing here widens it.
-// @effect-diagnostics-next-line anyUnknownInErrorContext:off
-const FrameProviders = Docker.providers().pipe(Layer.provideMerge(Command.providers()))
-
 export default Alchemy.Stack(
   'Frame',
   {
+    // Alchemy 2.0.0-beta.70 types Docker.providers() with an `any` requirement; nothing here widens it.
     // @effect-diagnostics anyUnknownInErrorContext:off
-    // oxlint-disable-next-line typescript/no-unsafe-assignment -- upstream `any` requirement, see FrameProviders
-    providers: FrameProviders,
+    // oxlint-disable-next-line typescript/no-unsafe-assignment -- upstream `any` requirement
+    providers: Docker.providers(),
     // @effect-diagnostics anyUnknownInErrorContext:on
     // Local state under apps/frame/.alchemy on the deploying workstation.
     state: Alchemy.localState(),
   },
   Effect.gen(function* () {
-    // `deploy:prod` sets this from the Nix image tag, so it names exactly the image being shipped.
+    // `deploy:prod` sets this from the Nix image tag and loads that image onto the host first
+    // (`scripts/load-image.ts`). A plain tag lets Alchemy diff it and replace the container.
     const tag = yield* Config.nonEmptyString('FRAME_IMAGE_TAG')
     const imageRef = `garage-frame:${tag}`
     // The frame host's Docker endpoint, e.g. `ssh://root@<host>`, reached with the workstation's SSH key.
@@ -46,22 +41,10 @@ export default Alchemy.Stack(
       description: 'garage-frame host',
     })
 
-    // No registry: stream the Nix-built tarball into the remote daemon. Re-runs only when the tag changes.
-    const image = yield* Command.Exec('load-image', {
-      command: [
-        `docker -H ${dockerHost} load -i "$(nix build --no-link --print-out-paths ../..#garage-frame-image)"`,
-        `docker -H ${dockerHost} image inspect ${imageRef} > /dev/null`,
-      ].join(' && '),
-      shell: true,
-      env: { FRAME_IMAGE_TAG: tag, FRAME_DOCKER_HOST: dockerHost },
-      memo: { include: ['alchemy.run.ts'] },
-      timeout: '15 minutes',
-    })
-
     const container = yield* Docker.Container('frame', {
       name: 'garage-frame',
       context: host,
-      image: image.hash.pipe(Output.map(() => imageRef)),
+      image: imageRef,
       ports: [{ external: PORT, internal: PORT }],
       restart: 'unless-stopped',
       environment: {

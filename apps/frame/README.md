@@ -14,7 +14,7 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 - `src/shared/` — schemas and the RPC group shared with the browser (imported as `#shared`).
 - `web/` — Foldkit SPA: `main.ts` (Model, update, subscriptions), `message.ts`, `command.ts`, `view.ts`.
 - `scripts/check-webview-compat.ts` — fails the build if `web/dist` uses features WebView 106 lacks.
-- `alchemy.run.ts` and `scripts/verify-deploy.ts` — the deploy to CT 126.
+- `alchemy.run.ts`, `scripts/load-image.ts`, and `scripts/verify-deploy.ts` — the deploy.
 
 ## Configuration
 
@@ -73,12 +73,13 @@ bun run --filter '@garage/frame' deploy:prod
 This runs, in order:
 
 1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
-2. `alchemy deploy --stage prod --env-file .env.prod --yes` with `alchemy.run.ts`:
-   - `Command.Exec load-image` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`. It re-runs only when the tag changes.
-   - `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values.
-3. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
+2. `scripts/load-image.ts` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`, unless the host already has that tag.
+3. `alchemy deploy --stage prod --env-file .env.prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values. A new tag makes Alchemy replace the container.
+4. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
 
 Alchemy `2.0.0-beta.70`'s `Docker.Container` passes environment variables to `docker container create` as bare `--env NAME` flags and relies on the Alchemy process environment for the values, so `deploy:prod` starts Alchemy with `bun --env-file=.env.prod`. Without that, the container starts with empty variables.
+
+The image is loaded before Alchemy runs, not as an Alchemy resource: an `Output`-valued `image` makes `Docker.Container` skip its diff, so a new tag would update state without replacing the running container.
 
 Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying workstation (gitignored). That state includes the credential values Alchemy passed to the container, so treat the directory like `.env.prod`. Deploy from the same checkout each time, or copy `.alchemy/` with it.
 
