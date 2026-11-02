@@ -42,6 +42,7 @@ Repository Engineering is the supporting context that makes independently owned 
 
 - First-party Effect runtime packages share one exact beta version.
 - Every structural rule has a matching rule test; ast-grep must not duplicate an oxlint Effect-plugin rule.
+- Every Effect language-service diagnostic that the installed `@effect/tsgo` declares is configured, and all but `apiStabilityLeak` are errors; `scripts/effect-diagnostics.test.ts` enforces this.
 - Fallow runs without an issue baseline: the whole repository receives graph/dependency checks, and private reusable/delivery workspaces also receive type-aware production API checks.
 - The fast validation gate runs before release-grade deliverable checks.
 - Deployments and releases consume validated source and must not race.
