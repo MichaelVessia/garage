@@ -18,7 +18,7 @@ import { Socket } from 'effect/unstable/socket'
 
 import { PreflightFailed } from './errors.js'
 
-// Runs the exact Nix-built server and SPA with the real upstreams from `.env.prod`, opens it in
+// Runs the exact Nix-built server and SPA with the real upstreams from the environment, opens it in
 // headless Chromium 106 (the frame's WebView engine), and fails unless the app mounts, every
 // screen loads, and no script error is reported. `deploy:prod` runs this before shipping.
 

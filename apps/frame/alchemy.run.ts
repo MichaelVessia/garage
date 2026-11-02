@@ -8,7 +8,7 @@ import * as R from 'effect/Record'
 
 const PORT = 8080
 
-// Optional settings pass through only when `.env.prod` sets them; the image supplies the rest.
+// Optional settings pass through only when the deploy environment sets them; the image supplies the rest.
 const OPTIONAL_SETTINGS = [
   'FRAME_TIMEZONE',
   'HOME_ASSISTANT_WEATHER_ENTITY',

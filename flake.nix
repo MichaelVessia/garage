@@ -293,6 +293,7 @@
           git
           jq
           lefthook
+          sops
           typescript
           bun2nix'
         ];

@@ -56,7 +56,7 @@ The frame server runs as a Docker container on a Proxmox LXC with Docker. One co
 ### One-time setup
 
 1. Authorize the workstation's SSH key for `root@<frame-host>` and accept its host key (`ssh root@<frame-host> true`). Docker reaches the remote daemon over this SSH connection.
-2. Create `apps/frame/.env.prod` (gitignored) with:
+2. Keep these variables in a secrets file outside the repository, for example a sops-encrypted YAML file:
 
    | Variable | Required |
    | --- | --- |
@@ -69,15 +69,21 @@ The frame server runs as a Docker container on a Proxmox LXC with Docker. One co
    | `HOME_ASSISTANT_WEATHER_ENTITY` | no |
    | `HOME_ASSISTANT_SHOPPING_ENTITY` | no |
 
-   Keep it mode `0600`.
+   The media variables in the configuration table above are optional and go in the same file.
+
+Every deploy and preflight command reads these variables from its process environment. With sops:
+
+```sh
+sops exec-env <secrets-file> 'bun run --filter @garage/frame deploy:prod'
+```
 
 ### Preflight
 
 ```sh
-bun run --filter '@garage/frame' preflight
+sops exec-env <secrets-file> 'bun run --filter @garage/frame preflight'
 ```
 
-`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with the real upstreams from `.env.prod`, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
+`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with the real upstreams from the environment, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
 
 The static check in `bun run build` catches unsupported syntax and CSS early; the preflight catches runtime failures that a static scan cannot see.
 
@@ -92,14 +98,14 @@ This runs, in order:
 0. The preflight above.
 1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
 2. `scripts/load-image.ts` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`, unless the host already has that tag.
-3. `alchemy deploy --stage prod --env-file .env.prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values. A new tag makes Alchemy replace the container.
+3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values. A new tag makes Alchemy replace the container.
 4. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
 
-Alchemy `2.0.0-beta.70`'s `Docker.Container` passes environment variables to `docker container create` as bare `--env NAME` flags and relies on the Alchemy process environment for the values, so `deploy:prod` starts Alchemy with `bun --env-file=.env.prod`. Without that, the container starts with empty variables.
+Alchemy `2.0.0-beta.70`'s `Docker.Container` passes environment variables to `docker container create` as bare `--env NAME` flags and relies on the Alchemy process environment for the values, so the variables must be in Alchemy's process environment, as `sops exec-env` provides. Without them, the container starts with empty variables.
 
 The image is loaded before Alchemy runs, not as an Alchemy resource: an `Output`-valued `image` makes `Docker.Container` skip its diff, so a new tag would update state without replacing the running container.
 
-Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying workstation (gitignored). That state includes the credential values Alchemy passed to the container, so treat the directory like `.env.prod`. Deploy from the same checkout each time, or copy `.alchemy/` with it.
+Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying workstation (gitignored). That state includes the credential values Alchemy passed to the container, so treat the directory like the secrets file. Deploy from the same checkout each time, or copy `.alchemy/` with it.
 
 The image runs as UID/GID `65532`. Alchemy's `Docker.Container` has no options for a read-only root filesystem, dropped capabilities, or `no-new-privileges`, so those garage-mcp hardening flags are not applied here.
 
