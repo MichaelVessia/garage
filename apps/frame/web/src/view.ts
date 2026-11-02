@@ -4,7 +4,7 @@ import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { addCalendarDays } from '#shared'
+import { addCalendarDays, calendarDateOf } from '#shared'
 import type {
   CalendarDate,
   CalendarEvent,
@@ -99,7 +99,7 @@ const eventTime = (event: CalendarEvent, timezone: IanaTimezone): string =>
 const nextTimed = (events: ReadonlyArray<CalendarEvent>, now: DateTime.DateTime) =>
   Arr.findFirst(events, (event): boolean => isTimed(event) && !hasEnded(event, now))
 
-// "Now", "in 18 min", "in 1 h 18 min".
+// "Now", "in 18 min", "in 1 h 18 min", "in 18 h", "in 3 days".
 const untilLabel = (event: CalendarEvent, now: DateTime.DateTime): string => {
   if (isHappening(event, now) || !isTimed(event)) {
     return 'Now'
@@ -110,7 +110,10 @@ const untilLabel = (event: CalendarEvent, now: DateTime.DateTime): string => {
   if (hours === 0) {
     return `in ${rest} min`
   }
-  return rest === 0 ? `in ${hours} h` : `in ${hours} h ${rest} min`
+  if (hours < 6) {
+    return rest === 0 ? `in ${hours} h` : `in ${hours} h ${rest} min`
+  }
+  return hours < 48 ? `in ${hours} h` : `in ${Math.round(hours / 24)} days`
 }
 
 const classes = (...names: ReadonlyArray<string | false>): string =>
@@ -125,23 +128,62 @@ const viewNotice = (h: H, text: string) => h.p([h.Class('notice')], [text])
 const viewChip = (h: H, event: CalendarEvent) =>
   h.li([h.Key(event.id), h.Class('chip')], [h.span([h.Class('chip-text')], [event.title])])
 
-const viewEventRow = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: DateTime.DateTime, isNext: boolean) =>
+const viewEventRow = (
+  h: H,
+  event: CalendarEvent,
+  timezone: IanaTimezone,
+  now: DateTime.DateTime,
+  options: { readonly isNext: boolean; readonly day: Option.Option<string> }
+) =>
   h.li(
-    [h.Key(event.id), h.Class(classes('row', isNext && 'is-next', hasEnded(event, now) && 'is-past'))],
+    [h.Key(event.id), h.Class(classes('row', options.isNext && 'is-next', hasEnded(event, now) && 'is-past'))],
     [
       h.span([h.Class('row-time num')], [eventTime(event, timezone)]),
       h.span(
         [h.Class('row-main')],
         [
           h.span([h.Class('row-title')], [event.title]),
-          ...(event.location === null ? [] : [h.span([h.Class('row-where')], [event.location])]),
+          ...Arr.map(
+            Arr.filter([Option.getOrNull(options.day), event.location], (part): part is string => part !== null),
+            (part) => h.span([h.Class('row-where')], [part])
+          ),
         ]
       ),
-      ...(isNext ? [h.span([h.Class('badge')], [untilLabel(event, now)])] : []),
+      ...(options.isNext ? [h.span([h.Class('badge num')], [untilLabel(event, now)])] : []),
     ]
   )
 
-// All-day items as chips, then timed rows; the next event is tinted when `markNext` is set.
+const viewChips = (h: H, events: ReadonlyArray<CalendarEvent>) =>
+  Arr.isReadonlyArrayNonEmpty(events)
+    ? [
+        h.ul(
+          [h.Class('chips')],
+          Arr.map(events, (event) => viewChip(h, event))
+        ),
+      ]
+    : []
+
+const viewMore = (h: H, hidden: number) =>
+  hidden > 0
+    ? [
+        h.button(
+          [h.Class('more'), h.Type('button'), h.OnClick(ClickedScreen({ screen: 'calendar' }))],
+          [`+${hidden} more`]
+        ),
+      ]
+    : []
+
+// Timed rows that fit the card: upcoming first, then the latest past ones while space remains.
+const visibleRows = (timed: ReadonlyArray<CalendarEvent>, now: DateTime.DateTime, budget: number) => {
+  const upcoming = Arr.filter(timed, (event) => !hasEnded(event, now))
+  const past = Arr.filter(timed, (event) => hasEnded(event, now))
+  const room = Math.max(1, budget)
+  const shown =
+    upcoming.length >= room ? Arr.take(upcoming, room) : [...Arr.takeRight(past, room - upcoming.length), ...upcoming]
+  return { shown, hidden: timed.length - shown.length }
+}
+
+// A full day's agenda for the calendar's day view: all-day chips, then every timed row.
 const viewAgenda = (
   h: H,
   items: ReadonlyArray<CalendarEvent>,
@@ -152,23 +194,18 @@ const viewAgenda = (
   const allDay = Arr.filter(items, (event) => isAllDay(event))
   const timed = Arr.filter(items, (event) => isTimed(event))
   const next = options.markNext ? Option.map(nextTimed(timed, now), (event) => event.id) : Option.none<string>()
-  if (!Arr.isReadonlyArrayNonEmpty(items)) {
-    return [viewNotice(h, options.empty)]
-  }
   return [
-    ...(Arr.isReadonlyArrayNonEmpty(allDay)
+    ...viewChips(h, allDay),
+    ...(Arr.isReadonlyArrayNonEmpty(timed)
       ? [
           h.ul(
-            [h.Class('chips')],
-            Arr.map(allDay, (event) => viewChip(h, event))
+            [h.Class('rows')],
+            Arr.map(timed, (event) =>
+              viewEventRow(h, event, timezone, now, { isNext: Option.contains(next, event.id), day: Option.none() })
+            )
           ),
         ]
-      : []),
-    h.ul(
-      [h.Class('rows')],
-      Arr.map(timed, (event) => viewEventRow(h, event, timezone, now, Option.contains(next, event.id)))
-    ),
-    ...(options.markNext && Option.isNone(next) ? [viewNotice(h, 'Nothing else today')] : []),
+      : [viewNotice(h, Arr.isReadonlyArrayNonEmpty(allDay) ? 'No timed events' : options.empty)]),
   ]
 }
 
@@ -271,16 +308,87 @@ const viewWeather = (h: H, model: Model) =>
     })
   )
 
+// Today: the next event always shows, even when it falls on a later day.
+const viewTodayAgenda = (
+  h: H,
+  events: ReadonlyArray<CalendarEvent>,
+  timezone: IanaTimezone,
+  now: DateTime.DateTime
+) => {
+  const date = today(now, timezone)
+  const items = eventsOn(events, date, timezone)
+  const allDay = Arr.filter(items, (event) => isAllDay(event))
+  const timed = Arr.filter(items, (event) => isTimed(event))
+  const nextToday = nextTimed(timed, now)
+  const nextLater = Option.isNone(nextToday)
+    ? Arr.findFirst(
+        Arr.filter(events, isTimed),
+        (event): boolean => !hasEnded(event, now) && !occursOn(event, date, timezone)
+      )
+    : Option.none()
+  const budget = 4 - (Arr.isReadonlyArrayNonEmpty(allDay) ? 1 : 0) - (Option.isSome(nextLater) ? 2 : 0)
+  const { shown, hidden } = visibleRows(timed, now, budget)
+  const nextId = Option.map(nextToday, (event) => event.id)
+  return [
+    ...viewChips(h, allDay),
+    ...(Arr.isReadonlyArrayNonEmpty(shown)
+      ? [
+          h.ul(
+            [h.Class('rows')],
+            Arr.map(shown, (event) =>
+              viewEventRow(h, event, timezone, now, { isNext: Option.contains(nextId, event.id), day: Option.none() })
+            )
+          ),
+        ]
+      : []),
+    ...viewMore(h, hidden),
+    ...(Option.isNone(nextToday) ? [viewNotice(h, 'Nothing else today')] : []),
+    ...Arr.map(Arr.fromOption(nextLater), (event) =>
+      h.ul(
+        [h.Class('rows')],
+        [
+          viewEventRow(h, event, timezone, now, {
+            isNext: true,
+            day: Option.some(
+              occursOn(event, addCalendarDays(date, 1), timezone)
+                ? 'Tomorrow'
+                : weekdayName(calendarDateOf(event.start, timezone))
+            ),
+          }),
+        ]
+      )
+    ),
+  ]
+}
+
+const viewTomorrowAgenda = (
+  h: H,
+  events: ReadonlyArray<CalendarEvent>,
+  timezone: IanaTimezone,
+  now: DateTime.DateTime
+) => {
+  const items = eventsOn(events, addCalendarDays(today(now, timezone), 1), timezone)
+  const allDay = Arr.filter(items, (event) => isAllDay(event))
+  const timed = Arr.filter(items, (event) => isTimed(event))
+  const { shown, hidden } = visibleRows(timed, now, Arr.isReadonlyArrayNonEmpty(allDay) ? 2 : 3)
+  if (!Arr.isReadonlyArrayNonEmpty(items)) {
+    return [viewNotice(h, 'Nothing planned')]
+  }
+  return [
+    ...viewChips(h, allDay),
+    h.ul(
+      [h.Class('rows')],
+      Arr.map(shown, (event) => viewEventRow(h, event, timezone, now, { isNext: false, day: Option.none() }))
+    ),
+    ...viewMore(h, hidden),
+  ]
+}
+
 const viewCalendarCard = (
   h: H,
   model: Model,
-  timezone: IanaTimezone,
-  options: {
-    readonly title: string
-    readonly date: CalendarDate
-    readonly isToday: boolean
-    readonly className: string
-  }
+  options: { readonly title: string; readonly className: string },
+  body: (events: ReadonlyArray<CalendarEvent>) => ReadonlyArray<Html>
 ) =>
   h.section(
     [h.Class(`card ${options.className}`)],
@@ -288,11 +396,7 @@ const viewCalendarCard = (
       h.h2([h.Class('card-title')], [options.title]),
       ...Option.match(model.upcoming.data, {
         onNone: () => [viewNotice(h, model.upcoming.failed ? 'Calendar unavailable' : 'Loading calendar…')],
-        onSome: (events) =>
-          viewAgenda(h, eventsOn(events, options.date, timezone), timezone, model.now, {
-            markNext: options.isToday,
-            empty: options.isToday ? 'Nothing on today' : 'Nothing planned',
-          }),
+        onSome: body,
       }),
     ]
   )
@@ -344,16 +448,18 @@ const viewToday = (h: H, model: Model, timezone: IanaTimezone) => {
         ]
       ),
       viewWeather(h, model),
-      viewCalendarCard(h, model, timezone, { title: 'Today', date, isToday: true, className: 't-today' }),
+      viewCalendarCard(h, model, { title: 'Today', className: 't-today' }, (events) =>
+        viewTodayAgenda(h, events, timezone, model.now)
+      ),
       h.div(
         [h.Class('t-side')],
         [
-          viewCalendarCard(h, model, timezone, {
-            title: `Tomorrow · ${weekdayName(tomorrow)}`,
-            date: tomorrow,
-            isToday: false,
-            className: 't-tomorrow',
-          }),
+          viewCalendarCard(
+            h,
+            model,
+            { title: `Tomorrow · ${weekdayName(tomorrow)}`, className: 't-tomorrow' },
+            (events) => viewTomorrowAgenda(h, events, timezone, model.now)
+          ),
           viewShoppingSummary(h, model),
         ]
       ),
@@ -461,7 +567,7 @@ const viewCalendarBody = (h: H, model: Model, anchor: CalendarDate, timezone: Ia
     onSome: (events) =>
       model.calendarMode === 'day'
         ? h.div(
-            [h.Class('card cal-body cal-day')],
+            [h.Class('card cal-day')],
             viewAgenda(h, eventsOn(events, anchor, timezone), timezone, model.now, {
               markNext: anchor === today(model.now, timezone),
               empty: 'Nothing scheduled',
@@ -607,13 +713,11 @@ const mediaButton = (
   name: IconName,
   label: string,
   action: MediaAction,
-  options: { readonly isDisabled: boolean; readonly isActive?: boolean; readonly isPrimary?: boolean }
+  options: { readonly isDisabled: boolean; readonly state?: 'on' | 'pressed' | 'primary' }
 ) =>
   h.button(
     [
-      h.Class(
-        classes('icon-btn', options.isActive === true && 'is-active', options.isPrimary === true && 'is-primary')
-      ),
+      h.Class(options.state === undefined ? 'icon-btn' : `icon-btn is-${options.state}`),
       h.Type('button'),
       h.AriaLabel(label),
       h.Disabled(options.isDisabled),
@@ -649,55 +753,56 @@ const viewSourcePicker = (h: H, label: string, player: MediaPlayer, isDisabled: 
     ]
   )
 
+// Two fixed rows in a fixed order: power and transport, then volume. A row a player cannot use is left out.
 const viewPlayerControls = (h: H, player: MediaPlayer, isDisabled: boolean) => {
   const { entityId } = player
   const has = (control: MediaPlayer['controls'][number]) => player.controls.includes(control)
   const isPlaying = player.status === 'playing'
-  return h.div(
-    [h.Class('controls')],
-    [
-      ...(has('power')
-        ? [
-            player.status === 'off'
-              ? mediaButton(h, 'power', 'Turn on', { _tag: 'TurnOn', entityId }, { isDisabled })
-              : mediaButton(h, 'power', 'Turn off', { _tag: 'TurnOff', entityId }, { isDisabled, isActive: true }),
-          ]
-        : []),
-      ...(has('playback')
-        ? [
-            ...(player.canSkip
-              ? [mediaButton(h, 'previous', 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled })]
-              : []),
-            mediaButton(
-              h,
-              isPlaying ? 'pause' : 'play',
-              isPlaying ? 'Pause' : 'Play',
-              { _tag: 'PlayPause', entityId },
-              { isDisabled, isActive: isPlaying }
-            ),
-            ...(player.canSkip
-              ? [mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled })]
-              : []),
-          ]
-        : []),
-      ...(has('volume')
-        ? [
-            mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),
-            mediaButton(h, 'volumeUp', 'Volume up', { _tag: 'VolumeUp', entityId }, { isDisabled }),
-          ]
-        : []),
-      ...(has('mute')
-        ? [
-            mediaButton(
-              h,
-              'muted',
-              player.isMuted ? 'Unmute' : 'Mute',
-              { _tag: 'SetMute', entityId, muted: !player.isMuted },
-              { isDisabled, isActive: player.isMuted }
-            ),
-          ]
-        : []),
-    ]
+  const isOn = player.status !== 'off' && player.status !== 'unavailable'
+  const transport = [
+    ...(has('power')
+      ? [
+          isOn
+            ? mediaButton(h, 'power', 'Turn off', { _tag: 'TurnOff', entityId }, { isDisabled, state: 'on' })
+            : mediaButton(h, 'power', 'Turn on', { _tag: 'TurnOn', entityId }, { isDisabled }),
+        ]
+      : []),
+    ...(has('playback')
+      ? [
+          ...(player.canSkip
+            ? [mediaButton(h, 'previous', 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled })]
+            : []),
+          isPlaying
+            ? mediaButton(h, 'pause', 'Pause', { _tag: 'PlayPause', entityId }, { isDisabled, state: 'on' })
+            : mediaButton(h, 'play', 'Play', { _tag: 'PlayPause', entityId }, { isDisabled }),
+          ...(player.canSkip ? [mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled })] : []),
+        ]
+      : []),
+  ]
+  const volume = [
+    ...(has('volume')
+      ? [
+          mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),
+          mediaButton(h, 'volumeUp', 'Volume up', { _tag: 'VolumeUp', entityId }, { isDisabled }),
+        ]
+      : []),
+    ...(has('mute')
+      ? [
+          player.isMuted
+            ? mediaButton(
+                h,
+                'muted',
+                'Unmute',
+                { _tag: 'SetMute', entityId, muted: false },
+                { isDisabled, state: 'pressed' }
+              )
+            : mediaButton(h, 'muted', 'Mute', { _tag: 'SetMute', entityId, muted: true }, { isDisabled }),
+        ]
+      : []),
+  ]
+  return Arr.map(
+    Arr.filter([transport, volume], (row) => Arr.isReadonlyArrayNonEmpty(row)),
+    (row) => h.div([h.Class('controls')], row)
   )
 }
 
@@ -712,24 +817,18 @@ const deviceIcon = (player: MediaPlayer): IconName => {
   return name.includes('receiver') || name.includes('onkyo') ? 'receiver' : 'speaker'
 }
 
-const viewStatus = (h: H, player: MediaPlayer) =>
-  h.span(
-    [
-      h.Class(
-        classes(
-          'status num',
-          player.status === 'playing' && 'is-playing',
-          (player.status === 'on' || player.status === 'idle' || player.status === 'paused') && 'is-on'
-        )
-      ),
-    ],
-    [STATUS_LABEL[player.status], ...volumeLabel(player)]
+const stateClass = (player: MediaPlayer): string =>
+  Match.value(player.status).pipe(
+    Match.when('playing', () => 'is-playing'),
+    Match.when('unavailable', () => 'is-unavailable'),
+    Match.when('off', () => 'is-off'),
+    Match.orElse(() => 'is-on')
   )
 
 const viewPlayerCard = (h: H, player: MediaPlayer) => {
   const isDisabled = player.status === 'unavailable'
   return h.section(
-    [h.Key(player.entityId), h.Class(isDisabled ? 'card tile is-unavailable' : 'card tile')],
+    [h.Key(player.entityId), h.Class(`card tile ${stateClass(player)}`)],
     [
       h.div(
         [h.Class('tile-head')],
@@ -739,14 +838,17 @@ const viewPlayerCard = (h: H, player: MediaPlayer) => {
             [h.Class('tile-text')],
             [
               h.h2([h.Class('tile-name')], [player.name]),
-              player.nowPlaying === null
-                ? viewStatus(h, player)
-                : h.span([h.Class('tile-track')], [player.nowPlaying.title]),
+              h.span(
+                [h.Class('status num')],
+                player.nowPlaying === null
+                  ? [STATUS_LABEL[player.status], ...volumeLabel(player)]
+                  : [player.nowPlaying.title]
+              ),
             ]
           ),
         ]
       ),
-      viewPlayerControls(h, player, isDisabled),
+      ...viewPlayerControls(h, player, isDisabled),
       ...(player.controls.includes('source') ? [viewSourcePicker(h, 'Source', player, isDisabled)] : []),
     ]
   )
@@ -873,7 +975,7 @@ const viewSpotify = (h: H, player: MediaPlayer) => {
                     isPlaying ? 'pause' : 'play',
                     isPlaying ? 'Pause' : 'Play',
                     { _tag: 'PlayPause', entityId },
-                    { isDisabled, isPrimary: true }
+                    { isDisabled, state: 'primary' }
                   ),
                   mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled }),
                   mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),

@@ -335,6 +335,40 @@ describe('frame app', () => {
     expect(ambientHtml).toContain('Swim lesson')
   })
 
+  it('always shows the next event on Today, even when it is on a later day', () => {
+    const later: ReadonlyArray<CalendarEvent> = [
+      {
+        _tag: 'TimedEvent',
+        id: 'breakfast',
+        title: 'Breakfast',
+        location: null,
+        color: null,
+        start: at('2026-11-02T12:00:00Z'),
+        end: at('2026-11-02T13:00:00Z'),
+      },
+      {
+        _tag: 'TimedEvent',
+        id: 'dentist',
+        title: 'Dentist',
+        location: 'Main Street',
+        color: null,
+        start: at('2026-11-03T15:00:00Z'),
+        end: at('2026-11-03T16:00:00Z'),
+      },
+    ]
+    // Monday 21:00 in New York: today's only event is over.
+    const html = rendered({
+      ...ready,
+      now: at('2026-11-03T02:00:00Z'),
+      upcoming: { data: Option.some(later), failed: false },
+    })
+    expect(html).toContain('Nothing else today')
+    expect(html).toContain('is-next')
+    expect(html).toContain('Dentist')
+    expect(html).toContain('Tomorrow')
+    expect(html).toContain('in 13 h')
+  })
+
   it('uses the light theme by day and the dark theme from 20:00 to 06:59', () => {
     expect(rendered(ready)).toContain('theme-light')
     // 20:00 and 06:30 in New York.

@@ -14,6 +14,7 @@
   --accent-tint: #eceefd;
   --on-accent: #ffffff;
   --good: #1f8a4c;
+  --good-tint: #e2f3e9;
   --bad: #c2332b;
   --elevation: 0 1px 2px rgba(16, 24, 40, 0.06), 0 6px 16px rgba(16, 24, 40, 0.06);
   --edge: 0 0 0 1px transparent;
@@ -36,6 +37,7 @@
   --accent-tint: #252a4a;
   --on-accent: #ffffff;
   --good: #4cc27f;
+  --good-tint: #1c3326;
   --bad: #f07a71;
   --elevation: 0 0 0 0 transparent;
   --edge: 0 0 0 1px #2a2e37;
@@ -132,6 +134,13 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
+/* The clock faces share one glyph set: Figtree's proportional figures (its tabular 1 has a foot). */
+.t-time,
+.rail-clock,
+.amb-time {
+  font-variant-numeric: proportional-nums;
+}
+
 .icon {
   width: 28px;
   height: 28px;
@@ -210,12 +219,12 @@ ul {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--card);
 }
 
 .btn-primary:active {
-  background: var(--accent-ink);
+  background: var(--ink-2);
 }
 
 .icon-btn {
@@ -233,14 +242,15 @@ ul {
   background: var(--line);
 }
 
-.icon-btn.is-active {
-  background: var(--accent-tint);
-  color: var(--accent-ink);
+.icon-btn.is-on {
+  background: var(--good-tint);
+  color: var(--good);
 }
 
+.icon-btn.is-pressed,
 .icon-btn.is-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--card);
 }
 
 .icon-btn:disabled,
@@ -377,7 +387,7 @@ select.field {
 
 .rail-clock b {
   font-size: 22px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .rail-clock span {
@@ -482,13 +492,14 @@ select.field {
 .row {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: baseline;
   column-gap: 16px;
-  min-height: 72px;
-  padding: 8px 12px;
-  margin: 0 -12px;
-  border-radius: var(--r-sm);
+  padding: 14px 0;
   box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.row .badge {
+  align-self: center;
 }
 
 .row:last-child {
@@ -525,8 +536,23 @@ select.field {
 }
 
 .row.is-next {
+  margin: 0 -16px;
+  padding: 14px 16px;
+  border-radius: var(--r-sm);
   background: var(--accent-tint);
   box-shadow: none;
+}
+
+.more {
+  height: 44px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-align: left;
+}
+
+.more:active {
+  color: var(--ink);
 }
 
 .row.is-next .row-time {
@@ -672,6 +698,37 @@ select.field {
   overflow: hidden;
 }
 
+.t-today .row {
+  grid-template-columns: 168px minmax(0, 1fr) auto;
+  padding: 18px 0;
+}
+
+.t-today .row.is-next {
+  padding: 18px 16px;
+}
+
+.t-today .row-time,
+.t-today .row-title {
+  font-size: 30px;
+}
+
+.t-today .row.is-next .row-title {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.t-today .row-where {
+  font-size: 22px;
+}
+
+.t-today .badge {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  font-size: 22px;
+}
+
 .t-side {
   grid-column: 8 / 13;
   display: grid;
@@ -688,8 +745,8 @@ select.field {
 }
 
 .t-tomorrow .row {
-  min-height: 56px;
   grid-template-columns: 112px minmax(0, 1fr);
+  padding: 12px 0;
 }
 
 .t-tomorrow .chip {
@@ -730,6 +787,9 @@ select.field {
 }
 
 .cal-day {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -804,7 +864,7 @@ select.field {
   flex: none;
   padding: 8px 10px;
   border-radius: 10px;
-  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .wk-time {
@@ -826,11 +886,13 @@ select.field {
 }
 
 .wk-ev.is-allday {
-  background: var(--line);
+  background: var(--sunken);
+  box-shadow: none;
 }
 
 .wk-ev.is-now {
   background: var(--accent-tint);
+  box-shadow: none;
 }
 
 .wk-ev.is-now .wk-time {
@@ -931,7 +993,15 @@ select.field {
   grid-auto-rows: max-content;
   gap: var(--gap);
   align-content: start;
-  padding-bottom: 4px;
+  align-items: start;
+  padding-bottom: 48px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 48px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 48px), transparent 100%);
+}
+
+.media-grid::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .media-grid > .card {
@@ -1021,10 +1091,14 @@ select.field {
 }
 
 .tile {
-  grid-column: span 6;
+  grid-column: span 4;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+}
+
+.tile .controls + .controls {
+  margin-top: -8px;
 }
 
 .tile-head {
@@ -1060,7 +1134,6 @@ select.field {
   text-overflow: ellipsis;
 }
 
-.tile-track,
 .status {
   font-size: 16px;
   color: var(--ink-2);
@@ -1069,16 +1142,19 @@ select.field {
   text-overflow: ellipsis;
 }
 
-.status.is-on {
+.tile.is-on .tile-icon {
+  background: var(--good-tint);
   color: var(--good);
 }
 
-.status.is-playing {
-  color: var(--accent-ink);
+.tile.is-playing .tile-icon {
+  background: var(--good);
+  color: var(--card);
 }
 
-.tile .controls {
-  margin-top: auto;
+.tile.is-on .status,
+.tile.is-playing .status {
+  color: var(--good);
 }
 
 .tile .picker .field {
@@ -1159,7 +1235,7 @@ select.field {
 }
 
 .switch.is-on .switch-track {
-  background: var(--accent);
+  background: var(--good);
 }
 
 .switch.is-on .switch-thumb {
@@ -1185,7 +1261,7 @@ select.field {
 
 .amb-time {
   font-size: 200px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 0.95;
   letter-spacing: -0.03em;
   color: #e3e5ea;
