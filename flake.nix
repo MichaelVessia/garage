@@ -34,20 +34,25 @@
         name,
         workspace,
         entrypoint,
+        src ? ./.,
+        deps ? bunDeps,
       }: let
         packageJson = builtins.fromJSON (builtins.readFile (./. + "/apps/${workspace}/package.json"));
       in
         pkgs.stdenv.mkDerivation {
           pname = name;
-          version = packageJson.version;
-          src = ./.;
+          # readFile on the flake source carries the whole repo as string context; drop it so the
+          # version string does not make the derivation depend on every file.
+          version = builtins.unsafeDiscardStringContext packageJson.version;
+          inherit src;
 
           nativeBuildInputs = [
             bun2nix'.hook
             pkgs.bun
           ];
 
-          inherit bunDeps bunInstallFlags;
+          inherit bunInstallFlags;
+          bunDeps = deps;
 
           dontUseBunBuild = true;
           dontUseBunCheck = true;
@@ -104,23 +109,51 @@
         };
       };
       framePackageJson = builtins.fromJSON (builtins.readFile ./apps/frame/package.json);
+      # Only what the frame build reads: the lockfile, every workspace manifest (Bun's install
+      # resolves the whole workspace graph), the shared tsconfig, the frame app, and its one
+      # workspace dependency. Commits elsewhere in the repo leave the frame's store paths unchanged.
+      frameSrc = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./package.json
+          ./bun.lock
+          ./bun.nix
+          ./tsconfig.base.json
+          (pkgs.lib.fileset.fileFilter (file: file.name == "package.json") ./apps)
+          (pkgs.lib.fileset.fileFilter (file: file.name == "package.json") ./packages)
+          ./apps/frame/tsconfig.json
+          ./apps/frame/src
+          ./apps/frame/web
+          ./apps/frame/scripts
+          ./packages/integration-http/src
+          ./packages/integration-http/tsconfig.json
+        ];
+      };
+      # bun.nix copies every workspace directory into the cache; evaluated from frameSrc, the other
+      # workspaces are bare manifests, so only frame-relevant changes invalidate it.
+      frameBunDeps = bun2nix'.fetchBunDeps {
+        bunNix = "${frameSrc}/bun.nix";
+      };
       garageFrame = mkBunExecutable {
         name = "garage-frame";
         workspace = "frame";
         entrypoint = "apps/frame/src/main.ts";
+        src = frameSrc;
+        deps = frameBunDeps;
       };
       # The frame's SPA, built and checked against Android WebView 106 from source.
       garageFrameWeb = pkgs.stdenv.mkDerivation {
         pname = "garage-frame-web";
-        version = framePackageJson.version;
-        src = ./.;
+        version = builtins.unsafeDiscardStringContext framePackageJson.version;
+        src = frameSrc;
 
         nativeBuildInputs = [
           bun2nix'.hook
           pkgs.bun
         ];
 
-        inherit bunDeps bunInstallFlags;
+        inherit bunInstallFlags;
+        bunDeps = frameBunDeps;
 
         dontUseBunBuild = true;
         dontUseBunCheck = true;
@@ -199,7 +232,9 @@
       # Names one server + SPA build: the image tag, and the version /health reports so the frame reloads.
       garageFrameBuildId = builtins.substring 0 16 (builtins.hashString "sha256"
         (builtins.unsafeDiscardStringContext "${garageFrame}${garageFrameWeb}"));
-      garageFrameImage = pkgs.dockerTools.buildLayeredImage {
+      # Streamed: `nix build` yields a script that writes the image tar to stdout, so deploys pipe it
+      # straight into the host's `docker load` with no compressed tarball in the store.
+      garageFrameImage = pkgs.dockerTools.streamLayeredImage {
         name = "garage-frame";
         tag = garageFrameBuildId;
         contents = [
