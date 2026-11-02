@@ -11,9 +11,11 @@
     <script type="module" src="/src/entry.ts"></script>
     <script>
       // Wall-display self-healing: if the app never mounts (a deploy in progress, a network blip),
-      // reload until it does instead of leaving a blank screen.
+      // reload until it does instead of leaving a blank screen. Mounting replaces #root, so an
+      // empty #root that is still in the page means the app never started.
       setTimeout(function () {
-        if (!document.querySelector('#root > *')) location.reload()
+        var root = document.querySelector('#root')
+        if (root && !root.firstElementChild) location.reload()
       }, 15000)
     </script>
   </body>
