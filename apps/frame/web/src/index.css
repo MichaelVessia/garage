@@ -751,3 +751,151 @@ ul {
 .ambient.is-night .amb-wx {
   display: none;
 }
+
+/* ---------------------------------------------------------------- media */
+.media {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.media-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  align-content: start;
+}
+
+.media-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: var(--r);
+  background: var(--card);
+  border: 2px solid var(--line);
+  min-width: 0;
+}
+
+.media-card.is-unavailable {
+  opacity: 0.55;
+}
+
+.media-spotify {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+}
+
+.media-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.media-name {
+  font-size: 24px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-status {
+  color: var(--mute);
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.media-track,
+.media-artist {
+  color: var(--mute);
+  font-size: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-title {
+  font-family: var(--serif);
+  font-size: 30px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-now {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.media-art {
+  flex: none;
+  width: 180px;
+  height: 180px;
+  border-radius: var(--r);
+  object-fit: cover;
+  background: var(--paper-2);
+}
+
+.media-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.media-btn {
+  min-width: var(--tap);
+  height: var(--tap);
+  padding: 0 20px;
+  border-radius: var(--r);
+  border: 2px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.media-btn.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.media-btn:active {
+  background: var(--paper-2);
+}
+
+.media-btn:disabled {
+  opacity: 0.5;
+}
+
+.media-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mute);
+}
+
+.media-source select {
+  height: var(--tap);
+  padding: 0 16px;
+  border-radius: var(--r);
+  border: 2px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 20px;
+}

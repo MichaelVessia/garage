@@ -1,7 +1,8 @@
 import * as Schema from 'effect/Schema'
 import { Rpc, RpcGroup } from 'effect/unstable/rpc'
 
-import { UpstreamUnavailable } from './errors.js'
+import { MediaActionRejected, UpstreamUnavailable } from './errors.js'
+import { MediaAction, MediaSnapshot } from './media.js'
 import {
   CalendarEvent,
   CalendarWindow,
@@ -39,5 +40,14 @@ export const FrameRpcs = RpcGroup.make(
     payload: ShoppingItemUpdate,
     success: Schema.Array(ShoppingItem),
     error: UpstreamUnavailable,
+  }),
+  Rpc.make('GetMedia', {
+    success: MediaSnapshot,
+    error: UpstreamUnavailable,
+  }),
+  Rpc.make('RunMediaAction', {
+    payload: MediaAction,
+    success: MediaSnapshot,
+    error: Schema.Union([UpstreamUnavailable, MediaActionRejected]),
   })
 )

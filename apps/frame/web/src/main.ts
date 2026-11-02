@@ -10,19 +10,29 @@ import * as Stream from 'effect/Stream'
 import { Subscription } from 'foldkit'
 import { evo } from 'foldkit/struct'
 
-import { CalendarDate, CalendarEvent, IanaTimezone, ShoppingItem, Weather, addCalendarDays } from '#shared'
-import type { ShoppingItemStatus } from '#shared'
+import {
+  CalendarDate,
+  CalendarEvent,
+  IanaTimezone,
+  MediaSnapshot,
+  ShoppingItem,
+  Weather,
+  addCalendarDays,
+} from '#shared'
+import type { MediaAction, MediaCard, MediaPlayer, ShoppingItemStatus } from '#shared'
 
 import {
   CheckVersion,
   FetchSettings,
   AddShoppingItem,
+  FetchMedia,
   FetchShopping,
   FetchUpcoming,
   FetchWeather,
   FetchWeek,
   ReloadPage,
   RetrySettings,
+  RunMediaAction,
   UpdateShoppingItem,
 } from './command.js'
 import type { Commands } from './command.js'
@@ -61,6 +71,7 @@ export const Model = Schema.Struct({
   weather: feed(Weather),
   shopping: feed(ShoppingItem.pipe(Schema.Array)),
   shoppingDraft: Schema.String,
+  media: feed(MediaSnapshot),
 })
 export type Model = typeof Model.Type
 
@@ -90,6 +101,7 @@ export const init = (flags: Flags): readonly [Model, Commands] => [
     weather: emptyFeed,
     shopping: emptyFeed,
     shoppingDraft: '',
+    media: emptyFeed,
   },
   [FetchSettings(), FetchWeather(), FetchShopping()],
 ]
@@ -180,10 +192,64 @@ const onSubmitShoppingItem = (model: Model): UpdateReturn => {
     : [evo(model, { shoppingDraft: () => '' }), [AddShoppingItem({ summary: summary.slice(0, 200) })]]
 }
 
+// Applies the change the frame expects so taps feel immediate; the action's response replaces it.
+const optimisticPlayer = (player: MediaPlayer, action: MediaAction): MediaPlayer =>
+  Match.value(action).pipe(
+    Match.tag('PlayPause', ({ entityId }): MediaPlayer =>
+      entityId === player.entityId ? { ...player, status: player.status === 'playing' ? 'paused' : 'playing' } : player
+    ),
+    Match.tag('SetMute', ({ entityId, muted }): MediaPlayer =>
+      entityId === player.entityId ? { ...player, isMuted: muted } : player
+    ),
+    Match.orElse(() => player)
+  )
+
+const optimisticZone = (action: MediaAction, entityId: string, current: boolean): boolean =>
+  Match.value(action).pipe(
+    Match.tag('AllZonesOn', () => true),
+    Match.tag('AllZonesOff', () => false),
+    Match.tag('ZoneOn', (zone) => zone.entityId === entityId || current),
+    Match.tag('ZoneOff', (zone) => zone.entityId !== entityId && current),
+    Match.orElse(() => current)
+  )
+
+const optimisticCard = (card: MediaCard, action: MediaAction): MediaCard =>
+  Match.valueTags(card, {
+    PlayerCard: (playerCard): MediaCard => ({ ...playerCard, player: optimisticPlayer(playerCard.player, action) }),
+    ZonesCard: (zonesCard): MediaCard => ({
+      ...zonesCard,
+      speakers: {
+        ...zonesCard.speakers,
+        zones: Arr.map(zonesCard.speakers.zones, (zone) => ({
+          ...zone,
+          isOn: optimisticZone(action, zone.entityId, zone.isOn),
+        })),
+      },
+    }),
+  })
+
+const onMediaAction = (model: Model, action: MediaAction): UpdateReturn => [
+  evo(model, {
+    media: (media) => ({
+      data: Option.map(
+        media.data,
+        (snapshot) =>
+          new MediaSnapshot({
+            spotify: snapshot.spotify === null ? null : optimisticPlayer(snapshot.spotify, action),
+            cards: Arr.map(snapshot.cards, (card) => optimisticCard(card, action)),
+          })
+      ),
+      failed: media.failed,
+    }),
+  }),
+  [RunMediaAction({ action })],
+]
+
 const REFRESH = {
   calendar: calendarCommands,
   weather: (): Commands => [FetchWeather()],
   shopping: (): Commands => [FetchShopping()],
+  media: (): Commands => [FetchMedia()],
   version: (): Commands => [CheckVersion()],
 }
 
@@ -199,7 +265,11 @@ export const update = (model: Model, message: Message): UpdateReturn =>
     Interacted: (): UpdateReturn => [evo(model, { lastInteraction: () => model.now, isAmbient: () => false }), []],
     ClickedScreen: ({ screen }): UpdateReturn => [
       evo(model, { screen: () => screen }),
-      screen === 'shopping' ? [FetchShopping()] : [],
+      Match.value(screen).pipe(
+        Match.when('shopping', (): Commands => [FetchShopping()]),
+        Match.when('media', (): Commands => [FetchMedia()]),
+        Match.orElse((): Commands => [])
+      ),
     ],
     ClickedCalendarMode: ({ mode }): UpdateReturn => [evo(model, { calendarMode: () => mode }), []],
     ClickedShift: ({ direction }) => onShift(model, direction),
@@ -246,6 +316,13 @@ export const update = (model: Model, message: Message): UpdateReturn =>
       evo(reachability(model, isServerReachable), { shopping: failed }),
       [],
     ],
+    ClickedMediaAction: ({ action }) => onMediaAction(model, action),
+    SucceededFetchMedia: ({ media }): UpdateReturn => [evo(online(model), { media: () => succeeded(media) }), []],
+    FailedFetchMedia: ({ isServerReachable }): UpdateReturn => [
+      evo(reachability(model, isServerReachable), { media: failed }),
+      [],
+    ],
+    FailedMediaAction: (): UpdateReturn => [model, [FetchMedia()]],
     CheckedVersion: ({ version }) => onVersion(model, version),
     FailedCheckVersion: (): UpdateReturn => [reachability(model, false), []],
     StartedReload: (): UpdateReturn => [model, []],
@@ -293,6 +370,15 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: () => ({}),
       dependenciesToStream: () => every('5 minutes').pipe(Stream.map(() => RefreshDue({ source: 'version' }))),
+    }
+  ),
+  // Media state changes from remotes and other apps, so poll it only while the Media screen is open.
+  mediaRefresh: entry(
+    { isVisible: Schema.Boolean },
+    {
+      modelToDependencies: (model) => ({ isVisible: model.screen === 'media' }),
+      dependenciesToStream: ({ isVisible }) =>
+        isVisible ? every('5 seconds').pipe(Stream.map(() => RefreshDue({ source: 'media' }))) : Stream.empty,
     }
   ),
   shoppingRefresh: entry(

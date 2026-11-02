@@ -14,14 +14,17 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 - **Upcoming**: the occurrences from today through the next few days, used by the Today and Ambient screens.
 - **Ambient**: the dim full-screen clock shown after idle time, sooner at night; any touch wakes the frame.
 - **Shopping list**: the Home Assistant `todo` entity whose items can be checked off from the frame.
+- **Media card**: one configured Home Assistant media player, or the speaker zone card, on the Media screen.
+- **Media action**: one allowlisted change (power, playback, volume, mute, source, zone toggle, all-zones button) the frame may request for a configured entity.
 
 ## Responsibilities
 
 - Fetch the family calendar feed, cache it briefly, fall back to the last good copy, and expand recurrences, exceptions, cancellations, all-day events, and time zones into occurrences.
 - Read current weather and the daily forecast from Home Assistant.
 - Read and update shopping list items in Home Assistant.
+- Read configured media players, speaker zones, and an optional Spotify player; run allowlisted media actions; proxy their artwork.
 - Serve the SPA, RPC, and a readiness endpoint from one process.
-- Render the Today, Calendar (day and week), Shopping, and Ambient screens for touch use at 1280 × 800.
+- Render the Today, Calendar (day and week), Shopping, Media, and Ambient screens for touch use at 1280 × 800.
 
 ## Non-responsibilities
 
@@ -32,6 +35,7 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 ## Invariants
 
 - Credentials never reach the browser, logs, spans, or error messages; RPC failures carry a fixed `UpstreamUnavailable` message.
+- Media actions are accepted only for configured entities and allowed controls; artwork is proxied only for configured players, from Home Assistant's media player proxy path.
 - Calendar fixtures are synthetic.
 - Built assets stay within Chromium 106 JavaScript and the CSS the frame's WebView accepts.
 - `/health` reports the build id the page was stamped with; the frame reloads when it changes.

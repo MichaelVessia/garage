@@ -12,6 +12,8 @@ import { RpcSerialization, RpcServer } from 'effect/unstable/rpc'
 
 import { FrameRpcs, FrameVersion } from '#shared'
 
+import { HomeAssistantApi } from './home-assistant/services.js'
+
 const RpcRoute = RpcServer.layerHttp({ group: FrameRpcs, path: '/rpc', protocol: 'http' }).pipe(
   Layer.provide(RpcSerialization.layerJson)
 )
@@ -82,6 +84,42 @@ const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
     })
   )
 
-/** Health, RPC, and SPA routes for the frame server. `buildId` names the deployed build. */
+const ARTWORK_PATH = '/media/art/'
+
+// Media artwork comes from Home Assistant, which the frame cannot reach. Only configured players are
+// served; the browser never sees Home Assistant URLs or the token.
+const ArtworkRoute = Layer.unwrap(
+  Effect.gen(function* () {
+    const homeAssistant = yield* HomeAssistantApi
+    return HttpRouter.add(
+      'GET',
+      `${ARTWORK_PATH}*`,
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest
+        const entityId = decodeURIComponent(
+          new URL(request.url, 'http://frame.local').pathname.slice(ARTWORK_PATH.length)
+        )
+        return yield* homeAssistant.mediaArtwork(entityId).pipe(
+          Effect.map(
+            Option.match({
+              onNone: () => HttpServerResponse.text('Not found', { status: 404 }),
+              onSome: ({ bytes, contentType }) =>
+                HttpServerResponse.uint8Array(bytes, {
+                  contentType,
+                  headers: { 'cache-control': 'private, max-age=300' },
+                }),
+            })
+          ),
+          Effect.tapError((failure) =>
+            Effect.logWarning('Media artwork unavailable').pipe(Effect.annotateLogs({ code: failure.code }))
+          ),
+          Effect.orElseSucceed(() => HttpServerResponse.text('Artwork unavailable', { status: 502 }))
+        )
+      })
+    )
+  })
+)
+
+/** Health, RPC, media artwork, and SPA routes for the frame server. `buildId` names the deployed build. */
 export const frameRoutes = (webRoot: string, buildId: Option.Option<string>) =>
-  Layer.merge(RpcRoute, spaRoutes(webRoot, buildId))
+  Layer.mergeAll(RpcRoute, ArtworkRoute, spaRoutes(webRoot, buildId))

@@ -8,6 +8,7 @@ import { Command } from 'foldkit'
 import {
   CalendarDate,
   CalendarWindow,
+  MediaAction,
   ShoppingItemAddition,
   ShoppingItemStatus,
   ShoppingItemUpdate,
@@ -19,11 +20,14 @@ import { Api } from './api.js'
 import {
   CheckedVersion,
   FailedCheckVersion,
+  FailedFetchMedia,
   FailedFetchSettings,
+  FailedMediaAction,
   FailedFetchShopping,
   FailedFetchUpcoming,
   FailedFetchWeather,
   FailedFetchWeek,
+  SucceededFetchMedia,
   SucceededFetchSettings,
   SucceededFetchShopping,
   SucceededFetchUpcoming,
@@ -148,6 +152,32 @@ export const FetchShopping = Command.define('FetchShopping', {
     Effect.tapError((failure) => Effect.logWarning('FailedFetchShopping', failure)),
     recoverWith((isServerReachable) => FailedFetchShopping({ isServerReachable }))
   ),
+})
+
+export const FetchMedia = Command.define('FetchMedia', {
+  messages: [SucceededFetchMedia, FailedFetchMedia],
+  execute: Effect.gen(function* () {
+    const api = yield* Api
+    const media = yield* api.GetMedia()
+    return SucceededFetchMedia({ media })
+  }).pipe(
+    Effect.tapError((failure) => Effect.logWarning('FailedFetchMedia', failure)),
+    recoverWith((isServerReachable) => FailedFetchMedia({ isServerReachable }))
+  ),
+})
+
+export const RunMediaAction = Command.define('RunMediaAction', {
+  args: { action: MediaAction },
+  messages: [SucceededFetchMedia, FailedMediaAction],
+  execute: ({ action }) =>
+    Effect.gen(function* () {
+      const api = yield* Api
+      const media = yield* api.RunMediaAction(action)
+      return SucceededFetchMedia({ media })
+    }).pipe(
+      Effect.tapError((failure) => Effect.logWarning('FailedMediaAction', failure)),
+      Effect.orElseSucceed(() => FailedMediaAction())
+    ),
 })
 
 export const AddShoppingItem = Command.define('AddShoppingItem', {

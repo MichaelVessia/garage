@@ -9,7 +9,16 @@ import * as R from 'effect/Record'
 const PORT = 8080
 
 // Optional settings pass through only when `.env.prod` sets them; the image supplies the rest.
-const OPTIONAL_SETTINGS = ['FRAME_TIMEZONE', 'HOME_ASSISTANT_WEATHER_ENTITY', 'HOME_ASSISTANT_SHOPPING_ENTITY'] as const
+const OPTIONAL_SETTINGS = [
+  'FRAME_TIMEZONE',
+  'HOME_ASSISTANT_WEATHER_ENTITY',
+  'HOME_ASSISTANT_SHOPPING_ENTITY',
+  'HOME_ASSISTANT_MEDIA_PLAYERS',
+  'HOME_ASSISTANT_SPEAKER_ZONES',
+  'HOME_ASSISTANT_SPEAKERS_ALL_ON',
+  'HOME_ASSISTANT_SPEAKERS_ALL_OFF',
+  'HOME_ASSISTANT_SPOTIFY_PLAYER',
+] as const
 
 const optionalSettings = Effect.forEach(
   OPTIONAL_SETTINGS,

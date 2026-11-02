@@ -15,10 +15,26 @@ import { CalendarFeedLive } from '../src/calendar/http.js'
 import { CalendarConfig } from '../src/calendar/services.js'
 import { FrameHandlersLive } from '../src/handlers.js'
 import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
+import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantConfig } from '../src/home-assistant/services.js'
 import { frameRoutes } from '../src/server.js'
 import { FrameTimezone } from '../src/settings.js'
 import fixture from './fixtures/synthetic.ics?raw'
+
+const testMedia: MediaConfig = {
+  slots: [
+    { _tag: 'Player', player: { entityId: 'media_player.den_tv', controls: Option.none() } },
+    {
+      _tag: 'Player',
+      player: { entityId: 'media_player.receiver', controls: Option.some(['power', 'volume', 'mute']) },
+    },
+    { _tag: 'Zones' },
+  ],
+  zones: ['switch.zone_a', 'switch.zone_b'],
+  allOn: Option.some('button.zones_on'),
+  allOff: Option.none(),
+  spotify: Option.some('media_player.music'),
+}
 
 const webRoot = new URL('fixtures/web', import.meta.url).pathname
 
@@ -30,6 +46,29 @@ const respond = (url: URL): Response => {
     return Response.json({
       service_response: { 'todo.shopping': { items: [{ uid: 'a1', summary: 'Eggs', status: 'needs_action' }] } },
     })
+  }
+  if (url.pathname === '/api/states/switch.zone_a') {
+    return Response.json({ entity_id: 'switch.zone_a', state: 'on', attributes: { friendly_name: 'Zone A' } })
+  }
+  if (url.pathname === '/api/states/media_player.music') {
+    return Response.json({
+      entity_id: 'media_player.music',
+      state: 'playing',
+      attributes: {
+        friendly_name: 'Music',
+        media_title: 'Song',
+        entity_picture: '/api/media_player_proxy/media_player.music?token=art-token&cache=1',
+      },
+    })
+  }
+  if (url.pathname.startsWith('/api/states/')) {
+    return Response.json({ message: 'Entity not found.' }, { status: 404 })
+  }
+  if (url.pathname === '/api/services/switch/turn_on') {
+    return Response.json([])
+  }
+  if (url.pathname === '/api/media_player_proxy/media_player.music') {
+    return new Response('PNG', { headers: { 'content-type': 'image/png' } })
   }
   return new Response(null, { status: 401 })
 }
@@ -46,6 +85,7 @@ const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
         token: Redacted.make('ha-token'),
         weatherEntity: 'weather.home',
         shoppingEntity: 'todo.shopping',
+        media: testMedia,
       }),
       Layer.succeed(HttpClient.HttpClient, upstream)
     )
@@ -152,6 +192,35 @@ describe('frame server', () => {
 
       assert.include(body, 'UpstreamUnavailable')
       assert.notInclude(body, 'ha-token')
+    })
+  )
+
+  it.effect('runs an allowed media action through RPC and returns the refreshed media', () =>
+    Effect.gen(function* () {
+      const body = yield* rpc('RunMediaAction', { _tag: 'ZoneOn', entityId: 'switch.zone_a' })
+
+      assert.include(body, '"_tag":"Success"')
+      assert.include(body, 'Zone A')
+      assert.notInclude(body, 'art-token')
+    })
+  )
+
+  it.effect('refuses a media action for an entity that is not configured', () =>
+    Effect.gen(function* () {
+      const body = yield* rpc('RunMediaAction', { _tag: 'ZoneOn', entityId: 'switch.front_door' })
+
+      assert.include(body, 'MediaActionRejected')
+    })
+  )
+
+  it.effect('proxies artwork for configured players only', () =>
+    Effect.gen(function* () {
+      const art = yield* send(new Request('http://frame.test/media/art/media_player.music?v=1'))
+      const foreign = yield* get('/media/art/media_player.neighbor')
+
+      assert.strictEqual(art.status, 200)
+      assert.strictEqual(art.body, 'PNG')
+      assert.strictEqual(foreign.status, 404)
     })
   )
 

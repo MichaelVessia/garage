@@ -6,7 +6,7 @@ export {
   calendarDateStartUtc,
   calendarDayOfWeek,
 } from './calendar-date.js'
-export { UpstreamUnavailable } from './errors.js'
+export { MediaActionRejected, UpstreamUnavailable } from './errors.js'
 export type { UpstreamSource } from './errors.js'
 export {
   AllDayEvent,
@@ -22,4 +22,6 @@ export {
   Weather,
 } from './model.js'
 export type { ForecastDay } from './model.js'
+export { MediaAction, MediaSnapshot } from './media.js'
+export type { MediaCard, MediaControl, MediaPlayer, MediaPlayerStatus, SpeakerZone, SpeakerZones } from './media.js'
 export { FrameRpcs } from './rpc.js'

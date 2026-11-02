@@ -7,10 +7,10 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 ## Layout
 
 - `src/main.ts` — composition root: configuration, adapters, Bun HTTP server.
-- `src/server.ts` — routes: `GET /health` (readiness and build id), `POST /rpc`, and the SPA with an `index.html` fallback.
+- `src/server.ts` — routes: `GET /health` (readiness and build id), `POST /rpc`, `GET /media/art/<entity>` (artwork proxy for configured players), and the SPA with an `index.html` fallback.
 - `src/handlers.ts` — RPC handlers; map upstream failures to a credential-free `UpstreamUnavailable`.
 - `src/calendar/` — iCalendar feed adapter (5-minute cache, stale fallback) and recurrence expansion with `ical.js`.
-- `src/home-assistant/` — weather and shopping list adapter over Home Assistant REST.
+- `src/home-assistant/` — weather, shopping list, and media adapter over Home Assistant REST; `media.ts` owns the media configuration, state mapping, and action allowlist.
 - `src/shared/` — schemas and the RPC group shared with the browser (imported as `#shared`).
 - `web/` — Foldkit SPA: `main.ts` (Model, update, subscriptions), `message.ts`, `command.ts`, `view.ts`.
 - `scripts/check-webview-compat.ts` — fails the build if `web/dist` uses features WebView 106 lacks.
@@ -25,10 +25,17 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 | `HOME_ASSISTANT_TOKEN` | yes | none | Redacted long-lived access token; a non-admin user is enough |
 | `HOME_ASSISTANT_WEATHER_ENTITY` | no | `weather.forecast_home` | Weather entity |
 | `HOME_ASSISTANT_SHOPPING_ENTITY` | no | `todo.shopping_list` | To-do entity shown as the shopping list |
+| `HOME_ASSISTANT_MEDIA_PLAYERS` | no | none | Media screen cards in order, comma-separated. Each entry is `media_player.x` (controls from Home Assistant's supported features) or `media_player.x=power+volume+mute` (only these; tokens: `power`, `playback`, `volume`, `mute`, `source`). The literal `zones` places the speaker card; without it the card goes last |
+| `HOME_ASSISTANT_SPEAKER_ZONES` | no | none | Comma-separated `switch.*` speaker zones shown as toggles |
+| `HOME_ASSISTANT_SPEAKERS_ALL_ON` | no | none | `button.*` pressed by the speaker card's "All on" |
+| `HOME_ASSISTANT_SPEAKERS_ALL_OFF` | no | none | `button.*` pressed by the speaker card's "All off" |
+| `HOME_ASSISTANT_SPOTIFY_PLAYER` | no | none | `media_player.*` from Home Assistant's Spotify integration, shown as the now-playing card with a "Play on" device picker |
 | `FRAME_TIMEZONE` | no | `America/New_York` | Household IANA timezone |
 | `FRAME_PORT` | no | `8080` | HTTP listen port |
 | `FRAME_WEB_ROOT` | no | `web/dist` | Directory holding the built SPA |
 | `FRAME_BUILD_ID` | no | `index.html` fingerprint | Build id reported by `/health`; the image sets it |
+
+The server accepts media changes only for these entities and only the listed controls; anything else is refused with `MediaActionRejected`. Artwork is fetched by the server from Home Assistant's media player proxy, so the frame never needs to reach Home Assistant. An invalid media entry fails startup with `FRAME_ENV_INVALID`.
 
 Supply credentials through a root-readable environment file on the host, never through command arguments, images, repository files, or logs. Resetting the secret address in Google Calendar invalidates the old URL.
 

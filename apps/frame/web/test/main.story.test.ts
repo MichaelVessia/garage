@@ -5,23 +5,28 @@ import * as Option from 'effect/Option'
 import * as Scene from 'foldkit/scene'
 import * as Story from 'foldkit/story'
 
-import { CalendarDate, FrameSettings, IanaTimezone, Weather } from '#shared'
+import { CalendarDate, FrameSettings, IanaTimezone, MediaSnapshot, Weather } from '#shared'
 import type { CalendarEvent } from '#shared'
 
 import {
   AddShoppingItem,
   CheckVersion,
+  FetchMedia,
   FetchShopping,
   FetchUpcoming,
   FetchWeek,
   ReloadPage,
   RetrySettings,
+  RunMediaAction,
   UpdateShoppingItem,
 } from '../src/command.js'
 import { init, update } from '../src/main.js'
 import type { Model } from '../src/main.js'
 import {
   ChangedShoppingDraft,
+  ClickedMediaAction,
+  FailedMediaAction,
+  SucceededFetchMedia,
   CheckedVersion,
   ClickedScreen,
   FailedCheckVersion,
@@ -79,6 +84,35 @@ const shopping = [
   { uid: 'a1', summary: 'Milk', status: 'needs_action' as const },
   { uid: 'b2', summary: 'Eggs', status: 'completed' as const },
 ]
+
+const media = new MediaSnapshot({
+  spotify: null,
+  cards: [
+    {
+      _tag: 'PlayerCard',
+      player: {
+        entityId: 'media_player.receiver',
+        name: 'Receiver',
+        status: 'on',
+        controls: ['power', 'volume', 'mute'],
+        canSkip: false,
+        isMuted: false,
+        volume: 0.4,
+        source: null,
+        sources: [],
+        nowPlaying: null,
+      },
+    },
+    {
+      _tag: 'ZonesCard',
+      speakers: {
+        zones: [{ entityId: 'switch.zone_a', name: 'Zone A', isOn: false, isAvailable: true }],
+        hasAllOn: false,
+        hasAllOff: false,
+      },
+    },
+  ],
+})
 
 const rendered = (model: Model) => {
   let html = ''
@@ -171,6 +205,44 @@ describe('frame app', () => {
       Story.message(ChangedShoppingDraft({ value: '   ' })),
       Story.message(SubmittedShoppingItem()),
       Story.Command.expectNone()
+    )
+  })
+
+  it('loads media when the Media screen opens', () => {
+    Story.story(
+      update,
+      Story.given(ready),
+      Story.message(ClickedScreen({ screen: 'media' })),
+      Story.Command.expectExact(FetchMedia),
+      Story.Command.resolve(FetchMedia, SucceededFetchMedia({ media })),
+      Story.model((model) => {
+        expect(model.screen).toBe('media')
+        expect(Option.getOrThrow(model.media.data).cards).toHaveLength(2)
+      })
+    )
+  })
+
+  it('turns a speaker zone on optimistically and sends the action', () => {
+    Story.story(
+      update,
+      Story.given({ ...ready, screen: 'media', media: { data: Option.some(media), failed: false } }),
+      Story.message(ClickedMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
+      Story.model((model) => {
+        const [, zones] = Option.getOrThrow(model.media.data).cards
+        expect(zones?._tag === 'ZonesCard' ? zones.speakers.zones[0]?.isOn : undefined).toBe(true)
+      }),
+      Story.Command.expectExact(RunMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
+      Story.Command.resolve(RunMediaAction, SucceededFetchMedia({ media }))
+    )
+  })
+
+  it('reloads the real media state when an action fails', () => {
+    Story.story(
+      update,
+      Story.given({ ...ready, screen: 'media', media: { data: Option.some(media), failed: false } }),
+      Story.message(FailedMediaAction()),
+      Story.Command.expectExact(FetchMedia),
+      Story.Command.resolve(FetchMedia, SucceededFetchMedia({ media }))
     )
   })
 

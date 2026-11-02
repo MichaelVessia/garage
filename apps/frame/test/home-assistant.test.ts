@@ -1,17 +1,69 @@
 import { assert, describe, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
+import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
 import type { HttpClientRequest } from 'effect/unstable/http'
 
-import { CalendarDate, IanaTimezone, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
+import { CalendarDate, IanaTimezone, MediaActionRejected, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
+import type { EntityStateResponse } from '../src/home-assistant/api-schema.js'
 import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
+import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantApi, HomeAssistantConfig } from '../src/home-assistant/services.js'
 import { FrameTimezone } from '../src/settings.js'
+
+const testMedia: MediaConfig = {
+  slots: [
+    { _tag: 'Player', player: { entityId: 'media_player.den_tv', controls: Option.none() } },
+    {
+      _tag: 'Player',
+      player: { entityId: 'media_player.receiver', controls: Option.some(['power', 'volume', 'mute']) },
+    },
+    { _tag: 'Zones' },
+  ],
+  zones: ['switch.zone_a', 'switch.zone_b'],
+  allOn: Option.some('button.zones_on'),
+  allOff: Option.none(),
+  spotify: Option.some('media_player.music'),
+}
+
+const mediaStates: ReadonlyArray<EntityStateResponse> = [
+  {
+    entity_id: 'media_player.den_tv',
+    state: 'on',
+    attributes: { friendly_name: 'Den TV', supported_features: 24_381, source_list: ['HDMI 1', 'HDMI 2'] },
+  },
+  {
+    entity_id: 'media_player.receiver',
+    state: 'on',
+    attributes: {
+      friendly_name: 'Receiver',
+      supported_features: 69_516,
+      volume_level: 0.46,
+      is_volume_muted: false,
+      source_list: ['AUX', 'NETWORK'],
+    },
+  },
+  { entity_id: 'switch.zone_a', state: 'on', attributes: { friendly_name: 'Zone A' } },
+  {
+    entity_id: 'media_player.music',
+    state: 'playing',
+    attributes: {
+      friendly_name: 'Music',
+      supported_features: 18_485,
+      media_title: 'Song',
+      media_artist: 'Band',
+      entity_picture: '/api/media_player_proxy/media_player.music?token=art-token&cache=1',
+    },
+  },
+]
+
+const stateOf = (entity: string) => Arr.findFirst(mediaStates, (state) => state.entity_id === entity)
 
 const ConfigLayer = Layer.mergeAll(
   Layer.succeed(HomeAssistantConfig, {
@@ -19,6 +71,7 @@ const ConfigLayer = Layer.mergeAll(
     token: Redacted.make('ha-token'),
     weatherEntity: 'weather.home',
     shoppingEntity: 'todo.shopping',
+    media: testMedia,
   }),
   Layer.succeed(FrameTimezone, { timezone: IanaTimezone.make('America/New_York') })
 )
@@ -41,6 +94,9 @@ const recorded = (
       }))
     )
   )
+
+const bodyText = (request: HttpClientRequest.HttpClientRequest) =>
+  request.body._tag === 'Uint8Array' ? new TextDecoder().decode(request.body.body) : ''
 
 describe('HomeAssistantApiLive', () => {
   it.effect('reads current weather and the daily forecast on local dates', () =>
@@ -160,6 +216,126 @@ describe('HomeAssistantApiLive', () => {
             'POST',
             'http://ha.example.test:8123/api/services/todo/add_item',
             { entity_id: 'todo.shopping', item: 'Bread' },
+          ],
+        ]
+      )
+    })
+  )
+
+  it.effect('reads configured media in screen order, with a missing zone shown as unavailable', () =>
+    Effect.gen(function* () {
+      const fake = yield* makeRecordingHttpClient((_method, url) => {
+        const entity = url.pathname.replace('/api/states/', '')
+        return Option.match(stateOf(entity), {
+          onNone: () => ({ status: 404, body: { message: 'Entity not found.' } }),
+          onSome: (state) => ({ status: 200, body: state }),
+        })
+      })
+      const api = yield* HomeAssistantApi.pipe(
+        Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
+      )
+
+      const media = yield* api.media()
+
+      assert.strictEqual(media.spotify?.name, 'Music')
+      assert.strictEqual(media.spotify?.nowPlaying?.title, 'Song')
+      assert.deepStrictEqual(
+        media.cards.map((card) => (card._tag === 'PlayerCard' ? card.player.name : 'zones')),
+        ['Den TV', 'Receiver', 'zones']
+      )
+      const [, receiver, zones] = media.cards
+      assert.deepStrictEqual(receiver?._tag === 'PlayerCard' ? receiver.player.controls : [], [
+        'power',
+        'volume',
+        'mute',
+      ])
+      assert.deepStrictEqual(zones?._tag === 'ZonesCard' ? zones.speakers : null, {
+        zones: [
+          { entityId: 'switch.zone_a', name: 'Zone A', isOn: true, isAvailable: true },
+          { entityId: 'switch.zone_b', name: 'switch.zone_b', isOn: false, isAvailable: false },
+        ],
+        hasAllOn: true,
+        hasAllOff: false,
+      })
+      assert.notInclude(media.spotify?.nowPlaying?.artVersion ?? '', 'art-token')
+    })
+  )
+
+  it.effect('sends allowed media actions as Home Assistant service calls', () =>
+    Effect.gen(function* () {
+      const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: [] }))
+      const api = yield* HomeAssistantApi.pipe(
+        Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
+      )
+
+      yield* api.runMediaAction({ _tag: 'ZoneOn', entityId: 'switch.zone_a' })
+      yield* api.runMediaAction({ _tag: 'SetMute', entityId: 'media_player.receiver', muted: true })
+
+      const requests = yield* Ref.get(fake.requests)
+      assert.deepStrictEqual(
+        requests.map((request) => [
+          request.method,
+          request.url,
+          request.raw.headers.authorization,
+          bodyText(request.raw),
+        ]),
+        [
+          [
+            'POST',
+            'http://ha.example.test:8123/api/services/switch/turn_on',
+            'Bearer ha-token',
+            '{"entity_id":"switch.zone_a"}',
+          ],
+          [
+            'POST',
+            'http://ha.example.test:8123/api/services/media_player/volume_mute',
+            'Bearer ha-token',
+            '{"entity_id":"media_player.receiver","is_volume_muted":true}',
+          ],
+        ]
+      )
+    })
+  )
+
+  it.effect('refuses media actions outside the allowlist without calling Home Assistant', () =>
+    Effect.gen(function* () {
+      const fake = yield* makeRecordingHttpClient(() => ({ status: 200, body: [] }))
+      const api = yield* HomeAssistantApi.pipe(
+        Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
+      )
+
+      const refused = yield* api
+        .runMediaAction({ _tag: 'SelectSource', entityId: 'media_player.receiver', source: 'AUX' })
+        .pipe(Effect.flip)
+
+      assert.instanceOf(refused, MediaActionRejected)
+      assert.deepStrictEqual(yield* recorded(fake.requests), [])
+    })
+  )
+
+  it.effect('proxies artwork only for configured players', () =>
+    Effect.gen(function* () {
+      const fake = yield* makeRecordingHttpClient((_method, url) =>
+        url.pathname.startsWith('/api/media_player_proxy/')
+          ? { status: 200, body: 'PNG', headers: new Headers({ 'content-type': 'image/png' }) }
+          : { status: 200, body: Option.getOrNull(stateOf('media_player.music')) }
+      )
+      const api = yield* HomeAssistantApi.pipe(
+        Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
+      )
+
+      const artwork = yield* api.mediaArtwork('media_player.music')
+      const foreign = yield* api.mediaArtwork('media_player.neighbor')
+
+      assert.strictEqual(Option.map(artwork, (art) => art.contentType).pipe(Option.getOrNull), 'image/png')
+      assert.isTrue(Option.isNone(foreign))
+      assert.deepStrictEqual(
+        (yield* recorded(fake.requests)).map((request) => [request.url, request.authorization]),
+        [
+          ['http://ha.example.test:8123/api/states/media_player.music', 'Bearer ha-token'],
+          [
+            'http://ha.example.test:8123/api/media_player_proxy/media_player.music?token=art-token&cache=1',
+            'Bearer ha-token',
           ],
         ]
       )

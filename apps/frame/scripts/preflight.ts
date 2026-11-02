@@ -24,7 +24,7 @@ import { PreflightFailed } from './errors.js'
 
 const SERVER_PORT = 8099
 const DEVTOOLS_PORT = 9333
-const SCREENS = ['Today', 'Calendar', 'Shopping'] as const
+const SCREENS = ['Today', 'Calendar', 'Shopping', 'Media'] as const
 
 const DevtoolsTarget = Schema.Struct({ webSocketDebuggerUrl: Schema.String })
 const CdpMessage = Schema.fromJsonString(

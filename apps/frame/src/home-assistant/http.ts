@@ -3,19 +3,34 @@ import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as R from 'effect/Record'
 import * as Redacted from 'effect/Redacted'
+import * as Result from 'effect/Result'
 import type * as Schema from 'effect/Schema'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
 
-import { Weather, calendarDateOf } from '#shared'
-import type { ForecastDay, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
+import { MediaActionRejected, MediaSnapshot, Weather, calendarDateOf } from '#shared'
+import type { ForecastDay, MediaAction, MediaCard, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
 import { homeAssistantDecodeError, homeAssistantHttpError, homeAssistantUnreachable } from '../errors.js'
 import type { HomeAssistantError } from '../errors.js'
 import { FrameTimezone } from '../settings.js'
-import { ForecastServiceResponse, TodoItemsServiceResponse, WeatherStateResponse } from './api-schema.js'
+import {
+  EntityStateResponse,
+  ForecastServiceResponse,
+  TodoItemsServiceResponse,
+  WeatherStateResponse,
+} from './api-schema.js'
+import {
+  artworkPath,
+  authorizeMediaAction,
+  isArtworkEntity,
+  mediaLayout,
+  toMediaPlayer,
+  toSpeakerZone,
+} from './media.js'
 import { HomeAssistantApi, HomeAssistantConfig } from './services.js'
 
 const normalizeBaseUrl = (url: string): string => (url.endsWith('/') ? url.slice(0, -1) : url)
@@ -91,6 +106,92 @@ export const HomeAssistantApiLive = Layer.effect(
       return items
     })
 
+    // A configured entity that Home Assistant no longer knows is shown as unavailable, not as an error.
+    const entityState = (entityId: string) =>
+      http.getJson(`/api/states/${entityId}`, EntityStateResponse).pipe(
+        Effect.map(Option.some),
+        Effect.catchTag('HomeAssistantHttpError', (failure) =>
+          failure.status === 404
+            ? Effect.logDebug('Configured entity not found', entityId).pipe(
+                Effect.as(Option.none<EntityStateResponse>())
+              )
+            : Effect.fail(failure)
+        )
+      )
+
+    const media = Effect.fn('frame.home-assistant.media')(function* () {
+      const mediaConfig = config.media
+      const spotify = yield* Effect.forEach(
+        Option.toArray(mediaConfig.spotify),
+        (entityId) =>
+          Effect.map(entityState(entityId), (state) => toMediaPlayer({ entityId, controls: Option.none() }, state)),
+        { concurrency: 'unbounded' }
+      )
+      const zones = yield* Effect.forEach(
+        mediaConfig.zones,
+        (entityId) => Effect.map(entityState(entityId), (state) => toSpeakerZone(entityId, state)),
+        { concurrency: 'unbounded' }
+      )
+      const cards = yield* Effect.forEach(
+        mediaLayout(mediaConfig),
+        (slot): Effect.Effect<MediaCard, HomeAssistantError> =>
+          Match.valueTags(slot, {
+            Zones: () =>
+              Effect.succeed<MediaCard>({
+                _tag: 'ZonesCard',
+                speakers: {
+                  zones,
+                  hasAllOn: Option.isSome(mediaConfig.allOn),
+                  hasAllOff: Option.isSome(mediaConfig.allOff),
+                },
+              }),
+            Player: ({ player }) =>
+              Effect.map(entityState(player.entityId), (state): MediaCard => ({
+                _tag: 'PlayerCard',
+                player: toMediaPlayer(player, state),
+              })),
+          }),
+        { concurrency: 'unbounded' }
+      )
+      return new MediaSnapshot({ spotify: spotify[0] ?? null, cards })
+    })
+
+    const runMediaAction = Effect.fn('frame.home-assistant.runMediaAction')(function* (action: MediaAction) {
+      yield* Effect.annotateCurrentSpan('action', action._tag)
+      const call = yield* Result.match(authorizeMediaAction(config.media, action), {
+        onSuccess: Effect.succeed,
+        onFailure: (message) => Effect.fail(new MediaActionRejected({ message })),
+      })
+      yield* http.execute(
+        HttpClientRequest.post(`${baseUrl}/api/services/${call.domain}/${call.service}`).pipe(
+          authorize,
+          HttpClientRequest.bodyJsonUnsafe(call.data)
+        )
+      )
+    })
+
+    const mediaArtwork = Effect.fn('frame.home-assistant.mediaArtwork')(function* (entityId: string) {
+      if (!isArtworkEntity(config.media, entityId)) {
+        return Option.none()
+      }
+      const path = Option.flatMap(yield* entityState(entityId), artworkPath)
+      if (Option.isNone(path)) {
+        return Option.none()
+      }
+      const response = yield* http.execute(
+        HttpClientRequest.get(`${baseUrl}${path.value}`).pipe(
+          HttpClientRequest.bearerToken(Redacted.value(config.token))
+        )
+      )
+      const bytes = yield* response.arrayBuffer.pipe(
+        Effect.mapError(() => homeAssistantDecodeError('Artwork could not be read'))
+      )
+      return Option.some({
+        bytes: new Uint8Array(bytes),
+        contentType: response.headers['content-type'] ?? 'image/jpeg',
+      })
+    })
+
     return HomeAssistantApi.of({
       weather: Effect.fn('frame.home-assistant.weather')(function* () {
         const current: WeatherStateResponse = yield* http.getJson(
@@ -112,6 +213,9 @@ export const HomeAssistantApiLive = Layer.effect(
         })
       }),
       shoppingItems,
+      media,
+      runMediaAction,
+      mediaArtwork,
       addShoppingItem: Effect.fn('frame.home-assistant.addShoppingItem')(function* (addition: ShoppingItemAddition) {
         yield* http.execute(
           HttpClientRequest.post(`${baseUrl}/api/services/todo/add_item`).pipe(

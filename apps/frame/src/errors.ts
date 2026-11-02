@@ -15,6 +15,11 @@ class FrameEnvMissingError extends Schema.TaggedErrorClass<FrameEnvMissingError>
   envMissingFields('FRAME_ENV_MISSING')
 ) {}
 
+class FrameEnvInvalidError extends Schema.TaggedErrorClass<FrameEnvInvalidError>()(
+  'FrameEnvInvalidError',
+  envMissingFields('FRAME_ENV_INVALID')
+) {}
+
 class CalendarUnreachableError extends Schema.TaggedErrorClass<CalendarUnreachableError>()(
   'CalendarUnreachableError',
   unreachableFields('CALENDAR_UNREACHABLE')
@@ -55,6 +60,7 @@ export type CalendarError = typeof CalendarError.Type
 
 const HomeAssistantError = Schema.Union([
   FrameEnvMissingError,
+  FrameEnvInvalidError,
   HomeAssistantUnreachableError,
   HomeAssistantHttpError,
   HomeAssistantDecodeError,
@@ -64,6 +70,10 @@ export type HomeAssistantError = typeof HomeAssistantError.Type
 const envFix = "Provision the frame's environment file on the deployment host; see apps/frame/README.md."
 
 export const envMissing = makeEnvMissing(FrameEnvMissingError, 'FRAME_ENV_MISSING', envFix)
+
+/** A set environment variable whose value the frame cannot use. The reason never includes a credential. */
+export const envInvalid = (variable: string, reason: string) =>
+  new FrameEnvInvalidError({ code: 'FRAME_ENV_INVALID', message: `${variable} is invalid: ${reason}`, fix: envFix })
 
 // The calendar URL is a credential, so adapter messages never include it or an upstream error message.
 export const calendarUnreachable = makeUnreachable(

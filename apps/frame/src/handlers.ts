@@ -1,7 +1,8 @@
 import * as Effect from 'effect/Effect'
+import * as Schema from 'effect/Schema'
 
-import { FrameRpcs, FrameSettings, UpstreamUnavailable, calendarDateStartUtc } from '#shared'
-import type { CalendarWindow, ShoppingItemAddition, ShoppingItemUpdate, UpstreamSource } from '#shared'
+import { FrameRpcs, FrameSettings, MediaActionRejected, UpstreamUnavailable, calendarDateStartUtc } from '#shared'
+import type { CalendarWindow, MediaAction, ShoppingItemAddition, ShoppingItemUpdate, UpstreamSource } from '#shared'
 
 import { CalendarFeed } from './calendar/services.js'
 import type { CalendarError, HomeAssistantError } from './errors.js'
@@ -24,6 +25,25 @@ const toPublicError =
       Effect.mapError(() => new UpstreamUnavailable({ source, message: publicMessages[source] }))
     )
 
+const isRejected = Schema.is(MediaActionRejected)
+
+// A refused media change is already credential-free, so it reaches the browser as is.
+const toPublicMediaError = <A, R>(
+  effect: Effect.Effect<A, HomeAssistantError | MediaActionRejected, R>
+): Effect.Effect<A, UpstreamUnavailable | MediaActionRejected, R> =>
+  effect.pipe(
+    Effect.tapError((failure) =>
+      Effect.logWarning('Media action failed').pipe(
+        Effect.annotateLogs({ code: isRejected(failure) ? 'MEDIA_ACTION_REJECTED' : failure.code })
+      )
+    ),
+    Effect.mapError((failure) =>
+      isRejected(failure)
+        ? failure
+        : new UpstreamUnavailable({ source: 'home-assistant', message: publicMessages['home-assistant'] })
+    )
+  )
+
 export const FrameHandlersLive = FrameRpcs.toLayer(
   Effect.gen(function* () {
     const { timezone } = yield* FrameTimezone
@@ -45,6 +65,9 @@ export const FrameHandlersLive = FrameRpcs.toLayer(
         homeAssistant
           .addShoppingItem(addition)
           .pipe(Effect.andThen(homeAssistant.shoppingItems()), toPublicError('home-assistant')),
+      GetMedia: () => homeAssistant.media().pipe(toPublicError('home-assistant')),
+      RunMediaAction: (action: MediaAction) =>
+        homeAssistant.runMediaAction(action).pipe(Effect.andThen(homeAssistant.media()), toPublicMediaError),
       UpdateShoppingItem: (update: ShoppingItemUpdate) =>
         homeAssistant
           .updateShoppingItem(update)

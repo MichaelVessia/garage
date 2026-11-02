@@ -34,3 +34,21 @@ export const TodoItemsServiceResponse = Schema.Struct({
   service_response: Schema.Record(Schema.String, Schema.Struct({ items: Schema.Array(TodoItem) })),
 })
 export type TodoItemsServiceResponse = typeof TodoItemsServiceResponse.Type
+
+// GET /api/states/<entity_id> for a media player, switch, or button.
+export const EntityStateResponse = Schema.Struct({
+  entity_id: Schema.String,
+  state: Schema.String,
+  attributes: Schema.Struct({
+    friendly_name: Schema.String.pipe(Schema.optional),
+    supported_features: Schema.Number.pipe(Schema.optional),
+    is_volume_muted: Schema.Boolean.pipe(Schema.optional),
+    volume_level: Schema.Number.pipe(Schema.NullOr, Schema.optional),
+    source: Schema.String.pipe(Schema.NullOr, Schema.optional),
+    source_list: Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional),
+    media_title: Schema.String.pipe(Schema.NullOr, Schema.optional),
+    media_artist: Schema.String.pipe(Schema.NullOr, Schema.optional),
+    entity_picture: Schema.String.pipe(Schema.NullOr, Schema.optional),
+  }),
+})
+export type EntityStateResponse = typeof EntityStateResponse.Type

@@ -1,10 +1,19 @@
 import * as Schema from 'effect/Schema'
 import { m } from 'foldkit/message'
 
-import { CalendarDate, CalendarEvent, FrameSettings, ShoppingItem, ShoppingItemStatus, Weather } from '#shared'
+import {
+  CalendarDate,
+  CalendarEvent,
+  FrameSettings,
+  MediaAction,
+  MediaSnapshot,
+  ShoppingItem,
+  ShoppingItemStatus,
+  Weather,
+} from '#shared'
 
 /** Screens reachable from the rail. */
-export const Screen = Schema.Literals(['today', 'calendar', 'shopping'])
+export const Screen = Schema.Literals(['today', 'calendar', 'shopping', 'media'])
 export type Screen = typeof Screen.Type
 
 /** Calendar layouts. */
@@ -24,7 +33,10 @@ export const ClickedToday = m('ClickedToday')
 export const ClickedShoppingItem = m('ClickedShoppingItem', { uid: Schema.String, status: ShoppingItemStatus })
 export const ChangedShoppingDraft = m('ChangedShoppingDraft', { value: Schema.String })
 export const SubmittedShoppingItem = m('SubmittedShoppingItem')
-export const RefreshDue = m('RefreshDue', { source: Schema.Literals(['calendar', 'weather', 'shopping', 'version']) })
+export const ClickedMediaAction = m('ClickedMediaAction', { action: MediaAction })
+export const RefreshDue = m('RefreshDue', {
+  source: Schema.Literals(['calendar', 'weather', 'shopping', 'media', 'version']),
+})
 
 export const SucceededFetchSettings = m('SucceededFetchSettings', { settings: FrameSettings })
 export const FailedFetchSettings = m('FailedFetchSettings', { isServerReachable: Schema.Boolean })
@@ -36,6 +48,10 @@ export const SucceededFetchWeather = m('SucceededFetchWeather', { weather: Weath
 export const FailedFetchWeather = m('FailedFetchWeather', { isServerReachable: Schema.Boolean })
 export const SucceededFetchShopping = m('SucceededFetchShopping', { items: Schema.Array(ShoppingItem) })
 export const FailedFetchShopping = m('FailedFetchShopping', { isServerReachable: Schema.Boolean })
+export const SucceededFetchMedia = m('SucceededFetchMedia', { media: MediaSnapshot })
+export const FailedFetchMedia = m('FailedFetchMedia', { isServerReachable: Schema.Boolean })
+// A refused or failed media change; the screen reloads the real state.
+export const FailedMediaAction = m('FailedMediaAction')
 
 // A deploy is detected by comparing the server's version with the one this page booted with.
 export const CheckedVersion = m('CheckedVersion', { version: Schema.String })
@@ -50,6 +66,7 @@ const Message = Schema.Union([
   ClickedShift,
   ClickedToday,
   ClickedShoppingItem,
+  ClickedMediaAction,
   ChangedShoppingDraft,
   SubmittedShoppingItem,
   RefreshDue,
@@ -63,6 +80,9 @@ const Message = Schema.Union([
   FailedFetchWeather,
   SucceededFetchShopping,
   FailedFetchShopping,
+  SucceededFetchMedia,
+  FailedFetchMedia,
+  FailedMediaAction,
   CheckedVersion,
   FailedCheckVersion,
   StartedReload,
