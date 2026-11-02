@@ -11,7 +11,7 @@
     "build:server": "bun build src/main.ts --compile --outfile dist/garage-frame",
     "dev": "bun run src/main.ts",
     "dev:web": "vite web",
-    "deploy:prod": "export FRAME_IMAGE_TAG=$(nix eval --raw ../..#garage-frame-image.imageTag) && alchemy deploy --stage prod --env-file .env.prod --yes && bun scripts/verify-deploy.ts http://192.168.1.147:8080 $FRAME_IMAGE_TAG",
+    "deploy:prod": "export FRAME_IMAGE_TAG=$(nix eval --raw ../..#garage-frame-image.imageTag) && bun --env-file=.env.prod node_modules/.bin/alchemy deploy --stage prod --env-file .env.prod --yes && bun --env-file=.env.prod scripts/verify-deploy.ts $FRAME_IMAGE_TAG",
     "typecheck": "tsc --noEmit && tsc --noEmit --project web/tsconfig.json",
     "lint": "oxlint --type-aware --config ../../oxlint.config.mjs src/ test/ web/src/ web/test/ scripts/ alchemy.run.ts",
     "lint:fix": "oxlint --type-aware --config ../../oxlint.config.mjs --fix src/ test/ web/src/ web/test/ scripts/ alchemy.run.ts",

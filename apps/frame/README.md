@@ -44,15 +44,17 @@ bun run --filter '@garage/frame' dev:web        # vite on :5173, proxies /rpc to
 
 ## Deploy
 
-The frame server runs as a Docker container on Proxmox CT 126 (`192.168.1.147`). One command from the workstation builds and ships it; there is no registry and no CI deploy.
+The frame server runs as a Docker container on a Proxmox LXC with Docker. One command from the workstation builds and ships it; there is no registry and no CI deploy.
 
 ### One-time setup
 
-1. Authorize the workstation's SSH key for `root@192.168.1.147` and accept its host key (`ssh root@192.168.1.147 true`). Docker reaches the remote daemon over this SSH connection.
+1. Authorize the workstation's SSH key for `root@<frame-host>` and accept its host key (`ssh root@<frame-host> true`). Docker reaches the remote daemon over this SSH connection.
 2. Create `apps/frame/.env.prod` (gitignored) with:
 
    | Variable | Required |
    | --- | --- |
+   | `FRAME_DOCKER_HOST` (`ssh://root@<frame-host>`) | yes |
+   | `FRAME_URL` (`http://<frame-host>:8080`) | yes |
    | `CALENDAR_ICS_URL` | yes |
    | `HOME_ASSISTANT_URL` | yes |
    | `HOME_ASSISTANT_TOKEN` | yes |
@@ -72,9 +74,11 @@ This runs, in order:
 
 1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
 2. `alchemy deploy --stage prod --env-file .env.prod --yes` with `alchemy.run.ts`:
-   - `Command.Exec load-image` builds `.#garage-frame-image` and streams it into CT 126 with `docker -H ssh://root@192.168.1.147 load`. It re-runs only when the tag changes.
+   - `Command.Exec load-image` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`. It re-runs only when the tag changes.
    - `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values.
-3. `scripts/verify-deploy.ts` polls `http://192.168.1.147:8080/health` until it reports the new build id, and fails after about two minutes.
+3. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
+
+Alchemy `2.0.0-beta.70`'s `Docker.Container` passes environment variables to `docker container create` as bare `--env NAME` flags and relies on the Alchemy process environment for the values, so `deploy:prod` starts Alchemy with `bun --env-file=.env.prod`. Without that, the container starts with empty variables.
 
 Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying workstation (gitignored). That state includes the credential values Alchemy passed to the container, so treat the directory like `.env.prod`. Deploy from the same checkout each time, or copy `.alchemy/` with it.
 
@@ -82,7 +86,7 @@ The image runs as UID/GID `65532`. Alchemy's `Docker.Container` has no options f
 
 ### Rollback
 
-Check out an older commit and run `deploy:prod` again. Nix rebuilds that commit's image (usually from the store cache), and older tags remain on CT 126 until pruned.
+Check out an older commit and run `deploy:prod` again. Nix rebuilds that commit's image (usually from the store cache), and older tags remain on the host until pruned.
 
 ### The frame picks up deploys by itself
 

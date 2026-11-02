@@ -9,8 +9,6 @@ import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as R from 'effect/Record'
 
-// The frame host: Proxmox CT 126, reached with the workstation's root SSH key.
-const DOCKER_HOST = 'ssh://root@192.168.1.147'
 const PORT = 8080
 
 // Optional settings pass through only when `.env.prod` sets them; the image supplies the rest.
@@ -40,20 +38,22 @@ export default Alchemy.Stack(
     // `deploy:prod` sets this from the Nix image tag, so it names exactly the image being shipped.
     const tag = yield* Config.nonEmptyString('FRAME_IMAGE_TAG')
     const imageRef = `garage-frame:${tag}`
+    // The frame host's Docker endpoint, e.g. `ssh://root@<host>`, reached with the workstation's SSH key.
+    const dockerHost = yield* Config.nonEmptyString('FRAME_DOCKER_HOST')
 
     const host = yield* Docker.Context('frame-host', {
-      docker: `host=${DOCKER_HOST}`,
-      description: 'Proxmox CT 126 (garage-frame)',
+      docker: `host=${dockerHost}`,
+      description: 'garage-frame host',
     })
 
     // No registry: stream the Nix-built tarball into the remote daemon. Re-runs only when the tag changes.
     const image = yield* Command.Exec('load-image', {
       command: [
-        `docker -H ${DOCKER_HOST} load -i "$(nix build --no-link --print-out-paths ../..#garage-frame-image)"`,
-        `docker -H ${DOCKER_HOST} image inspect ${imageRef} > /dev/null`,
+        `docker -H ${dockerHost} load -i "$(nix build --no-link --print-out-paths ../..#garage-frame-image)"`,
+        `docker -H ${dockerHost} image inspect ${imageRef} > /dev/null`,
       ].join(' && '),
       shell: true,
-      env: { FRAME_IMAGE_TAG: tag },
+      env: { FRAME_IMAGE_TAG: tag, FRAME_DOCKER_HOST: dockerHost },
       memo: { include: ['alchemy.run.ts'] },
       timeout: '15 minutes',
     })
