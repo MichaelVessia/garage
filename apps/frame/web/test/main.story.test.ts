@@ -317,7 +317,9 @@ describe('frame app', () => {
     }
 
     const todayHtml = rendered(loaded)
-    expect(todayHtml).toContain('10:00')
+    // 10:00 renders one fixed-width box per digit, on the Today clock and the rail clock.
+    expect(todayHtml.match(/clock-digit/gu)).toHaveLength(8)
+    expect(todayHtml).toContain('Monday, November 2')
     expect(todayHtml).toContain('Swim lesson')
     expect(todayHtml).toContain('Grandparents visiting')
     expect(todayHtml).toContain('Partly cloudy')
@@ -333,6 +335,51 @@ describe('frame app', () => {
     const ambientHtml = rendered({ ...loaded, isAmbient: true })
     expect(ambientHtml).toContain('amb-time')
     expect(ambientHtml).toContain('Swim lesson')
+  })
+
+  it('always shows the next event on Today, even when it is on a later day', () => {
+    const later: ReadonlyArray<CalendarEvent> = [
+      {
+        _tag: 'TimedEvent',
+        id: 'breakfast',
+        title: 'Breakfast',
+        location: null,
+        color: null,
+        start: at('2026-11-02T12:00:00Z'),
+        end: at('2026-11-02T13:00:00Z'),
+      },
+      {
+        _tag: 'TimedEvent',
+        id: 'dentist',
+        title: 'Dentist',
+        location: 'Main Street',
+        color: null,
+        start: at('2026-11-03T15:00:00Z'),
+        end: at('2026-11-03T16:00:00Z'),
+      },
+    ]
+    // Monday 21:00 in New York: today's only event is over.
+    const html = rendered({
+      ...ready,
+      now: at('2026-11-03T02:00:00Z'),
+      upcoming: { data: Option.some(later), failed: false },
+    })
+    expect(html).toContain('Nothing else today')
+    // The finished day's rows give way to the next event; nothing points at past rows.
+    expect(html).not.toContain('Breakfast')
+    expect(html).not.toContain(' more')
+    expect(html).toContain('is-next')
+    expect(html).toContain('Dentist')
+    expect(html).toContain('Tomorrow')
+    expect(html).toContain('in 13 h')
+  })
+
+  it('uses the light theme by day and the dark theme from 20:00 to 06:59', () => {
+    expect(rendered(ready)).toContain('theme-light')
+    // 20:00 and 06:30 in New York.
+    expect(rendered({ ...ready, now: at('2026-11-03T01:00:00Z') })).toContain('theme-dark')
+    expect(rendered({ ...ready, now: at('2026-11-02T11:30:00Z') })).toContain('theme-dark')
+    expect(rendered({ ...ready, now: at('2026-11-02T12:00:00Z') })).toContain('theme-light')
   })
 
   it('reloads when the server reports a different version than the page booted with', () => {
