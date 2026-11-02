@@ -46,7 +46,8 @@ it.effect('runs a bounded queue request through the SABnzbd package operation', 
     const toolkit = yield* SabnzbdToolkit.pipe(Effect.provide(SabnzbdToolkitHandlers.pipe(Layer.provide(fake.layer))))
     const results = yield* toolkit.handle('sabnzbd_queue', { limit: 5 }).pipe(Effect.flatMap(Stream.runCollect))
 
-    assert.deepStrictEqual(yield* Ref.get(fake.queueLimits), [5])
+    const queueLimits = yield* Ref.get(fake.queueLimits)
+    assert.deepStrictEqual(queueLimits, [5])
     assert.strictEqual(results.length, 1)
     assert.deepStrictEqual(results[0]?.encodedResult, {
       status: 'Downloading',
@@ -73,7 +74,8 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
       })
       .pipe(Effect.flatMap(Stream.runCollect), Effect.flip)
 
-    assert.deepStrictEqual(yield* Ref.get(fake.mutations), ['pause', 'resume'])
+    const mutations = yield* Ref.get(fake.mutations)
+    assert.deepStrictEqual(mutations, ['pause', 'resume'])
 
     if (unsafeDelete._tag !== 'GarageMcpToolError') {
       return assert.fail(`expected GarageMcpToolError, received ${unsafeDelete._tag}`)
@@ -89,7 +91,8 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
       })
       .pipe(Effect.flatMap(Stream.runCollect))
 
-    assert.deepStrictEqual(yield* Ref.get(fake.mutations), ['pause', 'resume', 'delete:SABnzbd_nzo_confirmed:true'])
+    const mutationsAfterDelete = yield* Ref.get(fake.mutations)
+    assert.deepStrictEqual(mutationsAfterDelete, ['pause', 'resume', 'delete:SABnzbd_nzo_confirmed:true'])
   })
 )
 
@@ -114,6 +117,7 @@ it.effect('adapts every read tool to its SABnzbd package operation', () =>
     assert.deepStrictEqual(versionResults[0]?.encodedResult, { version: '4.5.3' })
     assert.deepStrictEqual(historyResults[0]?.encodedResult, { count: 0, totalRecords: 0, slots: [] })
     assert.deepStrictEqual(statsResults[0]?.encodedResult, { servers: {} })
-    assert.deepStrictEqual(yield* Ref.get(fake.historyLimits), [25])
+    const historyLimits = yield* Ref.get(fake.historyLimits)
+    assert.deepStrictEqual(historyLimits, [25])
   })
 )

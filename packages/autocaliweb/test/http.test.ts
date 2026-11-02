@@ -28,11 +28,7 @@ const atomResponse = (body: string): RecordingHttpResponse => ({
   headers: new Headers({ 'content-type': 'application/atom+xml' }),
 })
 
-const jsonResponse = (body: Schema.JsonObject): RecordingHttpResponse => ({
-  status: 200,
-  body: JSON.stringify(body),
-  headers: new Headers({ 'content-type': 'application/json' }),
-})
+const jsonResponse = (body: Schema.JsonObject): RecordingHttpResponse => ({ status: 200, body })
 
 const withAuth = (records: ReadonlyArray<RecordedHttpRequest>) =>
   Arr.map(records, (request) => ({
@@ -103,13 +99,15 @@ it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =
     const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     yield* Effect.gen(function* () {
-      assert.deepStrictEqual(yield* status, {
+      const statusResult = yield* status
+      assert.deepStrictEqual(statusResult, {
         title: 'Fixture Catalog',
         updated: '2026-05-24T10:00:00+00:00',
         catalogCount: 2,
         stats: { books: 2, authors: 1, categories: 1, series: 0 },
       })
-      assert.deepStrictEqual(yield* catalog, {
+      const catalogResult = yield* catalog
+      assert.deepStrictEqual(catalogResult, {
         count: 2,
         records: [
           {
@@ -128,7 +126,8 @@ it.effect('AutocaliwebApiLive authenticates OPDS reads and returns status', () =
       })
     }).pipe(Effect.provide(layer))
 
-    assert.deepStrictEqual(withAuth(yield* Ref.get(fake.requests)), [
+    const requests = yield* Ref.get(fake.requests).pipe(Effect.map(withAuth))
+    assert.deepStrictEqual(requests, [
       {
         method: 'GET',
         url: 'http://autocaliweb.example.test/opds',
@@ -192,7 +191,8 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
     const layer = AutocaliwebApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     yield* Effect.gen(function* () {
-      assert.deepStrictEqual(yield* books({ limit: 2 }), {
+      const booksResult = yield* books({ limit: 2 })
+      assert.deepStrictEqual(booksResult, {
         count: 2,
         records: [
           {
@@ -239,7 +239,8 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
           },
         ],
       })
-      assert.deepStrictEqual(yield* search({ query: 'fixture query', limit: 1 }), {
+      const searchResult = yield* search({ query: 'fixture query', limit: 1 })
+      assert.deepStrictEqual(searchResult, {
         query: 'fixture query',
         total: 2,
         count: 1,
@@ -267,7 +268,8 @@ it.effect('AutocaliwebApiLive normalizes books, pagination, search, and metadata
           },
         ],
       })
-      assert.deepStrictEqual(yield* bookInfo({ uuid: 'uuid-one' }), {
+      const bookInfoResult = yield* bookInfo({ uuid: 'uuid-one' })
+      assert.deepStrictEqual(bookInfoResult, {
         id: '42',
         uuid: 'uuid-one',
         urn: 'urn:uuid:uuid-one',
@@ -304,7 +306,8 @@ it.effect('preserves a configured base-path prefix for OPDS requests', () =>
 
     yield* books({ limit: 1 }).pipe(Effect.provide(layer))
 
-    assert.deepStrictEqual(withAuth(yield* Ref.get(fake.requests)), [
+    const requests = yield* Ref.get(fake.requests).pipe(Effect.map(withAuth))
+    assert.deepStrictEqual(requests, [
       {
         method: 'GET',
         url: 'http://autocaliweb.example.test/calibre-web/opds/books/letter/00',
@@ -328,8 +331,9 @@ it.effect('rejects cross-origin OPDS pagination before forwarding Basic auth', (
     const failure = yield* books({ limit: 2 }).pipe(Effect.provide(layer), Effect.flip)
 
     assert.strictEqual(failure.code, 'AUTOCALIWEB_DECODE_ERROR')
-    assert.strictEqual((yield* Ref.get(fake.requests)).length, 1)
-    assert.deepStrictEqual(withAuth(yield* Ref.get(fake.requests)), [
+    const requests = yield* Ref.get(fake.requests).pipe(Effect.map(withAuth))
+    assert.strictEqual(requests.length, 1)
+    assert.deepStrictEqual(requests, [
       {
         method: 'GET',
         url: 'http://autocaliweb.example.test/opds/books/letter/00',

@@ -207,7 +207,7 @@ export const WeightLogRepoLive = Layer.effect(
       function* (data: WeightLogCreate, userId: string) {
         const id = yield* randomUuid()
         const notes = Option.isSome(data.notes) ? data.notes.value : null
-        const now = DateTime.formatIso(yield* DateTime.now)
+        const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
         const datetimeStr = DateTime.formatIso(data.datetime)
 
         yield* sql`
@@ -242,7 +242,7 @@ export const WeightLogRepoLive = Layer.effect(
       const newDatetime = data.datetime === undefined ? curr.datetime : DateTime.formatIso(data.datetime)
       const newWeight = data.weight ?? curr.weight
       const newNotes = Option.isSome(data.notes) ? data.notes.value : curr.notes
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
 
       yield* sql`
           UPDATE weight_logs

@@ -37,7 +37,10 @@ it.effect('SabnzbdApiLive sends query-authenticated status requests', () =>
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* status.pipe(Effect.provide(layer))
-    const requests = Arr.map(yield* Ref.get(fake.requests), (request) => ({ method: request.method, url: request.url }))
+
+    const requests = yield* Ref.get(fake.requests).pipe(
+      Effect.map(Arr.map((request) => ({ method: request.method, url: request.url })))
+    )
 
     assert.strictEqual(result.version, '4.5.3')
     assert.strictEqual(result.haveWarnings, false)
@@ -85,7 +88,10 @@ it.effect('SabnzbdApiLive maps queue responses and limit params', () =>
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* queue({ limit: 5 }).pipe(Effect.provide(layer))
-    const requests = Arr.map(yield* Ref.get(fake.requests), (request) => ({ method: request.method, url: request.url }))
+
+    const requests = yield* Ref.get(fake.requests).pipe(
+      Effect.map(Arr.map((request) => ({ method: request.method, url: request.url })))
+    )
 
     assert.strictEqual(result.totalRecords, 22)
     assert.deepStrictEqual(result.slots, [
@@ -116,7 +122,10 @@ it.effect('SabnzbdApiLive sends delete file flags explicitly', () =>
     const layer = SabnzbdApiLive.pipe(Layer.provideMerge(Layer.mergeAll(ConfigLayer, fake.layer)))
 
     const result = yield* deleteQueueItem({ nzoId: 'SABnzbd_nzo_abc', deleteFiles: true }).pipe(Effect.provide(layer))
-    const requests = Arr.map(yield* Ref.get(fake.requests), (request) => ({ method: request.method, url: request.url }))
+
+    const requests = yield* Ref.get(fake.requests).pipe(
+      Effect.map(Arr.map((request) => ({ method: request.method, url: request.url })))
+    )
 
     assert.deepStrictEqual(result, {
       action: 'delete',

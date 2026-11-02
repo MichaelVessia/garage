@@ -81,7 +81,8 @@ describe('Better Auth HTTP adapter', () => {
           { method: 'POST', url: '/api/auth/change-password' },
         ]
       )
-      assert.deepStrictEqual(yield* Effect.forEach(Arr.drop(canned.requests, 1), requestJson), [
+      const bodies = yield* Effect.forEach(Arr.drop(canned.requests, 1), requestJson)
+      assert.deepStrictEqual(bodies, [
         Option.some({ email: 'person@example.com', password: 'secret' }),
         Option.some({ email: 'person@example.com', name: 'Person', password: 'secret' }),
         Option.some({}),
@@ -95,8 +96,10 @@ describe('Better Auth HTTP adapter', () => {
       const present = makeCannedClient(() => ({ body: { user }, status: 200 }))
       const absent = makeCannedClient(() => ({ body: null, status: 200 }))
 
-      assert.deepStrictEqual(yield* fetchSession().pipe(Effect.provide(present.layer)), user)
-      assert.isNull(yield* fetchSession().pipe(Effect.provide(absent.layer)))
+      const presentSession = yield* fetchSession().pipe(Effect.provide(present.layer))
+      const absentSession = yield* fetchSession().pipe(Effect.provide(absent.layer))
+      assert.deepStrictEqual(presentSession, user)
+      assert.isNull(absentSession)
     })
   )
 

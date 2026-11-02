@@ -62,11 +62,9 @@ export type LoginMessage = typeof LoginMessage.Type
 // Update
 // ============================================
 
-type AuthCommandMessage =
-  | typeof SucceededSignIn.Type
-  | typeof FailedSignIn.Type
-  | typeof SucceededSignUp.Type
-  | typeof FailedSignUp.Type
+const AuthCommandMessage = Schema.Union([SucceededSignIn, FailedSignIn, SucceededSignUp, FailedSignUp])
+
+type AuthCommandMessage = typeof AuthCommandMessage.Type
 
 type UpdateReturn = Update.Return<LoginModel, AuthCommandMessage, HttpClient.HttpClient>
 

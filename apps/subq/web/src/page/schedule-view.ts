@@ -75,7 +75,9 @@ const FetchScheduleView = Command.define('FetchScheduleView', {
 // Update
 // ============================================
 
-type ScheduleViewCommandMessage = typeof SucceededFetchScheduleView.Type | typeof FailedFetchScheduleView.Type
+const ScheduleViewCommandMessage = Schema.Union([SucceededFetchScheduleView, FailedFetchScheduleView])
+
+type ScheduleViewCommandMessage = typeof ScheduleViewCommandMessage.Type
 
 type UpdateReturn = Update.Return<ScheduleViewModel, ScheduleViewCommandMessage, Api>
 

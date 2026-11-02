@@ -10,6 +10,7 @@ import { DataExport, DataExportTemporalMigrationRequired, IanaTimezone, UserSett
 
 import { downloadTextFile } from '../../adapter/browser-download.js'
 import { Api } from '../../api.js'
+import { ImportFileReadError } from '../../errors.js'
 import { toCommandResult } from '../../lib/command.js'
 import {
   CancelledSelectImportFile,
@@ -101,7 +102,10 @@ export const ReadImportFile = Command.define('ReadImportFile', {
   args: { file: File.File },
   messages: [PreparedImportData, FailedImportData],
   execute: ({ file }) =>
-    Effect.tryPromise(() => file.text()).pipe(
+    Effect.tryPromise({
+      try: () => file.text(),
+      catch: () => ImportFileReadError.make({ message: 'Import file could not be read' }),
+    }).pipe(
       Effect.flatMap(Schema.decodeUnknownEffect(DataExportJson)),
       Effect.map((data) => PreparedImportData({ data })),
       toCommandResult(FailedImportData, 'Invalid export file. Only Subq 3.0.0-alpha.2 exports are supported.')

@@ -270,7 +270,7 @@ export const DataExportServiceLive = Layer.effect(
       // Import settings
       if (snapshot.data.settings !== null) {
         const id = yield* randomUuid()
-        const now = DateTime.formatIso(yield* DateTime.now)
+        const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
         yield* sql`
           INSERT INTO user_settings (id, user_id, weight_unit, timezone, timezone_migration_state, created_at, updated_at)
           VALUES (${id}, ${userId}, ${snapshot.data.settings.weightUnit}, ${snapshot.data.settings.timezone}, 'complete', ${now}, ${now})

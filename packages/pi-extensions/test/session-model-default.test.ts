@@ -23,12 +23,7 @@ describe('session model default policy', () => {
 
   it('restores model defaults without changing other settings', () => {
     const restored = restoreModelDefault(
-      JSON.stringify({
-        defaultProvider: 'openai-codex',
-        defaultModel: 'gpt-5.6-sol',
-        defaultThinkingLevel: 'medium',
-        theme: 'light',
-      }),
+      '{"defaultProvider":"openai-codex","defaultModel":"gpt-5.6-sol","defaultThinkingLevel":"medium","theme":"light"}',
       configuredDefault
     )
 

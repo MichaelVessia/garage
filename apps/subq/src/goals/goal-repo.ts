@@ -171,7 +171,7 @@ export const GoalRepoLive = Layer.effect(
       userId: string
     ) {
       const id = yield* randomUuid()
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
       const targetDate = Option.isSome(data.targetDate) ? data.targetDate.value : null
       const notes = Option.isSome(data.notes) ? data.notes.value : null
 
@@ -214,7 +214,7 @@ export const GoalRepoLive = Layer.effect(
         return yield* SettingsTimezoneNotInitialized.make({ userId })
       }
 
-      const now = DateTime.formatIso(yield* DateTime.now)
+      const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
 
       // If activating this goal, deactivate others
       if (patch.isActive === 1 && curr.is_active !== 1) {

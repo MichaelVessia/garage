@@ -201,7 +201,7 @@ export const CalendarFeedLive: Layer.Layer<
       occurrences: Effect.fn('frame.calendar.occurrences')(function* (range: InstantRange) {
         const key = windowKey(range)
         const now = yield* Clock.currentTimeMillis
-        const cached = HashMap.get(yield* Ref.get(windows), key)
+        const cached = yield* Ref.get(windows).pipe(Effect.map(HashMap.get(key)))
 
         if (Option.isSome(cached) && now - cached.value.fetchedAtMillis < Duration.toMillis(FEED_TTL)) {
           return cached.value.events

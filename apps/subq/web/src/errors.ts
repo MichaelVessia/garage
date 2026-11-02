@@ -21,3 +21,11 @@ export class BrowserDownloadError extends Schema.TaggedError<BrowserDownloadErro
     message: Schema.String,
   }
 ) {}
+
+// Returned when the browser cannot read a selected import file.
+export class ImportFileReadError extends Schema.TaggedError<ImportFileReadError, { readonly brand: unique symbol }>()(
+  'ImportFileReadError',
+  {
+    message: Schema.String,
+  }
+) {}

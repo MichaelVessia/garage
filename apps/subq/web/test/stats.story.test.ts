@@ -40,6 +40,7 @@ import {
 import type { StatsMessage, StatsModel } from '../src/page/stats/model.js'
 import { syncStatsFetch, updateStats as updateStatsPage } from '../src/page/stats/update.js'
 import { scheduleEndDate, scheduleEndExclusiveDate } from '../src/page/stats/view.js'
+import { renderedHtml } from './rendered-html.js'
 
 const timezone = IanaTimezone.make('America/New_York')
 
@@ -100,7 +101,7 @@ describe('stats page update', () => {
       },
       Scene.given(props),
       Scene.tap(({ html }) => {
-        const rendered = JSON.stringify(html)
+        const rendered = renderedHtml(html)
         expect(rendered).toContain('Jan 1, 2026 — Jan 21, 2026')
         expect(rendered).toContain('"width":"710"')
       })

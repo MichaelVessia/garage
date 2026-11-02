@@ -1,6 +1,8 @@
 import { assert, describe, it } from '@effect/vitest'
+import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
 import * as Result from 'effect/Result'
+import * as Schema from 'effect/Schema'
 
 import type { MediaAction } from '#shared'
 
@@ -96,29 +98,32 @@ describe('media players', () => {
     assert.deepStrictEqual(music.controls, ['playback', 'volume'])
   })
 
-  it('maps state and hides the artwork URL behind a version', () => {
-    const state: EntityStateResponse = {
-      entity_id: 'media_player.music',
-      state: 'playing',
-      attributes: {
-        friendly_name: 'Music',
-        supported_features: MUSIC_FEATURES,
-        volume_level: 0.4,
-        source_list: ['Kitchen speaker'],
-        media_title: 'Song',
-        media_artist: 'Band',
-        entity_picture: '/api/media_player_proxy/media_player.music?token=art-token&cache=1',
-      },
-    }
+  it.effect('maps state and hides the artwork URL behind a version', () =>
+    Effect.gen(function* () {
+      const state: EntityStateResponse = {
+        entity_id: 'media_player.music',
+        state: 'playing',
+        attributes: {
+          friendly_name: 'Music',
+          supported_features: MUSIC_FEATURES,
+          volume_level: 0.4,
+          source_list: ['Kitchen speaker'],
+          media_title: 'Song',
+          media_artist: 'Band',
+          entity_picture: '/api/media_player_proxy/media_player.music?token=art-token&cache=1',
+        },
+      }
 
-    const player = toMediaPlayer({ entityId: 'media_player.music', controls: Option.none() }, Option.some(state))
+      const player = toMediaPlayer({ entityId: 'media_player.music', controls: Option.none() }, Option.some(state))
 
-    assert.strictEqual(player.status, 'playing')
-    assert.isTrue(player.canSkip)
-    assert.strictEqual(player.nowPlaying?.title, 'Song')
-    assert.notInclude(JSON.stringify(player), 'art-token')
-    assert.isString(player.nowPlaying?.artVersion)
-  })
+      assert.strictEqual(player.status, 'playing')
+      assert.isTrue(player.canSkip)
+      assert.strictEqual(player.nowPlaying?.title, 'Song')
+      const encoded = yield* Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))(player)
+      assert.notInclude(encoded, 'art-token')
+      assert.isString(player.nowPlaying?.artVersion)
+    })
+  )
 
   it('shows a missing entity as unavailable with no controls', () => {
     const player = toMediaPlayer({ entityId: 'media_player.gone', controls: Option.none() }, Option.none())
