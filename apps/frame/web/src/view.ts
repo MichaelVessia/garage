@@ -179,13 +179,14 @@ const viewMore = (h: H, hidden: number) =>
     : []
 
 // Timed rows that fit the card: upcoming first, then the latest past ones while space remains.
+// "+n more" counts only upcoming rows that did not fit; past rows that do not fit are simply left out.
 const visibleRows = (timed: ReadonlyArray<CalendarEvent>, now: DateTime.DateTime, budget: number) => {
   const upcoming = Arr.filter(timed, (event) => !hasEnded(event, now))
   const past = Arr.filter(timed, (event) => hasEnded(event, now))
   const room = Math.max(1, budget)
   const shown =
     upcoming.length >= room ? Arr.take(upcoming, room) : [...Arr.takeRight(past, room - upcoming.length), ...upcoming]
-  return { shown, hidden: timed.length - shown.length }
+  return { shown, hidden: Math.max(0, upcoming.length - room) }
 }
 
 // A full day's agenda for the calendar's day view: all-day chips, then every timed row.
@@ -334,8 +335,9 @@ const viewTodayAgenda = (
         (event): boolean => !hasEnded(event, now) && !occursOn(event, date, timezone)
       )
     : Option.none()
-  const budget = 4 - (Arr.isReadonlyArrayNonEmpty(allDay) ? 1 : 0) - (Option.isSome(nextLater) ? 2 : 0)
-  const { shown, hidden } = visibleRows(timed, now, budget)
+  const budget = 4 - (Arr.isReadonlyArrayNonEmpty(allDay) ? 1 : 0)
+  // Once nothing remains today, the past rows give way to the next event on a later day.
+  const { shown, hidden } = Option.isSome(nextToday) ? visibleRows(timed, now, budget) : { shown: [], hidden: 0 }
   const nextId = Option.map(nextToday, (event) => event.id)
   return [
     ...viewChips(h, allDay),
@@ -735,7 +737,7 @@ const mediaButton = (
   )
 
 // A native select: Android shows its own picker, which suits a touch screen.
-const viewSourceSelect = (h: H, label: string, player: MediaPlayer, isDisabled: boolean) =>
+const viewSourceSelect = (h: H, label: string, placeholder: string, player: MediaPlayer, isDisabled: boolean) =>
   h.select(
     [
       h.Class('field source'),
@@ -749,7 +751,7 @@ const viewSourceSelect = (h: H, label: string, player: MediaPlayer, isDisabled: 
       ),
     ],
     [
-      h.option([h.Value(''), h.Selected(player.source === null)], [`${label}…`]),
+      h.option([h.Value(''), h.Selected(player.source === null)], [placeholder]),
       ...Arr.map(player.sources, (source) =>
         h.option([h.Value(source), h.Selected(player.source === source)], [source])
       ),
@@ -759,7 +761,7 @@ const viewSourceSelect = (h: H, label: string, player: MediaPlayer, isDisabled: 
 const viewSourcePicker = (h: H, label: string, player: MediaPlayer, isDisabled: boolean) =>
   h.label(
     [h.Class('picker')],
-    [h.span([h.Class('picker-label')], [label]), viewSourceSelect(h, label, player, isDisabled)]
+    [h.span([h.Class('picker-label')], [label]), viewSourceSelect(h, label, 'Choose a speaker', player, isDisabled)]
   )
 
 const viewPlayerControls = (h: H, player: MediaPlayer, isDisabled: boolean) => {
@@ -846,14 +848,17 @@ const viewPlayerCard = (h: H, player: MediaPlayer, isWide: boolean) => {
               h.span(
                 [h.Class('status num')],
                 player.nowPlaying === null
-                  ? [STATUS_LABEL[player.status], ...volumeLabel(player)]
+                  ? [STATUS_LABEL[player.status], ...(isWide ? [] : volumeLabel(player))]
                   : [player.nowPlaying.title]
               ),
             ]
           ),
-          ...(player.controls.includes('source') ? [viewSourceSelect(h, 'Source', player, isDisabled)] : []),
+          ...(player.controls.includes('source') ? [viewSourceSelect(h, 'Source', 'Source…', player, isDisabled)] : []),
         ]
       ),
+      ...(isWide && player.volume !== null && player.controls.includes('volume')
+        ? [h.span([h.Class('tile-volume num')], [`${Math.round(player.volume * 100)}%`])]
+        : []),
       viewPlayerControls(h, player, isDisabled),
     ]
   )

@@ -365,6 +365,9 @@ describe('frame app', () => {
       upcoming: { data: Option.some(later), failed: false },
     })
     expect(html).toContain('Nothing else today')
+    // The finished day's rows give way to the next event; nothing points at past rows.
+    expect(html).not.toContain('Breakfast')
+    expect(html).not.toContain(' more')
     expect(html).toContain('is-next')
     expect(html).toContain('Dentist')
     expect(html).toContain('Tomorrow')
