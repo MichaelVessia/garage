@@ -23,7 +23,6 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       'packages/pi-extensions/extensions/*.ts',
     ],
     dynamicallyLoaded: ['tools/oxlint/anti-slop/index.ts'],
-    ignorePatterns: ['repos/**'],
     rulePacks: ['fallow/effect-service-boundaries.jsonc'],
     rules: { 'boundary-violation': 'error', 'policy-violation': 'error' },
     boundaries: {

@@ -17,9 +17,9 @@ The most local applicable instructions take precedence over broader ones.
 
 - Keep changes narrow; do not mix unrelated behavior, formatting, and automation
   work.
-- Do not edit generated output or the read-only vendored source under `repos/`.
+- Do not edit generated output.
 - Use workspace package names for cross-workspace imports; never import
-  production code from another app or from `repos/`.
+  production code from another app.
 - Add focused behavior tests for public behavior changes. Use Vitest through
   repository scripts, not Bun's test runner.
 - Run the focused checks named by the owning context, then `bun run validate`

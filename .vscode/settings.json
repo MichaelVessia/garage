@@ -1,13 +1,9 @@
 {
   "editor.formatOnSave": false,
-  "files.readonlyInclude": {
-    "repos/**": true
-  },
   "files.exclude": {
     "**/dist": true
   },
   "search.exclude": {
-    "repos/**": true,
     "**/dist/**": true,
     "bun.lock": true,
     "bun.nix": true

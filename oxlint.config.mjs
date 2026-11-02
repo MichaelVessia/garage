@@ -45,7 +45,7 @@ export default defineConfig({
     node: true,
     es2022: true,
   },
-  ignorePatterns: ['dist/**/*', 'node_modules/**/*', 'repos/**/*'],
+  ignorePatterns: ['dist/**/*', 'node_modules/**/*'],
   // Registered via jsPlugins (rather than `extends`) so the plugin's private
   // config type does not leak into this module's default-export type.
   jsPlugins: [{ name: 'effect', specifier: '@mpsuesser/oxlint-plugin-effect' }],
