@@ -19,6 +19,8 @@ import type {
   Weather,
 } from '#shared'
 
+import { icon } from './icons.js'
+import type { IconName } from './icons.js'
 import { calendarFrom } from './main.js'
 import type { Model } from './main.js'
 import {
@@ -39,9 +41,9 @@ import {
   formatTime,
   hasEnded,
   isAllDay,
+  isDarkHour,
   isHappening,
   isTimed,
-  localHour,
   monthDay,
   occursOn,
   today,
@@ -51,32 +53,37 @@ import {
 
 type H = HtmlBuilder<Message>
 
-// Home Assistant weather condition values and their display labels.
-const CONDITIONS: ReadonlyArray<readonly [string, string]> = [
-  ['clear-night', 'Clear'],
-  ['cloudy', 'Cloudy'],
-  ['exceptional', 'Unusual'],
-  ['fog', 'Fog'],
-  ['hail', 'Hail'],
-  ['lightning', 'Storms'],
-  ['lightning-rainy', 'Storms'],
-  ['partlycloudy', 'Partly cloudy'],
-  ['pouring', 'Heavy rain'],
-  ['rainy', 'Rain'],
-  ['snowy', 'Snow'],
-  ['snowy-rainy', 'Sleet'],
-  ['sunny', 'Sunny'],
-  ['windy', 'Windy'],
-  ['windy-variant', 'Windy'],
+// Home Assistant weather condition values, their display labels, and icons.
+const CONDITIONS: ReadonlyArray<readonly [string, string, IconName]> = [
+  ['clear-night', 'Clear', 'moon'],
+  ['cloudy', 'Cloudy', 'cloud'],
+  ['exceptional', 'Unusual', 'cloud'],
+  ['fog', 'Fog', 'fog'],
+  ['hail', 'Hail', 'snow'],
+  ['lightning', 'Storms', 'storm'],
+  ['lightning-rainy', 'Storms', 'storm'],
+  ['partlycloudy', 'Partly cloudy', 'partlyCloudy'],
+  ['pouring', 'Heavy rain', 'rain'],
+  ['rainy', 'Rain', 'rain'],
+  ['snowy', 'Snow', 'snow'],
+  ['snowy-rainy', 'Sleet', 'drizzle'],
+  ['sunny', 'Sunny', 'sun'],
+  ['windy', 'Windy', 'wind'],
+  ['windy-variant', 'Windy', 'wind'],
 ]
 
-const conditionLabel = (condition: string): string =>
+const condition = (value: string) => Arr.findFirst(CONDITIONS, ([key]) => key === value)
+
+const conditionLabel = (value: string): string =>
   Option.getOrElse(
-    Option.map(
-      Arr.findFirst(CONDITIONS, ([value]) => value === condition),
-      ([, label]) => label
-    ),
-    () => condition
+    Option.map(condition(value), ([, label]) => label),
+    () => value
+  )
+
+const conditionIcon = (value: string): IconName =>
+  Option.getOrElse(
+    Option.map(condition(value), (entry) => entry[2]),
+    (): IconName => 'cloud'
   )
 
 const degrees = (value: Option.Option<number>): string =>
@@ -88,10 +95,26 @@ const eventsOn = (events: ReadonlyArray<CalendarEvent>, date: CalendarDate, time
 const eventTime = (event: CalendarEvent, timezone: IanaTimezone): string =>
   isAllDay(event) ? 'All day' : formatTime(event.start, timezone)
 
-const eventClass = (event: CalendarEvent, now: DateTime.DateTime, base: string): string =>
-  [base, isHappening(event, now) ? 'is-now' : '', hasEnded(event, now) ? 'is-past' : '']
-    .filter((name) => name !== '')
-    .join(' ')
+// The first timed event that has not ended yet: the one the kitchen needs to see.
+const nextTimed = (events: ReadonlyArray<CalendarEvent>, now: DateTime.DateTime) =>
+  Arr.findFirst(events, (event): boolean => isTimed(event) && !hasEnded(event, now))
+
+// "Now", "in 18 min", "in 1 h 18 min".
+const untilLabel = (event: CalendarEvent, now: DateTime.DateTime): string => {
+  if (isHappening(event, now) || !isTimed(event)) {
+    return 'Now'
+  }
+  const minutes = Math.max(1, Math.round((DateTime.toEpochMillis(event.start) - DateTime.toEpochMillis(now)) / 60_000))
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) {
+    return `in ${rest} min`
+  }
+  return rest === 0 ? `in ${hours} h` : `in ${hours} h ${rest} min`
+}
+
+const classes = (...names: ReadonlyArray<string | false>): string =>
+  names.filter((name): name is string => name !== false && name !== '').join(' ')
 
 // ============================================
 // Shared pieces
@@ -99,60 +122,88 @@ const eventClass = (event: CalendarEvent, now: DateTime.DateTime, base: string):
 
 const viewNotice = (h: H, text: string) => h.p([h.Class('notice')], [text])
 
-const viewEventRow = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: DateTime.DateTime) =>
+const viewChip = (h: H, event: CalendarEvent) =>
+  h.li([h.Key(event.id), h.Class('chip')], [h.span([h.Class('chip-text')], [event.title])])
+
+const viewEventRow = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: DateTime.DateTime, isNext: boolean) =>
   h.li(
-    [h.Key(event.id), h.Class(eventClass(event, now, isAllDay(event) ? 'ev ev--allday' : 'ev'))],
+    [h.Key(event.id), h.Class(classes('row', isNext && 'is-next', hasEnded(event, now) && 'is-past'))],
     [
-      h.span([h.Class('ev-time')], [isHappening(event, now) ? 'Now' : eventTime(event, timezone)]),
-      h.span([h.Class('ev-title')], [event.title]),
-      ...(event.location === null ? [] : [h.span([h.Class('ev-where')], [event.location])]),
+      h.span([h.Class('row-time num')], [eventTime(event, timezone)]),
+      h.span(
+        [h.Class('row-main')],
+        [
+          h.span([h.Class('row-title')], [event.title]),
+          ...(event.location === null ? [] : [h.span([h.Class('row-where')], [event.location])]),
+        ]
+      ),
+      ...(isNext ? [h.span([h.Class('badge')], [untilLabel(event, now)])] : []),
     ]
   )
 
-const viewDayAgenda = (
+// All-day items as chips, then timed rows; the next event is tinted when `markNext` is set.
+const viewAgenda = (
   h: H,
-  events: ReadonlyArray<CalendarEvent>,
-  date: CalendarDate,
+  items: ReadonlyArray<CalendarEvent>,
   timezone: IanaTimezone,
-  now: DateTime.DateTime
+  now: DateTime.DateTime,
+  options: { readonly markNext: boolean; readonly empty: string }
 ) => {
-  const items = eventsOn(events, date, timezone)
-  return Arr.isReadonlyArrayNonEmpty(items)
-    ? h.ul(
-        [h.Class('agenda')],
-        Arr.map(items, (event) => viewEventRow(h, event, timezone, now))
-      )
-    : viewNotice(h, 'Nothing scheduled')
+  const allDay = Arr.filter(items, (event) => isAllDay(event))
+  const timed = Arr.filter(items, (event) => isTimed(event))
+  const next = options.markNext ? Option.map(nextTimed(timed, now), (event) => event.id) : Option.none<string>()
+  if (!Arr.isReadonlyArrayNonEmpty(items)) {
+    return [viewNotice(h, options.empty)]
+  }
+  return [
+    ...(Arr.isReadonlyArrayNonEmpty(allDay)
+      ? [
+          h.ul(
+            [h.Class('chips')],
+            Arr.map(allDay, (event) => viewChip(h, event))
+          ),
+        ]
+      : []),
+    h.ul(
+      [h.Class('rows')],
+      Arr.map(timed, (event) => viewEventRow(h, event, timezone, now, Option.contains(next, event.id)))
+    ),
+    ...(options.markNext && Option.isNone(next) ? [viewNotice(h, 'Nothing else today')] : []),
+  ]
 }
 
 // ============================================
 // Rail
 // ============================================
 
-const RAIL: ReadonlyArray<readonly [Screen, string]> = [
-  ['today', 'Today'],
-  ['calendar', 'Calendar'],
-  ['shopping', 'Shopping'],
-  ['media', 'Media'],
+const RAIL: ReadonlyArray<readonly [Screen, string, IconName]> = [
+  ['today', 'Today', 'today'],
+  ['calendar', 'Calendar', 'calendar'],
+  ['shopping', 'Shopping', 'shopping'],
+  ['media', 'Media', 'media'],
 ]
 
 const viewRail = (h: H, model: Model) =>
   h.nav(
     [h.Class('rail'), h.AriaLabel('Screens')],
     [
-      ...Arr.map(RAIL, ([screen, label]) =>
+      ...Arr.map(RAIL, ([screen, label, name]) =>
         h.button(
           [
             h.Key(screen),
             h.Class(model.screen === screen ? 'rail-item is-active' : 'rail-item'),
+            h.AriaPressed(model.screen === screen ? 'true' : 'false'),
             h.OnClick(ClickedScreen({ screen })),
           ],
-          [label]
+          [icon(h, name, 'rail-icon'), h.span([h.Class('rail-label')], [label])]
         )
       ),
-      ...(model.isOffline ? [h.div([h.Class('rail-offline'), h.Role('status')], ['Offline'])] : []),
+      h.div([h.Class('rail-fill')], []),
+      ...(model.isOffline
+        ? [h.div([h.Class('rail-offline'), h.Role('status')], [icon(h, 'offline', 'rail-icon'), 'Offline'])]
+        : []),
       h.div(
-        [h.Class('rail-clock')],
+        [h.Class('rail-clock num')],
         Option.match(model.timezone, {
           onNone: () => [],
           onSome: (timezone) => {
@@ -173,46 +224,75 @@ const viewForecastDay = (h: H, day: ForecastDay) =>
     [h.Key(day.date), h.Class('fc-day')],
     [
       h.span([h.Class('fc-name')], [weekdayShort(day.date)]),
-      h.span([h.Class('fc-cond')], [conditionLabel(day.condition)]),
+      icon(h, conditionIcon(day.condition), 'fc-icon'),
       h.span(
-        [h.Class('fc-temp')],
-        [`${degrees(Option.fromNullishOr(day.high))} / ${degrees(Option.fromNullishOr(day.low))}`]
+        [h.Class('fc-temp num')],
+        [
+          h.b([], [degrees(Option.fromNullishOr(day.high))]),
+          h.span([h.Class('fc-low')], [degrees(Option.fromNullishOr(day.low))]),
+        ]
       ),
-      ...(day.precipitationProbability === null || day.precipitationProbability < 20
-        ? []
-        : [h.span([h.Class('fc-wet')], [`${Math.round(day.precipitationProbability)}%`])]),
     ]
   )
 
 const viewWeather = (h: H, model: Model) =>
   h.section(
-    [h.Class('t-weather')],
+    [h.Class('card t-weather')],
     Option.match(model.weather.data, {
       onNone: () => [viewNotice(h, model.weather.failed ? 'Weather unavailable' : 'Loading weather…')],
-      onSome: (weather: Weather) => [
-        h.div(
-          [h.Class('wx-now')],
-          [
-            h.span([h.Class('wx-temp num')], [degrees(Option.fromNullishOr(weather.temperature))]),
-            h.span([h.Class('wx-cond')], [conditionLabel(weather.condition)]),
-          ]
-        ),
-        h.ul(
-          [h.Class('fc')],
-          Arr.map(Arr.take(weather.forecast, 5), (day) => viewForecastDay(h, day))
-        ),
-      ],
+      onSome: (weather: Weather) => {
+        const first = Arr.head(weather.forecast)
+        return [
+          h.div(
+            [h.Class('wx-now')],
+            [
+              icon(h, conditionIcon(weather.condition), 'wx-icon'),
+              h.span([h.Class('wx-temp num')], [degrees(Option.fromNullishOr(weather.temperature))]),
+              h.span(
+                [h.Class('wx-cond')],
+                [
+                  h.span([h.Class('wx-label')], [conditionLabel(weather.condition)]),
+                  ...Arr.map(Arr.fromOption(first), (day) =>
+                    h.span(
+                      [h.Class('wx-range num')],
+                      [`H ${degrees(Option.fromNullishOr(day.high))}  L ${degrees(Option.fromNullishOr(day.low))}`]
+                    )
+                  ),
+                ]
+              ),
+            ]
+          ),
+          h.ul(
+            [h.Class('fc')],
+            Arr.map(Arr.take(Arr.drop(weather.forecast, 1), 4), (day) => viewForecastDay(h, day))
+          ),
+        ]
+      },
     })
   )
 
-const viewDayColumn = (h: H, model: Model, timezone: IanaTimezone, label: string, date: CalendarDate) =>
+const viewCalendarCard = (
+  h: H,
+  model: Model,
+  timezone: IanaTimezone,
+  options: {
+    readonly title: string
+    readonly date: CalendarDate
+    readonly isToday: boolean
+    readonly className: string
+  }
+) =>
   h.section(
-    [h.Class('t-day')],
+    [h.Class(`card ${options.className}`)],
     [
-      h.h2([h.Class('label')], [`${label} · ${weekdayName(date)}, ${monthDay(date)}`]),
-      Option.match(model.upcoming.data, {
-        onNone: () => viewNotice(h, model.upcoming.failed ? 'Calendar unavailable' : 'Loading calendar…'),
-        onSome: (events) => viewDayAgenda(h, events, date, timezone, model.now),
+      h.h2([h.Class('card-title')], [options.title]),
+      ...Option.match(model.upcoming.data, {
+        onNone: () => [viewNotice(h, model.upcoming.failed ? 'Calendar unavailable' : 'Loading calendar…')],
+        onSome: (events) =>
+          viewAgenda(h, eventsOn(events, options.date, timezone), timezone, model.now, {
+            markNext: options.isToday,
+            empty: options.isToday ? 'Nothing on today' : 'Nothing planned',
+          }),
       }),
     ]
   )
@@ -220,19 +300,28 @@ const viewDayColumn = (h: H, model: Model, timezone: IanaTimezone, label: string
 const viewShoppingSummary = (h: H, model: Model) => {
   const open = Option.map(model.shopping.data, (items) => Arr.filter(items, (item) => item.status === 'needs_action'))
   return h.button(
-    [h.Class('t-shopping card'), h.OnClick(ClickedScreen({ screen: 'shopping' }))],
+    [h.Class('card t-shopping'), h.OnClick(ClickedScreen({ screen: 'shopping' }))],
     [
-      h.span([h.Class('label')], ['Shopping list']),
       h.span(
-        [h.Class('t-shopping-count num')],
-        [Option.match(open, { onNone: () => '–', onSome: (items) => String(items.length) })]
+        [h.Class('t-shopping-head')],
+        [
+          h.span([h.Class('card-title')], ['Shopping']),
+          h.span(
+            [h.Class('count num')],
+            [Option.match(open, { onNone: () => '–', onSome: (items) => String(items.length) })]
+          ),
+        ]
       ),
       h.span(
         [h.Class('t-shopping-preview')],
         [
           Option.match(open, {
-            onNone: () => '',
-            onSome: (items) => Arr.map(Arr.take(items, 4), (item) => item.summary).join(' · '),
+            onNone: () => (model.shopping.failed ? 'Shopping list unavailable' : 'Loading shopping list…'),
+            onSome: (items) =>
+              Arr.isReadonlyArrayNonEmpty(items)
+                ? Arr.map(Arr.take(items, 3), (item) => item.summary).join(', ') +
+                  (items.length > 3 ? ` and ${items.length - 3} more` : '')
+                : 'Nothing to buy',
           }),
         ]
       ),
@@ -242,6 +331,7 @@ const viewShoppingSummary = (h: H, model: Model) => {
 
 const viewToday = (h: H, model: Model, timezone: IanaTimezone) => {
   const date = today(model.now, timezone)
+  const tomorrow = addCalendarDays(date, 1)
   const { time, meridiem } = clockParts(model.now, timezone)
   return h.div(
     [h.Class('today')],
@@ -249,15 +339,23 @@ const viewToday = (h: H, model: Model, timezone: IanaTimezone) => {
       h.section(
         [h.Class('t-clock')],
         [
-          h.div([h.Class('t-time num')], [time, h.span([h.Class('t-ampm')], [meridiem])]),
-          h.div([h.Class('t-date')], [h.b([], [weekdayName(date)]), monthDay(date)]),
+          h.div([h.Class('t-time num')], [time, h.span([h.Class('t-meridiem')], [meridiem])]),
+          h.div([h.Class('t-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
         ]
       ),
       viewWeather(h, model),
-      viewDayColumn(h, model, timezone, 'Today', date),
+      viewCalendarCard(h, model, timezone, { title: 'Today', date, isToday: true, className: 't-today' }),
       h.div(
         [h.Class('t-side')],
-        [viewDayColumn(h, model, timezone, 'Tomorrow', addCalendarDays(date, 1)), viewShoppingSummary(h, model)]
+        [
+          viewCalendarCard(h, model, timezone, {
+            title: `Tomorrow · ${weekdayName(tomorrow)}`,
+            date: tomorrow,
+            isToday: false,
+            className: 't-tomorrow',
+          }),
+          viewShoppingSummary(h, model),
+        ]
       ),
     ]
   )
@@ -267,6 +365,9 @@ const viewToday = (h: H, model: Model, timezone: IanaTimezone) => {
 // Calendar
 // ============================================
 
+const iconButton = (h: H, name: IconName, label: string, message: Message) =>
+  h.button([h.Class('icon-btn'), h.Type('button'), h.AriaLabel(label), h.OnClick(message)], [icon(h, name)])
+
 const viewCalendarHeader = (h: H, model: Model, anchor: CalendarDate) => {
   const from = calendarFrom(model.calendarMode, anchor)
   const title =
@@ -274,19 +375,26 @@ const viewCalendarHeader = (h: H, model: Model, anchor: CalendarDate) => {
       ? `${monthDay(from)} – ${monthDay(addCalendarDays(from, 6))}`
       : `${weekdayName(anchor)}, ${monthDay(anchor)}`
   return h.header(
-    [h.Class('cal-head')],
+    [h.Class('toolbar')],
     [
-      h.button([h.Class('btn'), h.AriaLabel('Previous'), h.OnClick(ClickedShift({ direction: -1 }))], ['‹']),
-      h.button([h.Class('btn'), h.OnClick(ClickedToday())], ['Today']),
-      h.button([h.Class('btn'), h.AriaLabel('Next'), h.OnClick(ClickedShift({ direction: 1 }))], ['›']),
-      h.h1([h.Class('cal-title')], [title]),
       h.div(
-        [h.Class('seg')],
+        [h.Class('toolbar-nav')],
+        [
+          iconButton(h, 'chevronLeft', 'Previous', ClickedShift({ direction: -1 })),
+          h.button([h.Class('btn'), h.Type('button'), h.OnClick(ClickedToday())], ['Today']),
+          iconButton(h, 'chevronRight', 'Next', ClickedShift({ direction: 1 })),
+        ]
+      ),
+      h.h1([h.Class('screen-title')], [title]),
+      h.div(
+        [h.Class('seg'), h.Role('group'), h.AriaLabel('View')],
         Arr.map(['day', 'week'] as const, (mode) =>
           h.button(
             [
               h.Key(mode),
-              h.Class(model.calendarMode === mode ? 'is-active' : ''),
+              h.Type('button'),
+              h.Class(model.calendarMode === mode ? 'seg-item is-active' : 'seg-item'),
+              h.AriaPressed(model.calendarMode === mode ? 'true' : 'false'),
               h.OnClick(ClickedCalendarMode({ mode })),
             ],
             [mode === 'day' ? 'Day' : 'Week']
@@ -297,43 +405,70 @@ const viewCalendarHeader = (h: H, model: Model, anchor: CalendarDate) => {
   )
 }
 
+const viewWeekEvent = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: DateTime.DateTime) =>
+  h.li(
+    [
+      h.Key(event.id),
+      h.Class(
+        classes(
+          'wk-ev',
+          isAllDay(event) && 'is-allday',
+          isHappening(event, now) && 'is-now',
+          hasEnded(event, now) && 'is-past'
+        )
+      ),
+    ],
+    [
+      ...(isTimed(event) ? [h.span([h.Class('wk-time num')], [formatTime(event.start, timezone)])] : []),
+      h.span([h.Class('wk-title')], [event.title]),
+    ]
+  )
+
 const viewWeekColumn = (
   h: H,
   model: Model,
   events: ReadonlyArray<CalendarEvent>,
   date: CalendarDate,
   timezone: IanaTimezone
-) =>
-  h.section(
+) => {
+  const items = eventsOn(events, date, timezone)
+  const ordered = [...Arr.filter(items, (event) => isAllDay(event)), ...Arr.filter(items, (event) => isTimed(event))]
+  return h.section(
     [h.Key(date), h.Class(date === today(model.now, timezone) ? 'wk-day is-today' : 'wk-day')],
     [
       h.div(
         [h.Class('wk-head')],
-        [h.span([h.Class('num')], [String(dayOfMonth(date))]), h.b([], [weekdayShort(date)])]
+        [
+          h.span([h.Class('wk-name')], [weekdayShort(date)]),
+          h.span([h.Class('wk-date num')], [String(dayOfMonth(date))]),
+        ]
       ),
       h.ul(
         [h.Class('wk-list')],
-        Arr.map(eventsOn(events, date, timezone), (event) =>
-          h.li(
-            [h.Key(event.id), h.Class(eventClass(event, model.now, isAllDay(event) ? 'wk-ev wk-ev--allday' : 'wk-ev'))],
-            [
-              ...(isTimed(event) ? [h.span([h.Class('wk-time')], [formatTime(event.start, timezone)])] : []),
-              h.span([h.Class('wk-title')], [event.title]),
-            ]
-          )
-        )
+        Arr.map(ordered, (event) => viewWeekEvent(h, event, timezone, model.now))
       ),
     ]
   )
+}
 
 const viewCalendarBody = (h: H, model: Model, anchor: CalendarDate, timezone: IanaTimezone) =>
   Option.match(model.week.data, {
-    onNone: () => viewNotice(h, model.week.failed ? 'Calendar unavailable' : 'Loading calendar…'),
+    onNone: () =>
+      h.div(
+        [h.Class('card cal-body')],
+        [viewNotice(h, model.week.failed ? 'Calendar unavailable' : 'Loading calendar…')]
+      ),
     onSome: (events) =>
       model.calendarMode === 'day'
-        ? h.div([h.Class('cal-day')], [viewDayAgenda(h, events, anchor, timezone, model.now)])
+        ? h.div(
+            [h.Class('card cal-body cal-day')],
+            viewAgenda(h, eventsOn(events, anchor, timezone), timezone, model.now, {
+              markNext: anchor === today(model.now, timezone),
+              empty: 'Nothing scheduled',
+            })
+          )
         : h.div(
-            [h.Class('cal-week')],
+            [h.Class('card cal-body cal-week')],
             Arr.map(
               Arr.makeBy(7, (offset) => addCalendarDays(calendarFrom('week', anchor), offset)),
               (date) => viewWeekColumn(h, model, events, date, timezone)
@@ -345,7 +480,10 @@ const viewCalendar = (h: H, model: Model, timezone: IanaTimezone) =>
   Option.match(model.anchor, {
     onNone: () => viewNotice(h, 'Loading calendar…'),
     onSome: (anchor) =>
-      h.div([h.Class('cal')], [viewCalendarHeader(h, model, anchor), viewCalendarBody(h, model, anchor, timezone)]),
+      h.div(
+        [h.Class('screen cal')],
+        [viewCalendarHeader(h, model, anchor), viewCalendarBody(h, model, anchor, timezone)]
+      ),
   })
 
 // ============================================
@@ -354,14 +492,22 @@ const viewCalendar = (h: H, model: Model, timezone: IanaTimezone) =>
 
 const viewShoppingItem = (h: H, item: ShoppingItem) => {
   const done = item.status === 'completed'
-  return h.button(
+  return h.li(
+    [h.Key(item.uid)],
     [
-      h.Key(item.uid),
-      h.Class(done ? 'shop-item is-done' : 'shop-item'),
-      h.AriaPressed(done ? 'true' : 'false'),
-      h.OnClick(ClickedShoppingItem({ uid: item.uid, status: done ? 'needs_action' : 'completed' })),
-    ],
-    [h.span([h.Class('shop-check')], [done ? '✓' : '']), h.span([h.Class('shop-name')], [item.summary])]
+      h.button(
+        [
+          h.Type('button'),
+          h.Class(done ? 'shop-item is-done' : 'shop-item'),
+          h.AriaPressed(done ? 'true' : 'false'),
+          h.OnClick(ClickedShoppingItem({ uid: item.uid, status: done ? 'needs_action' : 'completed' })),
+        ],
+        [
+          h.span([h.Class('check')], done ? [icon(h, 'check', 'check-icon')] : []),
+          h.span([h.Class('shop-name')], [item.summary]),
+        ]
+      ),
+    ]
   )
 }
 
@@ -370,36 +516,78 @@ const viewShoppingAdd = (h: H, model: Model) =>
     [h.Class('shop-add'), h.OnSubmit(SubmittedShoppingItem())],
     [
       h.input([
-        h.Class('shop-add-input'),
+        h.Class('field'),
         h.Type('text'),
+        h.AriaLabel('New item'),
         h.Placeholder('Add an item'),
         h.Value(model.shoppingDraft),
         h.OnInput((value) => ChangedShoppingDraft({ value })),
       ]),
-      h.button([h.Class('shop-add-button'), h.Type('submit')], ['Add']),
+      h.button([h.Class('btn btn-primary'), h.Type('submit')], [icon(h, 'plus'), 'Add']),
     ]
   )
 
-const viewShopping = (h: H, model: Model) =>
-  h.div(
-    [h.Class('shop')],
+const viewShoppingList = (h: H, items: ReadonlyArray<ShoppingItem>) => {
+  const open = Arr.filter(items, (item) => item.status === 'needs_action')
+  const done = Arr.take(
+    Arr.filter(items, (item) => item.status === 'completed'),
+    12
+  )
+  if (!Arr.isReadonlyArrayNonEmpty(items)) {
+    return [viewNotice(h, 'The list is empty. Add an item above or from Home Assistant.')]
+  }
+  return [
+    ...(Arr.isReadonlyArrayNonEmpty(open)
+      ? [
+          h.ul(
+            [h.Class('shop-grid')],
+            Arr.map(open, (item) => viewShoppingItem(h, item))
+          ),
+        ]
+      : [viewNotice(h, 'Everything is checked off')]),
+    ...(Arr.isReadonlyArrayNonEmpty(done)
+      ? [
+          h.h2([h.Class('group-title')], [`Done · ${done.length}`]),
+          h.ul(
+            [h.Class('shop-grid')],
+            Arr.map(done, (item) => viewShoppingItem(h, item))
+          ),
+        ]
+      : []),
+  ]
+}
+
+const viewShopping = (h: H, model: Model) => {
+  const openCount = Option.map(
+    model.shopping.data,
+    (items) => Arr.filter(items, (item) => item.status === 'needs_action').length
+  )
+  return h.div(
+    [h.Class('screen shop')],
     [
-      h.div([h.Class('shop-head')], [h.h1([h.Class('shop-title')], ['Shopping list']), viewShoppingAdd(h, model)]),
-      Option.match(model.shopping.data, {
-        onNone: () => viewNotice(h, model.shopping.failed ? 'Shopping list unavailable' : 'Loading shopping list…'),
-        onSome: (items) => {
-          const open = Arr.filter(items, (item) => item.status === 'needs_action')
-          const done = Arr.filter(items, (item) => item.status === 'completed')
-          return Arr.isReadonlyArrayNonEmpty(items)
-            ? h.div(
-                [h.Class('shop-grid')],
-                Arr.map([...open, ...Arr.take(done, 12)], (item) => viewShoppingItem(h, item))
-              )
-            : viewNotice(h, 'The list is empty')
-        },
-      }),
+      h.header(
+        [h.Class('toolbar')],
+        [
+          h.h1(
+            [h.Class('screen-title')],
+            [
+              'Shopping list',
+              ...Arr.map(Arr.fromOption(openCount), (count) => h.span([h.Class('count num')], [String(count)])),
+            ]
+          ),
+          viewShoppingAdd(h, model),
+        ]
+      ),
+      h.div(
+        [h.Class('card shop-body')],
+        Option.match(model.shopping.data, {
+          onNone: () => [viewNotice(h, model.shopping.failed ? 'Shopping list unavailable' : 'Loading shopping list…')],
+          onSome: (items) => viewShoppingList(h, items),
+        })
+      ),
     ]
   )
+}
 
 // ============================================
 // Media
@@ -416,28 +604,33 @@ const STATUS_LABEL = {
 
 const mediaButton = (
   h: H,
+  name: IconName,
   label: string,
   action: MediaAction,
-  options: { readonly isDisabled: boolean; readonly isActive?: boolean }
+  options: { readonly isDisabled: boolean; readonly isActive?: boolean; readonly isPrimary?: boolean }
 ) =>
   h.button(
     [
-      h.Class(options.isActive === true ? 'media-btn is-active' : 'media-btn'),
+      h.Class(
+        classes('icon-btn', options.isActive === true && 'is-active', options.isPrimary === true && 'is-primary')
+      ),
       h.Type('button'),
+      h.AriaLabel(label),
       h.Disabled(options.isDisabled),
       h.OnClick(ClickedMediaAction({ action })),
     ],
-    [label]
+    [icon(h, name)]
   )
 
 // A native select: Android shows its own picker, which suits a touch screen.
 const viewSourcePicker = (h: H, label: string, player: MediaPlayer, isDisabled: boolean) =>
   h.label(
-    [h.Class('media-source')],
+    [h.Class('picker')],
     [
-      h.span([], [label]),
+      h.span([h.Class('picker-label')], [label]),
       h.select(
         [
+          h.Class('field'),
           h.Disabled(isDisabled),
           h.OnChange((source) =>
             // The placeholder option has no source to select.
@@ -461,90 +654,173 @@ const viewPlayerControls = (h: H, player: MediaPlayer, isDisabled: boolean) => {
   const has = (control: MediaPlayer['controls'][number]) => player.controls.includes(control)
   const isPlaying = player.status === 'playing'
   return h.div(
-    [h.Class('media-controls')],
+    [h.Class('controls')],
     [
       ...(has('power')
         ? [
             player.status === 'off'
-              ? mediaButton(h, 'Turn on', { _tag: 'TurnOn', entityId }, { isDisabled })
-              : mediaButton(h, 'Turn off', { _tag: 'TurnOff', entityId }, { isDisabled }),
+              ? mediaButton(h, 'power', 'Turn on', { _tag: 'TurnOn', entityId }, { isDisabled })
+              : mediaButton(h, 'power', 'Turn off', { _tag: 'TurnOff', entityId }, { isDisabled, isActive: true }),
           ]
         : []),
       ...(has('playback')
         ? [
             ...(player.canSkip
-              ? [mediaButton(h, 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled })]
+              ? [mediaButton(h, 'previous', 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled })]
               : []),
             mediaButton(
               h,
+              isPlaying ? 'pause' : 'play',
               isPlaying ? 'Pause' : 'Play',
               { _tag: 'PlayPause', entityId },
               { isDisabled, isActive: isPlaying }
             ),
-            ...(player.canSkip ? [mediaButton(h, 'Next', { _tag: 'NextTrack', entityId }, { isDisabled })] : []),
+            ...(player.canSkip
+              ? [mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled })]
+              : []),
           ]
         : []),
       ...(has('volume')
         ? [
-            mediaButton(h, 'Vol −', { _tag: 'VolumeDown', entityId }, { isDisabled }),
-            mediaButton(h, 'Vol +', { _tag: 'VolumeUp', entityId }, { isDisabled }),
+            mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),
+            mediaButton(h, 'volumeUp', 'Volume up', { _tag: 'VolumeUp', entityId }, { isDisabled }),
           ]
         : []),
       ...(has('mute')
         ? [
             mediaButton(
               h,
+              'muted',
               player.isMuted ? 'Unmute' : 'Mute',
               { _tag: 'SetMute', entityId, muted: !player.isMuted },
               { isDisabled, isActive: player.isMuted }
             ),
           ]
         : []),
-      ...(has('source') ? [viewSourcePicker(h, 'Source', player, isDisabled)] : []),
     ]
   )
 }
 
-const volumeLabel = (player: MediaPlayer) =>
+const volumeLabel = (player: MediaPlayer): ReadonlyArray<string> =>
   player.volume === null || !player.controls.includes('volume') ? [] : [` · ${Math.round(player.volume * 100)}%`]
+
+const deviceIcon = (player: MediaPlayer): IconName => {
+  const name = `${player.entityId} ${player.name}`.toLowerCase()
+  if (name.includes('tv')) {
+    return 'media'
+  }
+  return name.includes('receiver') || name.includes('onkyo') ? 'receiver' : 'speaker'
+}
+
+const viewStatus = (h: H, player: MediaPlayer) =>
+  h.span(
+    [
+      h.Class(
+        classes(
+          'status num',
+          player.status === 'playing' && 'is-playing',
+          (player.status === 'on' || player.status === 'idle' || player.status === 'paused') && 'is-on'
+        )
+      ),
+    ],
+    [STATUS_LABEL[player.status], ...volumeLabel(player)]
+  )
 
 const viewPlayerCard = (h: H, player: MediaPlayer) => {
   const isDisabled = player.status === 'unavailable'
   return h.section(
-    [h.Key(player.entityId), h.Class(isDisabled ? 'media-card is-unavailable' : 'media-card')],
+    [h.Key(player.entityId), h.Class(isDisabled ? 'card tile is-unavailable' : 'card tile')],
     [
       h.div(
-        [h.Class('media-head')],
+        [h.Class('tile-head')],
         [
-          h.h2([h.Class('media-name')], [player.name]),
-          h.span([h.Class('media-status')], [STATUS_LABEL[player.status], ...volumeLabel(player)]),
+          h.span([h.Class('tile-icon')], [icon(h, deviceIcon(player))]),
+          h.span(
+            [h.Class('tile-text')],
+            [
+              h.h2([h.Class('tile-name')], [player.name]),
+              player.nowPlaying === null
+                ? viewStatus(h, player)
+                : h.span([h.Class('tile-track')], [player.nowPlaying.title]),
+            ]
+          ),
         ]
       ),
-      ...(player.nowPlaying === null ? [] : [h.p([h.Class('media-track')], [player.nowPlaying.title])]),
       viewPlayerControls(h, player, isDisabled),
+      ...(player.controls.includes('source') ? [viewSourcePicker(h, 'Source', player, isDisabled)] : []),
     ]
   )
 }
 
 const viewSpeakers = (h: H, speakers: SpeakerZones) =>
   h.section(
-    [h.Key('speaker-zones'), h.Class('media-card')],
+    [h.Key('speaker-zones'), h.Class('card zones')],
     [
-      h.div([h.Class('media-head')], [h.h2([h.Class('media-name')], ['Speakers'])]),
       h.div(
-        [h.Class('media-controls')],
+        [h.Class('zones-head')],
         [
-          ...Arr.map(speakers.zones, (zone) =>
-            mediaButton(
-              h,
-              zone.name,
-              zone.isOn ? { _tag: 'ZoneOff', entityId: zone.entityId } : { _tag: 'ZoneOn', entityId: zone.entityId },
-              { isDisabled: !zone.isAvailable, isActive: zone.isOn }
-            )
+          h.span([h.Class('tile-icon')], [icon(h, 'speaker')]),
+          h.h2([h.Class('tile-name')], ['Speakers']),
+          h.div(
+            [h.Class('zones-all')],
+            [
+              ...(speakers.hasAllOn
+                ? [
+                    h.button(
+                      [
+                        h.Class('btn'),
+                        h.Type('button'),
+                        h.OnClick(ClickedMediaAction({ action: { _tag: 'AllZonesOn' } })),
+                      ],
+                      ['All on']
+                    ),
+                  ]
+                : []),
+              ...(speakers.hasAllOff
+                ? [
+                    h.button(
+                      [
+                        h.Class('btn'),
+                        h.Type('button'),
+                        h.OnClick(ClickedMediaAction({ action: { _tag: 'AllZonesOff' } })),
+                      ],
+                      ['All off']
+                    ),
+                  ]
+                : []),
+            ]
           ),
-          ...(speakers.hasAllOn ? [mediaButton(h, 'All on', { _tag: 'AllZonesOn' }, { isDisabled: false })] : []),
-          ...(speakers.hasAllOff ? [mediaButton(h, 'All off', { _tag: 'AllZonesOff' }, { isDisabled: false })] : []),
         ]
+      ),
+      h.ul(
+        [h.Class('zone-list')],
+        Arr.map(speakers.zones, (zone) =>
+          h.li(
+            [h.Key(zone.entityId)],
+            [
+              h.button(
+                [
+                  h.Type('button'),
+                  h.Class(zone.isOn ? 'switch is-on' : 'switch'),
+                  h.Role('switch'),
+                  h.AriaChecked(zone.isOn),
+                  h.Disabled(!zone.isAvailable),
+                  h.OnClick(
+                    ClickedMediaAction({
+                      action: zone.isOn
+                        ? { _tag: 'ZoneOff', entityId: zone.entityId }
+                        : { _tag: 'ZoneOn', entityId: zone.entityId },
+                    })
+                  ),
+                ],
+                [
+                  h.span([h.Class('switch-name')], [zone.name]),
+                  h.span([h.Class('switch-track')], [h.span([h.Class('switch-thumb')], [])]),
+                ]
+              ),
+            ]
+          )
+        )
       ),
     ]
   )
@@ -560,39 +836,55 @@ const viewSpotify = (h: H, player: MediaPlayer) => {
   const { entityId, nowPlaying } = player
   const isPlaying = player.status === 'playing'
   return h.section(
-    [h.Key(entityId), h.Class('media-card media-spotify')],
+    [h.Key(entityId), h.Class('card spotify')],
     [
       nowPlaying === null || nowPlaying.artVersion === null
-        ? h.div([h.Class('media-art is-empty')], [])
+        ? h.div([h.Class('art is-empty')], [icon(h, 'music', 'art-icon')])
         : h.img([
-            h.Class('media-art'),
+            h.Class('art'),
             h.Src(`/media/art/${encodeURIComponent(entityId)}?v=${nowPlaying.artVersion}`),
             h.Alt(''),
           ]),
       h.div(
-        [h.Class('media-now')],
+        [h.Class('spotify-main')],
         [
-          h.span([h.Class('media-status')], [player.name, ...volumeLabel(player)]),
-          h.p([h.Class('media-title')], [nowPlaying === null ? 'Nothing playing' : nowPlaying.title]),
-          ...(nowPlaying === null || nowPlaying.artist === null
-            ? []
-            : [h.p([h.Class('media-artist')], [nowPlaying.artist])]),
           h.div(
-            [h.Class('media-controls')],
+            [h.Class('spotify-text')],
             [
-              mediaButton(h, 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled }),
-              mediaButton(
-                h,
-                isPlaying ? 'Pause' : 'Play',
-                { _tag: 'PlayPause', entityId },
-                { isDisabled, isActive: isPlaying }
+              h.p([h.Class('spotify-title')], [nowPlaying === null ? 'Nothing playing' : nowPlaying.title]),
+              h.p(
+                [h.Class('spotify-artist')],
+                [
+                  nowPlaying === null || nowPlaying.artist === null ? player.name : nowPlaying.artist,
+                  ...volumeLabel(player),
+                ]
               ),
-              mediaButton(h, 'Next', { _tag: 'NextTrack', entityId }, { isDisabled }),
-              mediaButton(h, 'Vol −', { _tag: 'VolumeDown', entityId }, { isDisabled }),
-              mediaButton(h, 'Vol +', { _tag: 'VolumeUp', entityId }, { isDisabled }),
             ]
           ),
-          ...(Arr.isReadonlyArrayNonEmpty(player.sources) ? [viewSourcePicker(h, 'Play on', player, isDisabled)] : []),
+          h.div(
+            [h.Class('spotify-controls')],
+            [
+              h.div(
+                [h.Class('controls')],
+                [
+                  mediaButton(h, 'previous', 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled }),
+                  mediaButton(
+                    h,
+                    isPlaying ? 'pause' : 'play',
+                    isPlaying ? 'Pause' : 'Play',
+                    { _tag: 'PlayPause', entityId },
+                    { isDisabled, isPrimary: true }
+                  ),
+                  mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled }),
+                  mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),
+                  mediaButton(h, 'volumeUp', 'Volume up', { _tag: 'VolumeUp', entityId }, { isDisabled }),
+                ]
+              ),
+              ...(Arr.isReadonlyArrayNonEmpty(player.sources)
+                ? [viewSourcePicker(h, 'Play on', player, isDisabled)]
+                : []),
+            ]
+          ),
         ]
       ),
     ]
@@ -601,9 +893,9 @@ const viewSpotify = (h: H, player: MediaPlayer) => {
 
 const viewMedia = (h: H, model: Model) =>
   h.div(
-    [h.Class('media')],
+    [h.Class('screen media')],
     [
-      h.h1([h.Class('shop-title')], ['Media']),
+      h.header([h.Class('toolbar')], [h.h1([h.Class('screen-title')], ['Media'])]),
       Option.match(model.media.data, {
         onNone: () => viewNotice(h, model.media.failed ? 'Media unavailable' : 'Loading media…'),
         onSome: (snapshot) =>
@@ -624,35 +916,35 @@ const viewMedia = (h: H, model: Model) =>
 // Ambient
 // ============================================
 
-const nextEvent = (model: Model) =>
-  Option.flatMap(model.upcoming.data, (events) =>
-    Arr.findFirst(events, (event): boolean => isTimed(event) && DateTime.isGreaterThan(event.end, model.now))
-  )
-
 const viewAmbient = (h: H, model: Model, timezone: IanaTimezone) => {
-  const hour = localHour(model.now, timezone)
-  const isNight = hour >= 22 || hour < 6
   const date = today(model.now, timezone)
   const { time, meridiem } = clockParts(model.now, timezone)
+  const next = Option.flatMap(model.upcoming.data, (events) => nextTimed(events, model.now))
   return h.div(
-    [h.Class(isNight ? 'ambient is-night' : 'ambient')],
+    [h.Class('ambient')],
     [
-      h.div([h.Class('amb-time num')], [time, h.span([h.Class('amb-ampm')], [meridiem])]),
+      h.div([h.Class('amb-time num')], [time, h.span([h.Class('amb-meridiem')], [meridiem])]),
       h.div([h.Class('amb-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
-      ...Arr.map(Arr.fromOption(nextEvent(model)), (event) =>
+      ...Arr.map(Arr.fromOption(next), (event) =>
         h.div(
           [h.Class('amb-next')],
           [
-            h.b([], [isHappening(event, model.now) ? 'Now' : eventTime(event, timezone)]),
-            ` ${event.title}`,
-            occursOn(event, date, timezone) ? '' : ` · ${weekdayName(addCalendarDays(date, 1))}`,
+            h.span([h.Class('amb-when num')], [isHappening(event, model.now) ? 'Now' : eventTime(event, timezone)]),
+            h.span([], [event.title]),
+            ...(occursOn(event, date, timezone)
+              ? []
+              : [h.span([h.Class('amb-day')], [weekdayName(addCalendarDays(date, 1))])]),
           ]
         )
       ),
       ...Arr.map(Arr.fromOption(model.weather.data), (weather) =>
         h.div(
           [h.Class('amb-wx')],
-          [`${degrees(Option.fromNullishOr(weather.temperature))} ${conditionLabel(weather.condition)}`]
+          [
+            icon(h, conditionIcon(weather.condition), 'amb-icon'),
+            h.span([h.Class('num')], [degrees(Option.fromNullishOr(weather.temperature))]),
+            h.span([], [conditionLabel(weather.condition)]),
+          ]
         )
       ),
     ]
@@ -673,14 +965,15 @@ const viewScreen = (h: H, model: Model, timezone: IanaTimezone) =>
   )
 
 export const view = (model: Model, h: H): Html =>
-  h.div(
-    [h.Class('stage')],
-    Option.match(model.timezone, {
-      onNone: () => [h.div([h.Class('booting')], ['Starting…'])],
-      onSome: (timezone) => [
-        viewRail(h, model),
-        h.main([h.Class('view')], [viewScreen(h, model, timezone)]),
-        ...(model.isAmbient ? [viewAmbient(h, model, timezone)] : []),
-      ],
-    })
-  )
+  Option.match(model.timezone, {
+    onNone: () => h.div([h.Class('stage theme-light')], [h.div([h.Class('booting')], ['Starting…'])]),
+    onSome: (timezone) =>
+      h.div(
+        [h.Class(isDarkHour(model.now, timezone) ? 'stage theme-dark' : 'stage theme-light')],
+        [
+          viewRail(h, model),
+          h.main([h.Class('view')], [viewScreen(h, model, timezone)]),
+          ...(model.isAmbient ? [viewAmbient(h, model, timezone)] : []),
+        ]
+      ),
+  })

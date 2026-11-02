@@ -10,6 +10,7 @@ import { MissingRoot } from './errors.js'
 import { Flags, Model, init, subscriptions, update } from './main.js'
 import { view } from './view.js'
 
+import '@fontsource-variable/figtree/wght.css'
 import './index.css'
 
 const container = document.querySelector<HTMLElement>('#root')

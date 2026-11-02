@@ -335,6 +335,14 @@ describe('frame app', () => {
     expect(ambientHtml).toContain('Swim lesson')
   })
 
+  it('uses the light theme by day and the dark theme from 20:00 to 06:59', () => {
+    expect(rendered(ready)).toContain('theme-light')
+    // 20:00 and 06:30 in New York.
+    expect(rendered({ ...ready, now: at('2026-11-03T01:00:00Z') })).toContain('theme-dark')
+    expect(rendered({ ...ready, now: at('2026-11-02T11:30:00Z') })).toContain('theme-dark')
+    expect(rendered({ ...ready, now: at('2026-11-02T12:00:00Z') })).toContain('theme-light')
+  })
+
   it('reloads when the server reports a different version than the page booted with', () => {
     Story.story(
       update,

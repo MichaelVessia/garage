@@ -33,6 +33,12 @@ const zoned = (instant: DateTime.DateTime, timezone: IanaTimezone) => DateTime.s
 export const localHour = (instant: DateTime.DateTime, timezone: IanaTimezone): number =>
   DateTime.getPart(zoned(instant, timezone), 'hour')
 
+/** The dark theme covers the evening and night, when the kitchen is lamp-lit: 20:00 to 06:59. */
+export const isDarkHour = (instant: DateTime.DateTime, timezone: IanaTimezone): boolean => {
+  const hour = localHour(instant, timezone)
+  return hour >= 20 || hour < 7
+}
+
 /** "4:05" and "PM" for a local clock face. */
 export const clockParts = (instant: DateTime.DateTime, timezone: IanaTimezone) => {
   const local = zoned(instant, timezone)
