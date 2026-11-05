@@ -31,6 +31,16 @@ const RAIL: ReadonlyArray<readonly [Screen, string, IconName]> = [
   ['media', 'Media', 'media'],
 ]
 
+// The rail's Shopping item carries the count of items still to buy, so Today needs no shopping card.
+const railBadge = (h: H, model: Model, screen: Screen): ReadonlyArray<Html> => {
+  const open = Option.match(model.shopping.data, {
+    onNone: () => 0,
+    onSome: (items) => Arr.filter(items, (item) => item.status === 'needs_action').length,
+  })
+
+  return screen === 'shopping' && open > 0 ? [h.span([h.Class('rail-badge num')], [String(open)])] : []
+}
+
 const viewRail = (h: H, model: Model) =>
   h.nav(
     [h.Class('rail'), h.AriaLabel('Screens')],
@@ -43,24 +53,29 @@ const viewRail = (h: H, model: Model) =>
             h.AriaPressed(model.screen === screen ? 'true' : 'false'),
             h.OnClick(Message.ClickedScreen({ screen })),
           ],
-          [icon(h, name, 'rail-icon'), h.span([h.Class('rail-label')], [label])]
+          [icon(h, name, 'rail-icon'), h.span([h.Class('rail-label')], [label]), ...railBadge(h, model, screen)]
         )
       ),
       h.div([h.Class('rail-fill')], []),
       ...(model.isOffline
         ? [h.div([h.Class('rail-offline'), h.Role('status')], [icon(h, 'offline', 'rail-icon'), 'Offline'])]
         : []),
-      h.div(
-        [h.Class('rail-clock')],
-        Option.match(model.timezone, {
-          onNone: () => [],
-          onSome: (timezone) => {
-            const { time, meridiem } = clockParts(model.now, timezone)
+      // Today shows the large clock, so the rail clock appears only on the other screens.
+      ...(model.screen === 'today'
+        ? []
+        : [
+            h.div(
+              [h.Class('rail-clock')],
+              Option.match(model.timezone, {
+                onNone: () => [],
+                onSome: (timezone) => {
+                  const { time, meridiem } = clockParts(model.now, timezone)
 
-            return [h.b([], viewClockDigits(h, time)), h.span([], [meridiem])]
-          },
-        })
-      ),
+                  return [h.b([], viewClockDigits(h, time)), h.span([], [meridiem])]
+                },
+              })
+            ),
+          ]),
     ]
   )
 

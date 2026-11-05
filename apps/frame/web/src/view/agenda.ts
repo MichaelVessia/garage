@@ -28,7 +28,6 @@ import {
 } from '../time.js'
 import type { H } from './shared.js'
 import { classes, colorAttributes, colorClass, eventTime, nextTimed, viewClockDigits, viewNotice } from './shared.js'
-import { viewShoppingSummary } from './shopping.js'
 import { viewWeather } from './weather.js'
 
 const eventsOn = (events: ReadonlyArray<CalendarEvent>, date: CalendarDate, timezone: IanaTimezone) =>
@@ -170,10 +169,14 @@ const viewTodayAgenda = (
   const timed = Arr.filter(items, (event) => isTimed(event))
   const nextToday = nextTimed(timed, now)
 
+  // A next event tomorrow is marked on the Tomorrow card instead, so it shows only once.
   const nextLater = Option.isNone(nextToday)
-    ? Arr.findFirst(
-        Arr.filter(events, isTimed),
-        (event): boolean => !hasEnded(event, now) && !occursOn(event, date, timezone)
+    ? Option.filter(
+        Arr.findFirst(
+          Arr.filter(events, isTimed),
+          (event): boolean => !hasEnded(event, now) && !occursOn(event, date, timezone)
+        ),
+        (event) => !occursOn(event, addCalendarDays(date, 1), timezone)
       )
     : Option.none()
 
@@ -202,11 +205,7 @@ const viewTodayAgenda = (
         [
           viewEventRow(h, event, timezone, now, {
             isNext: true,
-            day: Option.some(
-              occursOn(event, addCalendarDays(date, 1), timezone)
-                ? 'Tomorrow'
-                : weekdayName(calendarDateOf(event.start, timezone))
-            ),
+            day: Option.some(event.start.pipe(calendarDateOf(timezone), weekdayName)),
           }),
         ]
       )
@@ -220,10 +219,13 @@ const viewTomorrowAgenda = (
   timezone: IanaTimezone,
   now: DateTime.DateTime
 ) => {
-  const items = eventsOn(events, addCalendarDays(today(now, timezone), 1), timezone)
+  const date = today(now, timezone)
+  const items = eventsOn(events, addCalendarDays(date, 1), timezone)
   const allDay = Arr.filter(items, (event) => isAllDay(event))
   const timed = Arr.filter(items, (event) => isTimed(event))
-  const { shown, hidden } = visibleRows(timed, now, Arr.isReadonlyArrayNonEmpty(allDay) ? 2 : 3)
+  const { shown, hidden } = visibleRows(timed, now, 5)
+  const isTodayDone = Option.isNone(nextTimed(Arr.filter(eventsOn(events, date, timezone), isTimed), now))
+  const nextId = isTodayDone ? Option.map(nextTimed(timed, now), (event) => event.id) : Option.none<string>()
 
   if (!Arr.isReadonlyArrayNonEmpty(items)) {
     return [viewNotice(h, 'Nothing planned')]
@@ -233,7 +235,9 @@ const viewTomorrowAgenda = (
     ...viewChips(h, allDay),
     h.ul(
       [h.Class('rows')],
-      Arr.map(shown, (event) => viewEventRow(h, event, timezone, now, { isNext: false, day: Option.none() }))
+      Arr.map(shown, (event) =>
+        viewEventRow(h, event, timezone, now, { isNext: Option.contains(nextId, event.id), day: Option.none() })
+      )
     ),
     ...viewMore(h, hidden),
   ]
@@ -278,17 +282,8 @@ export const viewToday: {
       viewCalendarCard(h, model, { title: 'Today', className: 't-today' }, (events) =>
         viewTodayAgenda(h, events, timezone, model.now)
       ),
-      h.div(
-        [h.Class('t-side')],
-        [
-          viewCalendarCard(
-            h,
-            model,
-            { title: `Tomorrow · ${weekdayName(tomorrow)}`, className: 't-tomorrow' },
-            (events) => viewTomorrowAgenda(h, events, timezone, model.now)
-          ),
-          viewShoppingSummary(h, model),
-        ]
+      viewCalendarCard(h, model, { title: `Tomorrow · ${weekdayName(tomorrow)}`, className: 't-tomorrow' }, (events) =>
+        viewTomorrowAgenda(h, events, timezone, model.now)
       ),
     ]
   )
