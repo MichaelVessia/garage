@@ -11,44 +11,6 @@ import { Message } from '../message.js'
 import type { H } from './shared.js'
 import { viewNotice } from './shared.js'
 
-export const viewShoppingSummary: {
-  (model: Model): (h: H) => Html
-  (h: H, model: Model): Html
-} = Function.dual(2, (h: H, model: Model): Html => {
-  const open = Option.map(model.shopping.data, (items) => Arr.filter(items, (item) => item.status === 'needs_action'))
-
-  return h.button(
-    [h.Class('card t-shopping'), h.OnClick(Message.ClickedScreen({ screen: 'shopping' }))],
-    [
-      h.span(
-        [h.Class('t-shopping-head')],
-        [
-          h.span([h.Class('card-title')], ['Shopping']),
-          h.span(
-            [h.Class('count num')],
-            [Option.match(open, { onNone: () => '–', onSome: (items) => String(items.length) })]
-          ),
-        ]
-      ),
-      h.span(
-        [h.Class('t-shopping-preview')],
-        [
-          Option.match(open, {
-            onNone: () => (model.shopping.failed ? 'Shopping list unavailable' : 'Loading shopping list…'),
-            onSome: (items) =>
-              Arr.isReadonlyArrayNonEmpty(items)
-                ? Arr.join(
-                    Arr.map(Arr.take(items, 3), (item) => item.summary),
-                    ', '
-                  ) + (items.length > 3 ? ` and ${items.length - 3} more` : '')
-                : 'Nothing to buy',
-          }),
-        ]
-      ),
-    ]
-  )
-})
-
 const viewShoppingItem = (h: H, item: ShoppingItem) => {
   const done = item.status === 'completed'
 

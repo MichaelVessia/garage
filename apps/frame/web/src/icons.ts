@@ -7,7 +7,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { Message } from './message.js'
 
 // Line icons from Lucide (lucide-static 1.66.0, ISC licence), drawn at 24 × 24 with a 2 px stroke.
-type IconStroke =
+// An accent stroke (a weather icon's sun, rain, snow, or lightning) takes the weather tone's accent colour.
+type IconStroke = (
   | { readonly _tag: 'path'; readonly d: string }
   | {
       readonly _tag: 'rect'
@@ -18,6 +19,7 @@ type IconStroke =
       readonly rx: number
     }
   | { readonly _tag: 'circle'; readonly cx: number; readonly cy: number; readonly r: number }
+) & { readonly accent?: true }
 
 const ICONS = {
   today: [
@@ -127,41 +129,41 @@ const ICONS = {
     { _tag: 'path', d: 'm19.07 4.93-1.41 1.41' },
   ],
   partlyCloudy: [
-    { _tag: 'path', d: 'M12 2v2' },
-    { _tag: 'path', d: 'm4.93 4.93 1.41 1.41' },
-    { _tag: 'path', d: 'M20 12h2' },
-    { _tag: 'path', d: 'm19.07 4.93-1.41 1.41' },
-    { _tag: 'path', d: 'M15.947 12.65a4 4 0 0 0-5.925-4.128' },
+    { _tag: 'path', accent: true, d: 'M12 2v2' },
+    { _tag: 'path', accent: true, d: 'm4.93 4.93 1.41 1.41' },
+    { _tag: 'path', accent: true, d: 'M20 12h2' },
+    { _tag: 'path', accent: true, d: 'm19.07 4.93-1.41 1.41' },
+    { _tag: 'path', accent: true, d: 'M15.947 12.65a4 4 0 0 0-5.925-4.128' },
     { _tag: 'path', d: 'M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z' },
   ],
   cloud: [{ _tag: 'path', d: 'M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z' }],
   rain: [
     { _tag: 'path', d: 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242' },
-    { _tag: 'path', d: 'M16 14v6' },
-    { _tag: 'path', d: 'M8 14v6' },
-    { _tag: 'path', d: 'M12 16v6' },
+    { _tag: 'path', accent: true, d: 'M16 14v6' },
+    { _tag: 'path', accent: true, d: 'M8 14v6' },
+    { _tag: 'path', accent: true, d: 'M12 16v6' },
   ],
   drizzle: [
     { _tag: 'path', d: 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242' },
-    { _tag: 'path', d: 'M8 19v1' },
-    { _tag: 'path', d: 'M8 14v1' },
-    { _tag: 'path', d: 'M16 19v1' },
-    { _tag: 'path', d: 'M16 14v1' },
-    { _tag: 'path', d: 'M12 21v1' },
-    { _tag: 'path', d: 'M12 16v1' },
+    { _tag: 'path', accent: true, d: 'M8 19v1' },
+    { _tag: 'path', accent: true, d: 'M8 14v1' },
+    { _tag: 'path', accent: true, d: 'M16 19v1' },
+    { _tag: 'path', accent: true, d: 'M16 14v1' },
+    { _tag: 'path', accent: true, d: 'M12 21v1' },
+    { _tag: 'path', accent: true, d: 'M12 16v1' },
   ],
   snow: [
     { _tag: 'path', d: 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242' },
-    { _tag: 'path', d: 'M8 15h.01' },
-    { _tag: 'path', d: 'M8 19h.01' },
-    { _tag: 'path', d: 'M12 17h.01' },
-    { _tag: 'path', d: 'M12 21h.01' },
-    { _tag: 'path', d: 'M16 15h.01' },
-    { _tag: 'path', d: 'M16 19h.01' },
+    { _tag: 'path', accent: true, d: 'M8 15h.01' },
+    { _tag: 'path', accent: true, d: 'M8 19h.01' },
+    { _tag: 'path', accent: true, d: 'M12 17h.01' },
+    { _tag: 'path', accent: true, d: 'M12 21h.01' },
+    { _tag: 'path', accent: true, d: 'M16 15h.01' },
+    { _tag: 'path', accent: true, d: 'M16 19h.01' },
   ],
   storm: [
     { _tag: 'path', d: 'M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973' },
-    { _tag: 'path', d: 'm13 12-3 5h4l-3 5' },
+    { _tag: 'path', accent: true, d: 'm13 12-3 5h4l-3 5' },
   ],
   fog: [
     { _tag: 'path', d: 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242' },
@@ -199,13 +201,19 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
-const viewStroke = (h: HtmlBuilder<Message>, stroke: IconStroke): Html =>
-  Match.valueTags(stroke, {
-    path: ({ d }) => h.path([h.D(d)], []),
+const viewStroke = (h: HtmlBuilder<Message>, stroke: IconStroke): Html => {
+  const tone = stroke.accent === true ? [h.Class('ic-accent')] : []
+
+  return Match.valueTags(stroke, {
+    path: ({ d }) => h.path([h.D(d), ...tone], []),
     rect: ({ x, y, width, height, rx }) =>
-      h.rect([h.X(String(x)), h.Y(String(y)), h.Width(String(width)), h.Height(String(height)), h.Rx(String(rx))], []),
-    circle: ({ cx, cy, r }) => h.circle([h.Cx(String(cx)), h.Cy(String(cy)), h.R(String(r))], []),
+      h.rect(
+        [h.X(String(x)), h.Y(String(y)), h.Width(String(width)), h.Height(String(height)), h.Rx(String(rx)), ...tone],
+        []
+      ),
+    circle: ({ cx, cy, r }) => h.circle([h.Cx(String(cx)), h.Cy(String(cy)), h.R(String(r)), ...tone], []),
   })
+}
 
 /** A decorative line icon; the surrounding control carries the accessible name. */
 export const icon: {

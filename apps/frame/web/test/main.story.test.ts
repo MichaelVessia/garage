@@ -304,8 +304,9 @@ describe('frame app', () => {
     }
 
     const todayHtml = rendered(loaded)
-    // 10:00 renders one fixed-width box per digit, on the Today clock and the rail clock.
-    expect(Option.getOrNull(Str.match(/clock-digit/gu)(todayHtml))).toHaveLength(8)
+    // 10:00 renders one fixed-width box per digit on the Today clock; Today omits the rail clock.
+    expect(Option.getOrNull(Str.match(/clock-digit/gu)(todayHtml))).toHaveLength(4)
+    expect(Option.getOrNull(Str.match(/clock-digit/gu)(rendered({ ...loaded, screen: 'calendar' })))).toHaveLength(4)
     expect(todayHtml).toContain('Monday, November 2')
     expect(todayHtml).toContain('Swim lesson')
     expect(todayHtml).toContain('Grandparents visiting')
@@ -358,9 +359,29 @@ describe('frame app', () => {
     expect(html).not.toContain('Breakfast')
     expect(html).not.toContain(' more')
     expect(html).toContain('is-next')
-    expect(html).toContain('Dentist')
-    expect(html).toContain('Tomorrow')
     expect(html).toContain('in 13 h')
+    // Tomorrow's next event is marked on the Tomorrow card only, not repeated on Today.
+    expect(Option.getOrNull(Str.match(/Dentist/gu)(html))).toHaveLength(1)
+
+    // A next event after tomorrow still shows on Today with its weekday.
+    const wednesday = rendered({
+      ...ready,
+      now: at('2026-11-03T02:00:00Z'),
+      upcoming: {
+        data: Option.some(
+          Arr.map(later, (event) =>
+            event.id === 'dentist'
+              ? { ...event, start: at('2026-11-04T15:00:00Z'), end: at('2026-11-04T16:00:00Z') }
+              : event
+          )
+        ),
+        failed: false,
+      },
+    })
+
+    expect(wednesday).toContain('Dentist')
+    expect(wednesday).toContain('Wednesday')
+    expect(wednesday).toContain('in 37 h')
   })
 
   it('paints each event in its Google Calendar colour with readable text, wherever it appears', () => {

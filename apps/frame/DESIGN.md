@@ -218,6 +218,7 @@ The screen is a fixed 1280 × 800 canvas inside Android System WebView 106. That
 - Cool grey ground, white cards, flat dark cards at night.
 - One indigo accent, only for now, next, and selection.
 - Green for "on" and "done", red only for "offline". No other state hues.
+- Weather tones colour weather icons and forecast tiles, so rain reads blue and sun reads amber from across the room.
 - Figtree Variable at 16, 22, 30 px for UI, plus the clock sizes.
 - Fixed-width digits wherever a number changes in place.
 - Lucide line icons, 24 px grid, 2 px stroke.
@@ -242,15 +243,17 @@ A cool, low-chroma neutral palette with one indigo accent and two state colours,
 - **Ink** (`ink`): primary text and the filled primary control.
 - **Slate** (`ink-2`): secondary text, times of non-next events, inactive rail items, past items.
 - **Hairline** (`line`): row dividers, field borders, week-column rules, pressed state for sunken controls.
-- **Sunken Grey** (`sunken`): chips, counts, round buttons, forecast days, switches, and the empty album-art well.
+- **Sunken Grey** (`sunken`): chips, counts, round buttons, switches, and the empty album-art well.
 - **Ambient** (`ambient-ground`, `ambient-time`, `ambient-ink`, `ambient-muted`): the ambient clock only. It is darker than the night theme and borrows `accent-ink-night` for the next event's time.
 
 ### Named Rules
 **The Now-and-Next Rule.** Indigo marks only what is happening now, what comes next, and what is selected. It is never decoration, never a heading colour, never a second button style.
 
-**The State-Only Rule.** Green means on, playing, or done. Red means offline. A colour that is not one of these states stays neutral. The one exception is the Event-Colour Rule.
+**The State-Only Rule.** Green means on, playing, or done. Red means offline. A colour that is not one of these states stays neutral. The exceptions are the Event-Colour Rule and the Weather-Tone Rule.
 
 **The Event-Colour Rule.** An event coloured in Google Calendar fills its row, week card, or all-day chip with Google's own shade, so the colour coding reads from across the room. Its text is white or Ink, whichever passes 4.5:1 on that fill. Uncoloured events stay neutral. A coloured next event keeps the indigo countdown badge, and a coloured event happening now gains an Ink ring.
+
+**The Weather-Tone Rule.** Each weather condition maps to one tone (sun, partly, cloud, rain, snow, storm, fog, night, wind). A tone has a base colour for the icon, an accent for its sun, rain, snow, or lightning strokes, and a tint for the well or forecast tile behind it, defined for day and night. Rain is blue, sun is amber, snow is sky blue, storms are violet with an amber bolt, wind is teal, and cloud and fog stay grey. A rain chance of 30% or more shows in blue beside the day. Tones appear only on the Today weather card.
 
 **The Six-Digit Rule.** Colours are 6-digit hex or `rgba()`. WebView 106 cannot use `oklch()`, `color-mix()`, or 4- and 8-digit hex.
 
@@ -269,7 +272,7 @@ A cool, low-chroma neutral palette with one indigo accent and two state colours,
 - **Emphasis** (700, 36 px): the next event's title on the Today card only.
 - **Title** (700, 30 px): screen titles, the now-playing title, the date under the clock (600, Slate), and Today rows at 30 px.
 - **Body** (400 to 650, 22 px, 1.3): card titles (650), rows, chips (550), shopping items (550), buttons, fields. 22 px is the floor for anything read from across the room.
-- **Label** (600 to 650, 16 px): rail labels, weekday names, forecast, locations, statuses, week-view events, group titles. Read up close only.
+- **Label** (600 to 650, 16 px): rail labels, weekday names, forecast day names and rain chances, locations, statuses, week-view events, group titles. Read up close only.
 
 ### Named Rules
 **The Steady Clock Rule.** Clock digits are Figtree's proportional figures, each in a fixed-width box (0.6 em per digit, 0.28 em for the colon). The time does not shift as minutes change, and the "1" keeps its plain form.
@@ -282,7 +285,7 @@ A cool, low-chroma neutral palette with one indigo accent and two state colours,
 
 The stage is a fixed 1280 × 800 grid: a 104 px rail, then the content view with 24 px padding. Content uses 12 equal columns with 24 px gutters (about 72 px columns). Spacing steps are 4, 8, 12, 16, and 24 px; 24 px (`gap`) separates cards and screen sections.
 
-- **Today:** a 216 px top band, then the remainder. The clock takes columns 1 to 7 and the weather card columns 8 to 12. Below, the Today card takes columns 1 to 7; the Tomorrow card and a 152 px shopping card stack in columns 8 to 12.
+- **Today:** a 216 px top band, then the remainder. The clock takes columns 1 to 7 and the weather card columns 8 to 12. Below, the Today card takes columns 1 to 7 and the Tomorrow card columns 8 to 12, both at full height. The shopping list has no card here; the rail's Shopping item carries its count.
 - **Calendar, Shopping, Media:** a 56 px toolbar (screen title, navigation, segmented control), then one scrolling card or grid that fills the rest.
 - **Media:** a 12-column grid with fixed 208 px rows. Three rows and two gutters fill the 672 px area exactly. Scrolling snaps to row starts (`scroll-snap-type: y mandatory`) and the scrollbar is hidden. Now-playing and speaker zones span all 12 columns; device tiles span 6, and an odd last tile spans 12.
 - **Shopping:** two columns of 64 px rows with an 8 px by 24 px gap; the add form is 552 px wide at the top so the on-screen keyboard does not cover it.
@@ -316,7 +319,8 @@ Soft, consistent corners. Cards and rail items use 16 px. Inner surfaces (fields
 - **Character:** a labelled icon rail, Home Assistant style.
 - **Shape:** 88 px square items with 16 px corners, icon (28 px) over a 16 px label, in a 104 px column with 8 px between items.
 - **States:** inactive is Slate on the rail; pressed fills Sunken Grey; active fills Kitchen Indigo with white icon and label.
-- **Footer:** the rail ends with a small clock (22 px time over a 16 px meridiem) and, when the frame is offline, a red "Offline" status above it.
+- **Footer:** the rail ends with a small clock (22 px time over a 16 px meridiem) and, when the frame is offline, a red "Offline" status above it. The Today screen omits the rail clock because its own clock is the largest thing on screen.
+- **Count badge:** the Shopping item shows a 32 px Ink pill with the number of items still to buy at its top right; it disappears when the list is empty.
 
 ### Buttons
 - **Shape:** 56 px tall pills (28 px radius) or 56 px circles.
@@ -369,7 +373,7 @@ Soft, consistent corners. Cards and rail items use 16 px. Inner surfaces (fields
 - A near-black full-screen layer above the stage: the 200 px clock with a 36 px meridiem, the date at 30 px, the next event at 30 px (time in periwinkle, "Now" when current), and the weather at 22 px with a 28 px icon. All non-time text is Ambient Muted. A tap wakes the frame.
 
 ### Icons
-- Lucide line icons (lucide-static, ISC), drawn on a 24 px grid with a 2 px round-capped stroke in `currentColor`, inlined as SVG. Default 28 px; 24 px in buttons and forecast; 56 px for weather; 48 px in the empty art well. Icons are decorative; the control carries the accessible name.
+- Lucide line icons (lucide-static, ISC), drawn on a 24 px grid with a 2 px round-capped stroke in `currentColor`, inlined as SVG. Default 28 px; 24 px in buttons; 36 px in forecast tiles; 56 px for current weather, in an 80 px tinted well; 48 px in the empty art well. Icons are decorative; the control carries the accessible name.
 
 ## Do's and Don'ts
 
@@ -385,7 +389,7 @@ Soft, consistent corners. Cards and rail items use 16 px. Inner surfaces (fields
 ### Don't:
 - **Don't** use CSS nesting, `:has()`, `oklch()`, `color-mix()`, `dvh`/`svh`/`lvh`, 4- or 8-digit hex, or JavaScript APIs newer than Chrome 106. The WebView 106 build check rejects them.
 - **Don't** load fonts or icons from the network. The frame is offline; Figtree is self-hosted and icons are inline SVG.
-- **Don't** add colours other than green and red states and Google's event colours, or put text on an event fill below 4.5:1 contrast.
+- **Don't** add colours other than green and red states, Google's event colours, and the weather tones, or put text on an event fill below 4.5:1 contrast.
 - **Don't** add text smaller than 16 px, or put information meant for across the room below 22 px.
 - **Don't** rely on hover or keyboard focus for any state; the frame is touch only.
 - **Don't** animate anything except short state transitions (160 ms ease-out), and keep rendering light for the 1 GB device.

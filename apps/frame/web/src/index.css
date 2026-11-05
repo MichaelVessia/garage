@@ -15,6 +15,7 @@
   --accent-ink: #3b46b8;
   --accent-tint: #eceefd;
   --on-accent: #ffffff;
+  --wx-rain-ink: #1659c4;
   --good: #1f8a4c;
   --good-tint: #e2f3e9;
   --bad: #c2332b;
@@ -38,6 +39,7 @@
   --accent-ink: #a9b0ff;
   --accent-tint: #252a4a;
   --on-accent: #ffffff;
+  --wx-rain-ink: #7cb6ff;
   --good: #4cc27f;
   --good-tint: #1c3326;
   --bad: #f07a71;
@@ -343,6 +345,7 @@ select.field {
 }
 
 .rail-item {
+  position: relative;
   width: 88px;
   height: 88px;
   border-radius: var(--r);
@@ -366,6 +369,28 @@ select.field {
 
 .rail-item:active {
   background: var(--sunken);
+}
+
+.rail-badge {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--card);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rail-item.is-active .rail-badge {
+  background: var(--on-accent);
+  color: var(--accent);
 }
 
 .rail-item.is-active {
@@ -665,6 +690,122 @@ select.field {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px 20px;
+}
+
+/* Weather tones: base draws the icon, accent its sun, rain, snow, or lightning strokes, and tint the
+   well or tile behind it. Each tone is defined for the day and the night theme. */
+.wx-sun {
+  --wx-base: #e8890c;
+  --wx-accent: #e8890c;
+  --wx-tint: #fff1d6;
+}
+
+.wx-partly {
+  --wx-base: #6b7585;
+  --wx-accent: #e8890c;
+  --wx-tint: #fdf4e3;
+}
+
+.wx-cloud,
+.wx-fog {
+  --wx-base: #6b7585;
+  --wx-accent: #6b7585;
+  --wx-tint: #eceff3;
+}
+
+.wx-rain {
+  --wx-base: #4d6a8f;
+  --wx-accent: #1f6fe0;
+  --wx-tint: #dcebff;
+}
+
+.wx-snow {
+  --wx-base: #5b7a95;
+  --wx-accent: #0f9bd7;
+  --wx-tint: #def3fc;
+}
+
+.wx-storm {
+  --wx-base: #5c5a8a;
+  --wx-accent: #e8a200;
+  --wx-tint: #e9e6fb;
+}
+
+.wx-night {
+  --wx-base: #c99200;
+  --wx-accent: #c99200;
+  --wx-tint: #f3eedd;
+}
+
+.wx-wind {
+  --wx-base: #11897c;
+  --wx-accent: #11897c;
+  --wx-tint: #dbf3ef;
+}
+
+.theme-dark .wx-sun {
+  --wx-base: #ffb547;
+  --wx-accent: #ffb547;
+  --wx-tint: #3a2c12;
+}
+
+.theme-dark .wx-partly {
+  --wx-base: #aab3c2;
+  --wx-accent: #ffb547;
+  --wx-tint: #2e2a20;
+}
+
+.theme-dark .wx-cloud,
+.theme-dark .wx-fog {
+  --wx-base: #aab3c2;
+  --wx-accent: #aab3c2;
+  --wx-tint: #262a32;
+}
+
+.theme-dark .wx-rain {
+  --wx-base: #9fb4d2;
+  --wx-accent: #5aa2ff;
+  --wx-tint: #142a48;
+}
+
+.theme-dark .wx-snow {
+  --wx-base: #a9c3d8;
+  --wx-accent: #5fd0ff;
+  --wx-tint: #12303e;
+}
+
+.theme-dark .wx-storm {
+  --wx-base: #b3b0e6;
+  --wx-accent: #ffc53d;
+  --wx-tint: #28254a;
+}
+
+.theme-dark .wx-night {
+  --wx-base: #f2cf5b;
+  --wx-accent: #f2cf5b;
+  --wx-tint: #2b2a22;
+}
+
+.theme-dark .wx-wind {
+  --wx-base: #4fd1c1;
+  --wx-accent: #4fd1c1;
+  --wx-tint: #12322e;
+}
+
+.wx-glyph {
+  color: var(--wx-base);
+}
+
+.wx-glyph .ic-accent {
+  stroke: var(--wx-accent);
+}
+
+/* A filled sun and moon read from across the room. */
+.wx-sun .wx-glyph circle,
+.wx-night .wx-glyph path {
+  fill: var(--wx-base);
 }
 
 .wx-now {
@@ -673,11 +814,21 @@ select.field {
   gap: 16px;
 }
 
+.wx-well {
+  width: 80px;
+  height: 80px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--wx-tint);
+}
+
 .wx-icon {
   width: 56px;
   height: 56px;
-  flex: none;
-  color: var(--ink-2);
+  stroke-width: 2.25;
 }
 
 .wx-temp {
@@ -702,9 +853,12 @@ select.field {
 }
 
 .wx-range {
-  font-size: 16px;
-  color: var(--ink-2);
-  white-space: pre;
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.wx-range b {
+  font-weight: 650;
 }
 
 .fc {
@@ -716,26 +870,50 @@ select.field {
 .fc-day {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 0;
+  gap: 2px;
+  padding: 6px 10px 8px;
   border-radius: var(--r-sm);
-  background: var(--sunken);
+  background: var(--wx-tint);
+}
+
+.fc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
 }
 
 .fc-name {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ink-2);
 }
 
+.fc-rain {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wx-rain-ink);
+  margin-left: 8px;
+}
+
+.fc-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .fc-icon {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  stroke-width: 2.25;
 }
 
 .fc-temp {
-  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 22px;
+  line-height: 1.05;
 }
 
 .fc-temp b {
@@ -744,7 +922,10 @@ select.field {
 
 .fc-low {
   color: var(--ink-2);
-  margin-left: 6px;
+}
+
+.wx-range .fc-low {
+  margin-left: 10px;
 }
 
 .t-today {
@@ -787,15 +968,8 @@ select.field {
   font-size: 22px;
 }
 
-.t-side {
-  grid-column: 8 / 13;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) 152px;
-  gap: var(--gap);
-  min-height: 0;
-}
-
 .t-tomorrow {
+  grid-column: 8 / 13;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -807,38 +981,17 @@ select.field {
   padding: 12px 0;
 }
 
+.t-tomorrow .row.is-next,
 .t-tomorrow .row.is-coloured {
   padding: 12px 16px;
 }
 
+.t-tomorrow .row.is-next {
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+}
+
 .t-tomorrow .chip {
   height: 40px;
-}
-
-.t-shopping {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  text-align: left;
-}
-
-.t-shopping:active {
-  background: var(--sunken);
-}
-
-.t-shopping-head {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.t-shopping-preview {
-  font-size: 22px;
-  color: var(--ink-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ---------------------------------------------------------------- calendar */
