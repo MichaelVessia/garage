@@ -223,7 +223,7 @@ const viewTomorrowAgenda = (
   const items = eventsOn(events, addCalendarDays(date, 1), timezone)
   const allDay = Arr.filter(items, (event) => isAllDay(event))
   const timed = Arr.filter(items, (event) => isTimed(event))
-  const { shown, hidden } = visibleRows(timed, now, 5)
+  const { shown, hidden } = visibleRows(timed, now, Arr.isReadonlyArrayNonEmpty(allDay) ? 4 : 5)
   const isTodayDone = Option.isNone(nextTimed(Arr.filter(eventsOn(events, date, timezone), isTimed), now))
   const nextId = isTodayDone ? Option.map(nextTimed(timed, now), (event) => event.id) : Option.none<string>()
 

@@ -390,7 +390,7 @@ select.field {
 
 .rail-item.is-active .rail-badge {
   background: var(--on-accent);
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 
 .rail-item.is-active {
@@ -981,8 +981,13 @@ select.field {
   padding: 12px 0;
 }
 
+.t-tomorrow .row.is-next,
 .t-tomorrow .row.is-coloured {
   padding: 12px 16px;
+}
+
+.t-tomorrow .row.is-next {
+  grid-template-columns: 112px minmax(0, 1fr) auto;
 }
 
 .t-tomorrow .chip {
