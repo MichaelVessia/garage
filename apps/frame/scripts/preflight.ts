@@ -235,8 +235,9 @@ const openPage = Effect.fn('frame.preflight.openPage')(function* () {
 
 const loaded = `!/Loading|unavailable|Offline/.test(document.body.innerText)`
 
+// Match the rail label, not the whole item: the Shopping item also shows a count badge.
 const clickScreen = (screen: string) =>
-  `(() => { const b = [...document.querySelectorAll('.rail-item')].find((el) => el.innerText.trim().toLowerCase() === '${Str.toLowerCase(screen)}'); if (b) b.click(); return b !== undefined })()`
+  `(() => { const b = [...document.querySelectorAll('.rail-item')].find((el) => el.querySelector('.rail-label')?.innerText.trim().toLowerCase() === '${Str.toLowerCase(screen)}'); if (b) b.click(); return b !== undefined })()`
 
 const preflight = Effect.fn('frame.preflight')(function* () {
   const artifacts = yield* buildArtifacts()
