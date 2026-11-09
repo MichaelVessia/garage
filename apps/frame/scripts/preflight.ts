@@ -6,6 +6,7 @@ import * as Config from 'effect/Config'
 import * as Console from 'effect/Console'
 import * as Deferred from 'effect/Deferred'
 import * as Effect from 'effect/Effect'
+import * as FileSystem from 'effect/FileSystem'
 import * as HashMap from 'effect/HashMap'
 import * as HttpClient from 'effect/http/HttpClient'
 import * as HttpClientResponse from 'effect/http/HttpClientResponse'
@@ -17,11 +18,13 @@ import * as Ref from 'effect/Ref'
 import * as Schedule from 'effect/Schedule'
 import * as Schema from 'effect/Schema'
 import * as Socket from 'effect/socket/Socket'
+import * as Stream from 'effect/Stream'
 import * as Str from 'effect/String'
 
 import { PreflightFailed } from './errors.js'
+import { HOST_ENV_FILE } from './frame-host.js'
 
-// Runs the exact Nix-built server and SPA with the real upstreams from the environment, opens it in
+// Runs the exact Nix-built server and SPA with the frame host's env file and real upstreams, opens it in
 // headless Chromium 106 (the frame's WebView engine), and fails unless the app mounts, every
 // screen loads, and no script error is reported. `deploy:prod` runs this before shipping.
 
@@ -91,6 +94,38 @@ const buildArtifacts = Effect.fn('frame.preflight.build')(function* () {
   }
 
   return { server, web, chromium }
+})
+
+// Copies the frame host's env file into a private temporary directory that the scope removes.
+const fetchHostEnvFile = Effect.fn('frame.preflight.fetchHostEnvFile')(function* () {
+  const dockerHost = yield* Config.NonEmptyString('FRAME_DOCKER_HOST')
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  const fs = yield* FileSystem.FileSystem
+
+  const unreadable = fail('host env file', `could not read ${HOST_ENV_FILE} over ${dockerHost}`)
+
+  const { contents, exitCode } = yield* spawner
+    .spawn(ChildProcess.make('ssh', [dockerHost, 'cat', HOST_ENV_FILE], { stderr: 'inherit' }))
+    .pipe(
+      Effect.flatMap((handle) =>
+        Effect.all(
+          { contents: handle.stdout.pipe(Stream.decodeText, Stream.mkString), exitCode: handle.exitCode },
+          { concurrency: 'unbounded' }
+        )
+      ),
+      Effect.scoped,
+      Effect.mapError(() => unreadable)
+    )
+
+  if (exitCode !== 0) {
+    return yield* unreadable
+  }
+
+  const dir = yield* fs.makeTempDirectoryScoped({ prefix: 'garage-frame-preflight-' })
+  const path = `${dir}/frame.env`
+  yield* fs.writeFileString(path, contents, { mode: 0o600 })
+
+  return path
 })
 
 // A child process that lives as long as the enclosing scope.
@@ -240,10 +275,12 @@ const clickScreen = (screen: string) =>
   `(() => { const b = [...document.querySelectorAll('.rail-item')].find((el) => el.querySelector('.rail-label')?.innerText.trim().toLowerCase() === '${Str.toLowerCase(screen)}'); if (b) b.click(); return b !== undefined })()`
 
 const preflight = Effect.fn('frame.preflight')(function* () {
+  const envFile = yield* fetchHostEnvFile()
   const artifacts = yield* buildArtifacts()
   const url = `http://127.0.0.1:${SERVER_PORT}/`
 
   yield* spawnScoped(`${artifacts.server}/bin/garage-frame`, [], {
+    FRAME_ENV_FILE: envFile,
     FRAME_PORT: String(SERVER_PORT),
     FRAME_WEB_ROOT: artifacts.web,
     FRAME_BUILD_ID: 'preflight',

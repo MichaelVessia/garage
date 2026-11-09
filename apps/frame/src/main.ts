@@ -1,4 +1,4 @@
-import { BunHttpClient, BunHttpServer, BunRuntime } from '@effect/platform-bun'
+import { BunHttpClient, BunHttpServer, BunRuntime, BunServices } from '@effect/platform-bun'
 import * as Config from 'effect/Config'
 import * as Effect from 'effect/Effect'
 import * as HttpRouter from 'effect/http/HttpRouter'
@@ -10,7 +10,7 @@ import { FrameHandlersLive } from './handlers.js'
 import { HomeAssistantApiLive } from './home-assistant/http.js'
 import { HomeAssistantConfigLive } from './home-assistant/services.js'
 import { frameRoutes } from './server.js'
-import { FrameTimezoneLive } from './settings.js'
+import { FrameEnvFileLive, FrameTimezoneLive } from './settings.js'
 
 const CalendarLive = CalendarFeedLive.pipe(Layer.provide(CalendarConfigLive))
 
@@ -34,4 +34,6 @@ const HttpServerLive = Layer.unwrap(
   })
 )
 
-BunRuntime.runMain(Layer.launch(HttpServerLive))
+const ConfigLive = FrameEnvFileLive.pipe(Layer.provide(BunServices.layer))
+
+BunRuntime.runMain(Layer.launch(HttpServerLive.pipe(Layer.provide(ConfigLive))))
