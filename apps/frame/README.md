@@ -36,10 +36,11 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 | `FRAME_PORT` | no | `8080` | HTTP listen port |
 | `FRAME_WEB_ROOT` | no | `web/dist` | Directory holding the built SPA |
 | `FRAME_BUILD_ID` | no | `index.html` fingerprint | Build id reported by `/health`; the image sets it |
+| `FRAME_ENV_FILE` | no | none | Dotenv file read for every variable above that the process environment does not set; the deployed container sets it |
 
 The server accepts media changes only for these entities and only the listed controls; anything else is refused with `MediaActionRejected`. Artwork is fetched by the server from Home Assistant's media player proxy, so the frame never needs to reach Home Assistant. An invalid media entry fails startup with `FRAME_ENV_INVALID`.
 
-Supply credentials through a root-readable environment file on the host, never through command arguments, images, repository files, or logs.
+Supply credentials through the frame host's env file (see Deploy), never through command arguments, images, repository files, or logs.
 
 ### Google Calendar access
 
@@ -67,41 +68,35 @@ bun run --filter '@garage/frame' dev:web        # vite on :5173, proxies /rpc to
 
 ## Deploy
 
-The frame server runs as a Docker container on a Proxmox LXC with Docker. One command from the workstation builds and ships it; there is no registry and no CI deploy.
+The frame server runs as a Docker container on a Proxmox LXC with Docker. One command from any machine with SSH access to the host builds and ships it; there is no registry and no CI deploy.
 
 ### One-time setup
 
-1. Authorize the workstation's SSH key for `root@<frame-host>` and accept its host key (`ssh root@<frame-host> true`). Docker reaches the remote daemon over this SSH connection.
-2. Keep these variables in a secrets file outside the repository, for example a sops-encrypted YAML file:
+The frame host owns the server's credentials and settings. The deploying machine needs only SSH access to the host and Nix, so any such machine can deploy.
 
-   | Variable | Required |
+1. Authorize the deploying machine's SSH key for `root@<frame-host>` and accept its host key (`ssh root@<frame-host> true`). Docker reaches the remote daemon over this SSH connection.
+2. On the frame host, write every server variable from the configuration table to `/opt/garage-frame/frame.env` in dotenv format, one `NAME=value` per line. Single-quote `GOOGLE_SERVICE_ACCOUNT_KEY` so its JSON stays verbatim. The container runs as UID/GID `65532` and reads the file through a read-only bind mount, so restrict it to root and that group:
+
+   ```sh
+   install -d -m 0755 /opt/garage-frame
+   install -m 0440 -o root -g 65532 frame.env /opt/garage-frame/frame.env
+   ```
+
+   The server reads the file once at startup. After you edit it on the host, run `docker restart garage-frame`; `deploy:prod` does not replace the container unless the image tag changes.
+3. On the deploying machine, set two non-secret variables, for example in your shell profile:
+
+   | Variable | Example |
    | --- | --- |
-   | `FRAME_DOCKER_HOST` (`ssh://root@<frame-host>`) | yes |
-   | `FRAME_URL` (`http://<frame-host>:8080`) | yes |
-   | `GOOGLE_CALENDAR_ID` | yes |
-   | `GOOGLE_SERVICE_ACCOUNT_KEY` | yes |
-   | `GOOGLE_CALENDAR_COLOR` | no |
-   | `HOME_ASSISTANT_URL` | yes |
-   | `HOME_ASSISTANT_TOKEN` | yes |
-   | `FRAME_TIMEZONE` | no |
-   | `HOME_ASSISTANT_WEATHER_ENTITY` | no |
-   | `HOME_ASSISTANT_SHOPPING_ENTITY` | no |
-
-   The media variables in the configuration table above are optional and go in the same file.
-
-Every deploy and preflight command reads these variables from its process environment. With sops:
-
-```sh
-sops exec-env <secrets-file> 'bun run --filter @garage/frame deploy:prod'
-```
+   | `FRAME_DOCKER_HOST` | `ssh://root@<frame-host>` |
+   | `FRAME_URL` | `http://<frame-host>:8080` |
 
 ### Preflight
 
 ```sh
-sops exec-env <secrets-file> 'bun run --filter @garage/frame preflight'
+bun run --filter @garage/frame preflight
 ```
 
-`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with the real upstreams from the environment, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
+`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It copies the host's `/opt/garage-frame/frame.env` over SSH into a private temporary directory, which it removes on exit; this is the only time credentials reach the deploying machine. Variables set in the deploying shell override the file. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with that env file and the real upstreams, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
 
 The static check in `bun run build` catches unsupported syntax and CSS early; the preflight catches runtime failures that a static scan cannot see.
 
@@ -116,14 +111,12 @@ This runs, in order:
 0. The preflight above.
 1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
 2. `scripts/load-image.ts` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`, unless the host already has that tag.
-3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. The two credentials are passed as `Redacted` values. A new tag makes Alchemy replace the container.
+3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. It bind-mounts the host's `/opt/garage-frame/frame.env` read-only and points `FRAME_ENV_FILE` at it, so neither Alchemy's arguments nor its state carry credentials. A new tag makes Alchemy replace the container.
 4. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
-
-Alchemy `2.0.0-beta.70`'s `Docker.Container` passes environment variables to `docker container create` as bare `--env NAME` flags and relies on the Alchemy process environment for the values, so the variables must be in Alchemy's process environment, as `sops exec-env` provides. Without them, the container starts with empty variables.
 
 The image is loaded before Alchemy runs, not as an Alchemy resource: an `Output`-valued `image` makes `Docker.Container` skip its diff, so a new tag would update state without replacing the running container.
 
-Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying workstation (gitignored). That state includes the credential values Alchemy passed to the container, so treat the directory like the secrets file. Deploy from the same checkout each time, or copy `.alchemy/` with it.
+Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying machine (gitignored). The state holds no credentials. A machine without state adopts the running container, because Alchemy labels the containers it creates.
 
 The image runs as UID/GID `65532`. Alchemy's `Docker.Container` has no options for a read-only root filesystem, dropped capabilities, or `no-new-privileges`, so those garage-mcp hardening flags are not applied here.
 
