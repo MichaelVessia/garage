@@ -14,11 +14,12 @@ import { Message } from './message.js'
 import type { Screen } from './message.js'
 import { clockParts, isDarkHour, isHappening, monthDay, occursOn, today, weekdayName } from './time.js'
 import { viewCalendar, viewToday } from './view/agenda.js'
+import { viewEventDetail } from './view/event.js'
 import { viewMedia } from './view/media.js'
 import type { H } from './view/shared.js'
 import { classes, colorAttributes, colorClass, eventTime, nextTimed, viewClockDigits } from './view/shared.js'
 import { viewShopping } from './view/shopping.js'
-import { conditionIcon, conditionLabel, degrees } from './view/weather.js'
+import { conditionIcon, conditionLabel, degrees, viewWeatherDetail } from './view/weather.js'
 
 // ============================================
 // Rail
@@ -64,8 +65,13 @@ const viewRail = (h: H, model: Model) =>
       ...(model.screen === 'today'
         ? []
         : [
-            h.div(
-              [h.Class('rail-clock')],
+            h.button(
+              [
+                h.Class('rail-clock'),
+                h.Type('button'),
+                h.AriaLabel('Today'),
+                h.OnClick(Message.ClickedScreen({ screen: 'today' })),
+              ],
               Option.match(model.timezone, {
                 onNone: () => [],
                 onSome: (timezone) => {
@@ -123,6 +129,14 @@ const viewAmbient = (h: H, model: Model, timezone: IanaTimezone) => {
 // Root
 // ============================================
 
+const viewDetail = (h: H, model: Model, timezone: IanaTimezone): ReadonlyArray<Html> =>
+  Arr.map(Arr.fromOption(model.detail), (detail) =>
+    Match.valueTags(detail, {
+      WeatherDetail: () => viewWeatherDetail(h, model, timezone),
+      EventDetail: ({ event }) => viewEventDetail(h, event, timezone, model.now),
+    })
+  )
+
 const viewScreen = (h: H, model: Model, timezone: IanaTimezone) =>
   Match.value(model.screen).pipe(
     Match.when('today', () => viewToday(h, model, timezone)),
@@ -144,6 +158,7 @@ export const view: {
         [
           viewRail(h, model),
           h.main([h.Class('view')], [viewScreen(h, model, timezone)]),
+          ...viewDetail(h, model, timezone),
           ...(model.isAmbient ? [viewAmbient(h, model, timezone)] : []),
         ]
       ),

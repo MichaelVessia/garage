@@ -23,7 +23,7 @@ Frame is the household's wall dashboard on a rooted 10-inch photo frame in the k
 
 ## Capabilities and Constraints
 
-- Screens: Today, Calendar (day and week), Shopping (check off, add with the on-screen keyboard), Media (power, playback, volume, mute, source; speaker zones; Spotify now playing and "play on"), and an ambient clock.
+- Screens: Today, Calendar (day and week), Shopping (check off, add with the on-screen keyboard, put past items back with one tap from "Buy again"), Media (power, playback, volume, mute, source; speaker zones; Spotify now playing and "play on"), an ambient clock, and detail sheets: any event opens its time, place, and notes, and the weather card opens the hourly and daily forecast.
 - Display: 1280 × 800 CSS pixels at density 160, landscape, touch only (no hover, no keyboard except the Android on-screen keyboard).
 - Engine: Android System WebView 106 on a 1 GB Android 6 device. No CSS nesting, `:has()`, `oklch()`, `color-mix()`, dynamic viewport units, 4/8-digit hex colours, or JS APIs newer than Chrome 106; `bun run build` and the Chromium 106 preflight enforce this. Keep rendering and animation light.
 - The Android on-screen keyboard covers the lower half of the screen while typing.

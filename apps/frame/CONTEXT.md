@@ -15,17 +15,19 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 - **Upcoming**: the occurrences from today through the next few days, used by the Today and Ambient screens.
 - **Ambient**: the dim full-screen clock shown after idle time, sooner at night; any touch wakes the frame.
 - **Shopping list**: the Home Assistant `todo` entity whose items can be checked off from the frame.
+- **Buy again**: completed shopping list items, grouped by name and ranked by how often they appear; tapping one reopens its completed entry instead of adding a duplicate.
+- **Detail sheet**: the sheet that opens over a screen with more about one event or the weather; tapping outside it, Close, or dimming to Ambient dismisses it.
 - **Media card**: one configured Home Assistant media player, or the speaker zone card, on the Media screen.
 - **Media action**: one allowlisted change (power, playback, volume, mute, source, zone toggle, all-zones button) the frame may request for a configured entity.
 
 ## Responsibilities
 
 - Fetch the family calendar feed, cache it briefly, fall back to the last good copy, and expand recurrences, exceptions, cancellations, all-day events, and time zones into occurrences.
-- Read current weather and the daily forecast from Home Assistant.
+- Read current weather with its details (feels like, humidity, wind, UV) and the hourly and daily forecasts from Home Assistant; an integration without an hourly forecast still shows the rest.
 - Read and update shopping list items in Home Assistant.
 - Read configured media players, speaker zones, and an optional Spotify player; run allowlisted media actions; proxy their artwork.
 - Serve the SPA, RPC, and a readiness endpoint from one process.
-- Render the Today, Calendar (day and week), Shopping, Media, and Ambient screens for touch use at 1280 × 800.
+- Render the Today, Calendar (day and week), Shopping, Media, and Ambient screens and the detail sheets for touch use at 1280 × 800. Every event, the weather card, day headings, and card titles open more detail or the matching calendar day.
 
 ## Non-responsibilities
 

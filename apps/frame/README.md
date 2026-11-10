@@ -1,6 +1,6 @@
 # Frame
 
-Wall dashboard for a PF1007L photo frame: Today (clock, colour-coded weather, today and tomorrow), Calendar (day and week), Shopping list, and an Ambient clock after idle time. One Bun process serves the SPA and an Effect RPC endpoint at `/rpc`.
+Wall dashboard for a PF1007L photo frame: Today (clock, colour-coded weather, today and tomorrow), Calendar (day and week), Shopping list with "Buy again", detail sheets for events and the weather, and an Ambient clock after idle time. One Bun process serves the SPA and an Effect RPC endpoint at `/rpc`.
 
 The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://github.com/wesbos/photo-frame-dashboard) (MIT, © Wes Bos). No code was copied; the views were rewritten for Foldkit.
 

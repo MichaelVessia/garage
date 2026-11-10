@@ -70,6 +70,24 @@ const colorOf = (event: Event, palette: CalendarPalette): Option.Option<EventCol
 const text = (value: Option.Option<string>): Option.Option<string> =>
   Option.filter(Option.map(value, Str.trim), (trimmed) => trimmed !== '')
 
+// Google stores descriptions written in its editor as HTML; the frame shows them as plain lines.
+const HTML_TO_TEXT: ReadonlyArray<readonly [RegExp, string]> = [
+  [/<br\s*\/?>|<(?:p|div)(?:\s[^>]*)?>/giu, '\n'],
+  [/<li(?:\s[^>]*)?>/giu, '\n• '],
+  [/<[^>]*>/gu, ''],
+  [/&nbsp;/gu, ' '],
+  [/&lt;/gu, '<'],
+  [/&gt;/gu, '>'],
+  [/&quot;/gu, '"'],
+  [/&#39;/gu, "'"],
+  [/&amp;/gu, '&'],
+  [/[ \t]+\n/gu, '\n'],
+  [/\n{3,}/gu, '\n\n'],
+]
+
+const plainText = (html: string): string =>
+  Arr.reduce(HTML_TO_TEXT, html, (result, [pattern, replacement]) => Str.replace(pattern, replacement)(result))
+
 const decodeDate = Schema.decodeUnknownOption(CalendarDate)
 
 const instantOf = (time: Option.Option<EventDateTime>): Option.Option<DateTime.Utc> =>
@@ -94,6 +112,7 @@ const toCalendarEvent = (event: Event, palette: CalendarPalette): Option.Option<
         Option.getOrElse(() => '(No title)')
       ),
       location: Option.fromNullishOr(event.location).pipe(text, Option.getOrNull),
+      description: Option.fromNullishOr(event.description).pipe(Option.map(plainText), text, Option.getOrNull),
       color: Option.getOrNull(colorOf(event, palette)),
     }
 

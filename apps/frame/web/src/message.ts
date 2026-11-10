@@ -33,6 +33,11 @@ export const Message = defineMessageUnion({
   ClickedCalendarMode: { mode: CalendarMode },
   ClickedShift: { direction: Schema.Literals([-1, 1]) },
   ClickedToday: {},
+  // Opens the calendar on one date in the given layout, from a day heading, a card title, or the clock.
+  ClickedDate: { date: CalendarDate, mode: CalendarMode },
+  ClickedEvent: { event: CalendarEvent },
+  ClickedWeather: {},
+  ClosedDetail: {},
   ClickedShoppingItem: { uid: Schema.String, status: ShoppingItemStatus },
   ChangedShoppingDraft: { value: Schema.String },
   SubmittedShoppingItem: {},

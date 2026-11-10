@@ -40,6 +40,7 @@ import {
 } from './command.js'
 import type { CommandServices, Commands } from './command.js'
 import { CalendarMode, Message, Screen } from './message.js'
+import { sameItem } from './shopping.js'
 import { localHour, today, weekStart } from './time.js'
 
 // ============================================
@@ -55,6 +56,12 @@ const feed = <S extends Schema.Top>(data: S) =>
 const EventsFeed = feed(CalendarEvent.pipe(Schema.Array))
 
 type EventsFeed = typeof EventsFeed.Type
+
+/** A sheet open over the current screen with more about one thing on it. */
+const Detail = Schema.Union([
+  Schema.TaggedStruct('WeatherDetail', {}),
+  Schema.TaggedStruct('EventDetail', { event: CalendarEvent }),
+])
 
 export const Flags = Schema.Struct({ now: Schema.DateTimeUtc, bootVersion: Schema.Option(Schema.String) })
 
@@ -76,6 +83,7 @@ export const Model = Schema.Struct({
   shopping: feed(ShoppingItem.pipe(Schema.Array)),
   shoppingDraft: Schema.String,
   media: feed(MediaSnapshot),
+  detail: Schema.Option(Detail),
 })
 
 export type Model = typeof Model.Type
@@ -109,6 +117,7 @@ export const init = (flags: Flags): UpdateReturn => ({
     shopping: emptyFeed,
     shoppingDraft: '',
     media: emptyFeed,
+    detail: Option.none(),
   },
   commands: [FetchSettings(), FetchWeather(), FetchShopping()],
 })
@@ -174,7 +183,14 @@ const onShift = (model: Model, direction: -1 | 1): UpdateReturn => {
 }
 
 const onTick = (model: Model, now: DateTime.Utc): UpdateReturn => {
-  const next = modifyFields(model, { now: () => now, isAmbient: () => shouldBeAmbient(model, now) })
+  const isAmbient = shouldBeAmbient(model, now)
+
+  // The frame wakes to its screen, not to a sheet left open before it dimmed.
+  const next = modifyFields(model, {
+    now: () => now,
+    isAmbient: () => isAmbient,
+    detail: (detail) => (isAmbient ? Option.none() : detail),
+  })
 
   // At local midnight the upcoming window moves forward a day.
   const newDay = Option.filter(
@@ -205,16 +221,42 @@ const onShoppingItem = (model: Model, uid: string, status: ShoppingItemStatus): 
   }
 }
 
-// Blank drafts are ignored; the server trims and length-checks the summary again.
+// Blank drafts are ignored; the server trims and length-checks the summary again. A name already
+// on the list is not added twice, and one bought before reopens its completed entry.
 const onSubmitShoppingItem = (model: Model): UpdateReturn => {
   const summary = Str.trim(model.shoppingDraft)
+  const cleared = modifyFields(model, { shoppingDraft: () => '' })
 
-  return summary === ''
-    ? { model }
-    : {
-        model: modifyFields(model, { shoppingDraft: () => '' }),
+  if (summary === '') {
+    return { model }
+  }
+
+  return Option.match(
+    Option.flatMap(model.shopping.data, (items) => sameItem(items, summary)),
+    {
+      onNone: (): UpdateReturn => ({
+        model: cleared,
         commands: [AddShoppingItem({ summary: Str.slice(0, 200)(summary) })],
-      }
+      }),
+      onSome: (item): UpdateReturn =>
+        item.status === 'completed' ? onShoppingItem(cleared, item.uid, 'needs_action') : { model: cleared },
+    }
+  )
+}
+
+// Opens the calendar on a date; a date in another week loads that week.
+const onDate = (model: Model, date: CalendarDate, mode: CalendarMode): UpdateReturn => {
+  const isSameWeek = Option.contains(Option.map(model.anchor, weekStart), weekStart(date))
+
+  const next = modifyFields(model, {
+    screen: () => 'calendar' as const,
+    calendarMode: () => mode,
+    anchor: () => Option.some(date),
+    detail: () => Option.none(),
+    week: (week) => (isSameWeek ? week : emptyFeed),
+  })
+
+  return { model: next, commands: isSameWeek ? [] : [FetchWeek({ from: weekStart(date) })] }
 }
 
 // Applies the change the frame expects so taps feel immediate; the action's response replaces it.
@@ -290,7 +332,7 @@ export const update: {
     TickedClock: ({ now }) => onTick(model, now),
     Interacted: () => ({ model: modifyFields(model, { lastInteraction: () => model.now, isAmbient: () => false }) }),
     ClickedScreen: ({ screen }) => ({
-      model: modifyFields(model, { screen: () => screen }),
+      model: modifyFields(model, { screen: () => screen, detail: () => Option.none() }),
       commands: Match.value(screen).pipe(
         Match.when('shopping', (): Commands => [FetchShopping()]),
         Match.when('media', (): Commands => [FetchMedia()]),
@@ -306,6 +348,15 @@ export const update: {
 
       return { model: next, commands: calendarCommands(next) }
     },
+    ClickedDate: ({ date, mode }) => onDate(model, date, mode),
+    ClickedEvent: ({ event }) => ({
+      model: modifyFields(model, { detail: () => Option.some({ _tag: 'EventDetail' as const, event }) }),
+    }),
+    ClickedWeather: () => ({
+      model: modifyFields(model, { detail: () => Option.some({ _tag: 'WeatherDetail' as const }) }),
+      commands: [FetchWeather()],
+    }),
+    ClosedDetail: () => ({ model: modifyFields(model, { detail: () => Option.none() }) }),
     ClickedShoppingItem: ({ uid, status }) => onShoppingItem(model, uid, status),
     ChangedShoppingDraft: ({ value }) => ({ model: modifyFields(model, { shoppingDraft: () => value }) }),
     SubmittedShoppingItem: () => onSubmitShoppingItem(model),

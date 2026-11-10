@@ -58,7 +58,16 @@ const ICONS = {
     { _tag: 'path', d: 'M5 12h14' },
     { _tag: 'path', d: 'M12 5v14' },
   ],
-  check: [{ _tag: 'path', d: 'M20 6 9 17l-5-5' }],
+  close: [
+    { _tag: 'path', d: 'M18 6 6 18' },
+    { _tag: 'path', d: 'm6 6 12 12' },
+  ],
+  droplet: [
+    {
+      _tag: 'path',
+      d: 'M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z',
+    },
+  ],
   play: [{ _tag: 'path', d: 'M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z' }],
   pause: [
     { _tag: 'rect', x: 14, y: 3, width: 5, height: 18, rx: 1 },

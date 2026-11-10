@@ -52,6 +52,8 @@ export const syntheticEvents = [
     status: 'confirmed',
     summary: 'Swim lesson',
     location: 'Community pool',
+    description:
+      'Bring <b>goggles</b> &amp; a towel<br>Lane&nbsp;3<div>Door code</div><ul><li>Cap</li><li>Snack</li></ul>',
     colorId: '7',
     eventLabelId: 'label-grape',
     start: { dateTime: '2026-11-02T17:00:00-05:00', timeZone: 'America/New_York' },

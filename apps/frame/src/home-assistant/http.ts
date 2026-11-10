@@ -8,6 +8,7 @@ import * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as Layer from 'effect/Layer'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as R from 'effect/Record'
 import * as Redacted from 'effect/Redacted'
 import * as Result from 'effect/Result'
@@ -15,7 +16,14 @@ import type * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
 import { MediaActionRejected, MediaSnapshot, Weather, calendarDateOf } from '#shared'
-import type { ForecastDay, MediaAction, MediaCard, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
+import type {
+  ForecastDay,
+  ForecastHour,
+  MediaAction,
+  MediaCard,
+  ShoppingItemAddition,
+  ShoppingItemUpdate,
+} from '#shared'
 
 import { homeAssistantDecodeError, homeAssistantHttpError, homeAssistantUnreachable } from '../errors.js'
 import type { HomeAssistantError } from '../errors.js'
@@ -37,6 +45,23 @@ import {
 import { HomeAssistantApi, HomeAssistantConfig } from './services.js'
 
 const normalizeBaseUrl = (url: string): string => (Str.endsWith('/')(url) ? Str.slice(0, -1)(url) : url)
+
+const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+
+// Home Assistant reports the bearing in degrees or, for some integrations, as a compass point.
+const bearingDegrees = (bearing: number | string): Option.Option<number> =>
+  Match.value(bearing).pipe(
+    Match.when(Match.number, (degrees) => Option.some(degrees)),
+    Match.orElse((point) =>
+      Option.map(
+        Arr.findFirstIndex(COMPASS, (name) => name === Str.toUpperCase(Str.trim(point))),
+        (index) => index * 22.5
+      )
+    )
+  )
+
+// The frame shows at most a day of hourly forecast.
+const HOURS_KEPT = 24
 
 const responseFor = <A>(responses: Record<string, A>, entity: string): Effect.Effect<A, HomeAssistantError> =>
   Effect.fromOption(R.get(responses, entity)).pipe(
@@ -205,26 +230,54 @@ export const HomeAssistantApiLive = Layer.effect(
       })
     })
 
+    const forecastEntries = (type: 'daily' | 'hourly') =>
+      callService('weather', 'get_forecasts', { entity_id: config.weatherEntity, type }, ForecastServiceResponse).pipe(
+        Effect.flatMap((response) => responseFor(response.service_response, config.weatherEntity)),
+        Effect.map(({ forecast }) => forecast)
+      )
+
+    const toForecastHour = (entry: ForecastServiceResponse['service_response'][string]['forecast'][number]) =>
+      Option.map(DateTime.make(entry.datetime), (time): ForecastHour => ({
+        time: DateTime.toUtc(time),
+        condition: entry.condition ?? 'unknown',
+        temperature: entry.temperature ?? null,
+        precipitationProbability: entry.precipitation_probability ?? null,
+      }))
+
     const weather = Effect.fn('frame.homeAssistant.weather')(function* () {
-      const current: WeatherStateResponse = yield* http.getJson(
-        `/api/states/${config.weatherEntity}`,
-        WeatherStateResponse
+      const [current, daily, hourly] = yield* Effect.all(
+        [
+          http.getJson(`/api/states/${config.weatherEntity}`, WeatherStateResponse),
+          forecastEntries('daily'),
+          // Some weather integrations offer no hourly forecast; the frame then shows the daily one alone.
+          forecastEntries('hourly').pipe(
+            Effect.catch((error) => Effect.logDebug('Hourly forecast unavailable', error.code).pipe(Effect.as([])))
+          ),
+        ],
+        { concurrency: 'unbounded' }
       )
 
-      const forecastResponse = yield* callService(
-        'weather',
-        'get_forecasts',
-        { entity_id: config.weatherEntity, type: 'daily' },
-        ForecastServiceResponse
-      )
-
-      const { forecast } = yield* responseFor(forecastResponse.service_response, config.weatherEntity)
+      const { attributes }: WeatherStateResponse = current
 
       return Weather.make({
         condition: current.state,
-        temperature: current.attributes.temperature ?? null,
-        temperatureUnit: current.attributes.temperature_unit ?? '°',
-        forecast: Arr.getSomes(Arr.map(forecast, toForecastDay)),
+        temperature: attributes.temperature ?? null,
+        temperatureUnit: attributes.temperature_unit ?? '°',
+        feelsLike: attributes.apparent_temperature ?? null,
+        humidity: attributes.humidity ?? null,
+        wind: P.isNotNullish(attributes.wind_speed)
+          ? {
+              speed: attributes.wind_speed,
+              unit: attributes.wind_speed_unit ?? '',
+              bearing: Option.fromNullishOr(attributes.wind_bearing).pipe(
+                Option.flatMap(bearingDegrees),
+                Option.getOrNull
+              ),
+            }
+          : null,
+        uvIndex: attributes.uv_index ?? null,
+        hourly: Arr.take(Arr.getSomes(Arr.map(hourly, toForecastHour)), HOURS_KEPT),
+        forecast: Arr.getSomes(Arr.map(daily, toForecastDay)),
       })
     })
 
