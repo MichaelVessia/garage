@@ -20,7 +20,6 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       'apps/frame/web/index.html',
       'apps/subq/alchemy.run.ts',
       'apps/subq/web/index.html',
-      'packages/pi-extensions/extensions/*.ts',
     ],
     dynamicallyLoaded: ['tools/oxlint/anti-slop/index.ts'],
     rulePacks: ['fallow/effect-service-boundaries.jsonc'],
@@ -62,12 +61,6 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       },
       { file: 'packages/integration-http/src/index.ts', exports: ['ErrorFailure', 'JsonClientErrors'] },
       { file: 'packages/integration-http/src/testing.ts', exports: ['*'] },
-      { file: 'packages/pi-extensions/extensions/*.ts', exports: ['default'] },
-      { file: 'packages/pi-extensions/src/gpt-fast-mode.ts', exports: ['decodeConfiguredDefault'] },
-      {
-        file: 'packages/pi-extensions/src/session-model-default.ts',
-        exports: ['decodeModelDefault', 'restoreModelDefault'],
-      },
       {
         file: 'packages/sabnzbd/src/index.ts',
         exports: ['DeleteOptions', 'LimitOptions', 'SabnzbdConfig', 'envMissing', 'unreachable'],

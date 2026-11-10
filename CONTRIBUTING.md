@@ -79,7 +79,7 @@ pre-PR gate is non-negotiable.
 1. repository-wide reachability, dependency, import, cycle, boundary, rule-pack
    policy, and suppression analysis, including tests; and
 2. type-aware, production-only unused-export and unused-type analysis for
-   private packages, Garage MCP, and Pi extensions, where test-only references
+   private packages and Garage MCP, where test-only references
    must not keep a public API alive.
 
 Subq remains in the repository-wide pass because its browser and Worker modules

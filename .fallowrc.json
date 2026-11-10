@@ -4,8 +4,7 @@
     "apps/frame/alchemy.run.ts",
     "apps/frame/web/index.html",
     "apps/subq/alchemy.run.ts",
-    "apps/subq/web/index.html",
-    "packages/pi-extensions/extensions/*.ts"
+    "apps/subq/web/index.html"
   ],
   "dynamicallyLoaded": [
     "tools/oxlint/anti-slop/index.ts"
@@ -130,25 +129,6 @@
       "file": "packages/integration-http/src/testing.ts",
       "exports": [
         "*"
-      ]
-    },
-    {
-      "file": "packages/pi-extensions/extensions/*.ts",
-      "exports": [
-        "default"
-      ]
-    },
-    {
-      "file": "packages/pi-extensions/src/gpt-fast-mode.ts",
-      "exports": [
-        "decodeConfiguredDefault"
-      ]
-    },
-    {
-      "file": "packages/pi-extensions/src/session-model-default.ts",
-      "exports": [
-        "decodeModelDefault",
-        "restoreModelDefault"
       ]
     },
     {
