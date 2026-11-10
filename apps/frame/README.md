@@ -82,7 +82,7 @@ The frame host owns the server's credentials and settings. The deploying machine
    install -m 0440 -o root -g 65532 frame.env /opt/garage-frame/frame.env
    ```
 
-   Edit the file on the host to change a credential or setting, then run `deploy:prod` again or restart the container (`docker restart garage-frame`).
+   The server reads the file once at startup. After you edit it on the host, run `docker restart garage-frame`; `deploy:prod` does not replace the container unless the image tag changes.
 3. On the deploying machine, set two non-secret variables, for example in your shell profile:
 
    | Variable | Example |
@@ -96,7 +96,7 @@ The frame host owns the server's credentials and settings. The deploying machine
 bun run --filter @garage/frame preflight
 ```
 
-`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It copies the host's `/opt/garage-frame/frame.env` over SSH into a private temporary directory, which it removes on exit. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with that env file and the real upstreams, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
+`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It copies the host's `/opt/garage-frame/frame.env` over SSH into a private temporary directory, which it removes on exit; this is the only time credentials reach the deploying machine. Variables set in the deploying shell override the file. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with that env file and the real upstreams, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
 
 The static check in `bun run build` catches unsupported syntax and CSS early; the preflight catches runtime failures that a static scan cannot see.
 
@@ -111,7 +111,7 @@ This runs, in order:
 0. The preflight above.
 1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
 2. `scripts/load-image.ts` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`, unless the host already has that tag.
-3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. It bind-mounts the host's `/opt/garage-frame/frame.env` read-only and points `FRAME_ENV_FILE` at it, so no credential passes through the deploying machine. A new tag makes Alchemy replace the container.
+3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. It bind-mounts the host's `/opt/garage-frame/frame.env` read-only and points `FRAME_ENV_FILE` at it, so neither Alchemy's arguments nor its state carry credentials. A new tag makes Alchemy replace the container.
 4. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
 
 The image is loaded before Alchemy runs, not as an Alchemy resource: an `Output`-valued `image` makes `Docker.Container` skip its diff, so a new tag would update state without replacing the running container.
