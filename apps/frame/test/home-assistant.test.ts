@@ -1,6 +1,7 @@
 import { assert, describe, it } from '@effect/vitest'
 import { makeRecordingHttpClient } from '@garage/integration-http/testing'
 import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import type * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as Layer from 'effect/Layer'
@@ -12,7 +13,7 @@ import * as Str from 'effect/String'
 
 import { CalendarDate, IanaTimezone, MediaActionRejected, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
-import type { EntityStateResponse } from '../src/home-assistant/api-schema.js'
+import type { EntityStateResponse, ForecastServiceResponse } from '../src/home-assistant/api-schema.js'
 import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
 import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantApi, HomeAssistantConfig } from '../src/home-assistant/services.js'
@@ -104,32 +105,53 @@ const bodyText = (request: HttpClientRequest.HttpClientRequest) =>
   request.body._tag === 'Uint8Array' ? new TextDecoder().decode(request.body.body) : ''
 
 describe('HomeAssistantApiLive', () => {
-  it.effect('reads current weather and the daily forecast on local dates', () =>
+  const forecastResponse = (forecast: ForecastServiceResponse['service_response'][string]['forecast']) => ({
+    status: 200,
+    body: { changed_states: [], service_response: { 'weather.home': { forecast } } },
+  })
+
+  it.effect('reads current weather with its details and the hourly and daily forecasts', () =>
     Effect.gen(function* () {
-      const fake = yield* makeRecordingHttpClient((method) =>
-        method === 'GET'
-          ? { status: 200, body: { state: 'partlycloudy', attributes: { temperature: 48, temperature_unit: '°F' } } }
-          : {
-              status: 200,
-              body: {
-                changed_states: [],
-                service_response: {
-                  'weather.home': {
-                    forecast: [
-                      {
-                        datetime: '2026-11-02T03:00:00+00:00',
-                        condition: 'rainy',
-                        temperature: 52,
-                        templow: 40,
-                        precipitation_probability: 80,
-                      },
-                      { datetime: '2026-11-03T17:00:00+00:00', condition: 'sunny', temperature: 55, templow: null },
-                    ],
-                  },
-                },
+      const fake = yield* makeRecordingHttpClient((method, _url, request) => {
+        if (method === 'GET') {
+          return {
+            status: 200,
+            body: {
+              state: 'partlycloudy',
+              attributes: {
+                temperature: 48,
+                temperature_unit: '°F',
+                apparent_temperature: 44,
+                humidity: 71,
+                wind_speed: 9.4,
+                wind_speed_unit: 'mph',
+                wind_bearing: 'NW',
+                uv_index: 2,
               },
-            }
-      )
+            },
+          }
+        }
+
+        return request.pipe(bodyText, Str.includes('"hourly"'))
+          ? forecastResponse([
+              {
+                datetime: '2026-11-02T15:00:00+00:00',
+                condition: 'cloudy',
+                temperature: 49,
+                precipitation_probability: 10,
+              },
+            ])
+          : forecastResponse([
+              {
+                datetime: '2026-11-02T03:00:00+00:00',
+                condition: 'rainy',
+                temperature: 52,
+                templow: 40,
+                precipitation_probability: 80,
+              },
+              { datetime: '2026-11-03T17:00:00+00:00', condition: 'sunny', temperature: 55, templow: null },
+            ])
+      })
 
       const api = yield* HomeAssistantApi.pipe(
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
@@ -139,6 +161,14 @@ describe('HomeAssistantApiLive', () => {
 
       assert.strictEqual(weather.condition, 'partlycloudy')
       assert.strictEqual(weather.temperature, 48)
+      assert.strictEqual(weather.feelsLike, 44)
+      assert.strictEqual(weather.humidity, 71)
+      assert.deepStrictEqual(weather.wind, { speed: 9.4, unit: 'mph', bearing: 315 })
+      assert.strictEqual(weather.uvIndex, 2)
+      assert.deepStrictEqual(
+        Arr.map(weather.hourly, (hour) => [DateTime.formatIso(hour.time), hour.condition, hour.temperature]),
+        [['2026-11-02T15:00:00.000Z', 'cloudy', 49]]
+      )
       assert.deepStrictEqual(weather.forecast, [
         { date: CalendarDate.make('2026-11-01'), condition: 'rainy', high: 52, low: 40, precipitationProbability: 80 },
         {
@@ -150,20 +180,53 @@ describe('HomeAssistantApiLive', () => {
         },
       ])
       const requests = yield* recorded(fake.requests)
-      assert.deepStrictEqual(requests, [
-        {
-          method: 'GET',
-          url: 'http://ha.example.test:8123/api/states/weather.home',
-          authorization: 'Bearer ha-token',
-          body: null,
-        },
-        {
-          method: 'POST',
-          url: 'http://ha.example.test:8123/api/services/weather/get_forecasts?return_response',
-          authorization: 'Bearer ha-token',
-          body: { entity_id: 'weather.home', type: 'daily' },
-        },
-      ])
+      assert.sameDeepMembers(
+        [...requests],
+        [
+          {
+            method: 'GET',
+            url: 'http://ha.example.test:8123/api/states/weather.home',
+            authorization: 'Bearer ha-token',
+            body: null,
+          },
+          {
+            method: 'POST',
+            url: 'http://ha.example.test:8123/api/services/weather/get_forecasts?return_response',
+            authorization: 'Bearer ha-token',
+            body: { entity_id: 'weather.home', type: 'daily' },
+          },
+          {
+            method: 'POST',
+            url: 'http://ha.example.test:8123/api/services/weather/get_forecasts?return_response',
+            authorization: 'Bearer ha-token',
+            body: { entity_id: 'weather.home', type: 'hourly' },
+          },
+        ]
+      )
+    })
+  )
+
+  it.effect('shows the daily forecast alone when the integration has no hourly forecast', () =>
+    Effect.gen(function* () {
+      const fake = yield* makeRecordingHttpClient((method, _url, request) => {
+        if (method === 'GET') {
+          return { status: 200, body: { state: 'sunny', attributes: { temperature: 60 } } }
+        }
+
+        return request.pipe(bodyText, Str.includes('"hourly"'))
+          ? { status: 400, body: { message: 'Weather entity does not support hourly forecasts' } }
+          : forecastResponse([{ datetime: '2026-11-03T17:00:00+00:00', condition: 'sunny', temperature: 62 }])
+      })
+
+      const api = yield* HomeAssistantApi.pipe(
+        Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
+      )
+
+      const weather = yield* api.weather
+
+      assert.deepStrictEqual(weather.hourly, [])
+      assert.strictEqual(weather.forecast.length, 1)
+      assert.strictEqual(weather.wind, null)
     })
   )
 

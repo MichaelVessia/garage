@@ -26,7 +26,7 @@ export {
   Weather,
 } from './model.js'
 
-export type { ForecastDay } from './model.js'
+export type { ForecastDay, ForecastHour, Wind } from './model.js'
 
 export { MediaAction, MediaSnapshot } from './media.js'
 

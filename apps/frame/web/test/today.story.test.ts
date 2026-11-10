@@ -59,6 +59,11 @@ describe('today screen', () => {
             condition: 'sunny',
             temperature: 58,
             temperatureUnit: '°F',
+            feelsLike: null,
+            humidity: null,
+            wind: null,
+            uvIndex: null,
+            hourly: [],
             forecast: [
               day('2026-11-02', 'sunny', 0),
               day('2026-11-03', 'pouring', 90),

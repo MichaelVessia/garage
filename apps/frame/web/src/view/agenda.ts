@@ -1,5 +1,5 @@
 import * as Arr from 'effect/Array'
-import * as DateTime from 'effect/DateTime'
+import type * as DateTime from 'effect/DateTime'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import type { Html } from 'foldkit/html'
@@ -27,36 +27,32 @@ import {
   weekdayShort,
 } from '../time.js'
 import type { H } from './shared.js'
-import { classes, colorAttributes, colorClass, eventTime, nextTimed, viewClockDigits, viewNotice } from './shared.js'
+import {
+  classes,
+  colorAttributes,
+  colorClass,
+  eventTime,
+  nextTimed,
+  untilLabel,
+  viewClockDigits,
+  viewNotice,
+} from './shared.js'
 import { viewWeather } from './weather.js'
+
+// Every event opens its detail sheet.
+const tapEvent = (h: H, event: CalendarEvent) => [h.Role('button'), h.OnClick(Message.ClickedEvent({ event }))]
 
 const eventsOn = (events: ReadonlyArray<CalendarEvent>, date: CalendarDate, timezone: IanaTimezone) =>
   Arr.filter(events, (event) => occursOn(event, date, timezone))
 
-// "Now", "in 18 min", "in 1 h 18 min", "in 18 h", "in 3 days".
-const untilLabel = (event: CalendarEvent, now: DateTime.DateTime): string => {
-  if (isHappening(event, now) || !isTimed(event)) {
-    return 'Now'
-  }
-
-  const minutes = Math.max(1, Math.round((DateTime.toEpochMillis(event.start) - DateTime.toEpochMillis(now)) / 60_000))
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-
-  if (hours === 0) {
-    return `in ${rest} min`
-  }
-
-  if (hours < 6) {
-    return rest === 0 ? `in ${hours} h` : `in ${hours} h ${rest} min`
-  }
-
-  return hours < 48 ? `in ${hours} h` : `in ${Math.round(hours / 24)} days`
-}
-
 const viewChip = (h: H, event: CalendarEvent) =>
   h.li(
-    [h.Key(event.id), h.Class(classes('chip', colorClass(event))), ...colorAttributes(h, event)],
+    [
+      h.Key(event.id),
+      h.Class(classes('chip tap', colorClass(event))),
+      ...colorAttributes(h, event),
+      ...tapEvent(h, event),
+    ],
     [h.span([h.Class('chip-text')], [event.title])]
   )
 
@@ -70,8 +66,9 @@ const viewEventRow = (
   h.li(
     [
       h.Key(event.id),
-      h.Class(classes('row', colorClass(event), options.isNext && 'is-next', hasEnded(event, now) && 'is-past')),
+      h.Class(classes('row tap', colorClass(event), options.isNext && 'is-next', hasEnded(event, now) && 'is-past')),
       ...colorAttributes(h, event),
+      ...tapEvent(h, event),
     ],
     [
       h.span([h.Class('row-time num')], [eventTime(event, timezone)]),
@@ -99,11 +96,11 @@ const viewChips = (h: H, events: ReadonlyArray<CalendarEvent>) =>
       ]
     : []
 
-const viewMore = (h: H, hidden: number) =>
+const viewMore = (h: H, hidden: number, date: CalendarDate) =>
   hidden > 0
     ? [
         h.button(
-          [h.Class('more'), h.Type('button'), h.OnClick(Message.ClickedScreen({ screen: 'calendar' }))],
+          [h.Class('more'), h.Type('button'), h.OnClick(Message.ClickedDate({ date, mode: 'day' }))],
           [`+${hidden} more`]
         ),
       ]
@@ -197,7 +194,7 @@ const viewTodayAgenda = (
           ),
         ]
       : []),
-    ...viewMore(h, hidden),
+    ...viewMore(h, hidden, date),
     ...(Option.isNone(nextToday) ? [viewNotice(h, 'Nothing else today')] : []),
     ...Arr.map(Arr.fromOption(nextLater), (event) =>
       h.ul(
@@ -239,20 +236,32 @@ const viewTomorrowAgenda = (
         viewEventRow(h, event, timezone, now, { isNext: Option.contains(nextId, event.id), day: Option.none() })
       )
     ),
-    ...viewMore(h, hidden),
+    ...viewMore(h, hidden, addCalendarDays(date, 1)),
   ]
 }
 
 const viewCalendarCard = (
   h: H,
   model: Model,
-  options: { readonly title: string; readonly className: string },
+  options: { readonly title: string; readonly className: string; readonly date: CalendarDate },
   body: (events: ReadonlyArray<CalendarEvent>) => ReadonlyArray<Html>
 ) =>
   h.section(
     [h.Class(`card ${options.className}`)],
     [
-      h.h2([h.Class('card-title')], [options.title]),
+      h.h2(
+        [h.Class('card-title')],
+        [
+          h.button(
+            [
+              h.Class('card-link'),
+              h.Type('button'),
+              h.OnClick(Message.ClickedDate({ date: options.date, mode: 'day' })),
+            ],
+            [options.title, icon(h, 'chevronRight', 'card-link-icon')]
+          ),
+        ]
+      ),
       ...Option.match(model.upcoming.data, {
         onNone: () => [viewNotice(h, model.upcoming.failed ? 'Calendar unavailable' : 'Loading calendar…')],
         onSome: body,
@@ -271,19 +280,27 @@ export const viewToday: {
   return h.div(
     [h.Class('today')],
     [
-      h.section(
-        [h.Class('t-clock')],
+      h.button(
+        [
+          h.Class('t-clock'),
+          h.Type('button'),
+          h.AriaLabel('Open this week'),
+          h.OnClick(Message.ClickedDate({ date, mode: 'week' })),
+        ],
         [
           h.div([h.Class('t-time')], [...viewClockDigits(h, time), h.span([h.Class('t-meridiem')], [meridiem])]),
           h.div([h.Class('t-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
         ]
       ),
       viewWeather(h, model),
-      viewCalendarCard(h, model, { title: 'Today', className: 't-today' }, (events) =>
+      viewCalendarCard(h, model, { title: 'Today', className: 't-today', date }, (events) =>
         viewTodayAgenda(h, events, timezone, model.now)
       ),
-      viewCalendarCard(h, model, { title: `Tomorrow · ${weekdayName(tomorrow)}`, className: 't-tomorrow' }, (events) =>
-        viewTomorrowAgenda(h, events, timezone, model.now)
+      viewCalendarCard(
+        h,
+        model,
+        { title: `Tomorrow · ${weekdayName(tomorrow)}`, className: 't-tomorrow', date: tomorrow },
+        (events) => viewTomorrowAgenda(h, events, timezone, model.now)
       ),
     ]
   )
@@ -349,6 +366,7 @@ const viewWeekEvent = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: 
         )
       ),
       ...colorAttributes(h, event),
+      ...tapEvent(h, event),
     ],
     [
       ...(isTimed(event) ? [h.span([h.Class('wk-time num')], [formatTime(event.start, timezone)])] : []),
@@ -369,8 +387,13 @@ const viewWeekColumn = (
   return h.section(
     [h.Key(date), h.Class(date === today(model.now, timezone) ? 'wk-day is-today' : 'wk-day')],
     [
-      h.div(
-        [h.Class('wk-head')],
+      h.button(
+        [
+          h.Class('wk-head'),
+          h.Type('button'),
+          h.AriaLabel(`Open ${weekdayName(date)}, ${monthDay(date)}`),
+          h.OnClick(Message.ClickedDate({ date, mode: 'day' })),
+        ],
         [
           h.span([h.Class('wk-name')], [weekdayShort(date)]),
           h.span([h.Class('wk-date num')], [String(dayOfMonth(date))]),

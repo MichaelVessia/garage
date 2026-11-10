@@ -82,6 +82,8 @@ describe('CalendarFeedLive', () => {
         '(No title) 2026-11-06T17:00:00.000Z -',
       ])
       assert.strictEqual(events[0]?.location, 'Community pool')
+      assert.strictEqual(events[0]?.description, 'Bring goggles & a towel\nLane 3\nDoor code\n• Cap\n• Snack')
+      assert.strictEqual(events[1]?.description, null)
       assert.strictEqual(events[0]?.id, 'swim_20261102T220000Z')
     })
   )

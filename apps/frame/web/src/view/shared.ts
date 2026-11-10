@@ -1,5 +1,5 @@
 import * as Arr from 'effect/Array'
-import type * as DateTime from 'effect/DateTime'
+import * as DateTime from 'effect/DateTime'
 import * as Function from 'effect/Function'
 import type * as Option from 'effect/Option'
 import * as Str from 'effect/String'
@@ -7,8 +7,9 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import type { CalendarEvent, EventColor, IanaTimezone } from '#shared'
 
-import type { Message } from '../message.js'
-import { formatTime, hasEnded, isAllDay, isTimed } from '../time.js'
+import { icon } from '../icons.js'
+import { Message } from '../message.js'
+import { formatTime, hasEnded, isAllDay, isHappening, isTimed } from '../time.js'
 
 export type H = HtmlBuilder<Message>
 
@@ -26,6 +27,30 @@ export const nextTimed: {
 } = Function.dual(2, (events: ReadonlyArray<CalendarEvent>, now: DateTime.DateTime): Option.Option<CalendarEvent> =>
   Arr.findFirst(events, (event): boolean => isTimed(event) && !hasEnded(event, now))
 )
+
+// "Now", "in 18 min", "in 1 h 18 min", "in 18 h", "in 3 days".
+export const untilLabel: {
+  (now: DateTime.DateTime): (event: CalendarEvent) => string
+  (event: CalendarEvent, now: DateTime.DateTime): string
+} = Function.dual(2, (event: CalendarEvent, now: DateTime.DateTime): string => {
+  if (isHappening(event, now) || !isTimed(event)) {
+    return 'Now'
+  }
+
+  const minutes = Math.max(1, Math.round((DateTime.toEpochMillis(event.start) - DateTime.toEpochMillis(now)) / 60_000))
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+
+  if (hours === 0) {
+    return `in ${rest} min`
+  }
+
+  if (hours < 6) {
+    return rest === 0 ? `in ${hours} h` : `in ${hours} h ${rest} min`
+  }
+
+  return hours < 48 ? `in ${hours} h` : `in ${Math.round(hours / 24)} days`
+})
 
 // Each digit sits in a fixed-width box, so the clock does not shift as the minutes change.
 export const viewClockDigits: {
@@ -76,4 +101,41 @@ export const colorAttributes: {
   (h: H, event: CalendarEvent): ReadonlyArray<ReturnType<H['Style']>>
 } = Function.dual(2, (h: H, event: CalendarEvent): ReadonlyArray<ReturnType<H['Style']>> =>
   event.color === null ? [] : [h.Style({ '--ev': event.color, '--on-ev': inkOn(event.color) })]
+)
+
+interface Sheet {
+  readonly title: string
+  readonly className: string
+  readonly body: ReadonlyArray<Html>
+  readonly actions: ReadonlyArray<Html>
+}
+
+/** A sheet over the screen with more about one thing; tapping outside it or Close dismisses it. */
+export const viewSheet: {
+  (sheet: Sheet): (h: H) => Html
+  (h: H, sheet: Sheet): Html
+} = Function.dual(2, (h: H, sheet: Sheet): Html =>
+  h.div(
+    [h.Class('sheet-layer')],
+    [
+      h.button([h.Class('sheet-scrim'), h.Type('button'), h.AriaLabel('Close'), h.OnClick(Message.ClosedDetail())], []),
+      h.section(
+        [h.Class(`sheet ${sheet.className}`), h.Role('dialog'), h.AriaLabel(sheet.title)],
+        [
+          h.header(
+            [h.Class('sheet-head')],
+            [
+              h.h2([h.Class('sheet-title')], [sheet.title]),
+              h.button(
+                [h.Class('icon-btn'), h.Type('button'), h.AriaLabel('Close'), h.OnClick(Message.ClosedDetail())],
+                [icon(h, 'close')]
+              ),
+            ]
+          ),
+          h.div([h.Class('sheet-body')], sheet.body),
+          ...(Arr.isReadonlyArrayNonEmpty(sheet.actions) ? [h.footer([h.Class('sheet-actions')], sheet.actions)] : []),
+        ]
+      ),
+    ]
+  )
 )

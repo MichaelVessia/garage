@@ -23,6 +23,7 @@ export const TimedEvent = Schema.TaggedStruct('TimedEvent', {
   id: Schema.String,
   title: Schema.String,
   location: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
   color: Schema.NullOr(EventColor),
   start: Schema.DateTimeUtc,
   end: Schema.DateTimeUtc,
@@ -36,6 +37,7 @@ export const AllDayEvent = Schema.TaggedStruct('AllDayEvent', {
   id: Schema.String,
   title: Schema.String,
   location: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
   color: Schema.NullOr(EventColor),
   startDate: CalendarDate,
   endDate: CalendarDate,
@@ -68,11 +70,37 @@ const ForecastDay = Schema.Struct({
 /** One day of the weather forecast. */
 export type ForecastDay = typeof ForecastDay.Type
 
-/** Current conditions plus a daily forecast. */
+/** One hour of the weather forecast. */
+const ForecastHour = Schema.Struct({
+  time: Schema.DateTimeUtc,
+  condition: Schema.String,
+  temperature: Schema.NullOr(Schema.Finite),
+  precipitationProbability: Schema.NullOr(Schema.Finite),
+})
+
+/** One hour of the weather forecast. */
+export type ForecastHour = typeof ForecastHour.Type
+
+/** Wind speed in the weather entity's unit and the compass bearing it blows from, in degrees. */
+const Wind = Schema.Struct({
+  speed: Schema.Finite,
+  unit: Schema.String,
+  bearing: Schema.NullOr(Schema.Finite),
+})
+
+/** Wind speed in the weather entity's unit and the compass bearing it blows from, in degrees. */
+export type Wind = typeof Wind.Type
+
+/** Current conditions plus hourly and daily forecasts; an integration without hourly data sends none. */
 export class Weather extends Schema.Class<Weather, { readonly brand: unique symbol }>('Weather')({
   condition: Schema.String,
   temperature: Schema.NullOr(Schema.Finite),
   temperatureUnit: Schema.String,
+  feelsLike: Schema.NullOr(Schema.Finite),
+  humidity: Schema.NullOr(Schema.Finite),
+  wind: Schema.NullOr(Wind),
+  uvIndex: Schema.NullOr(Schema.Finite),
+  hourly: Schema.Array(ForecastHour),
   forecast: Schema.Array(ForecastDay),
 }) {}
 

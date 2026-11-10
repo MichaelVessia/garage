@@ -1,17 +1,20 @@
 import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
+import * as Str from 'effect/String'
 import type { Html } from 'foldkit/html'
 
-import type { ForecastDay, Weather } from '#shared'
+import type { ForecastDay, ForecastHour, IanaTimezone, Weather, Wind } from '#shared'
 
 import { icon } from '../icons.js'
 import type { IconName } from '../icons.js'
 import type { Model } from '../main.js'
-import { weekdayShort } from '../time.js'
+import { Message } from '../message.js'
+import { clockParts, today, weekdayName, weekdayShort } from '../time.js'
 import type { H } from './shared.js'
-import { viewNotice } from './shared.js'
+import { viewNotice, viewSheet } from './shared.js'
 
 // A weather tone colours a condition's icon and its forecast tile: `base` draws the icon,
 // `accent` its sun, rain, snow, or lightning strokes, and `tint` the tile behind it.
@@ -101,7 +104,12 @@ export const viewWeather: {
   (h: H, model: Model): Html
 } = Function.dual(2, (h: H, model: Model): Html =>
   h.section(
-    [h.Class('card t-weather')],
+    [
+      h.Class('card t-weather tap'),
+      h.Role('button'),
+      h.AriaLabel('Weather details'),
+      h.OnClick(Message.ClickedWeather()),
+    ],
     Option.match(model.weather.data, {
       onNone: () => [viewNotice(h, model.weather.failed ? 'Weather unavailable' : 'Loading weather…')],
       onSome: (weather: Weather) => {
@@ -139,4 +147,134 @@ export const viewWeather: {
       },
     })
   )
+)
+
+// ============================================
+// Weather detail
+// ============================================
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+
+const windLabel = (wind: Wind): string => {
+  const from = P.isNotNull(wind.bearing) ? `${COMPASS[Math.round(wind.bearing / 45) % 8] ?? ''} ` : ''
+
+  return Str.trim(`${from}${Math.round(wind.speed)} ${wind.unit}`)
+}
+
+const viewFact = (h: H, label: string, value: string) =>
+  h.div(
+    [h.Class('wx-fact')],
+    [h.span([h.Class('wx-fact-label')], [label]), h.span([h.Class('wx-fact-value num')], [value])]
+  )
+
+const viewFacts = (h: H, weather: Weather) =>
+  h.div(
+    [h.Class('wx-facts')],
+    [
+      ...Arr.map(Arr.fromNullishOr(weather.feelsLike), (value) =>
+        viewFact(h, 'Feels like', degrees(Option.some(value)))
+      ),
+      ...Arr.map(Arr.fromNullishOr(weather.humidity), (value) => viewFact(h, 'Humidity', `${Math.round(value)}%`)),
+      ...Arr.map(Arr.fromNullishOr(weather.wind), (wind) => viewFact(h, 'Wind', windLabel(wind))),
+      ...Arr.map(Arr.fromNullishOr(weather.uvIndex), (value) => viewFact(h, 'UV index', String(Math.round(value)))),
+    ]
+  )
+
+// The hours still ahead, starting with the one in progress.
+const HOURS_SHOWN = 12
+
+const viewHour = (h: H, hour: ForecastHour, timezone: IanaTimezone) => {
+  const { time, meridiem } = clockParts(hour.time, timezone)
+
+  return h.li(
+    [h.Key(DateTime.formatIso(hour.time)), h.Class(`wx-hour ${toneClass(hour.condition)}`)],
+    [
+      h.span([h.Class('wx-hour-time num')], [`${Str.split(':')(time)[0] ?? time} ${meridiem}`]),
+      icon(h, conditionIcon(hour.condition), 'wx-hour-icon wx-glyph'),
+      h.span([h.Class('wx-hour-temp num')], [degrees(Option.fromNullishOr(hour.temperature))]),
+      h.span(
+        [h.Class('wx-hour-rain num')],
+        P.isNotNull(hour.precipitationProbability) && hour.precipitationProbability > 0
+          ? [icon(h, 'droplet', 'wx-drop'), `${Math.round(hour.precipitationProbability)}%`]
+          : []
+      ),
+    ]
+  )
+}
+
+const viewDayRow = (h: H, day: ForecastDay, isToday: boolean) =>
+  h.li(
+    [h.Key(day.date), h.Class(`wx-day ${toneClass(day.condition)}`)],
+    [
+      h.span([h.Class('wx-day-name')], [isToday ? 'Today' : weekdayName(day.date)]),
+      h.span([h.Class('wx-day-well')], [icon(h, conditionIcon(day.condition), 'wx-day-icon wx-glyph')]),
+      h.span([h.Class('wx-day-cond')], [conditionLabel(day.condition)]),
+      h.span(
+        [h.Class('wx-day-rain num')],
+        P.isNotNull(day.precipitationProbability) && day.precipitationProbability > 0
+          ? [icon(h, 'droplet', 'wx-drop'), `${Math.round(day.precipitationProbability)}%`]
+          : []
+      ),
+      h.span(
+        [h.Class('wx-day-temp num')],
+        [
+          h.b([], [degrees(Option.fromNullishOr(day.high))]),
+          h.span([h.Class('fc-low')], [degrees(Option.fromNullishOr(day.low))]),
+        ]
+      ),
+    ]
+  )
+
+const viewWeatherSheet = (h: H, weather: Weather, now: DateTime.Utc, timezone: IanaTimezone) => {
+  const date = today(now, timezone)
+  const hourStart = DateTime.subtract(now, { hours: 1 })
+
+  const hours = Arr.take(
+    Arr.filter(weather.hourly, (hour) => DateTime.isGreaterThan(hour.time, hourStart)),
+    HOURS_SHOWN
+  )
+
+  return [
+    h.div(
+      [h.Class(`wx-sheet-now ${toneClass(weather.condition)}`)],
+      [
+        h.span([h.Class('wx-well')], [icon(h, conditionIcon(weather.condition), 'wx-icon wx-glyph')]),
+        h.span([h.Class('wx-temp num')], [degrees(Option.fromNullishOr(weather.temperature))]),
+        h.span([h.Class('wx-sheet-cond')], [conditionLabel(weather.condition)]),
+        viewFacts(h, weather),
+      ]
+    ),
+    ...(Arr.isReadonlyArrayNonEmpty(hours)
+      ? [
+          h.h3([h.Class('sheet-section')], ['Next hours']),
+          h.ul(
+            [h.Class('wx-hours')],
+            Arr.map(hours, (hour) => viewHour(h, hour, timezone))
+          ),
+        ]
+      : []),
+    h.h3([h.Class('sheet-section')], ['Coming days']),
+    h.ul(
+      [h.Class('wx-days')],
+      Arr.map(
+        Arr.filter(weather.forecast, (day) => day.date >= date),
+        (day) => viewDayRow(h, day, day.date === date)
+      )
+    ),
+  ]
+}
+
+export const viewWeatherDetail: {
+  (model: Model, timezone: IanaTimezone): (h: H) => Html
+  (h: H, model: Model, timezone: IanaTimezone): Html
+} = Function.dual(3, (h: H, model: Model, timezone: IanaTimezone): Html =>
+  viewSheet(h, {
+    title: 'Weather',
+    className: 'sheet-weather',
+    body: Option.match(model.weather.data, {
+      onNone: () => [viewNotice(h, model.weather.failed ? 'Weather unavailable' : 'Loading weather…')],
+      onSome: (weather) => viewWeatherSheet(h, weather, model.now, timezone),
+    }),
+    actions: [],
+  })
 )

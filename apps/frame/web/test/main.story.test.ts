@@ -47,6 +47,7 @@ const events: ReadonlyArray<CalendarEvent> = [
     id: 'swim/1',
     title: 'Swim lesson',
     location: 'Community pool',
+    description: null,
     color: null,
     start: at('2026-11-02T22:00:00Z'),
     end: at('2026-11-02T23:00:00Z'),
@@ -56,6 +57,7 @@ const events: ReadonlyArray<CalendarEvent> = [
     id: 'visit',
     title: 'Grandparents visiting',
     location: null,
+    description: null,
     color: null,
     startDate: CalendarDate.make('2026-11-03'),
     endDate: CalendarDate.make('2026-11-05'),
@@ -287,6 +289,11 @@ describe('frame app', () => {
             condition: 'partlycloudy',
             temperature: 48,
             temperatureUnit: '°F',
+            feelsLike: null,
+            humidity: null,
+            wind: null,
+            uvIndex: null,
+            hourly: [],
             forecast: [
               {
                 date: CalendarDate.make('2026-11-02'),
@@ -318,7 +325,8 @@ describe('frame app', () => {
 
     const shoppingHtml = rendered({ ...loaded, screen: 'shopping' })
     expect(shoppingHtml).toContain('Milk')
-    expect(shoppingHtml).toContain('is-done')
+    expect(shoppingHtml).toContain('Buy again')
+    expect(shoppingHtml).toContain('Add Eggs again')
 
     const ambientHtml = rendered({ ...loaded, isAmbient: true })
     expect(ambientHtml).toContain('amb-time')
@@ -332,6 +340,7 @@ describe('frame app', () => {
         id: 'breakfast',
         title: 'Breakfast',
         location: null,
+        description: null,
         color: null,
         start: at('2026-11-02T12:00:00Z'),
         end: at('2026-11-02T13:00:00Z'),
@@ -341,6 +350,7 @@ describe('frame app', () => {
         id: 'dentist',
         title: 'Dentist',
         location: 'Main Street',
+        description: null,
         color: null,
         start: at('2026-11-03T15:00:00Z'),
         end: at('2026-11-03T16:00:00Z'),

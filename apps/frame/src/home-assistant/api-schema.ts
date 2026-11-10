@@ -7,6 +7,12 @@ export const WeatherStateResponse = Schema.Struct({
   attributes: Schema.Struct({
     temperature: Schema.Finite.pipe(Schema.NullOr, Schema.optional),
     temperature_unit: Schema.String.pipe(Schema.optional),
+    apparent_temperature: Schema.Finite.pipe(Schema.NullOr, Schema.optional),
+    humidity: Schema.Finite.pipe(Schema.NullOr, Schema.optional),
+    wind_speed: Schema.Finite.pipe(Schema.NullOr, Schema.optional),
+    wind_speed_unit: Schema.String.pipe(Schema.optional),
+    wind_bearing: Schema.Union([Schema.Finite, Schema.String]).pipe(Schema.NullOr, Schema.optional),
+    uv_index: Schema.Finite.pipe(Schema.NullOr, Schema.optional),
   }),
 })
 
