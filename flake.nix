@@ -261,49 +261,6 @@
           };
         };
       };
-      piExtensionsPackageJson = builtins.fromJSON (builtins.readFile ./packages/pi-extensions/package.json);
-      piExtensions = pkgs.stdenv.mkDerivation {
-        pname = "garage-pi-extensions";
-        version = piExtensionsPackageJson.version;
-        src = ./.;
-
-        nativeBuildInputs = [
-          bun2nix'.hook
-          pkgs.bun
-        ];
-
-        inherit bunDeps;
-        bunInstallFlags = bunInstallFlags ++ ["--filter" "@garage/pi-extensions"];
-
-        dontUseBunBuild = true;
-        dontUseBunCheck = true;
-        dontUseBunInstall = true;
-        dontRunLifecycleScripts = true;
-
-        buildPhase = ''
-          runHook preBuild
-
-          bun build \
-            packages/pi-extensions/extensions/gpt-fast-mode.ts \
-            packages/pi-extensions/extensions/session-model-default.ts \
-            --outdir dist/pi-extensions/extensions \
-            --target node \
-            --external @earendil-works/pi-coding-agent \
-            --external @earendil-works/pi-tui
-
-          runHook postBuild
-        '';
-
-        installPhase = ''
-          runHook preInstall
-
-          install -Dm644 packages/pi-extensions/package.json "$out/package.json"
-          mkdir -p "$out/extensions"
-          cp dist/pi-extensions/extensions/*.js "$out/extensions/"
-
-          runHook postInstall
-        '';
-      };
     in {
       packages = rec {
         garage-mcp = garageMcp;
@@ -312,8 +269,6 @@
         garage-frame = garageFrame;
         garage-frame-web = garageFrameWeb;
         garage-frame-image = garageFrameImage;
-
-        pi-extensions = piExtensions;
 
         default = garage-mcp;
       }
