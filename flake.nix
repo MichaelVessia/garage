@@ -108,75 +108,6 @@
           };
         };
       };
-      framePackageJson = builtins.fromJSON (builtins.readFile ./apps/frame/package.json);
-      # Only what the frame build reads: the lockfile, every workspace manifest (Bun's install
-      # resolves the whole workspace graph), the shared tsconfig, the frame app, and its one
-      # workspace dependency. Commits elsewhere in the repo leave the frame's store paths unchanged.
-      frameSrc = pkgs.lib.fileset.toSource {
-        root = ./.;
-        fileset = pkgs.lib.fileset.unions [
-          ./package.json
-          ./bun.lock
-          ./bun.nix
-          ./tsconfig.base.json
-          (pkgs.lib.fileset.fileFilter (file: file.name == "package.json") ./apps)
-          (pkgs.lib.fileset.fileFilter (file: file.name == "package.json") ./packages)
-          ./apps/frame/tsconfig.json
-          ./apps/frame/src
-          ./apps/frame/web
-          ./apps/frame/scripts
-          ./packages/integration-http/src
-          ./packages/integration-http/tsconfig.json
-        ];
-      };
-      # bun.nix copies every workspace directory into the cache; evaluated from frameSrc, the other
-      # workspaces are bare manifests, so only frame-relevant changes invalidate it.
-      frameBunDeps = bun2nix'.fetchBunDeps {
-        bunNix = "${frameSrc}/bun.nix";
-      };
-      garageFrame = mkBunExecutable {
-        name = "garage-frame";
-        workspace = "frame";
-        entrypoint = "apps/frame/src/main.ts";
-        src = frameSrc;
-        deps = frameBunDeps;
-      };
-      # The frame's SPA, built and checked against Android WebView 106 from source.
-      garageFrameWeb = pkgs.stdenv.mkDerivation {
-        pname = "garage-frame-web";
-        version = builtins.unsafeDiscardStringContext framePackageJson.version;
-        src = frameSrc;
-
-        nativeBuildInputs = [
-          bun2nix'.hook
-          pkgs.bun
-        ];
-
-        inherit bunInstallFlags;
-        bunDeps = frameBunDeps;
-
-        dontUseBunBuild = true;
-        dontUseBunCheck = true;
-        dontUseBunInstall = true;
-        dontRunLifecycleScripts = true;
-
-        buildPhase = ''
-          runHook preBuild
-
-          cd apps/frame
-          bun --bun run build
-
-          runHook postBuild
-        '';
-
-        installPhase = ''
-          runHook preInstall
-
-          cp -r web/dist "$out"
-
-          runHook postInstall
-        '';
-      };
       # Headless Chromium matching the frame's Android System WebView 106, for the deploy preflight.
       # Playwright's archived Linux build; Chromium dlopens udev and GL, so the wrapper exposes them.
       chromiumWebview106 = pkgs.stdenv.mkDerivation {
@@ -229,46 +160,10 @@
           runHook postInstall
         '';
       };
-      # Names one server + SPA build: the image tag, and the version /health reports so the frame reloads.
-      garageFrameBuildId = builtins.substring 0 16 (builtins.hashString "sha256"
-        (builtins.unsafeDiscardStringContext "${garageFrame}${garageFrameWeb}"));
-      # Streamed: `nix build` yields a script that writes the image tar to stdout, so deploys pipe it
-      # straight into the host's `docker load` with no compressed tarball in the store.
-      garageFrameImage = pkgs.dockerTools.streamLayeredImage {
-        name = "garage-frame";
-        tag = garageFrameBuildId;
-        contents = [
-          garageFrame
-          pkgs.busybox
-          pkgs.cacert
-        ];
-        config = {
-          Cmd = ["${garageFrame}/bin/garage-frame"];
-          User = "65532:65532";
-          Env = [
-            "FRAME_BUILD_ID=${garageFrameBuildId}"
-            "FRAME_PORT=8080"
-            "FRAME_WEB_ROOT=${garageFrameWeb}"
-            "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-          ];
-          ExposedPorts = {"8080/tcp" = {};};
-          Healthcheck = {
-            Test = ["CMD" "${pkgs.busybox}/bin/wget" "--quiet" "--spider" "http://127.0.0.1:8080/health"];
-            Interval = 30000000000;
-            Timeout = 5000000000;
-            Retries = 3;
-            StartPeriod = 5000000000;
-          };
-        };
-      };
     in {
       packages = rec {
         garage-mcp = garageMcp;
         garage-mcp-image = garageMcpImage;
-
-        garage-frame = garageFrame;
-        garage-frame-web = garageFrameWeb;
-        garage-frame-image = garageFrameImage;
 
         default = garage-mcp;
       }

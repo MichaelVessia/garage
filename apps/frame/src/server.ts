@@ -1,13 +1,20 @@
+import * as Arr from 'effect/Array'
+import * as Data from 'effect/Data'
 import * as Effect from 'effect/Effect'
+import * as Base64 from 'effect/encoding/Base64'
 import * as FileSystem from 'effect/FileSystem'
 import * as Hash from 'effect/Hash'
+import * as HashMap from 'effect/HashMap'
 import * as HttpPlatform from 'effect/http/HttpPlatform'
 import * as HttpRouter from 'effect/http/HttpRouter'
 import * as HttpServerRequest from 'effect/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
+import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Path from 'effect/Path'
+import * as R from 'effect/Record'
+import * as Result from 'effect/Result'
 import * as RpcSerialization from 'effect/rpc/RpcSerialization'
 import * as RpcServer from 'effect/rpc/RpcServer'
 import * as Str from 'effect/String'
@@ -15,6 +22,7 @@ import * as Str from 'effect/String'
 import { FrameRpcs, FrameVersion } from '#shared'
 
 import { HomeAssistantApi } from './home-assistant/services.js'
+import type { EmbeddedWeb } from './web-assets.js'
 
 const RpcRoute = RpcServer.layerHttp({ group: FrameRpcs, path: '/rpc', protocol: 'http' }).pipe(
   Layer.provide(RpcSerialization.layerJson)
@@ -22,14 +30,63 @@ const RpcRoute = RpcServer.layerHttp({ group: FrameRpcs, path: '/rpc', protocol:
 
 const VERSION_META = 'frame-version'
 
-// Without an injected build id, fingerprint index.html: it names every content-hashed asset.
-const fingerprint = (html: string): string => `${Math.abs(Hash.string(html)).toString(16)}-${html.length}`
+/** Fingerprint `index.html` into a build version; it names every content-hashed Vite asset. */
+export const fingerprintHtml = (html: string): string => `${Math.abs(Hash.string(html)).toString(16)}-${html.length}`
 
 const withVersionMeta = (html: string, version: string): string =>
   Str.replace('<head>', `<head><meta name="${VERSION_META}" content="${version}" />`)(html)
 
-// Serves the built SPA and its version. Unknown paths fall back to index.html so client routes survive a reload.
-const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
+const cacheControlFor = (pathname: string): string =>
+  Str.startsWith('/assets/')(pathname) ? 'public, max-age=31536000, immutable' : 'no-cache'
+
+const makeHealthAndPage = (indexHtml: string, buildId: Option.Option<string>) => {
+  const version = FrameVersion.make({ version: Option.getOrElse(buildId, () => fingerprintHtml(indexHtml)) })
+
+  const page = HttpServerResponse.html(withVersionMeta(indexHtml, version.version)).pipe(
+    HttpServerResponse.setHeader('cache-control', 'no-cache')
+  )
+
+  // Readiness doubles as the version probe the SPA polls to pick up new deploys.
+  const HealthRoute = HttpRouter.add(
+    'GET',
+    '/health',
+    HttpServerResponse.jsonUnsafe(
+      { status: 'ready', version: version.version },
+      { headers: { 'cache-control': 'no-store' } }
+    )
+  )
+
+  return { page, HealthRoute }
+}
+
+interface DecodedEmbeddedAsset {
+  readonly contentType: string
+  readonly bytes: Uint8Array
+}
+
+const decodeEmbeddedAssets = (web: EmbeddedWeb): HashMap.HashMap<string, DecodedEmbeddedAsset> =>
+  HashMap.fromIterable(
+    Arr.filterMap(R.toEntries(web.assets), ([pathname, asset]) =>
+      Result.match(Base64.decode(asset.base64), {
+        onSuccess: (bytes) =>
+          Result.succeed<readonly [string, DecodedEmbeddedAsset]>([
+            pathname,
+            { contentType: asset.contentType, bytes },
+          ]),
+        onFailure: () => Result.failVoid,
+      })
+    )
+  )
+
+/** Where the server reads the built SPA from: a directory on disk or an embedded bundle. */
+export type WebAssets = Data.TaggedEnum<{
+  readonly Directory: { readonly webRoot: string }
+  readonly Embedded: { readonly web: EmbeddedWeb }
+}>
+
+export const WebAssets = Data.taggedEnum<WebAssets>()
+
+const directorySpaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
   Layer.unwrap(
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem
@@ -42,11 +99,7 @@ const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
         Effect.orElseSucceed(() => '')
       )
 
-      const version = FrameVersion.make({ version: Option.getOrElse(buildId, () => fingerprint(indexHtml)) })
-
-      const page = HttpServerResponse.html(withVersionMeta(indexHtml, version.version)).pipe(
-        HttpServerResponse.setHeader('cache-control', 'no-cache')
-      )
+      const { page, HealthRoute } = makeHealthAndPage(indexHtml, buildId)
 
       const isServableFile = (candidate: string) =>
         Str.startsWith(`${root}${path.sep}`)(candidate) && candidate !== path.join(root, 'index.html')
@@ -56,16 +109,6 @@ const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
               Effect.orElseSucceed(() => false)
             )
           : Effect.succeed(false)
-
-      // Readiness doubles as the version probe the SPA polls to pick up new deploys.
-      const HealthRoute = HttpRouter.add(
-        'GET',
-        '/health',
-        HttpServerResponse.jsonUnsafe(
-          { status: 'ready', version: version.version },
-          { headers: { 'cache-control': 'no-store' } }
-        )
-      )
 
       const StaticRoute = HttpRouter.add(
         'GET',
@@ -79,18 +122,50 @@ const spaRoutes = (webRoot: string, buildId: Option.Option<string>) =>
             return page
           }
 
-          const cacheControl = Str.startsWith('/assets/')(pathname) ? 'public, max-age=31536000, immutable' : 'no-cache'
-
-          return yield* platform.fileResponse(candidate, { headers: { 'cache-control': cacheControl } }).pipe(
-            Effect.tapError((failure) => Effect.logWarning('Static file could not be served', failure.reason)),
-            Effect.orElseSucceed(() => HttpServerResponse.text('Not found', { status: 404 }))
-          )
+          return yield* platform
+            .fileResponse(candidate, { headers: { 'cache-control': cacheControlFor(pathname) } })
+            .pipe(
+              Effect.tapError((failure) => Effect.logWarning('Static file could not be served', failure.reason)),
+              Effect.orElseSucceed(() => HttpServerResponse.text('Not found', { status: 404 }))
+            )
         })
       )
 
       return Layer.merge(HealthRoute, StaticRoute)
     })
   )
+
+const embeddedSpaRoutes = (web: EmbeddedWeb, buildId: Option.Option<string>) => {
+  const { page, HealthRoute } = makeHealthAndPage(web.indexHtml, buildId)
+  const assets = decodeEmbeddedAssets(web)
+
+  const StaticRoute = HttpRouter.add(
+    'GET',
+    '/*',
+    Effect.gen(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const pathname = decodeURIComponent(new URL(request.url, 'http://frame.local').pathname)
+
+      return Option.match(HashMap.get(assets, pathname), {
+        onNone: () => page,
+        onSome: ({ bytes, contentType }) =>
+          HttpServerResponse.uint8Array(bytes, {
+            contentType,
+            headers: { 'cache-control': cacheControlFor(pathname) },
+          }),
+      })
+    })
+  )
+
+  return Layer.merge(HealthRoute, StaticRoute)
+}
+
+// Serves the built SPA and its version. Unknown paths fall back to index.html so client routes survive a reload.
+const spaRoutes = (webAssets: WebAssets, buildId: Option.Option<string>) =>
+  Match.valueTags(webAssets, {
+    Directory: ({ webRoot }) => directorySpaRoutes(webRoot, buildId),
+    Embedded: ({ web }) => embeddedSpaRoutes(web, buildId),
+  })
 
 const ARTWORK_PATH = '/media/art/'
 
@@ -134,14 +209,14 @@ const ArtworkRoute = Layer.unwrap(
 type FrameRoutesServices =
   | Layer.Services<typeof RpcRoute>
   | Layer.Services<typeof ArtworkRoute>
-  | Layer.Services<ReturnType<typeof spaRoutes>>
+  | Layer.Services<ReturnType<typeof directorySpaRoutes>>
 
 /** Health, RPC, media artwork, and SPA routes for the frame server. `buildId` names the deployed build. */
 export const frameRoutes = ({
-  webRoot,
+  webAssets,
   buildId,
 }: {
-  readonly webRoot: string
+  readonly webAssets: WebAssets
   readonly buildId: Option.Option<string>
 }): Layer.Layer<never, never, FrameRoutesServices> =>
-  Layer.mergeAll(RpcRoute, ArtworkRoute, spaRoutes(webRoot, buildId))
+  Layer.mergeAll(RpcRoute, ArtworkRoute, spaRoutes(webAssets, buildId))

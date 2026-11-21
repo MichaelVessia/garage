@@ -6,15 +6,17 @@ The layout and type are adapted from Wes Bos's [photo-frame-dashboard](https://g
 
 ## Layout
 
-- `src/main.ts` — composition root: configuration, adapters, Bun HTTP server.
-- `src/server.ts` — routes: `GET /health` (readiness and build id), `POST /rpc`, `GET /media/art/<entity>` (artwork proxy for configured players), and the SPA with an `index.html` fallback.
+- `src/app.ts` — shared adapter and RPC handler composition.
+- `src/main.ts` — local Bun server entry point for development and preflight.
+- `src/service.ts` — Alchemy `Docker.Service` entry point: bundles the server with embedded `web/dist` assets into a content-addressed Bun image and deploys it to a single-node Swarm over SSH.
+- `src/server.ts` — routes: `GET /health` (readiness and build id), `POST /rpc`, `GET /media/art/<entity>` (artwork proxy for configured players), and the SPA (from disk or embedded assets) with an `index.html` fallback.
 - `src/handlers.ts` — RPC handlers; map upstream failures to a credential-free `UpstreamUnavailable`.
 - `src/calendar/` — Google Calendar API adapter: service-account sign-in, expanded events with their Google colours, a 5-minute cache per window, and a stale fallback.
 - `src/home-assistant/` — weather, shopping list, and media adapter over Home Assistant REST; `media.ts` owns the media configuration, state mapping, and action allowlist.
 - `src/shared/` — schemas and the RPC group shared with the browser (imported as `#shared`).
 - `web/` — Foldkit SPA: `main.ts` (Model, update, subscriptions), `message.ts`, `command.ts`, `view.ts` (root view) and `view/` (screen and shared rendering modules).
 - `scripts/check-webview-compat.ts` — fails the build if `web/dist` uses features WebView 106 lacks.
-- `alchemy.run.ts`, `scripts/load-image.ts`, and `scripts/verify-deploy.ts` — the deploy.
+- `alchemy.run.ts`, `scripts/preflight.ts`, and `scripts/verify-deploy.ts` — the deploy.
 
 ## Configuration
 
@@ -68,27 +70,29 @@ bun run --filter '@garage/frame' dev:web        # vite on :5173, proxies /rpc to
 
 ## Deploy
 
-The frame server runs as a Docker container on a Proxmox LXC with Docker. One command from any machine with SSH access to the host builds and ships it; there is no registry and no CI deploy.
+The frame server runs as a single-node Docker Swarm service (`Docker.Service`) on a LAN Proxmox LXC with Docker. Nothing is exposed to the public internet: port 8080 stays on your LAN (for the PF1007L) and tailnet (via the host or subnet router). One command from any machine with SSH access to the host builds, checks, and ships it; there is no registry and no CI deploy.
 
 ### One-time setup
 
-The frame host owns the server's credentials and settings. The deploying machine needs only SSH access to the host and Nix, so any such machine can deploy.
+The frame host owns the server's credentials and settings. The deploying machine needs only SSH access to the host and Bun (plus Nix on Linux for the Chromium 106 preflight).
 
 1. Authorize the deploying machine's SSH key for `root@<frame-host>` and accept its host key (`ssh root@<frame-host> true`). Docker reaches the remote daemon over this SSH connection.
-2. On the frame host, write every server variable from the configuration table to `/opt/garage-frame/frame.env` in dotenv format, one `NAME=value` per line. Single-quote `GOOGLE_SERVICE_ACCOUNT_KEY` so its JSON stays verbatim. The container runs as UID/GID `65532` and reads the file through a read-only bind mount, so restrict it to root and that group:
+2. On the frame host, write every server variable from the configuration table to `/opt/garage-frame/frame.env` in dotenv format, one `NAME=value` per line. Single-quote `GOOGLE_SERVICE_ACCOUNT_KEY` so its JSON stays verbatim, and lock permissions down to root:
 
    ```sh
    install -d -m 0755 /opt/garage-frame
    install -m 0440 -o root -g 65532 frame.env /opt/garage-frame/frame.env
    ```
 
-   The server reads the file once at startup. After you edit it on the host, run `docker restart garage-frame`; `deploy:prod` does not replace the container unless the image tag changes.
-3. On the deploying machine, set two non-secret variables, for example in your shell profile:
+   The server reads the file once at startup. After you edit it on the host, run `docker service update --force garage-frame` to restart the task.
+3. If migrating from the older standalone `garage-frame` container, remove it once before the first Swarm deploy so port 8080 is free (`docker rm -f garage-frame`).
+4. On the deploying machine, set these non-secret variables, for example in your shell profile:
 
-   | Variable | Example |
-   | --- | --- |
-   | `FRAME_DOCKER_HOST` | `ssh://root@<frame-host>` |
-   | `FRAME_URL` | `http://<frame-host>:8080` |
+   | Variable | Required | Example | Purpose |
+   | --- | --- | --- | --- |
+   | `FRAME_DOCKER_HOST` | yes | `ssh://root@<frame-host>` | Remote Docker host over SSH |
+   | `FRAME_URL` | yes | `http://<frame-host>:8080` | URL polled by `verify-deploy.ts` |
+   | `FRAME_SWARM_ADVERTISE_ADDR` | no | `eth0` or `192.168.1.50` | Interface or IP for `docker swarm init` when the host has multiple interfaces (e.g. LAN + Tailscale) |
 
 ### Preflight
 
@@ -96,7 +100,7 @@ The frame host owns the server's credentials and settings. The deploying machine
 bun run --filter @garage/frame preflight
 ```
 
-`scripts/preflight.ts` checks the exact build that would ship before anything reaches the frame. It copies the host's `/opt/garage-frame/frame.env` over SSH into a private temporary directory, which it removes on exit; this is the only time credentials reach the deploying machine. Variables set in the deploying shell override the file. It builds `.#garage-frame`, `.#garage-frame-web`, and `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs the server locally on port 8099 with that env file and the real upstreams, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, and Shopping each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
+`scripts/preflight.ts` checks the built SPA and local Bun server before anything reaches the frame. It copies the host's `/opt/garage-frame/frame.env` over SSH into a private temporary directory, which it removes on exit; this is the only time credentials reach the deploying machine. Variables set in the deploying shell override the file. It builds `.#chromium-webview-106` (Playwright's archived Chromium 106.0.5249.30, the engine of the frame's Android System WebView 106; Linux only), runs `bun run src/main.ts` locally on port 8099 against `web/dist` with that env file and the real upstreams, and drives the page over the Chrome DevTools Protocol. It fails unless the app mounts, Today, Calendar, Shopping, and Media each finish loading, and the page reports no uncaught exception or `console.error`; a failure names the check and the script errors. `deploy:prod` runs it first, so a build that breaks in WebView 106 is never deployed.
 
 The static check in `bun run build` catches unsupported syntax and CSS early; the preflight catches runtime failures that a static scan cannot see.
 
@@ -108,21 +112,16 @@ bun run --filter '@garage/frame' deploy:prod
 
 This runs, in order:
 
-0. The preflight above.
-1. `nix eval .#garage-frame-image.imageTag`: the image tag is a build id derived from the server and SPA store paths.
-2. `scripts/load-image.ts` builds `.#garage-frame-image` and streams it into the host with `docker -H $FRAME_DOCKER_HOST load`, unless the host already has that tag.
-3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts`: `Docker.Container frame` (named `garage-frame`) runs `garage-frame:<tag>` on port 8080 with `restart: unless-stopped` and a `/health` check. It bind-mounts the host's `/opt/garage-frame/frame.env` read-only and points `FRAME_ENV_FILE` at it, so neither Alchemy's arguments nor its state carry credentials. A new tag makes Alchemy replace the container.
-4. `scripts/verify-deploy.ts` polls `$FRAME_URL/health` until it reports the new build id, and fails after about two minutes.
+1. `bun run build`: Vite builds `web/dist` and `scripts/check-webview-compat.ts` checks WebView 106 compatibility.
+2. `scripts/preflight.ts`: verifies the local Bun server + `web/dist` in headless Chromium 106.
+3. `alchemy deploy --stage prod --yes` with `alchemy.run.ts` and `src/service.ts`: initializes the single-node `Docker.Swarm` on `$FRAME_DOCKER_HOST` if needed, bundles the server together with the built `web/dist` assets into a content-addressed `oven/bun:1` image directly on the remote Docker daemon (no registry and no manual `docker load`), and deploys `Docker.Service frame` (named `garage-frame`) on host port 8080 with a read-only root filesystem, `stop-first` updates with rollback on failure, and a `/health` check. It bind-mounts `/opt/garage-frame/frame.env` read-only and reads it inside the container, so neither Alchemy's arguments nor its state carry credentials.
+4. `scripts/verify-deploy.ts`: polls `$FRAME_URL/health` until it reports the fingerprint of the built `web/dist/index.html`, and fails after about two minutes.
 
-The image is loaded before Alchemy runs, not as an Alchemy resource: an `Output`-valued `image` makes `Docker.Container` skip its diff, so a new tag would update state without replacing the running container.
-
-Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying machine (gitignored). The state holds no credentials. A machine without state adopts the running container, because Alchemy labels the containers it creates.
-
-The image runs as UID/GID `65532`. Alchemy's `Docker.Container` has no options for a read-only root filesystem, dropped capabilities, or `no-new-privileges`, so those garage-mcp hardening flags are not applied here.
+Alchemy keeps its state in `apps/frame/.alchemy/` on the deploying machine (gitignored). The state holds no credentials. A machine without state adopts the running service, because Alchemy labels the services it creates.
 
 ### Rollback
 
-Check out an older commit and run `deploy:prod` again. Nix rebuilds that commit's image (usually from the store cache), and older tags remain on the host until pruned.
+Check out an older commit and run `deploy:prod` again, or run `docker -H "$FRAME_DOCKER_HOST" service rollback garage-frame` on the host.
 
 ### The frame picks up deploys by itself
 

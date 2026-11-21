@@ -8,16 +8,6 @@ export class WebviewIncompatible extends Schema.TaggedError<WebviewIncompatible,
   }
 ) {}
 
-/** The frame host's Docker daemon did not load the Nix-built image. */
-export class ImageLoadFailed extends Schema.TaggedError<ImageLoadFailed, { readonly brand: unique symbol }>()(
-  'ImageLoadFailed',
-  {
-    image: Schema.String,
-    exitCode: Schema.Int,
-    message: Schema.String,
-  }
-) {}
-
 /** The shipped build failed a check in Chromium 106 before deploy. */
 export class PreflightFailed extends Schema.TaggedError<PreflightFailed, { readonly brand: unique symbol }>()(
   'PreflightFailed',

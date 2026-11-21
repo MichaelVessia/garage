@@ -1,6 +1,6 @@
 # Frame Instructions
 
-This context owns all of `apps/frame`: the wall-display SPA for the PF1007L photo frame, its Bun server, the calendar and Home Assistant adapters, the WebView compatibility check, and the Nix-built image.
+This context owns all of `apps/frame`: the wall-display SPA for the PF1007L photo frame, its Bun server and Alchemy Docker Swarm service, the calendar and Home Assistant adapters, and the WebView compatibility check.
 
 ## Read first
 

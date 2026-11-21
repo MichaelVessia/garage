@@ -21,10 +21,10 @@ import * as Socket from 'effect/socket/Socket'
 import * as Stream from 'effect/Stream'
 import * as Str from 'effect/String'
 
+import { HOST_ENV_FILE } from '../src/settings.js'
 import { PreflightFailed } from './errors.js'
-import { HOST_ENV_FILE } from './frame-host.js'
 
-// Runs the exact Nix-built server and SPA with the frame host's env file and real upstreams, opens it in
+// Runs the local Bun server and built SPA with the frame host's env file and real upstreams, opens it in
 // headless Chromium 106 (the frame's WebView engine), and fails unless the app mounts, every
 // screen loads, and no script error is reported. `deploy:prod` runs this before shipping.
 
@@ -71,32 +71,24 @@ const ConsoleParams = Schema.Struct({
 
 const fail = (check: string, detail: string) => PreflightFailed.make({ check, message: `${check}: ${detail}` })
 
-// One `nix build` for the server, the SPA, and the browser, in that order.
-const buildArtifacts = Effect.fn('frame.preflight.build')(function* () {
+// Builds Chromium 106 (matching Android System WebView 106) from the flake.
+const buildChromium = Effect.fn('frame.preflight.buildChromium')(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 
   const output = yield* spawner.string(
-    ChildProcess.make(
-      'nix',
-      [
-        'build',
-        '--no-link',
-        '--print-out-paths',
-        '../..#garage-frame',
-        '../..#garage-frame-web',
-        '../..#chromium-webview-106',
-      ],
-      { stderr: 'inherit', forceKillAfter: '5 seconds' }
-    )
+    ChildProcess.make('nix', ['build', '--no-link', '--print-out-paths', '../..#chromium-webview-106'], {
+      stderr: 'inherit',
+      forceKillAfter: '5 seconds',
+    })
   )
 
-  const [server, web, chromium] = Arr.filter(Str.split('\n')(output), (line) => line !== '')
+  const chromium = Str.trim(output)
 
-  if (server === undefined || web === undefined || chromium === undefined) {
-    return yield* fail('build', 'nix build did not print three store paths')
+  if (chromium === '') {
+    return yield* fail('build', 'nix build did not print a store path for chromium-webview-106')
   }
 
-  return { server, web, chromium }
+  return chromium
 })
 
 // Copies the frame host's env file into a private temporary directory that the scope removes.
@@ -287,18 +279,18 @@ const clickScreen = (screen: string) =>
 
 const preflight = Effect.fn('frame.preflight')(function* () {
   const envFile = yield* fetchHostEnvFile()
-  const artifacts = yield* buildArtifacts()
+  const chromium = yield* buildChromium()
   const url = `http://127.0.0.1:${SERVER_PORT}/`
 
-  yield* spawnScoped(`${artifacts.server}/bin/garage-frame`, [], {
+  yield* spawnScoped('bun', ['run', 'src/main.ts'], {
     FRAME_ENV_FILE: envFile,
     FRAME_PORT: String(SERVER_PORT),
-    FRAME_WEB_ROOT: artifacts.web,
+    FRAME_WEB_ROOT: 'web/dist',
     FRAME_BUILD_ID: 'preflight',
   })
   const profile = yield* Config.String('TMPDIR').pipe(Config.withDefault('/tmp'))
   yield* spawnScoped(
-    `${artifacts.chromium}/bin/chromium-webview-106`,
+    `${chromium}/bin/chromium-webview-106`,
     [
       '--headless',
       '--disable-gpu',

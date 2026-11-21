@@ -45,7 +45,7 @@ Frame is the household wall dashboard shown on a rooted PF1007L photo frame. One
 
 ## Boundaries and dependencies
 
-External systems are Google Calendar (the Calendar API through `@distilled.cloud/google-workspace`, signed in with a service account key) and Home Assistant REST. Alchemy (`alchemy.run.ts`) deploys the Nix-built image to a Docker host over SSH. `src/calendar/` and `src/home-assistant/` each own one adapter; `src/handlers.ts` maps them to the shared RPC contract in `src/shared/`; `src/main.ts` composes configuration, adapters, and the Bun server.
+External systems are Google Calendar (the Calendar API through `@distilled.cloud/google-workspace`, signed in with a service account key) and Home Assistant REST. Alchemy (`alchemy.run.ts` and `src/service.ts`) bundles the server and built SPA into a content-addressed `Docker.Service` deployed to a single-node Swarm on the LAN Docker host over SSH. `src/calendar/` and `src/home-assistant/` each own one adapter; `src/handlers.ts` maps them to the shared RPC contract in `src/shared/`; `src/app.ts` composes the adapters and handlers for `src/main.ts` (local dev and preflight) and `src/service.ts` (deployed Docker service).
 
 ## References
 

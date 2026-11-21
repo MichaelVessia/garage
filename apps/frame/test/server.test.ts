@@ -21,8 +21,9 @@ import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
 import { parseMediaSlots } from '../src/home-assistant/media.js'
 import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantConfig } from '../src/home-assistant/services.js'
-import { frameRoutes } from '../src/server.js'
+import { frameRoutes, WebAssets } from '../src/server.js'
 import { FrameTimezone } from '../src/settings.js'
+import { readEmbeddedWeb } from '../src/web-assets.js'
 import { calendarId, googleResponse, makeServiceAccount, tokenUri } from './fixtures/google-calendar.js'
 
 const testMedia: MediaConfig = {
@@ -106,7 +107,7 @@ const ServicesLayer = Layer.merge(CalendarFeedLive, HomeAssistantApiLive).pipe(
 )
 
 const { handler, dispose } = HttpRouter.toWebHandler(
-  frameRoutes({ webRoot, buildId: Option.none() }).pipe(
+  frameRoutes({ webAssets: WebAssets.Directory({ webRoot }), buildId: Option.none() }).pipe(
     Layer.provide(FrameHandlersLive),
     Layer.provide(ServicesLayer),
     Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
@@ -122,6 +123,12 @@ class TestRequestError extends Schema.TaggedError<TestRequestError, { readonly b
     cause: Schema.Defect(),
   }
 ) {}
+
+const readText = (response: Response) =>
+  Effect.tryPromise({
+    try: () => response.text(),
+    catch: (cause) => TestRequestError.make({ cause }),
+  })
 
 const decodeHealth = Schema.decodeEffect(
   Schema.fromJsonString(Schema.Struct({ status: Schema.String, version: Schema.String }))
@@ -182,7 +189,7 @@ describe('frame server', () => {
   it.effect('reports an injected build id instead of the fingerprint', () =>
     Effect.gen(function* () {
       const injected = HttpRouter.toWebHandler(
-        frameRoutes({ webRoot, buildId: Option.some('build-42') }).pipe(
+        frameRoutes({ webAssets: WebAssets.Directory({ webRoot }), buildId: Option.some('build-42') }).pipe(
           Layer.provide(FrameHandlersLive),
           Layer.provide(ServicesLayer),
           Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
@@ -273,6 +280,48 @@ describe('frame server', () => {
       assert.include(asset.body, 'frame-fixture')
       assert.include(route.body, '<title>frame</title>')
       assert.include(traversal.body, '<title>frame</title>')
+    })
+  )
+
+  it.effect('serves embedded SPA assets with content types, cache headers, and version stamping', () =>
+    Effect.gen(function* () {
+      const web = yield* readEmbeddedWeb(webRoot).pipe(Effect.provide(BunServices.layer))
+
+      const embedded = HttpRouter.toWebHandler(
+        frameRoutes({ webAssets: WebAssets.Embedded({ web }), buildId: Option.none() }).pipe(
+          Layer.provide(FrameHandlersLive),
+          Layer.provide(ServicesLayer),
+          Layer.provide(Layer.merge(BunServices.layer, BunHttpPlatform.layer))
+        ),
+        { disableLogger: true }
+      )
+
+      const fetchEmbedded = (path: string) =>
+        Effect.tryPromise({
+          try: () => embedded.handler(new Request(`http://frame.test${path}`)),
+          catch: (cause) => TestRequestError.make({ cause }),
+        })
+
+      const healthResponse = yield* fetchEmbedded('/health')
+      const pageResponse = yield* fetchEmbedded('/calendar/week')
+      const assetResponse = yield* fetchEmbedded('/assets/app.js')
+      const traversalResponse = yield* fetchEmbedded('/../server.test.ts')
+
+      const healthBody = yield* readText(healthResponse)
+      const { version } = yield* decodeHealth(healthBody)
+      const pageBody = yield* readText(pageResponse)
+      const assetBody = yield* readText(assetResponse)
+      const traversalBody = yield* readText(traversalResponse)
+
+      yield* Effect.tryPromise({ try: () => embedded.dispose(), catch: (cause) => TestRequestError.make({ cause }) })
+
+      assert.strictEqual(healthResponse.status, 200)
+      assert.include(pageBody, `<meta name="frame-version" content="${version}" />`)
+      assert.strictEqual(assetResponse.status, 200)
+      assert.strictEqual(assetResponse.headers.get('content-type'), 'text/javascript; charset=utf-8')
+      assert.strictEqual(assetResponse.headers.get('cache-control'), 'public, max-age=31536000, immutable')
+      assert.include(assetBody, 'frame-fixture')
+      assert.include(traversalBody, '<title>frame</title>')
     })
   )
 })

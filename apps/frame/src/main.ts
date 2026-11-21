@@ -4,23 +4,11 @@ import * as Effect from 'effect/Effect'
 import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
 
-import { CalendarFeedLive } from './calendar/http.js'
-import { CalendarConfigLive } from './calendar/services.js'
-import { FrameHandlersLive } from './handlers.js'
-import { HomeAssistantApiLive } from './home-assistant/http.js'
-import { HomeAssistantConfigLive } from './home-assistant/services.js'
-import { frameRoutes } from './server.js'
-import { FrameEnvFileLive, FrameTimezoneLive } from './settings.js'
+import { FrameAppLive } from './app.js'
+import { frameRoutes, WebAssets } from './server.js'
+import { FrameEnvFileLive } from './settings.js'
 
-const CalendarLive = CalendarFeedLive.pipe(Layer.provide(CalendarConfigLive))
-
-const HomeAssistantLive = HomeAssistantApiLive.pipe(Layer.provide(HomeAssistantConfigLive))
-
-const FrameAdaptersLive = Layer.merge(CalendarLive, HomeAssistantLive).pipe(Layer.provideMerge(FrameTimezoneLive))
-
-const FrameServicesLive = FrameAdaptersLive.pipe(Layer.provide(BunHttpClient.layer))
-
-const FrameAppLive = FrameHandlersLive.pipe(Layer.provideMerge(FrameServicesLive))
+const FrameServicesLive = FrameAppLive.pipe(Layer.provide(BunHttpClient.layer))
 
 const HttpServerLive = Layer.unwrap(
   Effect.gen(function* () {
@@ -28,9 +16,11 @@ const HttpServerLive = Layer.unwrap(
     const webRoot = yield* Config.NonEmptyString('FRAME_WEB_ROOT').pipe(Config.withDefault('web/dist'))
     const buildId = yield* Config.NonEmptyString('FRAME_BUILD_ID').pipe(Config.option)
 
-    return HttpRouter.serve(frameRoutes({ webRoot, buildId }).pipe(Layer.provide(FrameAppLive))).pipe(
-      Layer.provide(BunHttpServer.layer({ hostname: '0.0.0.0', port }))
+    const routes = frameRoutes({ webAssets: WebAssets.Directory({ webRoot }), buildId }).pipe(
+      Layer.provide(FrameServicesLive)
     )
+
+    return HttpRouter.serve(routes).pipe(Layer.provide(BunHttpServer.layer({ hostname: '0.0.0.0', port })))
   })
 )
 
