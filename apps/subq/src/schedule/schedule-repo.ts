@@ -29,13 +29,29 @@ import {
 } from './schedule-rows.js'
 
 const decodeDatetimeRow = Schema.decodeUnknownEffect(DatetimeRow)
+
 const decodeScheduleRow = Schema.decodeUnknownEffect(ScheduleRow)
+
 const decodePhaseRow = Schema.decodeUnknownEffect(PhaseRow)
+
 const decodeScheduleWithPhaseRow = Schema.decodeUnknownEffect(ScheduleWithPhaseRow)
 
 // ============================================
 // Repository Service Definition
 // ============================================
+
+// ============================================
+// Repository Implementation
+// ============================================
+
+const mergeScheduleUpdateFields = (data: InjectionScheduleUpdate, curr: ScheduleRow) => ({
+  name: data.name ?? curr.name,
+  drug: data.drug ?? curr.drug,
+  supplier: data.supplier === undefined ? curr.supplier : data.supplier,
+  frequency: data.frequency ?? curr.frequency,
+  isActive: data.isActive ?? curr.is_active === 1,
+  notes: data.notes === undefined ? curr.notes : data.notes,
+})
 
 export class ScheduleRepo extends Context.Service<
   ScheduleRepo,
@@ -63,15 +79,8 @@ export class ScheduleRepo extends Context.Service<
       drug: MedicationCompound
     ) => Effect.Effect<Option.Option<DateTime.Utc>, ScheduleDatabaseError>
   }
->()('@garage/subq/schedule/schedule-repo/ScheduleRepo') {}
-
-// ============================================
-// Repository Implementation
-// ============================================
-
-export const ScheduleRepoLive = Layer.effect(
-  ScheduleRepo,
-  Effect.gen(function* () {
+>()('@garage/subq/schedule/schedule-repo/ScheduleRepo') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     // Helper to load phases for a single schedule (used for create/update)
@@ -232,6 +241,22 @@ export const ScheduleRepoLive = Layer.effect(
       mapDbError(ScheduleDatabaseError, 'insert')
     )
 
+    const ensureTimezoneInitialized = Effect.fn('scheduleRepo.ensureTimezoneInitialized')(function* (
+      userId: string,
+      calendarDateMigrated: number
+    ) {
+      const initializedSettings = yield* sql`
+          SELECT user_id FROM user_settings
+          WHERE user_id = ${userId}
+            AND timezone IS NOT NULL
+            AND timezone_migration_state = 'complete'
+        `.pipe(mapDbError(ScheduleDatabaseError, 'query'))
+
+      if (calendarDateMigrated !== 1 || Arr.isReadonlyArrayEmpty(initializedSettings)) {
+        return yield* SettingsTimezoneNotInitialized.make({ userId })
+      }
+    })
+
     const update = Effect.fn('scheduleRepo.update')(function* (data: InjectionScheduleUpdate, userId: string) {
       // First get current values - include user_id check to prevent IDOR
       const current = yield* sql`
@@ -248,50 +273,40 @@ export const ScheduleRepoLive = Layer.effect(
       const changesStartDate = data.startDate !== undefined
 
       if (changesStartDate) {
-        const initializedSettings = yield* sql`
-          SELECT user_id FROM user_settings
-          WHERE user_id = ${userId}
-            AND timezone IS NOT NULL
-            AND timezone_migration_state = 'complete'
-        `.pipe(mapDbError(ScheduleDatabaseError, 'query'))
-
-        if (curr.calendar_date_migrated !== 1 || Arr.isReadonlyArrayEmpty(initializedSettings)) {
-          return yield* SettingsTimezoneNotInitialized.make({ userId })
-        }
+        yield* ensureTimezoneInitialized(userId, curr.calendar_date_migrated)
       }
 
-      const newName = data.name ?? curr.name
-      const newDrug = data.drug ?? curr.drug
-      const newSupplier = data.supplier === undefined ? curr.supplier : data.supplier
-      const newFrequency = data.frequency ?? curr.frequency
-      const newIsActive = data.isActive ?? curr.is_active === 1
-      const newNotes = data.notes === undefined ? curr.notes : data.notes
+      const fields = mergeScheduleUpdateFields(data, curr)
       const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
 
       // If activating this schedule, deactivate others
-      if (newIsActive && curr.is_active !== 1) {
+      if (fields.isActive && curr.is_active !== 1) {
         yield* sql`
             UPDATE injection_schedules SET is_active = 0, updated_at = ${now}
             WHERE user_id = ${userId} AND is_active = 1 AND id != ${data.id}
           `.pipe(mapDbError(ScheduleDatabaseError, 'update'))
       }
 
+      const startDateFlag = changesStartDate ? 1 : 0
+      const nextStartDate = data.startDate ?? null
+      const activeFlag = fields.isActive ? 1 : 0
+
       yield* sql`
           UPDATE injection_schedules
-          SET name = ${newName},
-              drug = ${newDrug},
-              supplier = ${newSupplier},
-              frequency = ${newFrequency},
+          SET name = ${fields.name},
+              drug = ${fields.drug},
+              supplier = ${fields.supplier},
+              frequency = ${fields.frequency},
               start_date = CASE
-                WHEN ${changesStartDate ? 1 : 0} = 1 THEN ${data.startDate ?? null}
+                WHEN ${startDateFlag} = 1 THEN ${nextStartDate}
                 ELSE start_date
               END,
               calendar_date_migrated = CASE
-                WHEN ${changesStartDate ? 1 : 0} = 1 THEN 1
+                WHEN ${startDateFlag} = 1 THEN 1
                 ELSE calendar_date_migrated
               END,
-              is_active = ${newIsActive ? 1 : 0},
-              notes = ${newNotes},
+              is_active = ${activeFlag},
+              notes = ${fields.notes},
               updated_at = ${now}
           WHERE id = ${data.id} AND user_id = ${userId}
         `.pipe(mapDbError(ScheduleDatabaseError, 'update'))
@@ -364,4 +379,8 @@ export const ScheduleRepoLive = Layer.effect(
       getLastInjectionDate,
     }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const ScheduleRepoLive = ScheduleRepo.layer

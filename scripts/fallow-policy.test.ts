@@ -21,7 +21,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       'apps/subq/alchemy.run.ts',
       'apps/subq/web/index.html',
     ],
-    dynamicallyLoaded: ['tools/oxlint/anti-slop/index.ts'],
+    dynamicallyLoaded: ['tools/oxlint/anti-slop/effect/index.ts'],
     rulePacks: ['fallow/effect-service-boundaries.jsonc'],
     rules: { 'boundary-violation': 'error', 'policy-violation': 'error' },
     boundaries: {
@@ -49,7 +49,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
         { from: 'operations', allow: ['contracts', 'operations'] },
       ],
     },
-    ignoreDependencies: ['@oxlint/plugins'],
+    ignoreDependencies: ['@enfect/oxlint', '@oxlint/plugins', 'oxlint-plugin-effect'],
     ignoreExports: [
       { file: '**/*.config.{js,mjs,ts}', exports: ['default'] },
       { file: 'apps/frame/alchemy.run.ts', exports: ['default'] },
@@ -65,7 +65,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
         file: 'packages/sabnzbd/src/index.ts',
         exports: ['DeleteOptions', 'LimitOptions', 'SabnzbdConfig', 'envMissing', 'unreachable'],
       },
-      { file: 'tools/oxlint/anti-slop/index.ts', exports: ['default'] },
+      { file: 'tools/oxlint/anti-slop/effect/index.ts', exports: ['default'] },
     ],
   })
 })

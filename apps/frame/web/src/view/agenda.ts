@@ -82,9 +82,12 @@ const viewEventRow = (
           ),
         ]
       ),
-      ...(options.isNext ? [h.span([h.Class('badge num')], [untilLabel(event, now)])] : []),
+      ...viewNextBadge(h, event, now, options.isNext),
     ]
   )
+
+const viewNextBadge = (h: H, event: CalendarEvent, now: DateTime.DateTime, isNext: boolean): ReadonlyArray<Html> =>
+  isNext ? [h.span([h.Class('badge num')], [untilLabel(event, now)])] : []
 
 const viewChips = (h: H, events: ReadonlyArray<CalendarEvent>) =>
   Arr.isReadonlyArrayNonEmpty(events)
@@ -131,22 +134,23 @@ const viewAgenda = (
   const timed = Arr.filter(items, (event) => isTimed(event))
   const next = options.markNext ? Option.map(nextTimed(timed, now), (event) => event.id) : Option.none<string>()
 
-  return [
-    ...viewChips(h, allDay),
-    ...(Arr.isReadonlyArrayNonEmpty(timed)
-      ? [
-          h.ul(
-            [h.Class('rows')],
-            Arr.map(timed, (event) =>
-              viewEventRow(h, event, timezone, now, { isNext: Option.contains(next, event.id), day: Option.none() })
-            )
-          ),
-        ]
-      : [viewNotice(h, Arr.isReadonlyArrayNonEmpty(allDay) ? 'No timed events' : options.empty)]),
-    ...(options.markNext && Arr.isReadonlyArrayNonEmpty(timed) && Option.isNone(next)
+  const timedItems: ReadonlyArray<Html> = Arr.isReadonlyArrayNonEmpty(timed)
+    ? [
+        h.ul(
+          [h.Class('rows')],
+          Arr.map(timed, (event) =>
+            viewEventRow(h, event, timezone, now, { isNext: Option.contains(next, event.id), day: Option.none() })
+          )
+        ),
+      ]
+    : [viewNotice(h, Arr.isReadonlyArrayNonEmpty(allDay) ? 'No timed events' : options.empty)]
+
+  const tailNotice: ReadonlyArray<Html> =
+    options.markNext && Arr.isReadonlyArrayNonEmpty(timed) && Option.isNone(next)
       ? [viewNotice(h, 'Nothing else today')]
-      : []),
-  ]
+      : []
+
+  return [...viewChips(h, allDay), ...timedItems, ...tailNotice]
 }
 
 // ============================================
@@ -182,20 +186,24 @@ const viewTodayAgenda = (
   const { shown, hidden } = Option.isSome(nextToday) ? visibleRows(timed, now, budget) : { shown: [], hidden: 0 }
   const nextId = Option.map(nextToday, (event) => event.id)
 
+  const shownRows: ReadonlyArray<Html> = Arr.isReadonlyArrayNonEmpty(shown)
+    ? [
+        h.ul(
+          [h.Class('rows')],
+          Arr.map(shown, (event) =>
+            viewEventRow(h, event, timezone, now, { isNext: Option.contains(nextId, event.id), day: Option.none() })
+          )
+        ),
+      ]
+    : []
+
+  const emptyNotice: ReadonlyArray<Html> = Option.isNone(nextToday) ? [viewNotice(h, 'Nothing else today')] : []
+
   return [
     ...viewChips(h, allDay),
-    ...(Arr.isReadonlyArrayNonEmpty(shown)
-      ? [
-          h.ul(
-            [h.Class('rows')],
-            Arr.map(shown, (event) =>
-              viewEventRow(h, event, timezone, now, { isNext: Option.contains(nextId, event.id), day: Option.none() })
-            )
-          ),
-        ]
-      : []),
+    ...shownRows,
     ...viewMore(h, hidden, date),
-    ...(Option.isNone(nextToday) ? [viewNotice(h, 'Nothing else today')] : []),
+    ...emptyNotice,
     ...Arr.map(Arr.fromOption(nextLater), (event) =>
       h.ul(
         [h.Class('rows')],
@@ -368,10 +376,12 @@ const viewWeekEvent = (h: H, event: CalendarEvent, timezone: IanaTimezone, now: 
       ...colorAttributes(h, event),
       ...tapEvent(h, event),
     ],
-    [
-      ...(isTimed(event) ? [h.span([h.Class('wk-time num')], [formatTime(event.start, timezone)])] : []),
-      h.span([h.Class('wk-title')], [event.title]),
-    ]
+    isTimed(event)
+      ? [
+          h.span([h.Class('wk-time num')], [formatTime(event.start, timezone)]),
+          h.span([h.Class('wk-title')], [event.title]),
+        ]
+      : [h.span([h.Class('wk-title')], [event.title])]
   )
 
 const viewWeekColumn = (

@@ -11,15 +11,11 @@ import { testDate } from './helpers/dates.js'
 import { insertWeightLog, makeInitializedTestLayer } from './helpers/test-db.js'
 
 const TestLayer = makeInitializedTestLayer(WeightLogRepoLive)
+
 const timezone = IanaTimezone.make('UTC')
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('WeightLogRepo', () => {
   describe('nearestToDate', () => {
@@ -140,16 +136,19 @@ describe('WeightLogRepo', () => {
         Effect.gen(function* () {
           const repo = yield* WeightLogRepo
 
-          for (let i = 0; i < 5; i += 1) {
-            yield* repo.create(
-              WeightLogCreate.make({
-                datetime: DateTime.makeUnsafe(`2024-01-${15 + i}T10:00:00Z`),
-                weight: Weight.make(180 + i),
-                notes: Option.none(),
-              }),
-              'user-123'
-            )
-          }
+          yield* Effect.forEach(
+            [0, 1, 2, 3, 4],
+            (i) =>
+              repo.create(
+                WeightLogCreate.make({
+                  datetime: DateTime.makeUnsafe(`2024-01-${15 + i}T10:00:00Z`),
+                  weight: Weight.make(180 + i),
+                  notes: Option.none(),
+                }),
+                'user-123'
+              ),
+            { concurrency: 1 }
+          )
 
           const page1 = yield* repo.list(
             WeightLogListParams.make({ limit: Limit.make(2), offset: Offset.make(0) }),
@@ -158,8 +157,8 @@ describe('WeightLogRepo', () => {
 
           assert.strictEqual(page1.length, 2)
           // Should be sorted by datetime DESC, so newest first
-          assert.strictEqual(requireValue(page1[0]).weight, 184)
-          assert.strictEqual(requireValue(page1[1]).weight, 183)
+          assert.strictEqual(requireValue(Option.fromNullishOr(page1[0])).weight, 184)
+          assert.strictEqual(requireValue(Option.fromNullishOr(page1[1])).weight, 183)
 
           const page2 = yield* repo.list(
             WeightLogListParams.make({ limit: Limit.make(2), offset: Offset.make(2) }),
@@ -211,7 +210,7 @@ describe('WeightLogRepo', () => {
           )
 
           assert.strictEqual(filtered.length, 1)
-          assert.strictEqual(requireValue(filtered[0]).weight, 181)
+          assert.strictEqual(requireValue(Option.fromNullishOr(filtered[0])).weight, 181)
         })
       )
     })

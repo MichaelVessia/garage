@@ -33,6 +33,7 @@ import type { SettingsModel, SettingsPageMessage } from '../src/page/settings/mo
 import { settingsPasswordFailed, settingsPasswordSucceeded, updateSettingsPage } from '../src/page/settings/update.js'
 
 const { Command } = Story
+
 const timezone = IanaTimezone.make('America/New_York')
 
 const sampleExport = DataExport.make({

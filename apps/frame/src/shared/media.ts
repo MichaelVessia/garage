@@ -58,7 +58,7 @@ const SpeakerZones = Schema.Struct({
 export type SpeakerZones = typeof SpeakerZones.Type
 
 /** One card on the Media screen, in configured order. */
-const MediaCard = Schema.TaggedUnion({
+export const MediaCard = Schema.TaggedUnion({
   PlayerCard: { player: MediaPlayer },
   ZonesCard: { speakers: SpeakerZones },
 })

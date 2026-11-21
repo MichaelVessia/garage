@@ -49,11 +49,9 @@ export const viewPieChart = <Message>({
   }
 
   // d3's pie generator method, not Array#sort — null disables slice reordering
-  // oxlint-disable-next-line effect/prefer-arr-sort
   const pieLayout = pie<ChartDatum>()
     .value(([, value]) => value)
     .padAngle(0.035)
-    // oxlint-disable-next-line unicorn/no-array-sort
     .sort(null)
 
   const sliceArc = arc<PieArcDatum<ChartDatum>>().innerRadius(50).outerRadius(80)
@@ -157,6 +155,7 @@ export const viewBarChart = <Message>({
 // ---- Dose history step chart (pure SVG) ----
 
 const DOSE_W = 800
+
 const DOSE_H = 200
 
 export const viewDoseHistory = <Message>({

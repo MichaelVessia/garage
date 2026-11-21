@@ -11,8 +11,8 @@ import * as R from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
-import { CalendarDate, EventColor, calendarDateStartUtc } from '#shared'
-import type { AllDayEvent, CalendarEvent, IanaTimezone, TimedEvent } from '#shared'
+import { AllDayEvent, CalendarDate, EventColor, TimedEvent, calendarDateStartUtc } from '#shared'
+import type { CalendarEvent, IanaTimezone } from '#shared'
 
 import { calendarDecodeError } from '../errors.js'
 import type { InstantRange } from './services.js'
@@ -122,14 +122,11 @@ const toCalendarEvent = (event: Event, palette: CalendarPalette): Option.Option<
     const allDay = Option.all({ startDate: dateOf(startTime), endDate: dateOf(endTime) })
 
     return Option.orElse(
-      Option.map(timed, ({ start, end }): TimedEvent => ({ _tag: 'TimedEvent', ...details, start, end })),
+      Option.map(timed, ({ start, end }): TimedEvent => TimedEvent.make({ ...details, start, end })),
       () =>
-        Option.map(allDay, ({ startDate, endDate }): AllDayEvent => ({
-          _tag: 'AllDayEvent',
-          ...details,
-          startDate,
-          endDate,
-        }))
+        Option.map(allDay, ({ startDate, endDate }): AllDayEvent =>
+          AllDayEvent.make({ ...details, startDate, endDate })
+        )
     )
   })
 

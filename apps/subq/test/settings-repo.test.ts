@@ -2,6 +2,7 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Fiber from 'effect/Fiber'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
 
@@ -463,10 +464,10 @@ describe('SettingsRepo', () => {
 
       assert.strictEqual(result._tag, 'Failure')
 
-      if (result._tag === 'Failure') {
+      if (P.isTagged(result, 'Failure')) {
         assert.strictEqual(result.failure._tag, 'SettingsTemporalMigrationError')
 
-        if (result.failure._tag === 'SettingsTemporalMigrationError') {
+        if (P.isTagged(result.failure, 'SettingsTemporalMigrationError')) {
           assert.strictEqual(result.failure.recordId, 'goal-invalid')
           assert.strictEqual(result.failure.field, 'starting_date')
           assert.strictEqual(result.failure.value, 'not-a-date')

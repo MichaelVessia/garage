@@ -2,6 +2,7 @@ import { assert, it } from '@effect/vitest'
 import * as ConfigProvider from 'effect/ConfigProvider'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
+import * as Schema from 'effect/Schema'
 
 import { makeConfigReaders } from '../src/index.js'
 
@@ -10,12 +11,11 @@ import { makeConfigReaders } from '../src/index.js'
 // envMissing error, present env decodes to a plain string or a Redacted
 // secret.
 
-interface TestEnvMissingError {
-  readonly _tag: 'TestEnvMissing'
-  readonly variable: string
-}
+const TestEnvMissingError = Schema.TaggedStruct('TestEnvMissing', { variable: Schema.String })
 
-const envMissing = (variable: string): TestEnvMissingError => ({ _tag: 'TestEnvMissing', variable })
+type TestEnvMissingError = typeof TestEnvMissingError.Type
+
+const envMissing = (variable: string): TestEnvMissingError => TestEnvMissingError.make({ variable })
 
 const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
 

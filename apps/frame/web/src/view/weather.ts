@@ -234,6 +234,16 @@ const viewWeatherSheet = (h: H, weather: Weather, now: DateTime.Utc, timezone: I
     HOURS_SHOWN
   )
 
+  const hourlySection: ReadonlyArray<Html> = Arr.isReadonlyArrayNonEmpty(hours)
+    ? [
+        h.h3([h.Class('sheet-section')], ['Next hours']),
+        h.ul(
+          [h.Class('wx-hours')],
+          Arr.map(hours, (hour) => viewHour(h, hour, timezone))
+        ),
+      ]
+    : []
+
   return [
     h.div(
       [h.Class(`wx-sheet-now ${toneClass(weather.condition)}`)],
@@ -244,15 +254,7 @@ const viewWeatherSheet = (h: H, weather: Weather, now: DateTime.Utc, timezone: I
         viewFacts(h, weather),
       ]
     ),
-    ...(Arr.isReadonlyArrayNonEmpty(hours)
-      ? [
-          h.h3([h.Class('sheet-section')], ['Next hours']),
-          h.ul(
-            [h.Class('wx-hours')],
-            Arr.map(hours, (hour) => viewHour(h, hour, timezone))
-          ),
-        ]
-      : []),
+    ...hourlySection,
     h.h3([h.Class('sheet-section')], ['Coming days']),
     h.ul(
       [h.Class('wx-days')],

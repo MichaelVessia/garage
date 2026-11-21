@@ -24,13 +24,8 @@ import { insertInjectionLog, insertSchedule, makeInitializedTestLayer } from './
 
 const TestLayer = makeInitializedTestLayer(ScheduleRepoLive)
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('ScheduleRepo', () => {
   describe('create', () => {
@@ -74,8 +69,8 @@ describe('ScheduleRepo', () => {
           assert.strictEqual(created.frequency, 'weekly')
           assert.strictEqual(created.isActive, true)
           assert.strictEqual(created.phases.length, 3)
-          assert.strictEqual(requireValue(created.phases[0]).doseMg, 100)
-          assert.isNull(requireValue(created.phases[2]).durationDays)
+          assert.strictEqual(requireValue(Option.fromNullishOr(created.phases[0])).doseMg, 100)
+          assert.isNull(requireValue(Option.fromNullishOr(created.phases[2])).durationDays)
 
           const sql = yield* SqlClient.SqlClient
           const rows = yield* sql`SELECT calendar_date_migrated FROM injection_schedules WHERE id = ${created.id}`

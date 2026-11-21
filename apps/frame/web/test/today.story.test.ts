@@ -41,16 +41,16 @@ const rendered = (model: Model) => {
   return html
 }
 
+const day = (date: string, condition: string, precipitationProbability?: number) => ({
+  date: CalendarDate.make(date),
+  condition,
+  high: 60,
+  low: 45,
+  precipitationProbability: precipitationProbability ?? null,
+})
+
 describe('today screen', () => {
   it('colours each weather condition by its tone and shows likely rain', () => {
-    const day = (date: string, condition: string, precipitationProbability: number | null) => ({
-      date: CalendarDate.make(date),
-      condition,
-      high: 60,
-      low: 45,
-      precipitationProbability,
-    })
-
     const html = rendered({
       ...ready,
       weather: {
@@ -68,8 +68,8 @@ describe('today screen', () => {
               day('2026-11-02', 'sunny', 0),
               day('2026-11-03', 'pouring', 90),
               day('2026-11-04', 'lightning-rainy', 20),
-              day('2026-11-05', 'snowy', null),
-              day('2026-11-06', 'unheard-of', null),
+              day('2026-11-05', 'snowy'),
+              day('2026-11-06', 'unheard-of'),
             ],
           })
         ),

@@ -5,7 +5,8 @@ import * as Option from 'effect/Option'
 import * as Str from 'effect/String'
 import type { Html } from 'foldkit/html'
 
-import type { MediaAction, MediaCard, MediaPlayer, MediaPlayerStatus, SpeakerZones } from '#shared'
+import { MediaAction } from '#shared'
+import type { MediaCard, MediaPlayer, MediaPlayerStatus, SpeakerZones } from '#shared'
 
 import { icon } from '../icons.js'
 import type { IconName } from '../icons.js'
@@ -52,7 +53,9 @@ const viewSourceSelect = (h: H, label: string, placeholder: string, player: Medi
         // The placeholder option has no source to select.
         source === ''
           ? Message.Interacted()
-          : Message.ClickedMediaAction({ action: { _tag: 'SelectSource', entityId: player.entityId, source } })
+          : Message.ClickedMediaAction({
+              action: MediaAction.cases.SelectSource.make({ entityId: player.entityId, source }),
+            })
       ),
     ],
     [
@@ -75,50 +78,53 @@ const viewPlayerControls = (h: H, player: MediaPlayer, isDisabled: boolean) => {
   const isPlaying = player.status === 'playing'
   const isOn = player.status !== 'off' && player.status !== 'unavailable'
 
-  const transport = [
-    ...(has('power')
-      ? [
-          isOn
-            ? mediaButton(h, 'power', 'Turn off', { _tag: 'TurnOff', entityId }, { isDisabled, state: 'on' })
-            : mediaButton(h, 'power', 'Turn on', { _tag: 'TurnOn', entityId }, { isDisabled }),
-        ]
-      : []),
-    ...(has('playback')
-      ? [
-          ...(player.canSkip
-            ? [mediaButton(h, 'previous', 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled })]
-            : []),
-          isPlaying
-            ? mediaButton(h, 'pause', 'Pause', { _tag: 'PlayPause', entityId }, { isDisabled, state: 'on' })
-            : mediaButton(h, 'play', 'Play', { _tag: 'PlayPause', entityId }, { isDisabled }),
-          ...(player.canSkip ? [mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled })] : []),
-        ]
-      : []),
-  ]
+  const controls: Array<Html> = []
 
-  const volume = [
-    ...(has('volume')
-      ? [
-          mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),
-          mediaButton(h, 'volumeUp', 'Volume up', { _tag: 'VolumeUp', entityId }, { isDisabled }),
-        ]
-      : []),
-    ...(has('mute')
-      ? [
-          player.isMuted
-            ? mediaButton(
-                h,
-                'muted',
-                'Unmute',
-                { _tag: 'SetMute', entityId, muted: false },
-                { isDisabled, state: 'pressed' }
-              )
-            : mediaButton(h, 'muted', 'Mute', { _tag: 'SetMute', entityId, muted: true }, { isDisabled }),
-        ]
-      : []),
-  ]
+  if (has('power')) {
+    controls.push(
+      isOn
+        ? mediaButton(h, 'power', 'Turn off', MediaAction.cases.TurnOff.make({ entityId }), { isDisabled, state: 'on' })
+        : mediaButton(h, 'power', 'Turn on', MediaAction.cases.TurnOn.make({ entityId }), { isDisabled })
+    )
+  }
 
-  return h.div([h.Class('controls')], [...transport, ...volume])
+  if (has('playback')) {
+    if (player.canSkip) {
+      controls.push(
+        mediaButton(h, 'previous', 'Previous', MediaAction.cases.PreviousTrack.make({ entityId }), { isDisabled })
+      )
+    }
+
+    controls.push(
+      isPlaying
+        ? mediaButton(h, 'pause', 'Pause', MediaAction.cases.PlayPause.make({ entityId }), { isDisabled, state: 'on' })
+        : mediaButton(h, 'play', 'Play', MediaAction.cases.PlayPause.make({ entityId }), { isDisabled })
+    )
+
+    if (player.canSkip) {
+      controls.push(mediaButton(h, 'next', 'Next', MediaAction.cases.NextTrack.make({ entityId }), { isDisabled }))
+    }
+  }
+
+  if (has('volume')) {
+    controls.push(
+      mediaButton(h, 'volumeDown', 'Volume down', MediaAction.cases.VolumeDown.make({ entityId }), { isDisabled }),
+      mediaButton(h, 'volumeUp', 'Volume up', MediaAction.cases.VolumeUp.make({ entityId }), { isDisabled })
+    )
+  }
+
+  if (has('mute')) {
+    controls.push(
+      player.isMuted
+        ? mediaButton(h, 'muted', 'Unmute', MediaAction.cases.SetMute.make({ entityId, muted: false }), {
+            isDisabled,
+            state: 'pressed',
+          })
+        : mediaButton(h, 'muted', 'Mute', MediaAction.cases.SetMute.make({ entityId, muted: true }), { isDisabled })
+    )
+  }
+
+  return h.div([h.Class('controls')], controls)
 }
 
 const volumeLabel = (player: MediaPlayer): ReadonlyArray<string> =>
@@ -145,38 +151,69 @@ const stateClass = (player: MediaPlayer): string =>
 const viewPlayerCard = (h: H, player: MediaPlayer, isWide: boolean) => {
   const isDisabled = player.status === 'unavailable'
 
+  const statusChildren: ReadonlyArray<string> =
+    player.nowPlaying === null
+      ? isWide
+        ? [STATUS_LABEL[player.status]]
+        : [STATUS_LABEL[player.status], ...volumeLabel(player)]
+      : [player.nowPlaying.title]
+
+  const headChildren: Array<Html> = [
+    h.span([h.Class('tile-icon')], [icon(h, deviceIcon(player))]),
+    h.span(
+      [h.Class('tile-text')],
+      [h.h2([h.Class('tile-name')], [player.name]), h.span([h.Class('status num')], statusChildren)]
+    ),
+  ]
+
+  if (player.controls.includes('source')) {
+    headChildren.push(viewSourceSelect(h, 'Source', 'Source…', player, isDisabled))
+  }
+
+  const cardChildren: Array<Html> = [h.div([h.Class('tile-head')], headChildren)]
+
+  if (isWide && player.volume !== null && player.controls.includes('volume')) {
+    cardChildren.push(h.span([h.Class('tile-volume num')], [`${Math.round(player.volume * 100)}%`]))
+  }
+
+  cardChildren.push(viewPlayerControls(h, player, isDisabled))
+
   return h.section(
     [h.Key(player.entityId), h.Class(classes('card tile', stateClass(player), isWide && 'is-wide'))],
-    [
-      h.div(
-        [h.Class('tile-head')],
-        [
-          h.span([h.Class('tile-icon')], [icon(h, deviceIcon(player))]),
-          h.span(
-            [h.Class('tile-text')],
-            [
-              h.h2([h.Class('tile-name')], [player.name]),
-              h.span(
-                [h.Class('status num')],
-                player.nowPlaying === null
-                  ? [STATUS_LABEL[player.status], ...(isWide ? [] : volumeLabel(player))]
-                  : [player.nowPlaying.title]
-              ),
-            ]
-          ),
-          ...(player.controls.includes('source') ? [viewSourceSelect(h, 'Source', 'Source…', player, isDisabled)] : []),
-        ]
-      ),
-      ...(isWide && player.volume !== null && player.controls.includes('volume')
-        ? [h.span([h.Class('tile-volume num')], [`${Math.round(player.volume * 100)}%`])]
-        : []),
-      viewPlayerControls(h, player, isDisabled),
-    ]
+    cardChildren
   )
 }
 
-const viewSpeakers = (h: H, speakers: SpeakerZones) =>
-  h.section(
+const viewSpeakers = (h: H, speakers: SpeakerZones) => {
+  const allButtons: Array<Html> = []
+
+  if (speakers.hasAllOn) {
+    allButtons.push(
+      h.button(
+        [
+          h.Class('btn'),
+          h.Type('button'),
+          h.OnClick(Message.ClickedMediaAction({ action: MediaAction.cases.AllZonesOn.make({}) })),
+        ],
+        ['All on']
+      )
+    )
+  }
+
+  if (speakers.hasAllOff) {
+    allButtons.push(
+      h.button(
+        [
+          h.Class('btn'),
+          h.Type('button'),
+          h.OnClick(Message.ClickedMediaAction({ action: MediaAction.cases.AllZonesOff.make({}) })),
+        ],
+        ['All off']
+      )
+    )
+  }
+
+  return h.section(
     [h.Key('speaker-zones'), h.Class('card zones')],
     [
       h.div(
@@ -184,35 +221,7 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
         [
           h.span([h.Class('tile-icon')], [icon(h, 'speaker')]),
           h.h2([h.Class('tile-name')], ['Speakers']),
-          h.div(
-            [h.Class('zones-all')],
-            [
-              ...(speakers.hasAllOn
-                ? [
-                    h.button(
-                      [
-                        h.Class('btn'),
-                        h.Type('button'),
-                        h.OnClick(Message.ClickedMediaAction({ action: { _tag: 'AllZonesOn' } })),
-                      ],
-                      ['All on']
-                    ),
-                  ]
-                : []),
-              ...(speakers.hasAllOff
-                ? [
-                    h.button(
-                      [
-                        h.Class('btn'),
-                        h.Type('button'),
-                        h.OnClick(Message.ClickedMediaAction({ action: { _tag: 'AllZonesOff' } })),
-                      ],
-                      ['All off']
-                    ),
-                  ]
-                : []),
-            ]
-          ),
+          h.div([h.Class('zones-all')], allButtons),
         ]
       ),
       h.ul(
@@ -231,8 +240,8 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
                   h.OnClick(
                     Message.ClickedMediaAction({
                       action: zone.isOn
-                        ? { _tag: 'ZoneOff', entityId: zone.entityId }
-                        : { _tag: 'ZoneOn', entityId: zone.entityId },
+                        ? MediaAction.cases.ZoneOff.make({ entityId: zone.entityId })
+                        : MediaAction.cases.ZoneOn.make({ entityId: zone.entityId }),
                     })
                   ),
                 ],
@@ -247,6 +256,7 @@ const viewSpeakers = (h: H, speakers: SpeakerZones) =>
       ),
     ]
   )
+}
 
 const isZonesCard = (card: MediaCard): boolean =>
   Match.value(card).pipe(
@@ -274,6 +284,29 @@ const viewSpotify = (h: H, player: MediaPlayer) => {
   const { entityId, nowPlaying } = player
   const isPlaying = player.status === 'playing'
 
+  const spotifyControls: Array<Html> = [
+    h.div(
+      [h.Class('controls')],
+      [
+        mediaButton(h, 'previous', 'Previous', MediaAction.cases.PreviousTrack.make({ entityId }), { isDisabled }),
+        mediaButton(
+          h,
+          isPlaying ? 'pause' : 'play',
+          isPlaying ? 'Pause' : 'Play',
+          MediaAction.cases.PlayPause.make({ entityId }),
+          { isDisabled, state: 'primary' }
+        ),
+        mediaButton(h, 'next', 'Next', MediaAction.cases.NextTrack.make({ entityId }), { isDisabled }),
+        mediaButton(h, 'volumeDown', 'Volume down', MediaAction.cases.VolumeDown.make({ entityId }), { isDisabled }),
+        mediaButton(h, 'volumeUp', 'Volume up', MediaAction.cases.VolumeUp.make({ entityId }), { isDisabled }),
+      ]
+    ),
+  ]
+
+  if (Arr.isReadonlyArrayNonEmpty(player.sources)) {
+    spotifyControls.push(viewSourcePicker(h, 'Play on', player, isDisabled))
+  }
+
   return h.section(
     [h.Key(entityId), h.Class('card spotify')],
     [
@@ -300,30 +333,7 @@ const viewSpotify = (h: H, player: MediaPlayer) => {
               ),
             ]
           ),
-          h.div(
-            [h.Class('spotify-controls')],
-            [
-              h.div(
-                [h.Class('controls')],
-                [
-                  mediaButton(h, 'previous', 'Previous', { _tag: 'PreviousTrack', entityId }, { isDisabled }),
-                  mediaButton(
-                    h,
-                    isPlaying ? 'pause' : 'play',
-                    isPlaying ? 'Pause' : 'Play',
-                    { _tag: 'PlayPause', entityId },
-                    { isDisabled, state: 'primary' }
-                  ),
-                  mediaButton(h, 'next', 'Next', { _tag: 'NextTrack', entityId }, { isDisabled }),
-                  mediaButton(h, 'volumeDown', 'Volume down', { _tag: 'VolumeDown', entityId }, { isDisabled }),
-                  mediaButton(h, 'volumeUp', 'Volume up', { _tag: 'VolumeUp', entityId }, { isDisabled }),
-                ]
-              ),
-              ...(Arr.isReadonlyArrayNonEmpty(player.sources)
-                ? [viewSourcePicker(h, 'Play on', player, isDisabled)]
-                : []),
-            ]
-          ),
+          h.div([h.Class('spotify-controls')], spotifyControls),
         ]
       ),
     ]
@@ -340,16 +350,21 @@ export const viewMedia: {
       h.header([h.Class('toolbar')], [h.h1([h.Class('screen-title')], ['Media'])]),
       Option.match(model.media.data, {
         onNone: () => viewNotice(h, model.media.failed ? 'Media unavailable' : 'Loading media…'),
-        onSome: (snapshot) =>
-          snapshot.spotify === null && !Arr.isReadonlyArrayNonEmpty(snapshot.cards)
-            ? viewNotice(h, 'No media configured')
-            : h.div(
-                [h.Class('media-grid')],
-                [
-                  ...(snapshot.spotify === null ? [] : [viewSpotify(h, snapshot.spotify)]),
-                  ...viewMediaCards(h, snapshot.cards),
-                ]
-              ),
+        onSome: (snapshot) => {
+          if (snapshot.spotify === null && !Arr.isReadonlyArrayNonEmpty(snapshot.cards)) {
+            return viewNotice(h, 'No media configured')
+          }
+
+          const gridChildren: Array<Html> = []
+
+          if (snapshot.spotify !== null) {
+            gridChildren.push(viewSpotify(h, snapshot.spotify))
+          }
+
+          gridChildren.push(...viewMediaCards(h, snapshot.cards))
+
+          return h.div([h.Class('media-grid')], gridChildren)
+        },
       }),
     ]
   )

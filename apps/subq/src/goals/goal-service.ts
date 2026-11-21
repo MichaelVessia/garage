@@ -53,11 +53,8 @@ export class GoalService extends Context.Service<
       data: UserGoalUpdate
     ) => Effect.Effect<UserGoal, GoalNotFoundError | GoalDatabaseError | SettingsTimezoneNotInitialized>
   }
->()('@garage/subq/goals/goal-service/GoalService') {}
-
-export const GoalServiceLive = Layer.effect(
-  GoalService,
-  Effect.gen(function* () {
+>()('@garage/subq/goals/goal-service/GoalService') {
+  public static readonly make = Effect.gen(function* () {
     const goalRepo = yield* GoalRepo
     const weightLogRepo = yield* WeightLogRepo
     const settingsRepo = yield* SettingsRepo
@@ -252,4 +249,8 @@ export const GoalServiceLive = Layer.effect(
       updateGoal,
     }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const GoalServiceLive = GoalService.layer

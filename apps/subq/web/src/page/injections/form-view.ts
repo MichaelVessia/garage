@@ -41,18 +41,18 @@ const injectionSubmitLabel = (form: InjectionForm): string => {
 const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
   Arr.dedupe([...primary, ...fallback])
 
+const lookupValues = (data: InjectionLookupData, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
+  uniqueStrings(
+    AsyncData.getOrElse(data, () => []),
+    fallback
+  )
+
+const selectedSchedule = (
+  schedules: ReadonlyArray<InjectionSchedule>,
+  form: InjectionForm
+): Option.Option<InjectionSchedule> => scheduleById(schedules, form.scheduleId)
+
 const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | InjectionsMessage>) => {
-  const lookupValues = (data: InjectionLookupData, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
-    uniqueStrings(
-      AsyncData.getOrElse(data, () => []),
-      fallback
-    )
-
-  const selectedSchedule = (
-    schedules: ReadonlyArray<InjectionSchedule>,
-    form: InjectionForm
-  ): Option.Option<InjectionSchedule> => scheduleById(schedules, form.scheduleId)
-
   const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>) => {
     if (!isOffScheduleDose(form, schedules)) {
       return h.empty

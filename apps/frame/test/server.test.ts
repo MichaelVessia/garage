@@ -8,15 +8,17 @@ import * as HttpRouter from 'effect/http/HttpRouter'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Redacted from 'effect/Redacted'
+import * as Result from 'effect/Result'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
-import { IanaTimezone } from '#shared'
+import { IanaTimezone, MediaAction } from '#shared'
 
 import { CalendarFeedLive } from '../src/calendar/http.js'
 import { CalendarConfig } from '../src/calendar/services.js'
 import { FrameHandlersLive } from '../src/handlers.js'
 import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
+import { parseMediaSlots } from '../src/home-assistant/media.js'
 import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantConfig } from '../src/home-assistant/services.js'
 import { frameRoutes } from '../src/server.js'
@@ -24,14 +26,7 @@ import { FrameTimezone } from '../src/settings.js'
 import { calendarId, googleResponse, makeServiceAccount, tokenUri } from './fixtures/google-calendar.js'
 
 const testMedia: MediaConfig = {
-  slots: [
-    { _tag: 'Player', player: { entityId: 'media_player.den_tv', controls: Option.none() } },
-    {
-      _tag: 'Player',
-      player: { entityId: 'media_player.receiver', controls: Option.some(['power', 'volume', 'mute']) },
-    },
-    { _tag: 'Zones' },
-  ],
+  slots: Result.getOrThrow(parseMediaSlots('media_player.den_tv, media_player.receiver=power+volume+mute, zones')),
   zones: ['switch.zone_a', 'switch.zone_b'],
   allOn: Option.some('button.zones_on'),
   allOff: Option.none(),
@@ -148,8 +143,15 @@ const send = Effect.fn('test.send')(function* (request: Request) {
   return { status: response.status, body }
 })
 
-const rpc = (tag: string, payload: Readonly<Record<string, string>> | null) =>
-  encodeJson({ _tag: 'Request', id: '1', tag, payload, headers: [] }).pipe(
+const RpcRequestEnvelope = Schema.TaggedStruct('Request', {
+  id: Schema.String,
+  tag: Schema.String,
+  payload: Schema.Unknown,
+  headers: Schema.Array(Schema.Unknown),
+})
+
+const rpc = (tag: string, payload: Option.Option<Readonly<Record<string, string>>> = Option.none()) =>
+  encodeJson(RpcRequestEnvelope.make({ id: '1', tag, payload: Option.getOrNull(payload), headers: [] })).pipe(
     Effect.flatMap((body) =>
       send(
         new Request('http://frame.test/rpc', {
@@ -203,7 +205,7 @@ describe('frame server', () => {
 
   it.effect('serves calendar occurrences through RPC and the live calendar adapter', () =>
     Effect.gen(function* () {
-      const body = yield* rpc('GetCalendar', { from: '2026-11-07', to: '2026-11-08' })
+      const body = yield* rpc('GetCalendar', Option.some({ from: '2026-11-07', to: '2026-11-08' }))
 
       assert.include(body, 'Grandparents visiting')
       assert.include(body, '"_tag":"Success"')
@@ -212,7 +214,7 @@ describe('frame server', () => {
 
   it.effect('serves shopping items through RPC and the live Home Assistant adapter', () =>
     Effect.gen(function* () {
-      const body = yield* rpc('GetShopping', null)
+      const body = yield* rpc('GetShopping')
 
       assert.include(body, 'Eggs')
     })
@@ -220,7 +222,7 @@ describe('frame server', () => {
 
   it.effect('returns a credential-free failure when Home Assistant rejects the token', () =>
     Effect.gen(function* () {
-      const body = yield* rpc('GetWeather', null)
+      const body = yield* rpc('GetWeather')
 
       assert.include(body, 'UpstreamUnavailable')
       assert.notInclude(body, 'ha-token')
@@ -229,7 +231,10 @@ describe('frame server', () => {
 
   it.effect('runs an allowed media action through RPC and returns the refreshed media', () =>
     Effect.gen(function* () {
-      const body = yield* rpc('RunMediaAction', { _tag: 'ZoneOn', entityId: 'switch.zone_a' })
+      const body = yield* rpc(
+        'RunMediaAction',
+        Option.some(MediaAction.cases.ZoneOn.make({ entityId: 'switch.zone_a' }))
+      )
 
       assert.include(body, '"_tag":"Success"')
       assert.include(body, 'Zone A')
@@ -239,7 +244,10 @@ describe('frame server', () => {
 
   it.effect('refuses a media action for an entity that is not configured', () =>
     Effect.gen(function* () {
-      const body = yield* rpc('RunMediaAction', { _tag: 'ZoneOn', entityId: 'switch.front_door' })
+      const body = yield* rpc(
+        'RunMediaAction',
+        Option.some(MediaAction.cases.ZoneOn.make({ entityId: 'switch.front_door' }))
+      )
 
       assert.include(body, 'MediaActionRejected')
     })

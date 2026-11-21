@@ -88,15 +88,25 @@ export const CompletedOpenScheduleForm = taggedStruct('CompletedOpenScheduleForm
 })
 
 export const ClickedAddSchedule = taggedStruct('ClickedAddSchedule')
+
 export const ClickedEditSchedule = taggedStruct('ClickedEditSchedule', { schedule: InjectionSchedule })
+
 export const ClickedCancelScheduleForm = taggedStruct('ClickedCancelScheduleForm')
+
 export const ChangedScheduleName = taggedStruct('ChangedScheduleName', { value: Schema.String })
+
 export const ChangedScheduleDrug = taggedStruct('ChangedScheduleDrug', { value: Schema.String })
+
 export const ChangedScheduleSupplier = taggedStruct('ChangedScheduleSupplier', { value: Schema.String })
+
 export const ChangedScheduleFrequency = taggedStruct('ChangedScheduleFrequency', { value: Frequency })
+
 export const ChangedScheduleStartDate = taggedStruct('ChangedScheduleStartDate', { value: Schema.String })
+
 export const ChangedScheduleNotes = taggedStruct('ChangedScheduleNotes', { value: Schema.String })
+
 export const AddedSchedulePhase = taggedStruct('AddedSchedulePhase')
+
 export const RemovedSchedulePhase = taggedStruct('RemovedSchedulePhase', { index: Schema.Int })
 
 export const ChangedSchedulePhaseDoseMg = taggedStruct('ChangedSchedulePhaseDoseMg', {
@@ -115,15 +125,25 @@ export const ToggledSchedulePhaseIndefinite = taggedStruct('ToggledSchedulePhase
 })
 
 export const SubmittedScheduleForm = taggedStruct('SubmittedScheduleForm')
+
 export const SucceededSaveSchedule = taggedStruct('SucceededSaveSchedule')
+
 export const FailedSaveSchedule = taggedStruct('FailedSaveSchedule', { message: Schema.String })
+
 export const RequestedDeleteSchedule = taggedStruct('RequestedDeleteSchedule', { id: InjectionScheduleId })
+
 export const CancelledDeleteSchedule = taggedStruct('CancelledDeleteSchedule')
+
 export const ConfirmedDeleteSchedule = taggedStruct('ConfirmedDeleteSchedule')
+
 export const SucceededDeleteSchedule = taggedStruct('SucceededDeleteSchedule')
+
 export const FailedDeleteSchedule = taggedStruct('FailedDeleteSchedule', { message: Schema.String })
+
 export const ClickedActivateSchedule = taggedStruct('ClickedActivateSchedule', { schedule: InjectionSchedule })
+
 export const SucceededActivateSchedule = taggedStruct('SucceededActivateSchedule')
+
 export const FailedActivateSchedule = taggedStruct('FailedActivateSchedule', { message: Schema.String })
 
 export const ScheduleMessage = Schema.Union([

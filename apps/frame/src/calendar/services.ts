@@ -32,14 +32,25 @@ interface ServiceAccount {
  * The family calendar's Google Calendar ID, the service account it is shared with, and the calendar's own colour.
  * Google keeps a calendar's colour per viewer, so the frame cannot read the household's choice and is told it.
  */
-export class CalendarConfig extends Context.Service<
-  CalendarConfig,
-  {
-    readonly calendarId: string
-    readonly serviceAccount: ServiceAccount
-    readonly calendarColor: Option.Option<EventColor>
-  }
->()('@garage/frame/calendar/services/CalendarConfig') {}
+interface CalendarConfigValue {
+  readonly calendarId: string
+  readonly serviceAccount: ServiceAccount
+  readonly calendarColor: Option.Option<EventColor>
+}
+
+export class CalendarConfig extends Context.Service<CalendarConfig, CalendarConfigValue>()(
+  '@garage/frame/calendar/services/CalendarConfig'
+) {
+  public static readonly make: Effect.Effect<CalendarConfigValue, CalendarError> = Effect.gen(function* () {
+    const calendarId = yield* readRequiredString('GOOGLE_CALENDAR_ID')
+    const serviceAccount = yield* readServiceAccount()
+    const calendarColor = yield* readCalendarColor()
+
+    return CalendarConfig.of({ calendarId, serviceAccount, calendarColor })
+  })
+
+  public static readonly layer: Layer.Layer<CalendarConfig, CalendarError> = Layer.effect(this, this.make)
+}
 
 /** Occurrences of the family calendar inside an instant range. */
 export class CalendarFeed extends Context.Service<
@@ -98,13 +109,4 @@ const readCalendarColor = Effect.fn('frame.calendar.readCalendarColor')(function
   })
 })
 
-export const CalendarConfigLive: Layer.Layer<CalendarConfig, CalendarError> = Layer.effect(
-  CalendarConfig,
-  Effect.gen(function* () {
-    const calendarId = yield* readRequiredString('GOOGLE_CALENDAR_ID')
-    const serviceAccount = yield* readServiceAccount()
-    const calendarColor = yield* readCalendarColor()
-
-    return CalendarConfig.of({ calendarId, serviceAccount, calendarColor })
-  })
-)
+export const CalendarConfigLive: Layer.Layer<CalendarConfig, CalendarError> = CalendarConfig.layer

@@ -22,17 +22,30 @@ import type { HomeAssistantError } from '../errors.js'
 import { parseEntityList, parseMediaSlots } from './media.js'
 import type { MediaConfig } from './media.js'
 
+interface HomeAssistantConfigValue {
+  readonly url: string
+  readonly token: Redacted.Redacted
+  readonly weatherEntity: string
+  readonly shoppingEntity: string
+  readonly media: MediaConfig
+}
+
 /** Connection details and entity IDs for the household Home Assistant. */
-export class HomeAssistantConfig extends Context.Service<
-  HomeAssistantConfig,
-  {
-    readonly url: string
-    readonly token: Redacted.Redacted
-    readonly weatherEntity: string
-    readonly shoppingEntity: string
-    readonly media: MediaConfig
-  }
->()('@garage/frame/home-assistant/services/HomeAssistantConfig') {}
+export class HomeAssistantConfig extends Context.Service<HomeAssistantConfig, HomeAssistantConfigValue>()(
+  '@garage/frame/home-assistant/services/HomeAssistantConfig'
+) {
+  public static readonly make: Effect.Effect<HomeAssistantConfigValue, HomeAssistantError> = Effect.gen(function* () {
+    const url = yield* readRequiredString('HOME_ASSISTANT_URL')
+    const token = yield* readRequiredSecret('HOME_ASSISTANT_TOKEN')
+    const weatherEntity = yield* readEntity('HOME_ASSISTANT_WEATHER_ENTITY', 'weather.forecast_home')
+    const shoppingEntity = yield* readEntity('HOME_ASSISTANT_SHOPPING_ENTITY', 'todo.shopping_list')
+    const media = yield* readMediaConfig()
+
+    return HomeAssistantConfig.of({ url, token, weatherEntity, shoppingEntity, media })
+  })
+
+  public static readonly layer: Layer.Layer<HomeAssistantConfig, HomeAssistantError> = Layer.effect(this, this.make)
+}
 
 /** Weather and shopping list operations backed by Home Assistant. */
 export class HomeAssistantApi extends Context.Service<
@@ -93,15 +106,4 @@ const readMediaConfig = Effect.fn('frame.homeAssistant.readMediaConfig')(functio
   return { slots, zones, allOn, allOff, spotify } satisfies MediaConfig
 })
 
-export const HomeAssistantConfigLive: Layer.Layer<HomeAssistantConfig, HomeAssistantError> = Layer.effect(
-  HomeAssistantConfig,
-  Effect.gen(function* () {
-    const url = yield* readRequiredString('HOME_ASSISTANT_URL')
-    const token = yield* readRequiredSecret('HOME_ASSISTANT_TOKEN')
-    const weatherEntity = yield* readEntity('HOME_ASSISTANT_WEATHER_ENTITY', 'weather.forecast_home')
-    const shoppingEntity = yield* readEntity('HOME_ASSISTANT_SHOPPING_ENTITY', 'todo.shopping_list')
-    const media = yield* readMediaConfig()
-
-    return HomeAssistantConfig.of({ url, token, weatherEntity, shoppingEntity, media })
-  })
-)
+export const HomeAssistantConfigLive: Layer.Layer<HomeAssistantConfig, HomeAssistantError> = HomeAssistantConfig.layer

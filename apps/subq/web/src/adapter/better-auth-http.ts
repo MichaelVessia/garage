@@ -19,6 +19,7 @@ const SessionResponse = Schema.Struct({
 })
 
 const decodeSession = Schema.decodeUnknownEffect(SessionResponse)
+
 const decodeJson = Schema.decodeUnknownEffect(Schema.Json)
 
 type BetterAuthRequestBody =

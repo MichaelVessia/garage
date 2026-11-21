@@ -16,6 +16,7 @@ import type {
 import { AutocaliwebApi } from './services.js'
 
 export const defaultLimit = 50
+
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
 
 export const status: Effect.Effect<StatusResult, AutocaliwebError, AutocaliwebApi> = Effect.gen(function* () {
@@ -103,7 +104,6 @@ export const bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecor
   Effect.fn('autocaliweb.bookInfo')(
     function* (options: BookInfoOptions): Effect.fn.Return<BookInfoRecord, AutocaliwebError, AutocaliwebApi> {
       yield* Effect.annotateCurrentSpan({
-        // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
         'autocaliweb.book_uuid_present': options.uuid.length > 0,
       })
       const api = yield* AutocaliwebApi

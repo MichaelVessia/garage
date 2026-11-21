@@ -32,6 +32,7 @@ import type { WeightMessage, WeightModel } from '../src/page/weight/model.js'
 import { updateWeight } from '../src/page/weight/update.js'
 
 const { Command } = Story
+
 const timezone = IanaTimezone.make('America/New_York')
 
 const sampleLog = WeightLog.make({
@@ -56,7 +57,7 @@ const weightAt = (id: string, datetime: string): WeightLog =>
 const update = (model: WeightModel, message: WeightMessage) => updateWeight(model, message, timezone)
 
 // The ISO instant SaveWeight would persist, or undefined when no valid save was dispatched.
-const savedDatetimeIso = (commands: ReturnType<typeof update>['commands'] = []): string | undefined =>
+const savedDatetimeIso = (commands: ReturnType<typeof update>['commands'] = []) =>
   Arr.findFirst(commands, (command) => command.name === SaveWeight.name).pipe(
     Option.flatMap((command) => Option.fromNullishOr(command.args?.datetime)),
     Option.filter(Schema.is(Schema.DateTimeUtc)),

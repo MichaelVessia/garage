@@ -2,6 +2,7 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
 
@@ -363,7 +364,7 @@ describe('DataExportService', () => {
           const result = yield* service.importData('user-123', importData).pipe(Effect.result)
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.include(result.failure.message, 'references missing schedule')
           }
 

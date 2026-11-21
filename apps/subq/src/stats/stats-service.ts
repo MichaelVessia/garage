@@ -114,6 +114,10 @@ export interface StatsOperationResult<A> {
   readonly timezone: IanaTimezone
 }
 
+// ============================================
+// Stats Service Implementation
+// ============================================
+
 export class StatsService extends Context.Service<
   StatsService,
   {
@@ -146,15 +150,8 @@ export class StatsService extends Context.Service<
       userId: string
     ) => Effect.Effect<StatsOperationResult<InjectionDayOfWeekStats>, StatsDatabaseError>
   }
->()('@garage/subq/stats/stats-service/StatsService') {}
-
-// ============================================
-// Stats Service Implementation
-// ============================================
-
-export const StatsServiceLive = Layer.effect(
-  StatsService,
-  Effect.gen(function* () {
+>()('@garage/subq/stats/stats-service/StatsService') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const settingsRepo = yield* SettingsRepo
 
@@ -435,4 +432,8 @@ export const StatsServiceLive = Layer.effect(
       getInjectionByDayOfWeek,
     }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const StatsServiceLive = StatsService.layer

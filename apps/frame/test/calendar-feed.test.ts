@@ -38,7 +38,7 @@ const windowOf = (from: string, to: string) => ({
 const range = windowOf('2026-11-01', '2026-11-22')
 
 const summary = (event: CalendarEvent) =>
-  event._tag === 'TimedEvent'
+  P.isTagged(event, 'TimedEvent')
     ? `${event.title} ${DateTime.formatIso(event.start)} ${event.color ?? '-'}`
     : `${event.title} ${event.startDate}..${event.endDate} ${event.color ?? '-'}`
 

@@ -11,6 +11,7 @@ import * as Schema from 'effect/Schema'
 import { DeployNotLive } from './errors.js'
 
 const Arguments = Schema.Tuple([Schema.NonEmptyString])
+
 const Health = Schema.Struct({ status: Schema.Literal('ready'), version: Schema.String })
 
 // Waits for the deployed server to report the build that was just shipped.

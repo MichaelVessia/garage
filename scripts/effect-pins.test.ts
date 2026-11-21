@@ -25,8 +25,10 @@ const discoverManifests = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
 
-  const workspaceDirectories = yield* Effect.forEach(['apps', 'packages'], (root) =>
-    fs.readDirectory(root).pipe(Effect.map((entries) => Arr.map(entries, (entry) => path.join(root, entry))))
+  const workspaceDirectories = yield* Effect.forEach(
+    ['apps', 'packages'],
+    (root) => fs.readDirectory(root).pipe(Effect.map((entries) => Arr.map(entries, (entry) => path.join(root, entry)))),
+    { concurrency: 'unbounded' }
   )
 
   const candidates = [

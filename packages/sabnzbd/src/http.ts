@@ -50,6 +50,7 @@ const actionResult = (action: SabnzbdAction, ok: boolean, nzoId?: string, delete
   deleteFiles,
 })
 
+// oxlint-disable-next-line anti-slop-effect/require-service-make-layer -- SabnzbdApi is a pure contract in services.ts; its HTTP adapter lives in http.ts per Fallow boundary policy
 export const SabnzbdApiLive = Layer.effect(
   SabnzbdApi,
   Effect.gen(function* () {

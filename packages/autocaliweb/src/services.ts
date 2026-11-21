@@ -19,30 +19,13 @@ import type {
   StatusResult,
 } from './model.js'
 
+const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
+
 export class AutocaliwebConfig extends Context.Service<
   AutocaliwebConfig,
   { readonly get: Effect.Effect<AutocaliwebConfigValue, AutocaliwebError> }
->()('@garage/autocaliweb/services/AutocaliwebConfig') {}
-
-export class AutocaliwebApi extends Context.Service<
-  AutocaliwebApi,
-  {
-    readonly status: Effect.Effect<StatusResult, AutocaliwebError>
-    readonly stats: Effect.Effect<StatsResult, AutocaliwebError>
-    readonly catalog: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
-    readonly books: (options: LimitOptions) => Effect.Effect<ListResult<BookRecord>, AutocaliwebError>
-    readonly recent: (options: LimitOptions) => Effect.Effect<ListResult<BookRecord>, AutocaliwebError>
-    readonly search: (options: SearchOptions) => Effect.Effect<SearchResult, AutocaliwebError>
-    readonly bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecord, AutocaliwebError>
-    readonly shelves: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
-  }
->()('@garage/autocaliweb/services/AutocaliwebApi') {}
-
-const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
-
-export const AutocaliwebConfigLive = Layer.effect(
-  AutocaliwebConfig,
-  Effect.gen(function* () {
+>()('@garage/autocaliweb/services/AutocaliwebConfig') {
+  public static readonly make = Effect.gen(function* () {
     const readConfig = Effect.fn('autocaliweb.config.get')(
       function* () {
         const url = yield* readRequiredString('AUTOCALIWEB_URL')
@@ -58,4 +41,22 @@ export const AutocaliwebConfigLive = Layer.effect(
 
     return AutocaliwebConfig.of({ get: cachedGet })
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export class AutocaliwebApi extends Context.Service<
+  AutocaliwebApi,
+  {
+    readonly status: Effect.Effect<StatusResult, AutocaliwebError>
+    readonly stats: Effect.Effect<StatsResult, AutocaliwebError>
+    readonly catalog: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
+    readonly books: (options: LimitOptions) => Effect.Effect<ListResult<BookRecord>, AutocaliwebError>
+    readonly recent: (options: LimitOptions) => Effect.Effect<ListResult<BookRecord>, AutocaliwebError>
+    readonly search: (options: SearchOptions) => Effect.Effect<SearchResult, AutocaliwebError>
+    readonly bookInfo: (options: BookInfoOptions) => Effect.Effect<BookInfoRecord, AutocaliwebError>
+    readonly shelves: Effect.Effect<ListResult<CatalogEntry>, AutocaliwebError>
+  }
+>()('@garage/autocaliweb/services/AutocaliwebApi') {}
+
+export const AutocaliwebConfigLive = AutocaliwebConfig.layer

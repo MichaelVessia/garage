@@ -44,6 +44,7 @@ export const statsRouter = Function.pipe(
 )
 
 export const weightRouter = Function.pipe(literal('weight'), Route.mapTo(AppRoute.Weight))
+
 export const injectionRouter = Function.pipe(literal('injection'), Route.mapTo(AppRoute.Injection))
 
 export const scheduleViewRouter = Function.pipe(
@@ -53,6 +54,7 @@ export const scheduleViewRouter = Function.pipe(
 )
 
 export const scheduleRouter = Function.pipe(literal('schedule'), Route.mapTo(AppRoute.Schedule))
+
 export const settingsRouter = Function.pipe(literal('settings'), Route.mapTo(AppRoute.Settings))
 
 // `/` shows stats, same as the old app's index redirect

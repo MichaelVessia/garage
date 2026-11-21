@@ -18,6 +18,10 @@ const ProtocolLive = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
 
 const makeClient = RpcClient.make(AppRpcs)
 
-export class Api extends Context.Service<Api, Effect.Success<typeof makeClient>>()('@garage/subq/web/src/api') {}
+export class Api extends Context.Service<Api, Effect.Success<typeof makeClient>>()('@garage/subq/web/src/api') {
+  public static readonly make = makeClient
 
-export const ApiLive: Layer.Layer<Api> = Layer.effect(Api, makeClient).pipe(Layer.provide(ProtocolLive))
+  public static readonly layer: Layer.Layer<Api> = Layer.effect(this, this.make).pipe(Layer.provide(ProtocolLive))
+}
+
+export const ApiLive: Layer.Layer<Api> = Api.layer

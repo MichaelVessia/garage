@@ -9,6 +9,7 @@ import type * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
@@ -44,7 +45,7 @@ const decodeRequestBody = Schema.decodeEffect(Schema.fromJsonString(RequestBody)
 const requestJson = (
   request: HttpClientRequest.HttpClientRequest
 ): Effect.Effect<Option.Option<RequestBody>, Schema.SchemaError> =>
-  request.body._tag === 'Uint8Array'
+  P.isTagged(request.body, 'Uint8Array')
     ? decodeRequestBody(new TextDecoder().decode(request.body.body)).pipe(Effect.asSome)
     : Effect.succeedNone
 
@@ -81,7 +82,7 @@ describe('Better Auth HTTP adapter', () => {
           { method: 'POST', url: '/api/auth/change-password' },
         ]
       )
-      const bodies = yield* Effect.forEach(Arr.drop(canned.requests, 1), requestJson)
+      const bodies = yield* Effect.forEach(Arr.drop(canned.requests, 1), requestJson, { concurrency: 1 })
       assert.deepStrictEqual(bodies, [
         Option.some({ email: 'person@example.com', password: 'secret' }),
         Option.some({ email: 'person@example.com', name: 'Person', password: 'secret' }),
@@ -148,7 +149,7 @@ describe('Better Auth HTTP adapter', () => {
     Effect.gen(function* () {
       const canned = makeCannedClient(() => ({ body: { message: 'Unauthorized' }, status: 401 }))
       const message = yield* SignOut().effect.pipe(Effect.provide(canned.layer))
-      assert.deepStrictEqual(message, { _tag: 'SucceededSignOut' })
+      assert.isTrue(P.isTagged(message, 'SucceededSignOut'))
     })
   )
 })

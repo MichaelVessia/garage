@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import { AsyncData, Command } from 'foldkit'
 import type { Runtime } from 'foldkit'
@@ -61,11 +62,11 @@ const sessionRedirect = (model: Model): Commands => {
     return []
   }
 
-  if (model.user === null && model.route._tag !== 'Login') {
+  if (model.user === null && !P.isTagged(model.route, 'Login')) {
     return [Navigate({ url: loginHref })]
   }
 
-  if (model.user !== null && model.route._tag === 'Login') {
+  if (model.user !== null && P.isTagged(model.route, 'Login')) {
     return [Navigate({ url: statsHref })]
   }
 
@@ -114,45 +115,44 @@ const enterRoute = (model: Model): UpdateReturn => {
 
   const timezone = timezoneOf(next.settings, next.detectedTimezone)
 
-  if (next.route._tag === 'Weight') {
-    const { model: weight, commands: weightCommands = [] } = fetchWeightLogsIfIdle(next.weight)
-    next = modifyFields(next, { weight: () => weight })
-    commands.push(...weightCommands)
-  }
+  return Match.value(next.route).pipe(
+    Match.withReturnType<UpdateReturn>(),
+    Match.tag('Weight', () => {
+      const { model: weight, commands: weightCommands = [] } = fetchWeightLogsIfIdle(next.weight)
 
-  if (next.route._tag === 'Injection') {
-    const { model: injections, commands: injectionCommands = [] } = fetchInjectionsIfIdle(next.injections)
-    next = modifyFields(next, { injections: () => injections })
-    commands.push(...injectionCommands)
-  }
+      return { model: modifyFields(next, { weight: () => weight }), commands: [...commands, ...weightCommands] }
+    }),
+    Match.tag('Injection', () => {
+      const { model: injections, commands: injectionCommands = [] } = fetchInjectionsIfIdle(next.injections)
 
-  if (next.route._tag === 'Schedule') {
-    const { model: schedule, commands: scheduleCommands = [] } = fetchScheduleIfIdle(
-      next.schedule,
-      timezoneOf(next.settings, next.detectedTimezone)
-    )
+      return {
+        model: modifyFields(next, { injections: () => injections }),
+        commands: [...commands, ...injectionCommands],
+      }
+    }),
+    Match.tag('Schedule', () => {
+      const { model: schedule, commands: scheduleCommands = [] } = fetchScheduleIfIdle(next.schedule, timezone)
 
-    next = modifyFields(next, { schedule: () => schedule })
-    commands.push(...scheduleCommands)
-  }
+      return { model: modifyFields(next, { schedule: () => schedule }), commands: [...commands, ...scheduleCommands] }
+    }),
+    Match.tag('ScheduleView', (route) => {
+      const { model: scheduleView, commands: scheduleViewCommands = [] } = fetchScheduleView(
+        next.scheduleView,
+        route.scheduleId
+      )
 
-  if (next.route._tag === 'ScheduleView') {
-    const { model: scheduleView, commands: scheduleViewCommands = [] } = fetchScheduleView(
-      next.scheduleView,
-      next.route.scheduleId
-    )
+      return {
+        model: modifyFields(next, { scheduleView: () => scheduleView }),
+        commands: [...commands, ...scheduleViewCommands],
+      }
+    }),
+    Match.tag('Stats', () => {
+      const { model: stats, commands: statsCommands = [] } = syncStatsFetch(next.stats, statsRangeOf(next), timezone)
 
-    next = modifyFields(next, { scheduleView: () => scheduleView })
-    commands.push(...scheduleViewCommands)
-  }
-
-  if (next.route._tag === 'Stats') {
-    const { model: stats, commands: statsCommands = [] } = syncStatsFetch(next.stats, statsRangeOf(next), timezone)
-    next = modifyFields(next, { stats: () => stats })
-    commands.push(...statsCommands)
-  }
-
-  return { model: next, commands }
+      return { model: modifyFields(next, { stats: () => stats }), commands: [...commands, ...statsCommands] }
+    }),
+    Match.orElse(() => ({ model: next, commands }))
+  )
 }
 
 // ============================================
@@ -188,13 +188,21 @@ export const init: {
 // ============================================
 
 const isLoginMessage = Schema.is(LoginMessage)
+
 const isAuthMessage = Schema.is(AuthMessage)
+
 const isWeightMessage = Schema.is(WeightMessage)
+
 const isSettingsMessage = Schema.is(SettingsMessage)
+
 const isSettingsPageMessage = Schema.is(SettingsPageMessage)
+
 const isInjectionsMessage = Schema.is(InjectionsMessage)
+
 const isScheduleMessage = Schema.is(ScheduleMessage)
+
 const isScheduleViewMessage = Schema.is(ScheduleViewMessage)
+
 const isStatsMessage = Schema.is(StatsMessage)
 
 const updateAuth = (model: Model, message: AuthMessage): UpdateReturn =>
@@ -241,6 +249,127 @@ const updateAuth = (model: Model, message: AuthMessage): UpdateReturn =>
     })
   )
 
+const updateSettingsPageMessage = (model: Model, message: SettingsPageMessage): UpdateReturn => {
+  const { model: settingsPage, commands = [] } = updateSettingsPage(
+    model.settingsPage,
+    message,
+    timezoneOf(model.settings, model.detectedTimezone),
+    model.detectedTimezone,
+    model.settingsRequestGeneration + 1
+  )
+
+  const next = recordSettingsRequest(modifyFields(model, { settingsPage: () => settingsPage }), commands)
+
+  return Match.value(message).pipe(
+    Match.withReturnType<UpdateReturn>(),
+    Match.tag('SucceededImportData', () => ({
+      model: modifyFields(next, {
+        injections: () => initialInjectionsModel,
+        schedule: (schedule) => resetSchedule(schedule),
+        scheduleView: () => initialScheduleViewModel,
+        stats: (stats) => resetStats(stats),
+        weight: () => initialWeightModel,
+      }),
+      commands,
+    })),
+    Match.orElse(() => ({ model: next, commands }))
+  )
+}
+
+const updateSettingsMessage = (model: Model, message: SettingsMessage): UpdateReturn =>
+  Match.value(message).pipe(
+    Match.withReturnType<UpdateReturn>(),
+    Match.tagsExhaustive({
+      ClickedRetrySettings: () => {
+        const requestGeneration = model.settingsRequestGeneration + 1
+
+        return {
+          model: modifyFields(model, {
+            settings: () => AsyncData.Loading(),
+            settingsRequestGeneration: () => requestGeneration,
+          }),
+          commands: [FetchSettings({ detectedTimezone: model.detectedTimezone, requestGeneration })],
+        }
+      },
+      FailedFetchSettings: ({ message: error, requestGeneration }) =>
+        requestGeneration === model.settingsRequestGeneration
+          ? { model: modifyFields(model, { settings: () => AsyncData.Failure({ error }) }) }
+          : { model },
+      SucceededFetchSettings: ({ requestGeneration, settings }) => {
+        if (requestGeneration !== model.settingsRequestGeneration) {
+          return { model }
+        }
+
+        const previous = AsyncData.getData(model.settings)
+        const timezoneChanged = Option.isSome(previous) && previous.value.timezone !== settings.timezone
+
+        const next = modifyFields(model, {
+          injections: (injections) => (timezoneChanged ? modifyFields(injections, { form: () => null }) : injections),
+          schedule: (schedule) =>
+            timezoneChanged ? modifyFields(schedule, { nextDose: () => AsyncData.Idle() }) : schedule,
+          scheduleView: () => (timezoneChanged ? initialScheduleViewModel : model.scheduleView),
+          settings: () => AsyncData.succeed(settings),
+          stats: (stats) => (timezoneChanged ? resetStats(stats) : stats),
+          weight: (weight) => (timezoneChanged ? modifyFields(weight, { form: () => null }) : weight),
+        })
+
+        return enterRoute(next)
+      },
+    })
+  )
+
+const updateShellMessage = (
+  model: Model,
+  message: Exclude<
+    Message,
+    | AuthMessage
+    | LoginMessage
+    | WeightMessage
+    | SettingsPageMessage
+    | InjectionsMessage
+    | ScheduleMessage
+    | ScheduleViewMessage
+    | StatsMessage
+    | SettingsMessage
+  >
+): UpdateReturn =>
+  Match.value(message).pipe(
+    Match.withReturnType<UpdateReturn>(),
+    Match.tagsExhaustive({
+      ChangedUrl: ({ url }) => {
+        const next = modifyFields(model, { route: () => urlToAppRoute(url) })
+
+        return enterRoute(next)
+      },
+      ClickedLink: ({ request }) =>
+        Match.value(request).pipe(
+          Match.withReturnType<UpdateReturn>(),
+          Match.tagsExhaustive({
+            External: ({ href }) => ({ model, commands: [LoadUrl({ url: href })] }),
+            Internal: ({ url }) => ({ model, commands: [Navigate({ url: urlToString(url) })] }),
+          })
+        ),
+      ClickedSignOut: () => ({ model, commands: [SignOut()] }),
+      NavigationDone: () => ({ model }),
+    })
+  )
+
+const updateLoginMessage = (model: Model, message: LoginMessage): UpdateReturn => {
+  const { model: login, commands = [] } = updateLogin(model.login, message)
+
+  return { model: modifyFields(model, { login: () => login }), commands }
+}
+
+const updateWeightMessage = (model: Model, message: WeightMessage): UpdateReturn => {
+  const { model: weight, commands = [] } = updateWeight(
+    model.weight,
+    message,
+    timezoneOf(model.settings, model.detectedTimezone)
+  )
+
+  return { model: modifyFields(model, { weight: () => weight }), commands }
+}
+
 export const update: {
   (message: Message): (model: Model) => UpdateReturn
   (model: Model, message: Message): UpdateReturn
@@ -250,46 +379,15 @@ export const update: {
   }
 
   if (isLoginMessage(message)) {
-    const { model: login, commands = [] } = updateLogin(model.login, message)
-
-    return { model: modifyFields(model, { login: () => login }), commands }
+    return updateLoginMessage(model, message)
   }
 
   if (isWeightMessage(message)) {
-    const { model: weight, commands = [] } = updateWeight(
-      model.weight,
-      message,
-      timezoneOf(model.settings, model.detectedTimezone)
-    )
-
-    return { model: modifyFields(model, { weight: () => weight }), commands }
+    return updateWeightMessage(model, message)
   }
 
   if (isSettingsPageMessage(message)) {
-    const { model: settingsPage, commands = [] } = updateSettingsPage(
-      model.settingsPage,
-      message,
-      timezoneOf(model.settings, model.detectedTimezone),
-      model.detectedTimezone,
-      model.settingsRequestGeneration + 1
-    )
-
-    const next = recordSettingsRequest(modifyFields(model, { settingsPage: () => settingsPage }), commands)
-
-    return Match.value(message).pipe(
-      Match.withReturnType<UpdateReturn>(),
-      Match.tag('SucceededImportData', () => ({
-        model: modifyFields(next, {
-          injections: () => initialInjectionsModel,
-          schedule: (schedule) => resetSchedule(schedule),
-          scheduleView: () => initialScheduleViewModel,
-          stats: (stats) => resetStats(stats),
-          weight: () => initialWeightModel,
-        }),
-        commands,
-      })),
-      Match.orElse(() => ({ model: next, commands }))
-    )
+    return updateSettingsPageMessage(model, message)
   }
 
   if (isInjectionsMessage(message)) {
@@ -310,9 +408,7 @@ export const update: {
       model.settingsRequestGeneration + 1
     )
 
-    const next = recordSettingsRequest(modifyFields(model, { schedule: () => schedule }), commands)
-
-    return { model: next, commands }
+    return { model: recordSettingsRequest(modifyFields(model, { schedule: () => schedule }), commands), commands }
   }
 
   if (isScheduleViewMessage(message)) {
@@ -329,72 +425,12 @@ export const update: {
       model.settingsRequestGeneration + 1
     )
 
-    const next = recordSettingsRequest(modifyFields(model, { stats: () => stats }), commands)
-
-    return { model: next, commands }
+    return { model: recordSettingsRequest(modifyFields(model, { stats: () => stats }), commands), commands }
   }
 
   if (isSettingsMessage(message)) {
-    return Match.value(message).pipe(
-      Match.withReturnType<UpdateReturn>(),
-      Match.tagsExhaustive({
-        ClickedRetrySettings: () => {
-          const requestGeneration = model.settingsRequestGeneration + 1
-
-          return {
-            model: modifyFields(model, {
-              settings: () => AsyncData.Loading(),
-              settingsRequestGeneration: () => requestGeneration,
-            }),
-            commands: [FetchSettings({ detectedTimezone: model.detectedTimezone, requestGeneration })],
-          }
-        },
-        FailedFetchSettings: ({ message: error, requestGeneration }) =>
-          requestGeneration === model.settingsRequestGeneration
-            ? { model: modifyFields(model, { settings: () => AsyncData.Failure({ error }) }) }
-            : { model },
-        SucceededFetchSettings: ({ requestGeneration, settings }) => {
-          if (requestGeneration !== model.settingsRequestGeneration) {
-            return { model }
-          }
-
-          const previous = AsyncData.getData(model.settings)
-          const timezoneChanged = Option.isSome(previous) && previous.value.timezone !== settings.timezone
-
-          const next = modifyFields(model, {
-            injections: (injections) => (timezoneChanged ? modifyFields(injections, { form: () => null }) : injections),
-            schedule: (schedule) =>
-              timezoneChanged ? modifyFields(schedule, { nextDose: () => AsyncData.Idle() }) : schedule,
-            scheduleView: () => (timezoneChanged ? initialScheduleViewModel : model.scheduleView),
-            settings: () => AsyncData.succeed(settings),
-            stats: (stats) => (timezoneChanged ? resetStats(stats) : stats),
-            weight: (weight) => (timezoneChanged ? modifyFields(weight, { form: () => null }) : weight),
-          })
-
-          return enterRoute(next)
-        },
-      })
-    )
+    return updateSettingsMessage(model, message)
   }
 
-  return Match.value(message).pipe(
-    Match.withReturnType<UpdateReturn>(),
-    Match.tagsExhaustive({
-      ChangedUrl: ({ url }) => {
-        const next = modifyFields(model, { route: () => urlToAppRoute(url) })
-
-        return enterRoute(next)
-      },
-      ClickedLink: ({ request }) =>
-        Match.value(request).pipe(
-          Match.withReturnType<UpdateReturn>(),
-          Match.tagsExhaustive({
-            External: ({ href }) => ({ model, commands: [LoadUrl({ url: href })] }),
-            Internal: ({ url }) => ({ model, commands: [Navigate({ url: urlToString(url) })] }),
-          })
-        ),
-      ClickedSignOut: () => ({ model, commands: [SignOut()] }),
-      NavigationDone: () => ({ model }),
-    })
-  )
+  return updateShellMessage(model, message)
 })

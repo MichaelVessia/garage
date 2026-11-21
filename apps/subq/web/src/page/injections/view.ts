@@ -55,6 +55,12 @@ const sortIndicator = (model: InjectionsModel, column: SortColumn): string => {
   return model.sortDesc ? ' ↓' : ' ↑'
 }
 
+const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: Option.Option<string>): string =>
+  scheduleId.pipe(
+    Option.flatMap((id) => scheduleById(schedules, id)),
+    Option.match({ onNone: () => '-', onSome: (schedule) => schedule.name })
+  )
+
 const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | InjectionsMessage>) => {
   const viewDeleteConfirm = () =>
     h.div(
@@ -80,12 +86,6 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
           ]
         ),
       ]
-    )
-
-  const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: Option.Option<string>): string =>
-    scheduleId.pipe(
-      Option.flatMap((id) => scheduleById(schedules, id)),
-      Option.match({ onNone: () => '-', onSome: (schedule) => schedule.name })
     )
 
   const viewTable = (

@@ -44,6 +44,7 @@ export interface ZoomRange {
 export const PILL = { HEIGHT: 18, MIN_GAP_X: 4, VERTICAL_GAP: 4, WIDTH: 44 } as const
 
 export const CHART_WIDTH = 800
+
 export const CHART_HEIGHT = 320
 
 export interface WeightPointColored extends WeightPoint {

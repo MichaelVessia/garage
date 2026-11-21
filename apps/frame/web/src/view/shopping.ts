@@ -49,6 +49,7 @@ const viewShoppingAdd = (h: H, model: Model) =>
 
 // Past items shown while the field is empty, and matches shown while typing.
 const PAST_SHOWN = 24
+
 const MATCHES_SHOWN = 10
 
 const viewPastItem = (h: H, past: PastItem) =>

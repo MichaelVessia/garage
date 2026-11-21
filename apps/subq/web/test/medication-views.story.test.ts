@@ -2,8 +2,10 @@
 import { describe, expect, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
+import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
 import { AsyncData, Scene } from 'foldkit'
+import type { Html } from 'foldkit/html'
 
 import {
   CalendarDate,
@@ -31,48 +33,42 @@ import type { ScheduleMessage, ScheduleModel } from '../src/page/schedule/model.
 import { updateSchedule } from '../src/page/schedule/update.js'
 import { viewSchedule } from '../src/page/schedule/view.js'
 
-interface ViewNode {
-  readonly sel: string | undefined
-  readonly data:
-    | {
-        readonly props?: { readonly id?: string; readonly type?: string; readonly value?: string }
-      }
-    | undefined
-  readonly children: ReadonlyArray<ViewNode | string> | undefined
-  readonly text: string | undefined
-}
+type ViewNode = NonNullable<Html>
 
-const findById = (node: ViewNode | null, id: string): ViewNode | null => {
-  if (node === null) {
-    return null
+const findById = (node: Option.Option<ViewNode>, id: string): Option.Option<ViewNode> => {
+  if (Option.isNone(node)) {
+    return Option.none()
   }
 
-  if (node.data?.props?.id === id) {
+  if (node.value.data?.props?.id === id) {
     return node
   }
 
-  for (const child of node.children ?? []) {
+  for (const child of node.value.children ?? []) {
     if (!P.isString(child)) {
-      const found = findById(child, id)
+      const found = findById(Option.some(child), id)
 
-      if (found !== null) {
+      if (Option.isSome(found)) {
         return found
       }
     }
   }
 
-  return null
+  return Option.none()
 }
 
-const textContent = (node: ViewNode | null): string =>
-  node === null
-    ? ''
-    : `${node.text ?? ''}${Arr.join(
-        Arr.map(node.children ?? [], (child) => (P.isString(child) ? child : textContent(child))),
+const textContent = (node: Option.Option<ViewNode>): string =>
+  Option.match(node, {
+    onNone: () => '',
+    onSome: (value) =>
+      `${value.text ?? ''}${Arr.join(
+        Arr.map(value.children ?? [], (child) => (P.isString(child) ? child : textContent(Option.some(child)))),
         ''
-      )}`
+      )}`,
+  })
 
 const timestamp = DateTime.makeUnsafe('2026-01-01T00:00:00Z')
+
 const scheduleId = InjectionScheduleId.make('schedule-1')
 
 const schedule = InjectionSchedule.make({
@@ -145,17 +141,18 @@ describe('canonical medication views', () => {
       },
       Scene.given(model),
       Scene.tap<InjectionsModel, InjectionsMessage>(({ html: view }) => {
-        const medication = findById(view, 'injection-drug')
-        const dose = findById(view, 'injection-dose-mg')
-        const supplier = findById(view, 'injection-supplier')
+        const viewOption = Option.fromNullishOr(view)
+        const medication = findById(viewOption, 'injection-drug')
+        const dose = findById(viewOption, 'injection-dose-mg')
+        const supplier = findById(viewOption, 'injection-supplier')
 
-        expect(medication?.sel).toBe('select')
-        expect(textContent(medication ?? view)).toContain('Dulaglutide')
-        expect(textContent(medication ?? view)).not.toContain('Ozempic')
-        expect(dose?.data?.props?.type).toBe('number')
-        expect(supplier?.data?.props?.value).toBe('Pharmacy')
-        expect(textContent(view)).toContain('0.25 mg')
-        expect(textContent(view)).toContain('Pharmacy')
+        expect(Option.getOrUndefined(medication)?.sel).toBe('select')
+        expect(textContent(Option.orElse(medication, () => viewOption))).toContain('Dulaglutide')
+        expect(textContent(Option.orElse(medication, () => viewOption))).not.toContain('Ozempic')
+        expect(Option.getOrUndefined(dose)?.data?.props?.type).toBe('number')
+        expect(Option.getOrUndefined(supplier)?.data?.props?.value).toBe('Pharmacy')
+        expect(textContent(viewOption)).toContain('0.25 mg')
+        expect(textContent(viewOption)).toContain('Pharmacy')
       })
     )
   })
@@ -187,15 +184,16 @@ describe('canonical medication views', () => {
       },
       Scene.given(model),
       Scene.tap<ScheduleModel, ScheduleMessage>(({ html: view }) => {
-        const medication = findById(view, 'schedule-drug')
-        const supplier = findById(view, 'schedule-supplier')
+        const viewOption = Option.fromNullishOr(view)
+        const medication = findById(viewOption, 'schedule-drug')
+        const supplier = findById(viewOption, 'schedule-supplier')
 
-        expect(medication?.sel).toBe('select')
-        expect(textContent(medication ?? view)).toContain('Retatrutide')
-        expect(textContent(medication ?? view)).not.toContain('Compounded')
-        expect(supplier?.data?.props?.value).toBe('Clinic')
-        expect(textContent(view)).toContain('0.25 mg')
-        expect(textContent(view)).toContain('Supplier: Clinic')
+        expect(Option.getOrUndefined(medication)?.sel).toBe('select')
+        expect(textContent(Option.orElse(medication, () => viewOption))).toContain('Retatrutide')
+        expect(textContent(Option.orElse(medication, () => viewOption))).not.toContain('Compounded')
+        expect(Option.getOrUndefined(supplier)?.data?.props?.value).toBe('Clinic')
+        expect(textContent(viewOption)).toContain('0.25 mg')
+        expect(textContent(viewOption)).toContain('Supplier: Clinic')
       })
     )
   })

@@ -3,6 +3,7 @@ import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
 import * as TestClock from 'effect/testing/TestClock'
@@ -158,7 +159,7 @@ describe('DataExportService', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.instanceOf(result.failure, DataExportTemporalMigrationRequired)
             assert.strictEqual(result.failure.pendingGoals, 1)
             assert.include(result.failure.message, 'Complete timezone setup')
@@ -216,7 +217,6 @@ describe('DataExportService', () => {
             scheduleId: 'schedule-1',
             order: 1,
             doseMg: 0.25,
-            durationDays: null,
           })
           yield* insertInjectionLog({
             id: 'injection-1',

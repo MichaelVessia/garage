@@ -16,7 +16,9 @@ import { randomUuid } from '../src/shared/common/random-uuid.js'
 // ============================================
 
 const SITES = ['left abdomen', 'right abdomen', 'left thigh', 'right thigh']
+
 const TITRATION_DOSES = [2.5, 5, 7.5, 10, 15]
+
 const DEMO_TIMEZONE = IanaTimezone.make('America/New_York')
 
 const siteForWeek = (week: number): string => SITES[(week - 1) % SITES.length] ?? 'left abdomen'

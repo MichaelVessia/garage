@@ -37,6 +37,7 @@ export interface WeightTrajectoryProjectionParams {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 export const WEIGHT_TRAJECTORY_MS_PER_WEEK = 7 * MS_PER_DAY
 
 interface RegressionSums {

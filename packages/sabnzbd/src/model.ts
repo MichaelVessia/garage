@@ -1,9 +1,13 @@
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
+
 const OptionalInt = Schema.optional(Schema.Int)
+
 const OptionalFinite = Schema.optional(Schema.Finite)
+
 const OptionalBoolean = Schema.optional(Schema.Boolean)
+
 const OptionalStringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
 const SabnzbdConfigValue = Schema.Struct({

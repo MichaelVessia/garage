@@ -96,23 +96,41 @@ export const CompletedOpenInjectionForm = taggedStruct('CompletedOpenInjectionFo
 })
 
 export const ClickedAddInjection = taggedStruct('ClickedAddInjection')
+
 export const ClickedEditInjection = taggedStruct('ClickedEditInjection', { log: InjectionLog })
+
 export const ClickedCancelInjectionForm = taggedStruct('ClickedCancelInjectionForm')
+
 export const ChangedInjectionDatetime = taggedStruct('ChangedInjectionDatetime', { value: Schema.String })
+
 export const ChangedInjectionDrug = taggedStruct('ChangedInjectionDrug', { value: Schema.String })
+
 export const ChangedInjectionSupplier = taggedStruct('ChangedInjectionSupplier', { value: Schema.String })
+
 export const ChangedInjectionDoseMg = taggedStruct('ChangedInjectionDoseMg', { value: Schema.String })
+
 export const ChangedInjectionSite = taggedStruct('ChangedInjectionSite', { value: Schema.String })
+
 export const ChangedInjectionNotes = taggedStruct('ChangedInjectionNotes', { value: Schema.String })
+
 export const ChangedInjectionSchedule = taggedStruct('ChangedInjectionSchedule', { value: Schema.String })
+
 export const ConfirmedInjectionOffSchedule = taggedStruct('ConfirmedInjectionOffSchedule')
+
 export const SubmittedInjectionForm = taggedStruct('SubmittedInjectionForm')
+
 export const SucceededSaveInjection = taggedStruct('SucceededSaveInjection')
+
 export const FailedSaveInjection = taggedStruct('FailedSaveInjection', { message: Schema.String })
+
 export const RequestedDeleteInjection = taggedStruct('RequestedDeleteInjection', { id: InjectionLogId })
+
 export const CancelledDeleteInjection = taggedStruct('CancelledDeleteInjection')
+
 export const ConfirmedDeleteInjection = taggedStruct('ConfirmedDeleteInjection')
+
 export const SucceededDeleteInjection = taggedStruct('SucceededDeleteInjection')
+
 export const FailedDeleteInjection = taggedStruct('FailedDeleteInjection', { message: Schema.String })
 
 export const ClickedInjectionSort = taggedStruct('ClickedInjectionSort', {

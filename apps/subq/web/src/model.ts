@@ -1,5 +1,6 @@
 import type * as HttpClient from 'effect/http/HttpClient'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import type { Command, Update } from 'foldkit'
 import { UrlRequest } from 'foldkit/navigation'
@@ -54,9 +55,13 @@ export type Model = typeof Model.Type
 // ============================================
 
 export const ClickedLink = taggedStruct('ClickedLink', { request: UrlRequest })
+
 export const ChangedUrl = taggedStruct('ChangedUrl', { url: Url })
+
 export const NavigationDone = taggedStruct('NavigationDone')
+
 export const ClickedSignOut = taggedStruct('ClickedSignOut')
+
 export const ClickedRetrySettings = taggedStruct('ClickedRetrySettings')
 
 export const SettingsMessage = Schema.Union([SucceededFetchSettings, FailedFetchSettings, ClickedRetrySettings])
@@ -88,6 +93,6 @@ export type Commands = ReadonlyArray<Command.Command<Message, never, AppResource
 export type UpdateReturn = Update.Return<Model, Message, AppResources>
 
 export const statsRangeOf = (model: Model): StatsRange =>
-  model.route._tag === 'Stats'
+  P.isTagged(model.route, 'Stats')
     ? { end: model.route.end, start: model.route.start }
     : { end: Option.none(), start: Option.none() }

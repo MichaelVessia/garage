@@ -2,6 +2,7 @@ import { assert, it } from '@effect/vitest'
 import { SabnzbdApi } from '@garage/sabnzbd'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as P from 'effect/Predicate'
 import * as Ref from 'effect/Ref'
 import * as Stream from 'effect/Stream'
 
@@ -77,7 +78,7 @@ it.effect('adapts pause, resume, and confirmed deletion without bypassing file s
     const mutations = yield* Ref.get(fake.mutations)
     assert.deepStrictEqual(mutations, ['pause', 'resume'])
 
-    if (unsafeDelete._tag !== 'GarageMcpToolError') {
+    if (!P.isTagged(unsafeDelete, 'GarageMcpToolError')) {
       return assert.fail(`expected GarageMcpToolError, received ${unsafeDelete._tag}`)
     }
 

@@ -15,15 +15,8 @@ import * as Result from 'effect/Result'
 import type * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
-import { MediaActionRejected, MediaSnapshot, Weather, calendarDateOf } from '#shared'
-import type {
-  ForecastDay,
-  ForecastHour,
-  MediaAction,
-  MediaCard,
-  ShoppingItemAddition,
-  ShoppingItemUpdate,
-} from '#shared'
+import { MediaActionRejected, MediaCard, MediaSnapshot, Weather, calendarDateOf } from '#shared'
+import type { ForecastDay, ForecastHour, MediaAction, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
 
 import { homeAssistantDecodeError, homeAssistantHttpError, homeAssistantUnreachable } from '../errors.js'
 import type { HomeAssistantError } from '../errors.js'
@@ -68,6 +61,15 @@ const responseFor = <A>(responses: Record<string, A>, entity: string): Effect.Ef
     Effect.mapError(() => homeAssistantDecodeError({ message: `No service response for ${entity}` }))
   )
 
+const toForecastHour = (entry: ForecastServiceResponse['service_response'][string]['forecast'][number]) =>
+  Option.map(DateTime.make(entry.datetime), (time): ForecastHour => ({
+    time: DateTime.toUtc(time),
+    condition: entry.condition ?? 'unknown',
+    temperature: entry.temperature ?? null,
+    precipitationProbability: entry.precipitation_probability ?? null,
+  }))
+
+// oxlint-disable-next-line anti-slop-effect/require-service-make-layer -- HomeAssistantApi is a pure contract in services.ts; its HTTP adapter lives in http.ts to preserve contract/adapter separation
 export const HomeAssistantApiLive = Layer.effect(
   HomeAssistantApi,
   Effect.gen(function* () {
@@ -153,13 +155,13 @@ export const HomeAssistantApiLive = Layer.effect(
         Option.toArray(mediaConfig.spotify),
         (entityId) =>
           Effect.map(entityState(entityId), (state) => toMediaPlayer({ entityId, controls: Option.none() }, state)),
-        { concurrency: 'unbounded' }
+        { concurrency: 8 }
       )
 
       const zones = yield* Effect.forEach(
         mediaConfig.zones,
         (entityId) => Effect.map(entityState(entityId), (state) => toSpeakerZone(entityId, state)),
-        { concurrency: 'unbounded' }
+        { concurrency: 8 }
       )
 
       const cards = yield* Effect.forEach(
@@ -167,21 +169,23 @@ export const HomeAssistantApiLive = Layer.effect(
         (slot): Effect.Effect<MediaCard, HomeAssistantError> =>
           Match.valueTags(slot, {
             Zones: () =>
-              Effect.succeed<MediaCard>({
-                _tag: 'ZonesCard',
-                speakers: {
-                  zones,
-                  hasAllOn: Option.isSome(mediaConfig.allOn),
-                  hasAllOff: Option.isSome(mediaConfig.allOff),
-                },
-              }),
+              Effect.succeed(
+                MediaCard.cases.ZonesCard.make({
+                  speakers: {
+                    zones,
+                    hasAllOn: Option.isSome(mediaConfig.allOn),
+                    hasAllOff: Option.isSome(mediaConfig.allOff),
+                  },
+                })
+              ),
             Player: ({ player }) =>
-              Effect.map(entityState(player.entityId), (state): MediaCard => ({
-                _tag: 'PlayerCard',
-                player: toMediaPlayer(player, state),
-              })),
+              Effect.map(entityState(player.entityId), (state) =>
+                MediaCard.cases.PlayerCard.make({
+                  player: toMediaPlayer(player, state),
+                })
+              ),
           }),
-        { concurrency: 'unbounded' }
+        { concurrency: 8 }
       )
 
       return MediaSnapshot.make({ spotify: spotify[0] ?? null, cards })
@@ -235,14 +239,6 @@ export const HomeAssistantApiLive = Layer.effect(
         Effect.flatMap((response) => responseFor(response.service_response, config.weatherEntity)),
         Effect.map(({ forecast }) => forecast)
       )
-
-    const toForecastHour = (entry: ForecastServiceResponse['service_response'][string]['forecast'][number]) =>
-      Option.map(DateTime.make(entry.datetime), (time): ForecastHour => ({
-        time: DateTime.toUtc(time),
-        condition: entry.condition ?? 'unknown',
-        temperature: entry.temperature ?? null,
-        precipitationProbability: entry.precipitation_probability ?? null,
-      }))
 
     const weather = Effect.fn('frame.homeAssistant.weather')(function* () {
       const [current, daily, hourly] = yield* Effect.all(

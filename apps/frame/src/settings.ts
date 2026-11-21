@@ -11,15 +11,16 @@ import { IanaTimezone } from '#shared'
 /** The household timezone that local dates, all-day events, and floating times use. */
 export class FrameTimezone extends Context.Service<FrameTimezone, { readonly timezone: IanaTimezone }>()(
   '@garage/frame/settings/FrameTimezone'
-) {}
-
-export const FrameTimezoneLive = Layer.effect(
-  FrameTimezone,
-  Config.schema(IanaTimezone, 'FRAME_TIMEZONE').pipe(
+) {
+  public static readonly make = Config.schema(IanaTimezone, 'FRAME_TIMEZONE').pipe(
     Config.withDefault(IanaTimezone.make('America/New_York')),
     Effect.map((timezone) => FrameTimezone.of({ timezone }))
   )
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const FrameTimezoneLive = FrameTimezone.layer
 
 /**
  * Adds the dotenv file named by `FRAME_ENV_FILE` as a configuration source behind the process

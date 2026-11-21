@@ -2,6 +2,7 @@ import * as Arr from 'effect/Array'
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
@@ -126,7 +127,7 @@ const makeView = (h: HtmlBuilder<Message>): ((model: Model) => Document) => {
       return { body: viewLoading, title: 'SubQ' }
     }
 
-    if (model.user === null || model.route._tag === 'Login') {
+    if (model.user === null || P.isTagged(model.route, 'Login')) {
       return { body: viewLogin({ h, model: model.login }), title: 'SubQ — Sign In' }
     }
 
