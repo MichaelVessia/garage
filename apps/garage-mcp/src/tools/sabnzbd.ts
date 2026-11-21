@@ -191,6 +191,7 @@ export const SabnzbdToolkitHandlers = SabnzbdToolkit.toLayer(
     const api = yield* SabnzbdApi
 
     const run = <A>(operation: Effect.Effect<A, SabnzbdError, SabnzbdApi>) =>
+      // oxlint-disable-next-line anti-slop/no-reprovide-ambient-service -- Toolkit.toLayer requires R = never tool handlers while the layer itself requires SabnzbdApi
       operation.pipe(Effect.provideService(SabnzbdApi, api), Effect.catch(failSabnzbdTool))
 
     return SabnzbdToolkit.of({

@@ -1,305 +1,150 @@
-import effect from '@mpsuesser/oxlint-plugin-effect'
+import cloudflare from '@cloudflare/oxlint-config'
 import { defineConfig } from 'oxlint'
-import antiSlop from 'ultracite/oxlint/anti-slop'
-import core from 'ultracite/oxlint/core'
-import vitest from 'ultracite/oxlint/vitest'
 
 const testFiles = ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/__tests__/**/*.{ts,tsx,js,jsx}', '**/test/**/*.{ts,tsx}']
 
-const baseRestrictedProperties = [
-  { object: 'Reflect', property: 'apply', message: 'Call the function directly.' },
-  { object: 'Reflect', property: 'get', message: 'Read the property directly from a parsed, typed value.' },
-]
+const cloudflareIgnorePatterns = cloudflare.ignorePatterns ?? []
 
-const objectHelpers = ['keys', 'values', 'entries', 'fromEntries'].map((property) => ({
-  object: 'Object',
-  property,
-  message: 'Use Record, Struct, or HashMap helpers from Effect instead of native Object helpers.',
-}))
+const cloudflareJsPlugins = cloudflare.jsPlugins ?? []
 
-const effectProperties = [
-  ...['runSync', 'runPromise', 'runFork'].map((property) => ({
-    object: 'Effect',
-    property,
-    message: 'Run Effects only at an entry point. Inside Effect code, yield* the Effect or use Effect.run*With.',
-  })),
-  {
-    object: 'Effect',
-    property: 'promise',
-    message: 'Use Effect.tryPromise with a typed error. Effect.promise turns a rejection into a defect.',
-  },
-  {
-    property: 'getOrThrow',
-    message:
-      'Use Option.match, Option.getOrElse, or yield* the Option. getOrThrow throws outside the typed error channel.',
-  },
-  ...['makeTempFile', 'makeTempDirectory'].map((property) => ({
-    property,
-    message: 'Use makeTempFileScoped or makeTempDirectoryScoped so the Scope removes the temporary path.',
-  })),
-]
+const cloudflareOverrides = cloudflare.overrides ?? []
 
 export default defineConfig({
-  extends: [core, antiSlop, vitest],
+  ...cloudflare,
   env: {
+    ...cloudflare.env,
     node: true,
     es2022: true,
   },
-  ignorePatterns: ['dist/**/*', 'node_modules/**/*'],
-  // Registered via jsPlugins (rather than `extends`) so the plugin's private
-  // config type does not leak into this module's default-export type.
-  jsPlugins: [{ name: 'effect', specifier: '@mpsuesser/oxlint-plugin-effect' }],
+  ignorePatterns: [
+    ...cloudflareIgnorePatterns,
+    'dist/**/*',
+    'node_modules/**/*',
+    '.claude/**',
+    'tools/oxlint/anti-slop/**',
+  ],
+  jsPlugins: [
+    ...cloudflareJsPlugins,
+    { name: 'anti-slop', specifier: './tools/oxlint/anti-slop/index.ts' },
+    { name: 'anti-slop-effect', specifier: './tools/oxlint/anti-slop/effect/index.ts' },
+    { name: 'landmines', specifier: './tools/oxlint/anti-slop/plugins/landmines.ts' },
+    { name: 'ai-guard', specifier: './tools/oxlint/anti-slop/plugins/ai-guard.ts' },
+    { name: 'effect', specifier: './tools/oxlint/anti-slop/plugins/effect.ts' },
+    { name: 'enfect', specifier: './tools/oxlint/anti-slop/plugins/enfect.ts' },
+  ],
+  rules: {
+    ...cloudflare.rules,
+
+    // Companion native rules from K-Mistele/anti-slop
+    'oxc/no-accumulating-spread': 'error',
+    complexity: ['error', { max: 15 }],
+    'typescript/no-non-null-assertion': 'error',
+    // Effect v4 requires namespace imports (`preferNamespaceImport` in tsconfig.base.json).
+    'import/no-namespace': ['error', { ignore: ['effect', 'effect/**', '@effect/**'] }],
+
+    // Core anti-slop rules
+    'anti-slop/max-ternary-depth': ['error', { maxDepth: 2 }],
+    'anti-slop/no-array-filter-map': 'error',
+    'anti-slop/no-chained-type-assertions': 'error',
+    'anti-slop/no-conditional-spread': 'error',
+    'anti-slop/no-dev-env-branch': 'error',
+    'anti-slop/no-disabled-type-assertion-rules': 'error',
+    'anti-slop/no-instanceof': 'error',
+    'anti-slop/no-known-value-widening': 'error',
+    'anti-slop/no-module-mocking': 'error',
+    'anti-slop/no-object-parameters': 'error',
+    'anti-slop/no-reduce-accumulator-copy': 'error',
+    'anti-slop/no-reflect-apply': 'error',
+    'anti-slop/no-reflect-get': 'error',
+    'anti-slop/no-reprovide-ambient-service': 'error',
+    'anti-slop/no-runtime-typeof': 'error',
+    'anti-slop/no-shape-in-symbol-names': 'error',
+    'anti-slop/no-unknown-parameters': 'error',
+    'anti-slop/no-unknown-returns': 'error',
+    'anti-slop/no-unknown-type-aliases': 'error',
+    'anti-slop/no-unsafe-dictionary-type': 'error',
+    'anti-slop/no-widen-then-assert': 'error',
+    'anti-slop/require-readable-spacing': 'error',
+    'anti-slop/require-safety-comment-for-type-assertion': 'error',
+
+    // Test-honesty rules (@interfere/landmines)
+    'landmines/strict-msw': 'error',
+    'landmines/no-fixed-sleep': 'error',
+    'landmines/no-unsignaled-poll': 'error',
+    'landmines/no-flake-masking': 'error',
+
+    // AI-shortcut rules (eslint-plugin-ai-guard)
+    'ai-guard/no-placeholder-implementation': 'error',
+    'ai-guard/no-test-env-branch': 'error',
+    'ai-guard/no-tautological-assertion': 'error',
+    'ai-guard/no-assertionless-test': 'error',
+    'ai-guard/no-undeclared-import': 'error',
+    'ai-guard/no-silent-fallback': 'error',
+
+    // Effect AST rules (K-Mistele/anti-slop)
+    'anti-slop-effect/no-manual-effect-error-tag': 'error',
+    'anti-slop-effect/no-manual-tag-comparison': 'error',
+    'anti-slop-effect/no-manual-tagged-construction': 'error',
+    'anti-slop-effect/no-manual-tagged-type': 'error',
+    'anti-slop-effect/no-ordie-in-service-construction': 'error',
+    'anti-slop-effect/no-service-constructor-imports': 'error',
+    'anti-slop-effect/no-service-parameters': 'error',
+    'anti-slop-effect/no-static-effect-service-forwarders': 'error',
+    'anti-slop-effect/no-test-code-in-src': 'error',
+    'anti-slop-effect/no-unbounded-retry': 'error',
+    'anti-slop-effect/prefer-effect-match': 'error',
+    'anti-slop-effect/prefer-tagged-error-handling': 'error',
+    'anti-slop-effect/prefer-yield-service': 'error',
+    'anti-slop-effect/require-cause-when-narrowing': 'error',
+    'anti-slop-effect/require-operation-span': 'error',
+    'anti-slop-effect/require-service-make-layer': 'error',
+    'anti-slop-effect/stream-large-files': 'error',
+    'anti-slop-effect/throw-in-effect-gen': 'error',
+
+    // Effect runtime rules (cevr/effect-oxlint)
+    'effect/noAliasTestLayer': 'error',
+    'effect/noEagerAcquire': 'error',
+    'effect/noManagedRuntimeInEffect': 'error',
+    'effect/noPerCallCacheConstruction': 'error',
+    'effect/noPointFreeLog': 'error',
+    'effect/noRunCollectOnUnboundedStream': 'error',
+    'effect/noSilentCatchAll': 'error',
+    'effect/noUnboundedConcurrency': 'error',
+    'effect/requireSuppressionReason': 'error',
+    'effect/requireForceKillAfter': 'error',
+
+    // Effect rules (@enfect/oxlint)
+    'enfect/effect-promise-vs-trypromise': 'error',
+    'enfect/prefer-redacted-config': 'error',
+    'enfect/avoid-option-getorthrow': 'error',
+    'enfect/effect-run-in-body': 'error',
+    'enfect/no-cause-in-http-response': 'error',
+    'enfect/no-effect-ignore-then-as': 'error',
+    'enfect/avoid-expect-in-if': 'error',
+    'enfect/yield-in-for-loop': 'error',
+    'enfect/prefer-duration-constructors': 'error',
+    'enfect/avoid-mutable-state': 'error',
+    'enfect/prefer-option-over-null': 'error',
+  },
   overrides: [
-    {
-      files: ['**/services/**/*.ts'],
-      rules: {
-        'unicorn/filename-case': 'off',
-      },
-    },
+    ...cloudflareOverrides,
     {
       files: testFiles,
-      plugins: ['vitest'],
       rules: {
-        // `@effect/vitest`'s `layer(L)(name, (it) => ...)` intentionally
-        // shadows the module-level `it` with a layer-scoped one.
-        'no-shadow': ['error', { allow: ['it'] }],
-        'vitest/expect-expect': 'off',
-        // `@effect/vitest` registers Effect tests through `it.effect`.
-        'vitest/consistent-test-it': ['error', { fn: 'it', withinDescribe: 'it' }],
-        'vitest/require-top-level-describe': 'off',
-        'vitest/prefer-importing-vitest-globals': 'error',
-        'vitest/prefer-to-be-truthy': 'off',
-        'vitest/prefer-to-be-falsy': 'off',
-        'vitest/valid-expect': 'error',
-        'vitest/valid-title': 'error',
-        'vitest/prefer-strict-boolean-matchers': 'error',
-        'vitest/max-expects': ['error', { max: 20 }],
-        'vitest/no-conditional-expect': 'error',
-        'vitest/no-standalone-expect': [
-          'error',
-          { additionalTestBlockFunctions: ['it.effect', 'it.effect.each', 'it.live', 'it.prop', 'it.effect.prop'] },
-        ],
-        'vitest/no-restricted-vi-methods': [
-          'error',
-          {
-            mock: 'Provide a test Layer or pass the dependency instead of replacing a module.',
-            doMock: 'Provide a test Layer or pass the dependency instead of replacing a module.',
-          },
-        ],
-        // The rule matches describe titles by import name only. Titles that
-        // name `Effect.fn` wrappers or Layer values would be retitled to
-        // `<anonymous>` or `[object Object]` by its autofix.
-        'vitest/prefer-describe-function-title': 'off',
-        // Its autofix rewrites `toEqual` to `toStrictEqual` in ways that break
-        // structural comparisons of Effect data values.
-        'vitest/prefer-strict-equal': 'off',
-        // `@effect-diagnostics` is a compiler pragma, not an unknown JSDoc tag.
-        'jsdoc/check-tag-names': ['error', { definedTags: ['effect-diagnostics'] }],
-        // Test scaffolding may compare results with native Object helpers.
-        'no-restricted-properties': ['error', ...baseRestrictedProperties, ...effectProperties],
-
-        // The Effect idiom rules target production domain code, not test
-        // scaffolding. Throwing to fail an assertion, checking `x._tag`
-        // directly, inline JSON fixtures, native loops/object helpers, and
-        // `T | null` fixtures are all correct in tests; type-driven shapes are
-        // still enforced by typecheck.
-        'effect/avoid-untagged-errors': 'off',
-        'effect/avoid-direct-tag-checks': 'off',
-        'effect/throw-in-effect-gen': 'off',
-        'effect/avoid-direct-json': 'off',
-        'effect/prefer-effect-fn': 'off',
-        'effect/yield-in-for-loop': 'off',
-        'effect/require-effect-concurrency': 'off',
-        'effect/avoid-schema-suffix': 'off',
-        'effect/avoid-option-getorthrow': 'off',
-        'effect/avoid-expect-in-if': 'off',
-        'effect/avoid-process-env': 'off',
-        'effect/require-schema-type-alias': 'off',
-        'effect/prefer-match-over-switch': 'off',
-        'effect/use-path-service': 'off',
-        'effect/prefer-arr-sort': 'off',
-        'effect/imperative-loops': 'off',
-        'effect/avoid-native-object-helpers': 'off',
-        'effect/prefer-option-over-null': 'off',
+        complexity: 'off',
+        'anti-slop-effect/throw-in-effect-gen': 'off',
+        'effect/noUnboundedConcurrency': 'off',
+        'enfect/effect-promise-vs-trypromise': 'off',
+        'enfect/avoid-option-getorthrow': 'off',
+        'enfect/effect-run-in-body': 'off',
       },
     },
     {
-      // Test registration rules do not apply to executable fixtures and helpers.
-      files: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/__tests__/**/*.{ts,tsx,js,jsx}'],
+      // Real entry points where Effect programs may be executed.
+      files: ['apps/*/src/main.ts', 'apps/*/src/worker.ts', 'apps/*/scripts/**', 'apps/*/alchemy.run.ts'],
       rules: {
-        'vitest/require-hook': ['error', { allowedFunctionCalls: ['layer'] }],
-      },
-    },
-    {
-      // Oxlint, Oxfmt, Vitest, Vite, Drizzle, and Alchemy load these entry
-      // points through their default-export contracts.
-      files: ['**/*.config.{ts,mjs}', '**/alchemy.run.ts', '**/extensions/*.ts'],
-      rules: {
-        'import/no-default-export': 'off',
+        'enfect/effect-run-in-body': 'off',
       },
     },
   ],
-  rules: {
-    // All Effect-plugin rules at error; targeted opt-outs live below and in the
-    // overrides above.
-    ...effect.configs.recommended.rules,
-
-    // Type safety.
-    '@typescript-eslint/no-explicit-any': 'error',
-    '@typescript-eslint/no-non-null-assertion': 'error',
-    '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
-    'typescript/ban-ts-comment': ['error', { 'ts-expect-error': true, 'ts-ignore': true, 'ts-nocheck': true }],
-    'typescript/explicit-module-boundary-types': 'error',
-    'typescript/explicit-member-accessibility': 'error',
-    // Type-aware linting applies this rule to Effect, Schema class, and
-    // platform values, which are not deeply readonly types. Domain data is
-    // kept immutable through `readonly` fields and `ReadonlyArray` instead.
-    'typescript/prefer-readonly-parameter-types': 'off',
-    'typescript/require-await': 'error',
-    'typescript/no-require-imports': 'error',
-    'typescript/no-var-requires': 'error',
-    'typescript/no-restricted-types': [
-      'error',
-      {
-        types: {
-          'Record<string, unknown>': 'Parse the value into a named domain type.',
-          'Record<string, any>': 'Parse the value into a named domain type.',
-          'Record<PropertyKey, unknown>': 'Parse the value into a named domain type.',
-        },
-      },
-    ],
-    '@typescript-eslint/no-inferrable-types': 'error',
-    '@typescript-eslint/array-type': ['error', { default: 'generic', readonly: 'generic' }],
-    'prefer-as-const': 'error',
-    // A Schema value and its type alias share one name by Effect convention;
-    // the TypeScript checker already rejects real redeclarations.
-    'no-redeclare': 'off',
-    'no-unused-vars': [
-      'error',
-      {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        fix: { imports: 'safe-fix', variables: 'off' },
-      },
-    ],
-
-    // Effect idioms that native Oxlint can express. The ast-grep rules in
-    // rules/ cover structural patterns, and the Effect language service
-    // covers type-aware diagnostics.
-    'no-restricted-properties': ['error', ...baseRestrictedProperties, ...objectHelpers, ...effectProperties],
-    // Named value imports from the `effect` barrel load every module.
-    'no-restricted-imports': [
-      'error',
-      {
-        paths: [
-          {
-            name: 'effect',
-            allowTypeImports: true,
-            message: 'Import the module namespace, for example import * as Effect from "effect/Effect".',
-          },
-        ],
-      },
-    ],
-    'import/no-nodejs-modules': 'error',
-    'import/no-namespace': ['error', { ignore: ['effect', 'effect/**', '@effect/**'] }],
-    // Schema and branded factories are callable; constructors still use capitals.
-    'new-cap': ['error', { capIsNew: false, newIsCap: true }],
-
-    // Modules.
-    'import/export': 'error',
-    'import/extensions': 'error',
-    'import/no-anonymous-default-export': 'error',
-    'import/no-commonjs': 'error',
-    'import/no-default-export': 'error',
-    'import/no-dynamic-require': 'error',
-    'import/no-unassigned-import': 'error',
-    'import/unambiguous': 'error',
-
-    // Structure and size.
-    complexity: ['error', { max: 20, variant: 'classic' }],
-    'max-depth': 'error',
-    'max-lines': ['error', { max: 500 }],
-    'no-continue': 'error',
-    'no-param-reassign': 'error',
-    'default-param-last': 'error',
-    'init-declarations': 'error',
-    'no-console': 'error',
-    'no-implicit-coercion': 'error',
-    'no-negated-condition': 'error',
-    'unicorn/no-negated-condition': 'error',
-    'unicorn/no-nested-ternary': 'error',
-    'unicorn/no-immediate-mutation': 'error',
-    'unicorn/no-process-exit': 'error',
-    'unicorn/explicit-length-check': 'error',
-    'unicorn/filename-case': 'error',
-    'unicorn/import-style': 'error',
-    'unicorn/prefer-global-this': 'error',
-    'unicorn/prefer-number-coercion': 'error',
-    'unicorn/prefer-single-call': 'error',
-    'unicorn/prefer-string-raw': 'error',
-    'unicorn/prefer-top-level-await': 'error',
-    // Check nested declarations and function expressions while allowing small
-    // arrow helpers to stay beside the scope that owns them.
-    'unicorn/consistent-function-scoping': ['error', { checkArrowFunctions: false }],
-    // Captures are parser contracts: name semantic captures and use
-    // non-capturing groups when only precedence or repetition is needed.
-    'prefer-named-capture-group': 'error',
-    'promise/always-return': 'error',
-    'promise/catch-or-return': 'error',
-    'jsdoc/require-param-type': 'error',
-    'jsdoc/require-returns-type': 'error',
-    // Doc comments are prose; TypeScript signatures carry parameter and return
-    // types, so these tags would only repeat the signature.
-    'jsdoc/require-param': 'off',
-    'jsdoc/require-returns': 'off',
-
-    // Naming stays under the repository's control.
-    'sort-keys': 'off',
-    'func-names': 'off',
-    'max-classes-per-file': 'off',
-
-    // Conflicts with the Effect language-service `asyncFunction` rule:
-    // Effect.tryPromise/Effect.promise thunks must return a Promise without
-    // being declared async.
-    '@typescript-eslint/promise-function-async': 'off',
-    // Effect generators return early from guarded branches by design.
-    '@typescript-eslint/consistent-return': 'off',
-    'unicorn/prefer-export-from': 'off',
-    // Off: no-restricted-properties rejects Reflect.apply.
-    'unicorn/prefer-reflect-apply': 'off',
-    // Oxlint requires uppercase hex digits while oxfmt rewrites them
-    // lowercase. Keep one toolchain authority.
-    'unicorn/number-literal-case': 'off',
-    // Immutable object updates still allocate. The rule only recognizes native
-    // `.map`, so replacing it with `Arr.map` hides the same pattern.
-    'oxc/no-map-spread': 'off',
-    // Anti-slop turns off the default `record` mode because its autofix loops
-    // with `no-known-value-widening`; `index-signature` mode rewrites every
-    // `Record<string, V>` into a longer form and prevents no defect.
-    'typescript/consistent-indexed-object-style': 'off',
-
-    // `Effect.forEach`, `Option.map`, and `Effect.map(fn)` are module-level
-    // Effect combinators, not `Array.prototype` methods. These unicorn rules
-    // misfire on them; Effect's own `imperative-loops` rule governs real
-    // array iteration.
-    'unicorn/no-array-for-each': 'off',
-    'unicorn/no-array-method-this-argument': 'off',
-    'unicorn/no-array-callback-reference': 'off',
-
-    // `Schema.TaggedError<Self>()(...)` declares an error class; it constructs
-    // nothing, but the rule reads any call ending in `Error` as a missing `new`.
-    'unicorn/throw-new-error': 'off',
-
-    // prefer-arr-match fires on every `.length` comparison, not just the
-    // array empty/non-empty branching `Arr.match` targets; most hits are
-    // early-return guards and string-length checks where it does not fit.
-    'effect/prefer-arr-match': 'off',
-
-    // Schema struct keys are the wire keys decoded from external service APIs
-    // (e.g. `monitored`, `hasFile`, `deleted`, `subscribed`). A boolean field
-    // name is the upstream JSON key, not ours to rename; forcing an `is*`
-    // prefix would break decoding unless every field carried a `fromKey`
-    // remap, which is churn for no safety gain. Off by domain constraint.
-    'effect/require-is-prefix-for-boolean-schema-field': 'off',
-  },
 })

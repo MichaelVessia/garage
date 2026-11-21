@@ -3,11 +3,22 @@ import { assert, describe, expect, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { Scene, Story } from 'foldkit'
 
-import { CalendarDate, FrameSettings, IanaTimezone, MediaSnapshot, Weather } from '#shared'
+import {
+  AllDayEvent,
+  CalendarDate,
+  FrameSettings,
+  IanaTimezone,
+  MediaAction,
+  MediaCard,
+  MediaSnapshot,
+  TimedEvent,
+  Weather,
+} from '#shared'
 import type { CalendarEvent } from '#shared'
 
 import {
@@ -31,6 +42,7 @@ const timezone = IanaTimezone.make('America/New_York')
 
 // Monday 2026-11-02, 10:00 in New York.
 const now = DateTime.makeUnsafe('2026-11-02T15:00:00Z')
+
 const at = (iso: string) => DateTime.makeUnsafe(iso)
 
 const initial = init({ now, bootVersion: Option.some('build-1') }).model
@@ -42,8 +54,7 @@ const ready: Model = {
 }
 
 const events: ReadonlyArray<CalendarEvent> = [
-  {
-    _tag: 'TimedEvent',
+  TimedEvent.make({
     id: 'swim/1',
     title: 'Swim lesson',
     location: 'Community pool',
@@ -51,9 +62,8 @@ const events: ReadonlyArray<CalendarEvent> = [
     color: null,
     start: at('2026-11-02T22:00:00Z'),
     end: at('2026-11-02T23:00:00Z'),
-  },
-  {
-    _tag: 'AllDayEvent',
+  }),
+  AllDayEvent.make({
     id: 'visit',
     title: 'Grandparents visiting',
     location: null,
@@ -61,7 +71,7 @@ const events: ReadonlyArray<CalendarEvent> = [
     color: null,
     startDate: CalendarDate.make('2026-11-03'),
     endDate: CalendarDate.make('2026-11-05'),
-  },
+  }),
 ]
 
 const shopping = [
@@ -72,8 +82,7 @@ const shopping = [
 const media = MediaSnapshot.make({
   spotify: null,
   cards: [
-    {
-      _tag: 'PlayerCard',
+    MediaCard.cases.PlayerCard.make({
       player: {
         entityId: 'media_player.receiver',
         name: 'Receiver',
@@ -86,15 +95,14 @@ const media = MediaSnapshot.make({
         sources: [],
         nowPlaying: null,
       },
-    },
-    {
-      _tag: 'ZonesCard',
+    }),
+    MediaCard.cases.ZonesCard.make({
       speakers: {
         zones: [{ entityId: 'switch.zone_a', name: 'Zone A', isOn: false, isAvailable: true }],
         hasAllOn: false,
         hasAllOff: false,
       },
-    },
+    }),
   ],
 })
 
@@ -215,12 +223,16 @@ describe('frame app', () => {
     Story.story(
       update,
       Story.given({ ...ready, screen: 'media', media: { data: Option.some(media), failed: false } }),
-      Story.message(Message.ClickedMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
+      Story.message(
+        Message.ClickedMediaAction({ action: MediaAction.cases.ZoneOn.make({ entityId: 'switch.zone_a' }) })
+      ),
       Story.model((model) => {
         const [, zones] = Option.getOrNull(model.media.data)?.cards ?? []
-        expect(zones?._tag === 'ZonesCard' ? zones.speakers.zones[0]?.isOn : undefined).toBe(true)
+        expect(P.isTagged(zones, 'ZonesCard') ? zones.speakers.zones[0]?.isOn : undefined).toBe(true)
       }),
-      Story.Command.expectExact(RunMediaAction({ action: { _tag: 'ZoneOn', entityId: 'switch.zone_a' } })),
+      Story.Command.expectExact(
+        RunMediaAction({ action: MediaAction.cases.ZoneOn.make({ entityId: 'switch.zone_a' }) })
+      ),
       Story.Command.resolve(RunMediaAction, Message.SucceededFetchMedia({ media }))
     )
   })
@@ -335,8 +347,7 @@ describe('frame app', () => {
 
   it('always shows the next event on Today, even when it is on a later day', () => {
     const later: ReadonlyArray<CalendarEvent> = [
-      {
-        _tag: 'TimedEvent',
+      TimedEvent.make({
         id: 'breakfast',
         title: 'Breakfast',
         location: null,
@@ -344,9 +355,8 @@ describe('frame app', () => {
         color: null,
         start: at('2026-11-02T12:00:00Z'),
         end: at('2026-11-02T13:00:00Z'),
-      },
-      {
-        _tag: 'TimedEvent',
+      }),
+      TimedEvent.make({
         id: 'dentist',
         title: 'Dentist',
         location: 'Main Street',
@@ -354,7 +364,7 @@ describe('frame app', () => {
         color: null,
         start: at('2026-11-03T15:00:00Z'),
         end: at('2026-11-03T16:00:00Z'),
-      },
+      }),
     ]
 
     // Monday 21:00 in New York: today's only event is over.
@@ -398,7 +408,7 @@ describe('frame app', () => {
     // A light extended-palette label for the timed event, a dark red for the all-day one.
     const coloured = Arr.map(events, (event): CalendarEvent => ({
       ...event,
-      color: event._tag === 'AllDayEvent' ? '#d50000' : '#c0ca33',
+      color: P.isTagged(event, 'AllDayEvent') ? '#d50000' : '#c0ca33',
     }))
 
     const loaded: Model = {

@@ -154,16 +154,16 @@ interface InsertWeightLogInput {
   readonly datetime: Date
   readonly weight: number
   readonly userId: string
-  readonly notes?: string | null
+  readonly notes?: string
 }
 
-export const insertWeightLog = ({ id, datetime, weight, userId, notes = null }: InsertWeightLogInput): InsertEffect =>
+export const insertWeightLog = ({ id, datetime, weight, userId, notes }: InsertWeightLogInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     yield* sql`
       INSERT INTO weight_logs (id, datetime, weight, notes, user_id, created_at, updated_at)
-      VALUES (${id}, ${datetime.toISOString()}, ${weight}, ${notes}, ${userId}, ${now}, ${now})
+      VALUES (${id}, ${datetime.toISOString()}, ${weight}, ${notes ?? null}, ${userId}, ${now}, ${now})
     `
   })
 
@@ -188,10 +188,10 @@ interface InsertInjectionLogInput {
   readonly drug: MedicationCompound
   readonly doseMg: number
   readonly userId: string
-  readonly supplier?: string | null
-  readonly injectionSite?: string | null
-  readonly notes?: string | null
-  readonly scheduleId?: string | null
+  readonly supplier?: string
+  readonly injectionSite?: string
+  readonly notes?: string
+  readonly scheduleId?: string
 }
 
 export const insertInjectionLog = (input: InsertInjectionLogInput): InsertEffect =>
@@ -211,9 +211,9 @@ interface InsertScheduleInput {
   readonly frequency: string
   readonly startDate: Date
   readonly userId: string
-  readonly supplier?: string | null
+  readonly supplier?: string
   readonly isActive?: boolean
-  readonly notes?: string | null
+  readonly notes?: string
 }
 
 export const insertSchedule = (input: InsertScheduleInput): InsertEffect =>
@@ -234,7 +234,7 @@ interface InsertSchedulePhaseInput {
   readonly scheduleId: string
   readonly order: number
   readonly doseMg: number
-  readonly durationDays?: number | null
+  readonly durationDays?: number
 }
 
 export const insertSchedulePhase = ({
@@ -242,14 +242,14 @@ export const insertSchedulePhase = ({
   scheduleId,
   order,
   doseMg,
-  durationDays = null,
+  durationDays,
 }: InsertSchedulePhaseInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
     yield* sql`
       INSERT INTO schedule_phases (id, schedule_id, "order", duration_days, dose_mg, created_at, updated_at)
-      VALUES (${id}, ${scheduleId}, ${order}, ${durationDays}, ${doseMg}, ${now}, ${now})
+      VALUES (${id}, ${scheduleId}, ${order}, ${durationDays ?? null}, ${doseMg}, ${now}, ${now})
     `
   })
 
@@ -257,17 +257,17 @@ interface InsertSettingsInput {
   readonly id: string
   readonly userId: string
   readonly weightUnit: 'lbs' | 'kg'
-  readonly timezone?: string | null
+  readonly timezone?: string
 }
 
-export const insertSettings = ({ id, userId, weightUnit, timezone = null }: InsertSettingsInput): InsertEffect =>
+export const insertSettings = ({ id, userId, weightUnit, timezone }: InsertSettingsInput): InsertEffect =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
-    const migrationState = timezone === null ? 'pending' : 'complete'
+    const migrationState = timezone === undefined ? 'pending' : 'complete'
     yield* sql`
       INSERT INTO user_settings (id, user_id, weight_unit, timezone, timezone_migration_state, created_at, updated_at)
-      VALUES (${id}, ${userId}, ${weightUnit}, ${timezone}, ${migrationState}, ${now}, ${now})
+      VALUES (${id}, ${userId}, ${weightUnit}, ${timezone ?? null}, ${migrationState}, ${now}, ${now})
     `
   })
 

@@ -9,7 +9,9 @@ import { InjectionsPerWeek } from '../injection/domain.js'
 import { DayOfWeekCount, InjectionDayOfWeekStats, InjectionFrequencyStats } from './domain.js'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 const MS_PER_WEEK = 7 * MS_PER_DAY
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 export const getDayOfWeekInTimezone: {

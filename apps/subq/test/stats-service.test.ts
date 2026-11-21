@@ -2,6 +2,7 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as SqlClient from 'effect/sql/SqlClient'
 
 import { StatsDatabaseError, StatsParams } from '#shared'
@@ -23,13 +24,8 @@ const ensureDefaultSettings = Effect.gen(function* () {
   `
 })
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('StatsService', () => {
   describe('getWeightStats', () => {
@@ -138,11 +134,11 @@ describe('StatsService', () => {
           const { data: result } = yield* stats.getWeightTrend(StatsParams.make({}), 'user-123')
 
           assert.strictEqual(result.points.length, 3)
-          assert.strictEqual(requireValue(result.points[0]).weight, 200)
-          assert.strictEqual(requireValue(result.points[1]).weight, 195)
-          assert.strictEqual(requireValue(result.points[2]).weight, 190)
-          assert.closeTo(requireValue(result.trendLine).startWeight, 200, 0.005)
-          assert.closeTo(requireValue(result.trendLine).endWeight, 190, 0.005)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.points[0])).weight, 200)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.points[1])).weight, 195)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.points[2])).weight, 190)
+          assert.closeTo(requireValue(Option.fromNullishOr(result.trendLine)).startWeight, 200, 0.005)
+          assert.closeTo(requireValue(Option.fromNullishOr(result.trendLine)).endWeight, 190, 0.005)
         })
       )
     })
@@ -190,8 +186,8 @@ describe('StatsService', () => {
 
           assert.strictEqual(result.totalInjections, 4)
           assert.strictEqual(result.sites.length, 3)
-          assert.strictEqual(requireValue(result.sites[0]).site, 'left VG')
-          assert.strictEqual(requireValue(result.sites[0]).count, 2)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.sites[0])).site, 'left VG')
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.sites[0])).count, 2)
         })
       )
     })
@@ -228,9 +224,9 @@ describe('StatsService', () => {
           const { data: result } = yield* stats.getDoseHistory(StatsParams.make({}), 'user-123')
 
           assert.strictEqual(result.points.length, 3)
-          assert.strictEqual(requireValue(result.points[0]).doseMg, 200)
-          assert.strictEqual(requireValue(result.points[1]).doseMg, 0.25)
-          assert.strictEqual(requireValue(result.points[2]).doseMg, 0.5)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.points[0])).doseMg, 200)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.points[1])).doseMg, 0.25)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.points[2])).doseMg, 0.5)
         })
       )
     })
@@ -345,10 +341,10 @@ describe('StatsService', () => {
 
           assert.strictEqual(result.totalInjections, 4)
           assert.strictEqual(result.drugs.length, 2)
-          assert.strictEqual(requireValue(result.drugs[0]).drug, 'Semaglutide')
-          assert.strictEqual(requireValue(result.drugs[0]).count, 3)
-          assert.strictEqual(requireValue(result.drugs[1]).drug, 'Tirzepatide')
-          assert.strictEqual(requireValue(result.drugs[1]).count, 1)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.drugs[0])).drug, 'Semaglutide')
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.drugs[0])).count, 3)
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.drugs[1])).drug, 'Tirzepatide')
+          assert.strictEqual(requireValue(Option.fromNullishOr(result.drugs[1])).count, 1)
         })
       )
     })
@@ -367,7 +363,7 @@ describe('StatsService', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.instanceOf(result.failure, StatsDatabaseError)
             assert.strictEqual(result.failure.operation, 'query')
           }
@@ -387,7 +383,7 @@ describe('StatsService', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.instanceOf(result.failure, StatsDatabaseError)
             assert.strictEqual(result.failure.operation, 'query')
           }
@@ -414,7 +410,7 @@ describe('StatsService', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.instanceOf(result.failure, StatsDatabaseError)
             assert.strictEqual(result.failure.operation, 'query')
           }

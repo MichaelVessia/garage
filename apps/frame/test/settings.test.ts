@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import * as FileSystem from 'effect/FileSystem'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
 
 import { FrameEnvFileLive } from '../src/settings.js'
@@ -18,12 +19,15 @@ GOOGLE_SERVICE_ACCOUNT_KEY='${serviceAccountKey}'
 FRAME_TIMEZONE=Europe/London
 `
 
-const readSettings = Effect.all({
-  url: Config.NonEmptyString('HOME_ASSISTANT_URL'),
-  token: Config.Redacted('HOME_ASSISTANT_TOKEN').pipe(Effect.map(Redacted.value)),
-  key: Config.Redacted('GOOGLE_SERVICE_ACCOUNT_KEY').pipe(Effect.map(Redacted.value)),
-  timezone: Config.NonEmptyString('FRAME_TIMEZONE').pipe(Config.option),
-})
+const readSettings = Effect.all(
+  {
+    url: Config.NonEmptyString('HOME_ASSISTANT_URL'),
+    token: Config.Redacted('HOME_ASSISTANT_TOKEN').pipe(Effect.map(Redacted.value)),
+    key: Config.Redacted('GOOGLE_SERVICE_ACCOUNT_KEY').pipe(Effect.map(Redacted.value)),
+    timezone: Config.NonEmptyString('FRAME_TIMEZONE').pipe(Config.option),
+  },
+  { concurrency: 'unbounded' }
+)
 
 const withEnv = (env: Record<string, string>) =>
   FrameEnvFileLive.pipe(
@@ -84,7 +88,7 @@ describe('FrameEnvFileLive', () => {
         Effect.exit
       )
 
-      assert.isTrue(exit._tag === 'Failure')
+      assert.isTrue(P.isTagged(exit, 'Failure'))
     })
   )
 })

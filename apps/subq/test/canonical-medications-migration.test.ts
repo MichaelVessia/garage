@@ -27,6 +27,7 @@ const InjectionRows = Schema.Array(
 )
 
 const PhaseRows = Schema.Array(Schema.Struct({ id: Schema.String, dose_mg: Schema.Finite }))
+
 const TableInfoRows = Schema.Array(Schema.Struct({ name: Schema.String }))
 
 const makeLegacyDatabase = (): Database => {
@@ -81,7 +82,7 @@ const applyMigration = (database: Database): void => {
   }
 }
 
-const insertLegacySchedule = (database: Database, id: string, drug: string, source: string | null = null): void => {
+const insertLegacySchedule = (database: Database, id: string, drug: string, source?: string): void => {
   database
     .query(
       `INSERT INTO injection_schedules
@@ -89,7 +90,7 @@ const insertLegacySchedule = (database: Database, id: string, drug: string, sour
        VALUES (?, ?, ?, ?, 'weekly', '2026-01-01T00:00:00.000Z', 1, NULL, 'user-1',
                '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`
     )
-    .run(id, `Schedule ${id}`, drug, source)
+    .run(id, `Schedule ${id}`, drug, source ?? null)
 }
 
 const insertLegacyInjection = (
@@ -97,8 +98,8 @@ const insertLegacyInjection = (
   id: string,
   drug: string,
   dosage: string,
-  source: string | null = null,
-  scheduleId: string | null = null
+  source?: string,
+  scheduleId?: string
 ): void => {
   database
     .query(
@@ -107,7 +108,7 @@ const insertLegacyInjection = (
        VALUES (?, '2026-01-01T12:00:00.000Z', ?, ?, ?, NULL, NULL, ?, 'user-1',
                '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`
     )
-    .run(id, drug, source, dosage, scheduleId)
+    .run(id, drug, source ?? null, dosage, scheduleId ?? null)
 }
 
 describe('canonical medication migration', () => {
@@ -130,7 +131,7 @@ describe('canonical medication migration', () => {
       ]
 
       for (const [index, [legacy, canonical]] of labels.entries()) {
-        insertLegacySchedule(database, `schedule-${index}`, legacy, index === 0 ? 'Clinic' : null)
+        insertLegacySchedule(database, `schedule-${index}`, legacy, index === 0 ? 'Clinic' : undefined)
         insertLegacyInjection(database, `injection-${index}`, legacy, index % 2 === 0 ? '0.25 mg' : '5 MG')
         assert.isNotEmpty(canonical)
       }

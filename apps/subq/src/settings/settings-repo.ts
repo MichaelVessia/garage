@@ -46,8 +46,11 @@ const LegacyGoalDateRow = Schema.Struct({
 })
 
 const decodeSettingsRow = Schema.decodeUnknownEffect(SettingsRow)
+
 const decodeLegacyScheduleRows = Schema.decodeUnknownEffect(Schema.Array(LegacyScheduleDateRow))
+
 const decodeLegacyGoalRows = Schema.decodeUnknownEffect(Schema.Array(LegacyGoalDateRow))
+
 const decodeLegacyInstant = Schema.decodeUnknownOption(Schema.DateTimeUtcFromString)
 
 const settingsRowToDomain = (row: typeof SettingsRow.Type, timezone: IanaTimezone): UserSettings =>
@@ -124,11 +127,8 @@ export class SettingsRepo extends Context.Service<
     ) => Effect.Effect<UserSettings, SettingsDatabaseError | SettingsTemporalMigrationError>
     readonly upsert: (userId: string, data: UserSettingsUpdate) => Effect.Effect<UserSettings, SettingsDatabaseError>
   }
->()('@garage/subq/settings/settings-repo/SettingsRepo') {}
-
-export const SettingsRepoLive = Layer.effect(
-  SettingsRepo,
-  Effect.gen(function* () {
+>()('@garage/subq/settings/settings-repo/SettingsRepo') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     const readRow = Effect.fn('settingsRepo.readRow')(
@@ -384,4 +384,8 @@ export const SettingsRepoLive = Layer.effect(
 
     return { get, initializeTimezone, upsert }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const SettingsRepoLive = SettingsRepo.layer

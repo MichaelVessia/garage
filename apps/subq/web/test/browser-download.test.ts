@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
+import * as P from 'effect/Predicate'
 import { vi } from 'vitest'
 
 import { downloadTextFile } from '../src/adapter/browser-download.js'
@@ -28,7 +29,7 @@ describe('browser download adapter', () => {
 
       const blob = createObjectUrl.mock.calls[0]?.[0]
 
-      if (!(blob instanceof Blob)) {
+      if (!P.isObject(blob) || !P.hasProperty(blob, 'type') || !P.hasProperty(blob, 'size')) {
         assert.fail('expected a Blob')
       }
 

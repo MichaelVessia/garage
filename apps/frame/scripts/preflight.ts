@@ -29,7 +29,9 @@ import { HOST_ENV_FILE } from './frame-host.js'
 // screen loads, and no script error is reported. `deploy:prod` runs this before shipping.
 
 const SERVER_PORT = 8099
+
 const DEVTOOLS_PORT = 9333
+
 const SCREENS = ['Today', 'Calendar', 'Shopping', 'Media'] as const
 
 const DevtoolsTarget = Schema.Struct({ webSocketDebuggerUrl: Schema.String })
@@ -44,6 +46,7 @@ const CdpMessage = Schema.fromJsonString(
 )
 
 const EvaluateResult = Schema.Struct({ result: Schema.Struct({ value: Schema.optional(Schema.Unknown) }) })
+
 const CdpParams = Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Finite, Schema.Boolean]))
 
 type CdpParams = typeof CdpParams.Type
@@ -83,7 +86,7 @@ const buildArtifacts = Effect.fn('frame.preflight.build')(function* () {
         '../..#garage-frame-web',
         '../..#chromium-webview-106',
       ],
-      { stderr: 'inherit' }
+      { stderr: 'inherit', forceKillAfter: '5 seconds' }
     )
   )
 
@@ -105,7 +108,9 @@ const fetchHostEnvFile = Effect.fn('frame.preflight.fetchHostEnvFile')(function*
   const unreadable = fail('host env file', `could not read ${HOST_ENV_FILE} over ${dockerHost}`)
 
   const { contents, exitCode } = yield* spawner
-    .spawn(ChildProcess.make('ssh', [dockerHost, 'cat', HOST_ENV_FILE], { stderr: 'inherit' }))
+    .spawn(
+      ChildProcess.make('ssh', [dockerHost, 'cat', HOST_ENV_FILE], { stderr: 'inherit', forceKillAfter: '5 seconds' })
+    )
     .pipe(
       Effect.flatMap((handle) =>
         Effect.all(
@@ -137,7 +142,13 @@ const spawnScoped = Effect.fn('frame.preflight.spawn')(function* (
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 
   const handle = yield* spawner.spawn(
-    ChildProcess.make(command, [...args], { env, extendEnv: true, stdout: 'ignore', stderr: 'ignore' })
+    ChildProcess.make(command, [...args], {
+      env,
+      extendEnv: true,
+      stdout: 'ignore',
+      stderr: 'ignore',
+      forceKillAfter: '5 seconds',
+    })
   )
 
   yield* Effect.addFinalizer(() =>

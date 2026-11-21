@@ -58,32 +58,38 @@ const viewRail = (h: H, model: Model) =>
         )
       ),
       h.div([h.Class('rail-fill')], []),
-      ...(model.isOffline
-        ? [h.div([h.Class('rail-offline'), h.Role('status')], [icon(h, 'offline', 'rail-icon'), 'Offline'])]
-        : []),
+      ...Arr.match(model.isOffline ? [true] : [], {
+        onEmpty: () => [],
+        onNonEmpty: () => [
+          h.div([h.Class('rail-offline'), h.Role('status')], [icon(h, 'offline', 'rail-icon'), 'Offline']),
+        ],
+      }),
       // Today shows the large clock, so the rail clock appears only on the other screens.
-      ...(model.screen === 'today'
-        ? []
-        : [
-            h.button(
-              [
-                h.Class('rail-clock'),
-                h.Type('button'),
-                h.AriaLabel('Today'),
-                h.OnClick(Message.ClickedScreen({ screen: 'today' })),
-              ],
-              Option.match(model.timezone, {
-                onNone: () => [],
-                onSome: (timezone) => {
-                  const { time, meridiem } = clockParts(model.now, timezone)
-
-                  return [h.b([], viewClockDigits(h, time)), h.span([], [meridiem])]
-                },
-              })
-            ),
-          ]),
+      ...viewRailClock(h, model),
     ]
   )
+
+const viewRailClock = (h: H, model: Model): ReadonlyArray<Html> =>
+  model.screen === 'today'
+    ? []
+    : [
+        h.button(
+          [
+            h.Class('rail-clock'),
+            h.Type('button'),
+            h.AriaLabel('Today'),
+            h.OnClick(Message.ClickedScreen({ screen: 'today' })),
+          ],
+          Option.match(model.timezone, {
+            onNone: () => [],
+            onSome: (timezone) => {
+              const { time, meridiem } = clockParts(model.now, timezone)
+
+              return [h.b([], viewClockDigits(h, time)), h.span([], [meridiem])]
+            },
+          })
+        ),
+      ]
 
 // ============================================
 // Ambient
@@ -99,18 +105,18 @@ const viewAmbient = (h: H, model: Model, timezone: IanaTimezone) => {
     [
       h.div([h.Class('amb-time')], [...viewClockDigits(h, time), h.span([h.Class('amb-meridiem')], [meridiem])]),
       h.div([h.Class('amb-date')], [`${weekdayName(date)}, ${monthDay(date)}`]),
-      ...Arr.map(Arr.fromOption(next), (event) =>
-        h.div(
-          [h.Class(classes('amb-next', colorClass(event))), ...colorAttributes(h, event)],
-          [
-            h.span([h.Class('amb-when num')], [isHappening(event, model.now) ? 'Now' : eventTime(event, timezone)]),
-            h.span([], [event.title]),
-            ...(occursOn(event, date, timezone)
-              ? []
-              : [h.span([h.Class('amb-day')], [weekdayName(addCalendarDays(date, 1))])]),
-          ]
-        )
-      ),
+      ...Arr.map(Arr.fromOption(next), (event) => {
+        const nextChildren: Array<Html> = [
+          h.span([h.Class('amb-when num')], [isHappening(event, model.now) ? 'Now' : eventTime(event, timezone)]),
+          h.span([], [event.title]),
+        ]
+
+        if (!occursOn(event, date, timezone)) {
+          nextChildren.push(h.span([h.Class('amb-day')], [weekdayName(addCalendarDays(date, 1))]))
+        }
+
+        return h.div([h.Class(classes('amb-next', colorClass(event))), ...colorAttributes(h, event)], nextChildren)
+      }),
       ...Arr.map(Arr.fromOption(model.weather.data), (weather) =>
         h.div(
           [h.Class('amb-wx')],
@@ -152,15 +158,18 @@ export const view: {
 } = Function.dual(2, (model: Model, h: H): Html =>
   Option.match(model.timezone, {
     onNone: () => h.div([h.Class('stage theme-light')], [h.div([h.Class('booting')], ['Starting…'])]),
-    onSome: (timezone) =>
-      h.div(
-        [h.Class(isDarkHour(model.now, timezone) ? 'stage theme-dark' : 'stage theme-light')],
-        [
-          viewRail(h, model),
-          h.main([h.Class('view')], [viewScreen(h, model, timezone)]),
-          ...viewDetail(h, model, timezone),
-          ...(model.isAmbient ? [viewAmbient(h, model, timezone)] : []),
-        ]
-      ),
+    onSome: (timezone) => {
+      const children: Array<Html> = [
+        viewRail(h, model),
+        h.main([h.Class('view')], [viewScreen(h, model, timezone)]),
+        ...viewDetail(h, model, timezone),
+      ]
+
+      if (model.isAmbient) {
+        children.push(viewAmbient(h, model, timezone))
+      }
+
+      return h.div([h.Class(isDarkHour(model.now, timezone) ? 'stage theme-dark' : 'stage theme-light')], children)
+    },
   })
 )

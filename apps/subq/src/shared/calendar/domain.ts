@@ -5,6 +5,7 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
 const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u
+
 const DATE_TIME_INPUT_PATTERN = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hours>\d{2}):(?<minutes>\d{2})$/u
 
 const isRealCalendarDate = Schema.makeFilter(

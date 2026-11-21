@@ -28,8 +28,8 @@ export {
 
 export type { ForecastDay, ForecastHour, Wind } from './model.js'
 
-export { MediaAction, MediaSnapshot } from './media.js'
+export { MediaAction, MediaCard, MediaSnapshot } from './media.js'
 
-export type { MediaCard, MediaControl, MediaPlayer, MediaPlayerStatus, SpeakerZone, SpeakerZones } from './media.js'
+export type { MediaControl, MediaPlayer, MediaPlayerStatus, SpeakerZone, SpeakerZones } from './media.js'
 
 export { FrameRpcs } from './rpc.js'

@@ -6,7 +6,7 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { Scene, Story } from 'foldkit'
 
-import { CalendarDate, IanaTimezone, Weather } from '#shared'
+import { AllDayEvent, CalendarDate, IanaTimezone, TimedEvent, Weather } from '#shared'
 import type { CalendarEvent, ShoppingItem } from '#shared'
 
 import { AddShoppingItem, FetchWeather, FetchWeek, UpdateShoppingItem } from '../src/command.js'
@@ -27,8 +27,7 @@ const ready: Model = {
   anchor: Option.some(CalendarDate.make('2026-11-02')),
 }
 
-const swim: CalendarEvent = {
-  _tag: 'TimedEvent',
+const swim: CalendarEvent = TimedEvent.make({
   id: 'swim/1',
   title: 'Swim lesson',
   location: 'Community pool',
@@ -36,10 +35,9 @@ const swim: CalendarEvent = {
   color: '#8e24aa',
   start: at('2026-11-02T22:00:00Z'),
   end: at('2026-11-02T23:30:00Z'),
-}
+})
 
-const visit: CalendarEvent = {
-  _tag: 'AllDayEvent',
+const visit: CalendarEvent = AllDayEvent.make({
   id: 'visit',
   title: 'Grandparents visiting',
   location: null,
@@ -47,7 +45,7 @@ const visit: CalendarEvent = {
   color: null,
   startDate: CalendarDate.make('2026-11-05'),
   endDate: CalendarDate.make('2026-11-08'),
-}
+})
 
 const weather = Weather.make({
   condition: 'partlycloudy',
@@ -121,7 +119,7 @@ describe('detail sheets', () => {
   })
 
   it('shows a multi-day all-day event by its first and last day', () => {
-    const html = rendered({ ...loaded, detail: Option.some({ _tag: 'EventDetail', event: visit }) })
+    const html = rendered(update(loaded, Message.ClickedEvent({ event: visit })).model)
 
     expect(html).toContain('Thursday, November 5 – Saturday, November 7')
     expect(html).toContain('All day')
@@ -153,7 +151,7 @@ describe('detail sheets', () => {
   it('closes an open sheet when the frame dims', () => {
     Story.story(
       update,
-      Story.given({ ...loaded, detail: Option.some({ _tag: 'WeatherDetail' }) }),
+      Story.given(update(loaded, Message.ClickedWeather()).model),
       Story.message(Message.TickedClock({ now: at('2026-11-02T15:06:00Z') })),
       Story.model((model) => {
         expect(model.isAmbient).toBe(true)
@@ -167,7 +165,7 @@ describe('calendar shortcuts', () => {
   it('opens one day of the shown week without reloading it', () => {
     Story.story(
       update,
-      Story.given({ ...loaded, detail: Option.some({ _tag: 'EventDetail', event: swim }) }),
+      Story.given(update(loaded, Message.ClickedEvent({ event: swim })).model),
       Story.message(Message.ClickedDate({ date: CalendarDate.make('2026-11-03'), mode: 'day' })),
       Story.model((model) => {
         expect(model.screen).toBe('calendar')

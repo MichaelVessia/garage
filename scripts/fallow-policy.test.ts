@@ -21,7 +21,14 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       'apps/subq/alchemy.run.ts',
       'apps/subq/web/index.html',
     ],
-    dynamicallyLoaded: ['tools/oxlint/anti-slop/index.ts'],
+    dynamicallyLoaded: [
+      'tools/oxlint/anti-slop/index.ts',
+      'tools/oxlint/anti-slop/effect/index.ts',
+      'tools/oxlint/anti-slop/plugins/ai-guard.ts',
+      'tools/oxlint/anti-slop/plugins/effect.ts',
+      'tools/oxlint/anti-slop/plugins/enfect.ts',
+      'tools/oxlint/anti-slop/plugins/landmines.ts',
+    ],
     rulePacks: ['fallow/effect-service-boundaries.jsonc'],
     rules: { 'boundary-violation': 'error', 'policy-violation': 'error' },
     boundaries: {
@@ -66,6 +73,8 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
         exports: ['DeleteOptions', 'LimitOptions', 'SabnzbdConfig', 'envMissing', 'unreachable'],
       },
       { file: 'tools/oxlint/anti-slop/index.ts', exports: ['default'] },
+      { file: 'tools/oxlint/anti-slop/effect/index.ts', exports: ['default'] },
+      { file: 'tools/oxlint/anti-slop/plugins/*.ts', exports: ['default'] },
     ],
   })
 })

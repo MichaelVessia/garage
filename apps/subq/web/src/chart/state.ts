@@ -42,11 +42,17 @@ export const HoveredChartTooltip = taggedStruct('HoveredChartTooltip', {
 })
 
 export const ClearedChartTooltip = taggedStruct('ClearedChartTooltip')
+
 export const ClickedChartPill = taggedStruct('ClickedChartPill', { drug: Schema.String, doseMg: Schema.Finite })
+
 export const ClearedChartFilter = taggedStruct('ClearedChartFilter')
+
 export const StartedChartZoom = taggedStruct('StartedChartZoom', { ms: Schema.Finite })
+
 export const HoveredChartZoom = taggedStruct('HoveredChartZoom', { ms: Schema.Finite })
+
 export const EndedChartZoom = taggedStruct('EndedChartZoom')
+
 export const CancelledChartZoom = taggedStruct('CancelledChartZoom')
 
 export const ChartMessage = Schema.Union([

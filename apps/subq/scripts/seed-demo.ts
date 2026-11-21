@@ -104,5 +104,5 @@ const main = Effect.fn('seed.main')(function* () {
   )
 })
 
-// @effect-diagnostics-next-line strictEffectProvide:off
+// @effect-diagnostics-next-line strictEffectProvide:off -- CLI entry point provides the RPC protocol layer at the composition root
 NodeRuntime.runMain(main().pipe(Effect.provide(ProtocolLive), Effect.scoped))

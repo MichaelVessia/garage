@@ -10,6 +10,7 @@ import { GoalProgress, PercentComplete } from './domain.js'
 import type { PaceStatus, UserGoal } from './domain.js'
 
 const DAYS_PER_WEEK = 7
+
 const DEFAULT_MAX_PROJECTION_DAYS = 5 * 365
 
 export interface BuildGoalProgressParams {

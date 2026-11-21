@@ -1,7 +1,9 @@
 import * as Schema from 'effect/Schema'
 
 const OptionalString = Schema.optional(Schema.String)
+
 const OptionalFinite = Schema.optional(Schema.Finite)
+
 const StringArray = Schema.Array(Schema.String)
 
 const AutocaliwebConfigValue = Schema.Struct({

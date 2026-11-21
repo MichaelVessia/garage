@@ -33,6 +33,7 @@ const PAGE_SIZE = 10
 // ============================================
 
 const byWeight: Order.Order<WeightLog> = Order.mapInput(Order.Number, (log: WeightLog) => log.weight)
+
 const byDatetime: Order.Order<WeightLog> = Order.mapInput(DateTime.Order, (log: WeightLog) => log.datetime)
 
 const sortLogs = (

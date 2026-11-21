@@ -4,7 +4,7 @@ import * as Option from 'effect/Option'
 import * as Result from 'effect/Result'
 import * as Schema from 'effect/Schema'
 
-import type { MediaAction } from '#shared'
+import { MediaAction } from '#shared'
 
 import type { EntityStateResponse } from '../src/home-assistant/api-schema.js'
 import {
@@ -22,14 +22,10 @@ const RECEIVER_FEATURES = 69_516
 // PAUSE + PLAY + PREVIOUS + NEXT + VOLUME_SET + SELECT_SOURCE
 const MUSIC_FEATURES = 18_485
 
+const slotsOf = (raw: string) => Result.getOrThrow(parseMediaSlots(raw))
+
 const config: MediaConfig = {
-  slots: [
-    { _tag: 'Player', player: { entityId: 'media_player.den_tv', controls: Option.none() } },
-    {
-      _tag: 'Player',
-      player: { entityId: 'media_player.receiver', controls: Option.some(['power', 'volume', 'mute']) },
-    },
-  ],
+  slots: slotsOf('media_player.den_tv, media_player.receiver=power+volume+mute'),
   zones: ['switch.zone_a'],
   allOn: Option.some('button.zones_on'),
   allOff: Option.none(),
@@ -42,14 +38,7 @@ describe('media configuration', () => {
   it('parses ordered players, control overrides, and the zone card position', () => {
     assert.deepStrictEqual(
       parseMediaSlots(' media_player.den_tv , zones, media_player.receiver=power+volume+mute '),
-      Result.succeed([
-        { _tag: 'Player', player: { entityId: 'media_player.den_tv', controls: Option.none() } },
-        { _tag: 'Zones' },
-        {
-          _tag: 'Player',
-          player: { entityId: 'media_player.receiver', controls: Option.some(['power', 'volume', 'mute']) },
-        },
-      ])
+      Result.succeed(slotsOf('media_player.den_tv,zones,media_player.receiver=power+volume+mute'))
     )
     assert.deepStrictEqual(parseMediaSlots(''), Result.succeed([]))
   })
@@ -66,24 +55,24 @@ describe('media configuration', () => {
       ['Player', 'Player', 'Zones']
     )
     assert.deepStrictEqual(
-      Array.from(mediaLayout({ ...config, zones: [], slots: [{ _tag: 'Zones' }] }), (slot) => slot._tag),
+      Array.from(mediaLayout({ ...config, zones: [], slots: slotsOf('zones') }), (slot) => slot._tag),
       []
     )
   })
 })
 
+const receiver = (controls: MediaPlayerConfig['controls']) =>
+  toMediaPlayer(
+    { entityId: 'media_player.receiver', controls },
+    Option.some({
+      entity_id: 'media_player.receiver',
+      state: 'on',
+      attributes: { supported_features: RECEIVER_FEATURES, source_list: ['AUX', 'NETWORK'] },
+    })
+  ).controls
+
 describe('media players', () => {
   it('offers what Home Assistant supports, narrowed by the configured override', () => {
-    const receiver = (controls: MediaPlayerConfig['controls']) =>
-      toMediaPlayer(
-        { entityId: 'media_player.receiver', controls },
-        Option.some({
-          entity_id: 'media_player.receiver',
-          state: 'on',
-          attributes: { supported_features: RECEIVER_FEATURES, source_list: ['AUX', 'NETWORK'] },
-        })
-      ).controls
-
     const music = toMediaPlayer(
       { entityId: 'media_player.music', controls: Option.none() },
       Option.some({
@@ -136,7 +125,7 @@ describe('media players', () => {
 describe('media action allowlist', () => {
   it('maps allowed actions to their Home Assistant service calls', () => {
     assert.deepStrictEqual(
-      authorize({ _tag: 'SetMute', entityId: 'media_player.receiver', muted: true }),
+      authorize(MediaAction.cases.SetMute.make({ entityId: 'media_player.receiver', muted: true })),
       Result.succeed({
         domain: 'media_player',
         service: 'volume_mute',
@@ -144,7 +133,7 @@ describe('media action allowlist', () => {
       })
     )
     assert.deepStrictEqual(
-      authorize({ _tag: 'SelectSource', entityId: 'media_player.music', source: 'Kitchen speaker' }),
+      authorize(MediaAction.cases.SelectSource.make({ entityId: 'media_player.music', source: 'Kitchen speaker' })),
       Result.succeed({
         domain: 'media_player',
         service: 'select_source',
@@ -152,21 +141,23 @@ describe('media action allowlist', () => {
       })
     )
     assert.deepStrictEqual(
-      authorize({ _tag: 'ZoneOff', entityId: 'switch.zone_a' }),
+      authorize(MediaAction.cases.ZoneOff.make({ entityId: 'switch.zone_a' })),
       Result.succeed({ domain: 'switch', service: 'turn_off', data: { entity_id: 'switch.zone_a' } })
     )
     assert.deepStrictEqual(
-      authorize({ _tag: 'AllZonesOn' }),
+      authorize(MediaAction.cases.AllZonesOn.make({})),
       Result.succeed({ domain: 'button', service: 'press', data: { entity_id: 'button.zones_on' } })
     )
   })
 
   it('refuses unconfigured entities, overridden controls, and missing buttons', () => {
-    assert.isTrue(Result.isFailure(authorize({ _tag: 'TurnOn', entityId: 'media_player.garage' })))
+    assert.isTrue(Result.isFailure(authorize(MediaAction.cases.TurnOn.make({ entityId: 'media_player.garage' }))))
     assert.isTrue(
-      Result.isFailure(authorize({ _tag: 'SelectSource', entityId: 'media_player.receiver', source: 'AUX' }))
+      Result.isFailure(
+        authorize(MediaAction.cases.SelectSource.make({ entityId: 'media_player.receiver', source: 'AUX' }))
+      )
     )
-    assert.isTrue(Result.isFailure(authorize({ _tag: 'ZoneOn', entityId: 'switch.porch_light' })))
-    assert.isTrue(Result.isFailure(authorize({ _tag: 'AllZonesOff' })))
+    assert.isTrue(Result.isFailure(authorize(MediaAction.cases.ZoneOn.make({ entityId: 'switch.porch_light' }))))
+    assert.isTrue(Result.isFailure(authorize(MediaAction.cases.AllZonesOff.make({}))))
   })
 })

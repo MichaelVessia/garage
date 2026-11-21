@@ -12,6 +12,7 @@ import type { InjectionLogBulkAssignSchedule } from '#shared'
 import { mapDbError } from '../shared/common/db-error.js'
 
 const CountRow = Schema.Struct({ count: Schema.Int })
+
 const decodeCountRow = Schema.decodeUnknownEffect(CountRow)
 
 export class ScheduleAssignment extends Context.Service<
@@ -22,11 +23,8 @@ export class ScheduleAssignment extends Context.Service<
       userId: string
     ) => Effect.Effect<number, InjectionLogDatabaseError | ScheduleAssignmentTargetNotFoundError>
   }
->()('@garage/subq/injection/schedule-assignment/ScheduleAssignment') {}
-
-export const ScheduleAssignmentLive = Layer.effect(
-  ScheduleAssignment,
-  Effect.gen(function* () {
+>()('@garage/subq/injection/schedule-assignment/ScheduleAssignment') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     const countRowsForUser = Effect.fn('scheduleAssignment.countRowsForUser')(
@@ -90,4 +88,8 @@ export const ScheduleAssignmentLive = Layer.effect(
 
     return { assign }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const ScheduleAssignmentLive = ScheduleAssignment.layer

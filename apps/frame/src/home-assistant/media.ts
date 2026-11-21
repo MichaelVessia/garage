@@ -1,4 +1,5 @@
 import * as Arr from 'effect/Array'
+import * as Data from 'effect/Data'
 import * as Function from 'effect/Function'
 import * as Hash from 'effect/Hash'
 import * as Match from 'effect/Match'
@@ -19,7 +20,12 @@ export interface MediaPlayerConfig {
 }
 
 /** A position on the Media screen: a player, or the speaker zone card. */
-export type MediaSlot = { readonly _tag: 'Player'; readonly player: MediaPlayerConfig } | { readonly _tag: 'Zones' }
+export type MediaSlot = Data.TaggedEnum<{
+  readonly Player: { readonly player: MediaPlayerConfig }
+  readonly Zones: Record<never, never>
+}>
+
+const MediaSlot = Data.taggedEnum<MediaSlot>()
 
 /** The Media screen's entities, all from the deployment environment. */
 export interface MediaConfig {
@@ -31,6 +37,7 @@ export interface MediaConfig {
 }
 
 const CONTROLS: ReadonlyArray<MediaControl> = ['power', 'playback', 'volume', 'mute', 'source']
+
 const ZONES_SLOT = 'zones'
 
 const isControl = (token: string): token is MediaControl => Arr.some(CONTROLS, (control) => control === token)
@@ -40,7 +47,7 @@ const splitList = (raw: string): ReadonlyArray<string> =>
 
 const parseSlot = (entry: string): Result.Result<MediaSlot, string> => {
   if (entry === ZONES_SLOT) {
-    return Result.succeed({ _tag: 'Zones' })
+    return Result.succeed(MediaSlot.Zones())
   }
 
   const [entityId, overrides] = Str.split('=')(entry)
@@ -50,7 +57,7 @@ const parseSlot = (entry: string): Result.Result<MediaSlot, string> => {
   }
 
   if (overrides === undefined) {
-    return Result.succeed({ _tag: 'Player', player: { entityId, controls: Option.none() } })
+    return Result.succeed(MediaSlot.Player({ player: { entityId, controls: Option.none() } }))
   }
 
   const tokens = Arr.filter(Str.split('+')(overrides), (token) => token !== '')
@@ -58,10 +65,11 @@ const parseSlot = (entry: string): Result.Result<MediaSlot, string> => {
 
   return Arr.isReadonlyArrayNonEmpty(unknown)
     ? Result.fail(`unknown controls for ${entityId}: ${Arr.join(unknown, ', ')}`)
-    : Result.succeed({
-        _tag: 'Player',
-        player: { entityId, controls: Option.some(Arr.filter(CONTROLS, (control) => tokens.includes(control))) },
-      })
+    : Result.succeed(
+        MediaSlot.Player({
+          player: { entityId, controls: Option.some(Arr.filter(CONTROLS, (control) => tokens.includes(control))) },
+        })
+      )
 }
 
 /**
@@ -92,7 +100,7 @@ export const mediaLayout = (config: MediaConfig): ReadonlyArray<MediaSlot> => {
   const hasZones = Arr.isReadonlyArrayNonEmpty(config.zones)
   const slots = Arr.filter(config.slots, (slot) => hasZones || !isZones(slot))
 
-  return hasZones && !Arr.some(slots, isZones) ? [...slots, { _tag: 'Zones' }] : slots
+  return hasZones && !Arr.some(slots, isZones) ? [...slots, MediaSlot.Zones()] : slots
 }
 
 // Home Assistant MediaPlayerEntityFeature bits.

@@ -51,9 +51,11 @@ const decodeRow = Schema.decodeUnknownEffect(InjectionLogRow)
 
 // Schemas for simple aggregation queries
 const InjectionSiteRow = Schema.Struct({ injection_site: Schema.String })
+
 const decodeSiteRows = Schema.decodeUnknownEffect(Schema.Array(InjectionSiteRow))
 
 const LastSiteRow = Schema.Struct({ injection_site: Schema.NullOr(Schema.String) })
+
 const decodeLastSiteRows = Schema.decodeUnknownEffect(Schema.Array(LastSiteRow))
 
 // Transform DB row to domain object using branded type constructors
@@ -78,6 +80,10 @@ const decodeAndTransform = (raw: Option.Option<SqlConnection.Row>) =>
 
 // ============================================
 // Repository Service Definition
+// ============================================
+
+// ============================================
+// Repository Implementation
 // ============================================
 
 export class InjectionLogRepo extends Context.Service<
@@ -107,15 +113,8 @@ export class InjectionLogRepo extends Context.Service<
       userId: string
     ) => Effect.Effect<Array<InjectionLog>, InjectionLogDatabaseError>
   }
->()('@garage/subq/injection/injection-log-repo/InjectionLogRepo') {}
-
-// ============================================
-// Repository Implementation
-// ============================================
-
-export const InjectionLogRepoLive = Layer.effect(
-  InjectionLogRepo,
-  Effect.gen(function* () {
+>()('@garage/subq/injection/injection-log-repo/InjectionLogRepo') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     const list = Effect.fn('injectionLogRepo.list')(
@@ -312,4 +311,8 @@ export const InjectionLogRepoLive = Layer.effect(
       listBySchedule,
     }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const InjectionLogRepoLive = InjectionLogRepo.layer

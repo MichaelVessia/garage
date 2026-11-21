@@ -17,12 +17,32 @@ import type {
   VersionResult,
 } from './model.js'
 
+const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
+
+const loadConfig = Effect.fn('sabnzbd.config.get')(
+  function* () {
+    const url = yield* readRequiredString('SABNZBD_URL')
+    const apiKey = yield* readRequiredSecret('SABNZBD_API_KEY')
+
+    return { url, apiKey }
+  },
+  Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdConfig', method: 'get' })
+)
+
 export class SabnzbdConfig extends Context.Service<
   SabnzbdConfig,
   {
     readonly get: Effect.Effect<SabnzbdConfigValue, SabnzbdError>
   }
->()('@garage/sabnzbd/services/SabnzbdConfig') {}
+>()('@garage/sabnzbd/services/SabnzbdConfig') {
+  public static readonly make = Effect.gen(function* () {
+    const cachedGet = yield* Effect.cached(loadConfig())
+
+    return SabnzbdConfig.of({ get: cachedGet })
+  })
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
 
 export class SabnzbdApi extends Context.Service<
   SabnzbdApi,
@@ -38,23 +58,4 @@ export class SabnzbdApi extends Context.Service<
   }
 >()('@garage/sabnzbd/services/SabnzbdApi') {}
 
-const { readRequiredString, readRequiredSecret } = makeConfigReaders(envMissing)
-
-const loadConfig = Effect.fn('sabnzbd.config.get')(
-  function* () {
-    const url = yield* readRequiredString('SABNZBD_URL')
-    const apiKey = yield* readRequiredSecret('SABNZBD_API_KEY')
-
-    return { url, apiKey }
-  },
-  Effect.annotateLogs({ package: '@garage/sabnzbd', service: 'SabnzbdConfig', method: 'get' })
-)
-
-export const SabnzbdConfigLive = Layer.effect(
-  SabnzbdConfig,
-  Effect.gen(function* () {
-    const cachedGet = yield* Effect.cached(loadConfig())
-
-    return SabnzbdConfig.of({ get: cachedGet })
-  })
-)
+export const SabnzbdConfigLive = SabnzbdConfig.layer

@@ -73,6 +73,7 @@ export const viewNotice: {
 } = Function.dual(2, (h: H, text: string): Html => h.p([h.Class('notice')], [text]))
 
 const WHITE = '#ffffff'
+
 const INK = '#14171c'
 
 // WCAG 2 relative luminance of a `#rrggbb` colour.
@@ -133,9 +134,12 @@ export const viewSheet: {
             ]
           ),
           h.div([h.Class('sheet-body')], sheet.body),
-          ...(Arr.isReadonlyArrayNonEmpty(sheet.actions) ? [h.footer([h.Class('sheet-actions')], sheet.actions)] : []),
+          ...viewSheetActions(h, sheet.actions),
         ]
       ),
     ]
   )
 )
+
+const viewSheetActions = (h: H, actions: ReadonlyArray<Html>): ReadonlyArray<Html> =>
+  Arr.isReadonlyArrayNonEmpty(actions) ? [h.footer([h.Class('sheet-actions')], actions)] : []

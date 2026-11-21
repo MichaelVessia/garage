@@ -24,6 +24,7 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
     ChildProcess.make('docker', ['-H', dockerHost, 'image', 'inspect', imageRef], {
       stdout: 'ignore',
       stderr: 'ignore',
+      forceKillAfter: '5 seconds',
     })
   )
 
@@ -35,13 +36,18 @@ const loadImage = Effect.fn('frame.loadImage')(function* () {
   const streamImage = yield* spawner.string(
     ChildProcess.make('nix', ['build', '--no-link', '--print-out-paths', '../..#garage-frame-image'], {
       stderr: 'inherit',
+      forceKillAfter: '5 seconds',
     })
   )
 
   const loaded = yield* spawner.exitCode(
-    ChildProcess.make(Str.trim(streamImage), [], { stderr: 'inherit' }).pipe(
+    ChildProcess.make(Str.trim(streamImage), [], { stderr: 'inherit', forceKillAfter: '5 seconds' }).pipe(
       ChildProcess.pipeTo(
-        ChildProcess.make('docker', ['-H', dockerHost, 'load'], { stdout: 'inherit', stderr: 'inherit' })
+        ChildProcess.make('docker', ['-H', dockerHost, 'load'], {
+          stdout: 'inherit',
+          stderr: 'inherit',
+          forceKillAfter: '5 seconds',
+        })
       )
     )
   )

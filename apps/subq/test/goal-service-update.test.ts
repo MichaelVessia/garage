@@ -3,6 +3,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
 
@@ -38,14 +39,14 @@ const insertGoal = (params: {
   readonly goalWeight: number
   readonly startingWeight: number
   readonly startingDate: CalendarDate
-  readonly targetDate: CalendarDate | null
+  readonly targetDate?: CalendarDate
 }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(DateTime.makeUnsafe('2024-01-01T00:00:00Z'))
     yield* sql`
       INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at)
-      VALUES (${params.id}, ${params.userId}, ${params.goalWeight}, ${params.startingWeight}, ${params.startingDate}, ${params.targetDate}, null, 1, null, ${now}, ${now})
+      VALUES (${params.id}, ${params.userId}, ${params.goalWeight}, ${params.startingWeight}, ${params.startingDate}, ${params.targetDate ?? null}, null, 1, null, ${now}, ${now})
     `
   })
 
@@ -209,7 +210,6 @@ describe('GoalService', () => {
           goalWeight: 150,
           startingWeight: 200,
           startingDate: CalendarDate.make('2024-01-01'),
-          targetDate: null,
         })
 
         const service = yield* GoalService
@@ -226,7 +226,7 @@ describe('GoalService', () => {
 
         assert.strictEqual(result._tag, 'Failure')
 
-        if (result._tag === 'Failure') {
+        if (P.isTagged(result, 'Failure')) {
           assert.instanceOf(result.failure, SettingsTimezoneNotInitialized)
           assert.strictEqual(result.failure.userId, userId)
         }
@@ -258,7 +258,6 @@ describe('GoalService', () => {
           goalWeight: 150,
           startingWeight: 200,
           startingDate: CalendarDate.make('2024-01-01'),
-          targetDate: null,
         })
 
         const settings = yield* SettingsRepo

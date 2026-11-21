@@ -21,8 +21,11 @@ import type {
 } from './model.js'
 
 const NullableString = Schema.NullOr(Schema.String).pipe(Schema.optional)
+
 const NullableInt = Schema.NullOr(Schema.Int).pipe(Schema.optional)
+
 const NullableFinite = Schema.NullOr(Schema.Finite).pipe(Schema.optional)
+
 const NullableBoolean = Schema.NullOr(Schema.Boolean).pipe(Schema.optional)
 
 const BooleanFlag = Schema.Union([Schema.Boolean, Schema.Literals(['0', '1'])]).pipe(
@@ -33,7 +36,9 @@ const BooleanFlag = Schema.Union([Schema.Boolean, Schema.Literals(['0', '1'])]).
 )
 
 const NullableBooleanFlag = Schema.NullOr(BooleanFlag).pipe(Schema.optional)
+
 const NullableStringArray = Schema.Array(Schema.String).pipe(Schema.NullOr, Schema.optional)
+
 const ActionStatusApi = Schema.Union([Schema.Boolean, Schema.String]).pipe(Schema.NullOr, Schema.optional)
 
 const StatusApi = Schema.Struct({
@@ -130,7 +135,7 @@ const ServerStatsApi = Schema.Struct({
   servers: Schema.Record(Schema.String, ServerUsageApi),
 })
 
-// oxlint-disable-next-line effect/prefer-option-over-null -- boundary coalesce: wire values decode as `A | null | undefined` (Schema.optional(NullOr)) and the domain model intentionally uses `A | undefined` (Schema.optional) so the agent-facing CLI emits clean JSON rather than Option's `{ _tag, value }` envelope.
+// oxlint-disable-next-line enfect/prefer-option-over-null -- boundary coalesce: wire values decode as `A | null | undefined` (Schema.optional(NullOr)) and the domain model intentionally uses `A | undefined` (Schema.optional) so the agent-facing CLI emits clean JSON rather than Option's `{ _tag, value }` envelope.
 const fromNullable = <A>(value: A | null | undefined): A | undefined => (value === null ? undefined : value)
 
 const systemStatusFromApi = (status: typeof StatusApi.Type): SystemStatus => ({
@@ -297,7 +302,7 @@ export const HistoryResponseSchema = HistoryResponseApi.pipe(
   })
 )
 
-// oxlint-disable-next-line effect/prefer-option-over-null -- SABnzbd action responses decode to `boolean | string | null | undefined` on the wire; this guard collapses that raw union to a boolean and never surfaces the absence to callers, so Option would add no value.
+// oxlint-disable-next-line enfect/prefer-option-over-null -- SABnzbd action responses decode to `boolean | string | null | undefined` on the wire; this guard collapses that raw union to a boolean and never surfaces the absence to callers, so Option would add no value.
 const actionOk = (status: boolean | string | null | undefined): boolean => status === true || status === 'true'
 
 export const ActionResponseSchema = ActionResponseApi.pipe(

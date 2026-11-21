@@ -29,16 +29,6 @@ import type { DataImportPlan } from './data-import-plan.js'
 // Service Definition
 // ============================================
 
-export class DataExportService extends Context.Service<
-  DataExportService,
-  {
-    readonly exportData: (
-      userId: string
-    ) => Effect.Effect<DataExport, DataExportError | DataExportTemporalMigrationRequired>
-    readonly importData: (userId: string, data: DataExport) => Effect.Effect<DataImportResult, DataImportError>
-  }
->()('@garage/subq/data-export/data-export-service/DataExportService') {}
-
 // ============================================
 // Row Schemas for Direct SQL Queries
 // ============================================
@@ -59,9 +49,16 @@ const ExportTemporalStateRow = Schema.Struct({
 // Implementation
 // ============================================
 
-export const DataExportServiceLive = Layer.effect(
+export class DataExportService extends Context.Service<
   DataExportService,
-  Effect.gen(function* () {
+  {
+    readonly exportData: (
+      userId: string
+    ) => Effect.Effect<DataExport, DataExportError | DataExportTemporalMigrationRequired>
+    readonly importData: (userId: string, data: DataExport) => Effect.Effect<DataImportResult, DataImportError>
+  }
+>()('@garage/subq/data-export/data-export-service/DataExportService') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     const decodeSchedule = Effect.fn('dataExportService.decodeSchedule')(function* (row: SqlConnection.Row) {
@@ -292,4 +289,8 @@ export const DataExportServiceLive = Layer.effect(
 
     return { exportData, importData }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const DataExportServiceLive = DataExportService.layer

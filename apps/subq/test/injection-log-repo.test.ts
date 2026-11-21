@@ -3,6 +3,7 @@ import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 
 import {
   DoseMg,
@@ -196,7 +197,7 @@ describe('InjectionLogRepo', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.strictEqual(result.failure._tag, 'InjectionLogNotFoundError')
           }
         })
@@ -231,7 +232,7 @@ describe('InjectionLogRepo', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.strictEqual(result.failure._tag, 'InjectionLogNotFoundError')
           }
         })

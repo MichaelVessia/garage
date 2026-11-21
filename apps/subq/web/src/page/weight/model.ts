@@ -61,10 +61,15 @@ export const CompletedOpenWeightForm = taggedStruct('CompletedOpenWeightForm', {
 })
 
 export const ClickedAddWeight = taggedStruct('ClickedAddWeight')
+
 export const ClickedEditWeight = taggedStruct('ClickedEditWeight', { log: WeightLog })
+
 export const ClickedCancelWeightForm = taggedStruct('ClickedCancelWeightForm')
+
 export const ChangedWeightDatetime = taggedStruct('ChangedWeightDatetime', { value: Schema.String })
+
 export const ChangedWeightValue = taggedStruct('ChangedWeightValue', { value: Schema.String })
+
 export const ChangedWeightNotes = taggedStruct('ChangedWeightNotes', { value: Schema.String })
 
 export const SubmittedWeightForm = taggedStruct('SubmittedWeightForm', {
@@ -72,11 +77,17 @@ export const SubmittedWeightForm = taggedStruct('SubmittedWeightForm', {
 })
 
 export const SucceededSaveWeight = taggedStruct('SucceededSaveWeight')
+
 export const FailedSaveWeight = taggedStruct('FailedSaveWeight', { message: Schema.String })
+
 export const RequestedDeleteWeight = taggedStruct('RequestedDeleteWeight', { id: WeightLogId })
+
 export const CancelledDeleteWeight = taggedStruct('CancelledDeleteWeight')
+
 export const ConfirmedDeleteWeight = taggedStruct('ConfirmedDeleteWeight')
+
 export const SucceededDeleteWeight = taggedStruct('SucceededDeleteWeight')
+
 export const FailedDeleteWeight = taggedStruct('FailedDeleteWeight', { message: Schema.String })
 
 export const ClickedWeightSort = taggedStruct('ClickedWeightSort', {

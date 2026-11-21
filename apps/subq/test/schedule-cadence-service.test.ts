@@ -1,6 +1,7 @@
 import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as TestClock from 'effect/testing/TestClock'
 
 import { InjectionScheduleId } from '#shared'
@@ -20,15 +21,11 @@ import {
 } from './helpers/test-db.js'
 
 const RepoLayer = Layer.mergeAll(ScheduleRepoLive, InjectionLogRepoLive, SettingsRepoLive)
+
 const TestLayer = makeInitializedTestLayer(ScheduleCadenceServiceLive.pipe(Layer.provide(RepoLayer)))
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('ScheduleCadenceService', () => {
   it.effect('calculates the next scheduled dose from active schedule and same-drug history', () =>
@@ -57,7 +54,7 @@ describe('ScheduleCadenceService', () => {
 
       const service = yield* ScheduleCadenceService
       const result = yield* service.getNextScheduledDose(userId)
-      const dose = requireValue(result.nextDose)
+      const dose = requireValue(Option.fromNullishOr(result.nextDose))
 
       assert.strictEqual(result.timezone, 'America/New_York')
       assert.strictEqual(dose.suggestedDate, '2024-01-17')
@@ -103,7 +100,7 @@ describe('ScheduleCadenceService', () => {
       const service = yield* ScheduleCadenceService
       const maybeView = yield* service.getScheduleView(userId, scheduleId)
       const view = yield* Effect.fromOption(maybeView)
-      const firstPhase = requireValue(view.phases[0])
+      const firstPhase = requireValue(Option.fromNullishOr(view.phases[0]))
 
       assert.strictEqual(view.totalCompletedInjections, 1)
       assert.strictEqual(firstPhase.completedInjections, 1)

@@ -6,9 +6,13 @@ import * as Str from 'effect/String'
 
 /** Synthetic Google Calendar settings; no real calendar, account, or household detail. */
 export const calendarId = 'family-calendar@group.calendar.example.test'
+
 export const accessToken = 'synthetic-access-token'
+
 export const tokenUri = 'https://oauth2.example.test/token'
+
 export const calendarPath = `/calendar/v3/calendars/${encodeURIComponent(calendarId)}`
+
 export const eventsPath = `${calendarPath}/events`
 
 class TestKeyError extends Schema.TaggedError<TestKeyError, { readonly brand: unique symbol }>()('TestKeyError', {

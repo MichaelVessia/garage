@@ -12,13 +12,8 @@ import { insertInjectionLog, makeInitializedTestLayer } from './helpers/test-db.
 
 const TestLayer = makeInitializedTestLayer(InjectionLogRepoLive)
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('InjectionLogRepo', () => {
   describe('list', () => {
@@ -27,20 +22,23 @@ describe('InjectionLogRepo', () => {
         Effect.gen(function* () {
           const repo = yield* InjectionLogRepo
 
-          for (let i = 0; i < 5; i += 1) {
-            yield* repo.create(
-              InjectionLogCreate.make({
-                datetime: DateTime.makeUnsafe(`2024-01-${15 + i}T10:00:00Z`),
-                drug: MedicationCompound.make('Semaglutide'),
-                supplier: Option.none(),
-                doseMg: DoseMg.make(100 + i * 10),
-                injectionSite: Option.none(),
-                notes: Option.none(),
-                scheduleId: Option.none(),
-              }),
-              'user-123'
-            )
-          }
+          yield* Effect.forEach(
+            [0, 1, 2, 3, 4],
+            (i) =>
+              repo.create(
+                InjectionLogCreate.make({
+                  datetime: DateTime.makeUnsafe(`2024-01-${15 + i}T10:00:00Z`),
+                  drug: MedicationCompound.make('Semaglutide'),
+                  supplier: Option.none(),
+                  doseMg: DoseMg.make(100 + i * 10),
+                  injectionSite: Option.none(),
+                  notes: Option.none(),
+                  scheduleId: Option.none(),
+                }),
+                'user-123'
+              ),
+            { concurrency: 1 }
+          )
 
           const page1 = yield* repo.list(
             InjectionLogListParams.make({ limit: Limit.make(2), offset: Offset.make(0) }),
@@ -49,8 +47,8 @@ describe('InjectionLogRepo', () => {
 
           assert.strictEqual(page1.length, 2)
           // Should be sorted by datetime DESC
-          assert.strictEqual(requireValue(page1[0]).doseMg, 140)
-          assert.strictEqual(requireValue(page1[1]).doseMg, 130)
+          assert.strictEqual(requireValue(Option.fromNullishOr(page1[0])).doseMg, 140)
+          assert.strictEqual(requireValue(Option.fromNullishOr(page1[1])).doseMg, 130)
 
           const page2 = yield* repo.list(
             InjectionLogListParams.make({ limit: Limit.make(2), offset: Offset.make(2) }),
@@ -101,7 +99,7 @@ describe('InjectionLogRepo', () => {
           )
 
           assert.strictEqual(filtered.length, 1)
-          assert.strictEqual(requireValue(filtered[0]).drug, 'Semaglutide')
+          assert.strictEqual(requireValue(Option.fromNullishOr(filtered[0])).drug, 'Semaglutide')
         })
       )
     })
@@ -158,7 +156,7 @@ describe('InjectionLogRepo', () => {
           )
 
           assert.strictEqual(filtered.length, 1)
-          assert.strictEqual(requireValue(filtered[0]).doseMg, 200)
+          assert.strictEqual(requireValue(Option.fromNullishOr(filtered[0])).doseMg, 200)
         })
       )
     })

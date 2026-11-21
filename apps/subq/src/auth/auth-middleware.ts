@@ -15,6 +15,7 @@ import { BetterAuthApiError } from './better-auth-error.js'
  * Extracts session from cookies or Authorization header via better-auth.
  * The bearer plugin converts Authorization: Bearer <token> to session cookie.
  */
+// oxlint-disable-next-line anti-slop-effect/require-service-make-layer -- AuthRpcMiddleware is defined in #shared for client/server RPC contracts; its Better Auth implementation lives on the server
 export const AuthRpcMiddlewareLive = Layer.effect(
   AuthRpcMiddleware,
   Effect.gen(function* () {

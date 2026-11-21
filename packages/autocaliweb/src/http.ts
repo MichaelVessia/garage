@@ -117,6 +117,7 @@ const collectBookFeed = (
   return loop(path, []).pipe(Effect.map(toListResult))
 }
 
+// oxlint-disable-next-line anti-slop-effect/require-service-make-layer -- AutocaliwebApi is a pure contract in services.ts; its HTTP adapter lives in http.ts per Fallow boundary policy
 export const AutocaliwebApiLive = Layer.effect(
   AutocaliwebApi,
   Effect.gen(function* () {

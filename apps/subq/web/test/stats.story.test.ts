@@ -145,14 +145,12 @@ describe('stats page update', () => {
         updatedAt: audit,
       })
 
-      const toIso = (date: Date): string => date.toISOString()
-
       assert.deepStrictEqual(
-        Option.map(scheduleEndDate(schedule, timezone), toIso),
+        Option.map(scheduleEndDate(schedule, timezone), (date) => date.toISOString()),
         Option.some('2026-01-21T05:00:00.000Z')
       )
       assert.deepStrictEqual(
-        Option.map(scheduleEndExclusiveDate(schedule, timezone), toIso),
+        Option.map(scheduleEndExclusiveDate(schedule, timezone), (date) => date.toISOString()),
         Option.some('2026-01-22T05:00:00.000Z')
       )
     })

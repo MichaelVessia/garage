@@ -6,28 +6,31 @@ import * as Effect from 'effect/Effect'
 import type * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Redacted from 'effect/Redacted'
 import * as Ref from 'effect/Ref'
+import * as Result from 'effect/Result'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
-import { CalendarDate, IanaTimezone, MediaActionRejected, ShoppingItemAddition, ShoppingItemUpdate } from '#shared'
+import {
+  CalendarDate,
+  IanaTimezone,
+  MediaAction,
+  MediaActionRejected,
+  ShoppingItemAddition,
+  ShoppingItemUpdate,
+} from '#shared'
 
 import type { EntityStateResponse, ForecastServiceResponse } from '../src/home-assistant/api-schema.js'
 import { HomeAssistantApiLive } from '../src/home-assistant/http.js'
+import { parseMediaSlots } from '../src/home-assistant/media.js'
 import type { MediaConfig } from '../src/home-assistant/media.js'
 import { HomeAssistantApi, HomeAssistantConfig } from '../src/home-assistant/services.js'
 import { FrameTimezone } from '../src/settings.js'
 
 const testMedia: MediaConfig = {
-  slots: [
-    { _tag: 'Player', player: { entityId: 'media_player.den_tv', controls: Option.none() } },
-    {
-      _tag: 'Player',
-      player: { entityId: 'media_player.receiver', controls: Option.some(['power', 'volume', 'mute']) },
-    },
-    { _tag: 'Zones' },
-  ],
+  slots: Result.getOrThrow(parseMediaSlots('media_player.den_tv, media_player.receiver=power+volume+mute, zones')),
   zones: ['switch.zone_a', 'switch.zone_b'],
   allOn: Option.some('button.zones_on'),
   allOff: Option.none(),
@@ -80,36 +83,39 @@ const ConfigLayer = Layer.mergeAll(
 
 const decodeJson = Schema.decodeEffect(Schema.fromJsonString(Schema.Record(Schema.String, Schema.String)))
 
-const bodyOf = (
-  request: HttpClientRequest.HttpClientRequest
-): Effect.Effect<Readonly<Record<string, string>> | null, Schema.SchemaError> =>
-  request.body._tag === 'Uint8Array' ? decodeJson(new TextDecoder().decode(request.body.body)) : Effect.succeed(null)
+const bodyOf = (request: HttpClientRequest.HttpClientRequest) =>
+  P.isTagged(request.body, 'Uint8Array')
+    ? decodeJson(new TextDecoder().decode(request.body.body))
+    : Effect.succeed(null)
 
 const recorded = (
   requests: Ref.Ref<ReadonlyArray<{ method: string; url: string; raw: HttpClientRequest.HttpClientRequest }>>
 ) =>
   Ref.get(requests).pipe(
     Effect.flatMap((records) =>
-      Effect.forEach(records, (record) =>
-        Effect.map(bodyOf(record.raw), (body) => ({
-          method: record.method,
-          url: record.url,
-          authorization: record.raw.headers.authorization,
-          body,
-        }))
+      Effect.forEach(
+        records,
+        (record) =>
+          Effect.map(bodyOf(record.raw), (body) => ({
+            method: record.method,
+            url: record.url,
+            authorization: record.raw.headers.authorization,
+            body,
+          })),
+        { concurrency: 1 }
       )
     )
   )
 
 const bodyText = (request: HttpClientRequest.HttpClientRequest) =>
-  request.body._tag === 'Uint8Array' ? new TextDecoder().decode(request.body.body) : ''
+  P.isTagged(request.body, 'Uint8Array') ? new TextDecoder().decode(request.body.body) : ''
+
+const forecastResponse = (forecast: ForecastServiceResponse['service_response'][string]['forecast']) => ({
+  status: 200,
+  body: { changed_states: [], service_response: { 'weather.home': { forecast } } },
+})
 
 describe('HomeAssistantApiLive', () => {
-  const forecastResponse = (forecast: ForecastServiceResponse['service_response'][string]['forecast']) => ({
-    status: 200,
-    body: { changed_states: [], service_response: { 'weather.home': { forecast } } },
-  })
-
   it.effect('reads current weather with its details and the hourly and daily forecasts', () =>
     Effect.gen(function* () {
       const fake = yield* makeRecordingHttpClient((method, _url, request) => {
@@ -317,7 +323,7 @@ describe('HomeAssistantApiLive', () => {
       assert.strictEqual(media.spotify?.name, 'Music')
       assert.strictEqual(media.spotify?.nowPlaying?.title, 'Song')
       assert.deepStrictEqual(
-        Arr.map(media.cards, (card) => (card._tag === 'PlayerCard' ? card.player.name : 'zones')),
+        Arr.map(media.cards, (card) => (P.isTagged(card, 'PlayerCard') ? card.player.name : 'zones')),
         ['Den TV', 'Receiver', 'zones']
       )
       const [, receiver, zones] = media.cards
@@ -346,8 +352,8 @@ describe('HomeAssistantApiLive', () => {
         Effect.provide(HomeAssistantApiLive.pipe(Layer.provide(Layer.merge(ConfigLayer, fake.layer))))
       )
 
-      yield* api.runMediaAction({ _tag: 'ZoneOn', entityId: 'switch.zone_a' })
-      yield* api.runMediaAction({ _tag: 'SetMute', entityId: 'media_player.receiver', muted: true })
+      yield* api.runMediaAction(MediaAction.cases.ZoneOn.make({ entityId: 'switch.zone_a' }))
+      yield* api.runMediaAction(MediaAction.cases.SetMute.make({ entityId: 'media_player.receiver', muted: true }))
 
       const requests = yield* Ref.get(fake.requests)
       assert.deepStrictEqual(
@@ -384,7 +390,7 @@ describe('HomeAssistantApiLive', () => {
       )
 
       const refused = yield* api
-        .runMediaAction({ _tag: 'SelectSource', entityId: 'media_player.receiver', source: 'AUX' })
+        .runMediaAction(MediaAction.cases.SelectSource.make({ entityId: 'media_player.receiver', source: 'AUX' }))
         .pipe(Effect.flip)
 
       assert.instanceOf(refused, MediaActionRejected)

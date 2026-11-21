@@ -8,6 +8,7 @@ import { BookInfoRecord as DomainBookInfoRecord, StatsResult as DomainStatsResul
 import type { BookInfoRecord, DownloadLink } from './model.js'
 
 const NullableString = Schema.String.pipe(Schema.NullOr, Schema.optional)
+
 const StringArray = Schema.Array(Schema.String).pipe(Schema.optional)
 
 const StatsApi = Schema.Struct({
@@ -20,6 +21,7 @@ const StatsApi = Schema.Struct({
 export const StatsSchema = StatsApi.pipe(Schema.decodeTo(DomainStatsResult))
 
 const MainFormat = Schema.Record(Schema.String, Schema.String)
+
 const OtherFormats = Schema.Record(Schema.String, Schema.String)
 
 const BookInfoApi = Schema.Struct({

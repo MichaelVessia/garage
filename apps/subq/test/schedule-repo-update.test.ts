@@ -2,6 +2,7 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
 
@@ -26,15 +27,11 @@ import { testDate } from './helpers/dates.js'
 import { insertSchedule, insertSettings, makeInitializedTestLayer } from './helpers/test-db.js'
 
 const TestLayer = makeInitializedTestLayer(ScheduleRepoLive)
+
 const MigrationTestLayer = makeInitializedTestLayer(Layer.merge(ScheduleRepoLive, SettingsRepoLive))
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('ScheduleRepo', () => {
   describe('update', () => {
@@ -126,8 +123,8 @@ describe('ScheduleRepo', () => {
           )
 
           assert.strictEqual(updated.phases.length, 2)
-          assert.strictEqual(requireValue(updated.phases[0]).doseMg, 50)
-          assert.isNull(requireValue(updated.phases[1]).durationDays)
+          assert.strictEqual(requireValue(Option.fromNullishOr(updated.phases[0])).doseMg, 50)
+          assert.isNull(requireValue(Option.fromNullishOr(updated.phases[1])).durationDays)
         })
       )
     })
@@ -222,7 +219,7 @@ describe('ScheduleRepo', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.strictEqual(result.failure._tag, 'SettingsTimezoneNotInitialized')
           }
 
@@ -325,7 +322,7 @@ describe('ScheduleRepo', () => {
 
           assert.strictEqual(state[0]?.calendar_date_migrated, 1)
 
-          if (updateResult._tag === 'Success') {
+          if (P.isTagged(updateResult, 'Success')) {
             assert.strictEqual(state[0]?.start_date, '2026-03-01')
           } else {
             assert.strictEqual(updateResult.failure._tag, 'SettingsTimezoneNotInitialized')
@@ -352,7 +349,7 @@ describe('ScheduleRepo', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.strictEqual(result.failure._tag, 'ScheduleNotFoundError')
           }
         })
@@ -385,7 +382,7 @@ describe('ScheduleRepo', () => {
 
           assert.strictEqual(result._tag, 'Failure')
 
-          if (result._tag === 'Failure') {
+          if (P.isTagged(result, 'Failure')) {
             assert.strictEqual(result.failure._tag, 'ScheduleNotFoundError')
           }
         })

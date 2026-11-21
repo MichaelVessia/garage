@@ -28,6 +28,7 @@ export type Commands = ReadonlyArray<Command.Command<Message, never, CommandServ
 
 // Days of events the Today screen and ambient clock keep loaded.
 const UPCOMING_DAYS = 3
+
 const SETTINGS_RETRY = Duration.seconds(5)
 
 const Health = Schema.Struct({ version: Schema.String })

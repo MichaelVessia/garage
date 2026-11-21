@@ -41,10 +41,15 @@ export const initialLoginModel: LoginModel = {
 // ============================================
 
 export const ChangedLoginEmail = taggedStruct('ChangedLoginEmail', { value: Schema.String })
+
 export const ChangedLoginPassword = taggedStruct('ChangedLoginPassword', { value: Schema.String })
+
 export const ChangedLoginName = taggedStruct('ChangedLoginName', { value: Schema.String })
+
 export const ToggledLoginMode = taggedStruct('ToggledLoginMode')
+
 export const SubmittedLogin = taggedStruct('SubmittedLogin')
+
 export const ClickedDemoLogin = taggedStruct('ClickedDemoLogin')
 
 export const LoginMessage = Schema.Union([

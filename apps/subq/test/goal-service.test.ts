@@ -3,6 +3,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as SqlClient from 'effect/sql/SqlClient'
 
 import { CalendarDate, IanaTimezone, projectInstantToCalendarDate, UserGoalCreate, Weight } from '#shared'
@@ -21,6 +22,7 @@ const GoalServiceTestLive = GoalServiceLive.pipe(
 )
 
 const TestLayer = makeInitializedTestLayer(Layer.merge(GoalServiceTestLive, SettingsRepoLive))
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 const insertGoal = (params: {
@@ -29,14 +31,14 @@ const insertGoal = (params: {
   readonly goalWeight: number
   readonly startingWeight: number
   readonly startingDate: CalendarDate
-  readonly targetDate: CalendarDate | null
+  readonly targetDate?: CalendarDate
 }) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     const now = DateTime.formatIso(DateTime.makeUnsafe('2024-01-01T00:00:00Z'))
     yield* sql`
       INSERT INTO user_goals (id, user_id, goal_weight, starting_weight, starting_date, target_date, notes, is_active, completed_at, created_at, updated_at)
-      VALUES (${params.id}, ${params.userId}, ${params.goalWeight}, ${params.startingWeight}, ${params.startingDate}, ${params.targetDate}, null, 1, null, ${now}, ${now})
+      VALUES (${params.id}, ${params.userId}, ${params.goalWeight}, ${params.startingWeight}, ${params.startingDate}, ${params.targetDate ?? null}, null, 1, null, ${now}, ${now})
     `
   })
 
@@ -110,7 +112,6 @@ describe('GoalService', () => {
         goalWeight: 180,
         startingWeight: 200,
         startingDate: CalendarDate.make('2024-01-01'),
-        targetDate: null,
       })
       yield* insertWeightLog({ id: 'w-fresh-1', datetime: testDate('2024-01-01T00:00:00Z'), weight: 200, userId })
       yield* insertWeightLog({ id: 'w-fresh-2', datetime: testDate('2024-01-08T00:00:00Z'), weight: 190, userId })
@@ -237,7 +238,7 @@ describe('GoalService', () => {
 
         assert.strictEqual(result._tag, 'Failure')
 
-        if (result._tag === 'Failure') {
+        if (P.isTagged(result, 'Failure')) {
           assert.strictEqual(result.failure._tag, 'NoWeightDataError')
         }
       }).pipe(Effect.provide(TestLayer))

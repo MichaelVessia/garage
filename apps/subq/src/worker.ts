@@ -11,12 +11,13 @@ import * as Redacted from 'effect/Redacted'
 import * as RpcSerialization from 'effect/rpc/RpcSerialization'
 import * as RpcServer from 'effect/rpc/RpcServer'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 
 import { AppRpcs } from '#shared'
 
 import { BetterAuthApiError } from './auth/better-auth-error.js'
 // This module is the Worker composition root; makeAuth needs the runtime-only D1 binding.
-// oxlint-disable-next-line effect/no-service-constructor-imports -- the composition root builds Better Auth from runtime bindings
+// oxlint-disable-next-line anti-slop-effect/no-service-constructor-imports -- the composition root builds Better Auth from runtime bindings
 import { AuthRpcMiddlewareLive, AuthService, makeAuth } from './auth/index.js'
 import { DataExportRpcHandlersLive, DataExportServiceLive } from './data-export/index.js'
 import { AssetRequestError, UnexpectedRequestSource } from './errors.js'
@@ -73,7 +74,6 @@ const ServicesLive = Layer.mergeAll(
 )
 
 // Cloudflare and Alchemy load the Worker entry through its default export.
-// oxlint-disable-next-line import/no-default-export -- Worker entry contract
 export default class SubqWorker extends Worker<SubqWorker>()(
   'Subq',
   {
@@ -114,6 +114,7 @@ export default class SubqWorker extends Worker<SubqWorker>()(
     )
 
     const SqlLive = Layer.unwrap(db.raw.pipe(Effect.map((d1) => D1Client.layer({ db: d1 }))))
+    // oxlint-disable-next-line anti-slop-effect/require-service-make-layer -- AuthService is built from the Cloudflare Worker runtime D1 binding at the composition root
     const AuthLive = Layer.effect(AuthService, auth.pipe(Effect.map((instance) => ({ auth: instance }))))
 
     const RepositoriesWithSqlLive = RepositoriesLive.pipe(Layer.provideMerge(SqlLive))
@@ -130,11 +131,13 @@ export default class SubqWorker extends Worker<SubqWorker>()(
       Effect.provide([AppLive, RpcSerialization.layerJson])
     )
 
+    const isWebRequest = Schema.is(Schema.instanceOf(Request))
+
     const handleAuthRequest = Effect.fn('worker.handleAuthRequest')(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const { source } = request
 
-      if (!(source instanceof Request)) {
+      if (!isWebRequest(source)) {
         return yield* Effect.die(UnexpectedRequestSource.make({ message: 'expected a web Request source' }))
       }
 
@@ -158,7 +161,7 @@ export default class SubqWorker extends Worker<SubqWorker>()(
           return HttpServerResponse.text('ok')
         }
 
-        if (url.pathname.startsWith('/api/auth/')) {
+        if (Str.startsWith('/api/auth/')(url.pathname)) {
           return yield* handleAuthRequest()
         }
 
@@ -168,7 +171,7 @@ export default class SubqWorker extends Worker<SubqWorker>()(
 
         const { source } = request
 
-        if (!(source instanceof Request)) {
+        if (!isWebRequest(source)) {
           return yield* Effect.die(UnexpectedRequestSource.make({ message: 'expected a web Request source' }))
         }
 
@@ -193,7 +196,7 @@ export default class SubqWorker extends Worker<SubqWorker>()(
   }).pipe(
     // The worker init IS the application entry point; binding layers are
     // provided here by design (see Alchemy's Worker docs).
-    // @effect-diagnostics-next-line strictEffectProvide:off
+    // @effect-diagnostics-next-line strictEffectProvide:off -- worker init is the application entry point and provides binding layers by design
     Effect.provide(D1.QueryDatabaseBinding)
   )
 ) {}

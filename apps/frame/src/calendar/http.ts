@@ -40,8 +40,11 @@ const STALE_LIMIT = Duration.days(1)
 
 // Google issues access tokens for at most an hour; the frame renews them a little early.
 const TOKEN_LIFETIME = Duration.hours(1)
+
 const TOKEN_MARGIN = Duration.minutes(5)
+
 const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+
 const JWT_BEARER = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
 
 const Assertion = Schema.Struct({
@@ -99,6 +102,7 @@ export const CalendarFeedLive: Layer.Layer<
   CalendarFeed,
   CalendarError,
   CalendarConfig | FrameTimezone | HttpClient.HttpClient
+  // oxlint-disable-next-line anti-slop-effect/require-service-make-layer -- CalendarFeed is a pure contract in services.ts; its Google Calendar HTTP adapter lives in http.ts
 > = Layer.effect(
   CalendarFeed,
   Effect.gen(function* () {
@@ -131,6 +135,7 @@ export const CalendarFeedLive: Layer.Layer<
         },
         signingKey
       ).pipe(
+        // oxlint-disable-next-line anti-slop/no-reprovide-ambient-service -- CalendarFeed service methods have R = never; Signature is captured at layer construction
         Effect.provideService(Signature.Signature, signature),
         Effect.mapError(() => calendarDecodeError({ message: 'The Google sign-in assertion could not be signed' }))
       )
@@ -185,6 +190,7 @@ export const CalendarFeedLive: Layer.Layer<
         { concurrency: 2 }
       ).pipe(
         Effect.provideService(Credentials, Effect.succeed({ accessToken: token })),
+        // oxlint-disable-next-line anti-slop/no-reprovide-ambient-service -- CalendarFeed service methods have R = never; HttpClient is captured at layer construction
         Effect.provideService(HttpClient.HttpClient, client),
         // A rejected token is signed in again on the next request.
         Effect.tapError((error) => (P.isTagged(error, 'Unauthorized') ? Ref.set(tokens, Option.none()) : Effect.void)),

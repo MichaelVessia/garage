@@ -4,6 +4,7 @@ import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Str from 'effect/String'
 
 import { decodeError } from './errors.js'
@@ -26,19 +27,15 @@ export interface OpdsFeed {
   readonly navigation: ReadonlyArray<CatalogEntry>
 }
 
-const nonEmpty = (value: string): Option.Option<string> =>
-  // oxlint-disable-next-line effect/no-length-comparison -- string length check, not an array
-  value.length === 0 ? Option.none() : Option.some(value)
+const nonEmpty = (value: string): Option.Option<string> => (value.length === 0 ? Option.none() : Option.some(value))
 
 const text = (element: Element): Option.Option<string> =>
   Option.fromNullishOr(element.textContent).pipe(Option.map(Str.trim), Option.flatMap(nonEmpty))
 
 const firstText = (element: Document | Element, tagName: string): Option.Option<string> =>
-  // oxlint-disable-next-line unicorn/prefer-query-selector
   Option.fromNullishOr(element.getElementsByTagName(tagName).item(0)).pipe(Option.flatMap(text))
 
 const elements = (element: Document | Element, tagName: string): ReadonlyArray<Element> =>
-  // oxlint-disable-next-line unicorn/prefer-query-selector, unicorn/prefer-spread
   Array.from(element.getElementsByTagName(tagName))
 
 const attr = (element: Element, name: string): Option.Option<string> =>
@@ -184,8 +181,7 @@ export const parseOpdsFeed: {
     try: () => parseDocument(xml),
     catch: (error) =>
       decodeError({
-        // oxlint-disable-next-line effect/avoid-untagged-errors -- diagnostic message extraction from an unknown thrown DOM parser defect
-        message: error instanceof Error ? error.message : String(error),
+        message: P.isError(error) ? error.message : String(error),
         cause: error,
       }),
   }).pipe(

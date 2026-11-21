@@ -18,11 +18,17 @@ export const SucceededFetchSession = taggedStruct('SucceededFetchSession', {
 })
 
 export const SucceededSignIn = taggedStruct('SucceededSignIn', { user: SessionUser })
+
 export const FailedSignIn = taggedStruct('FailedSignIn', { message: Schema.String })
+
 export const SucceededSignUp = taggedStruct('SucceededSignUp', { user: SessionUser })
+
 export const FailedSignUp = taggedStruct('FailedSignUp', { message: Schema.String })
+
 export const SucceededSignOut = taggedStruct('SucceededSignOut')
+
 export const SucceededChangePassword = taggedStruct('SucceededChangePassword')
+
 export const FailedChangePassword = taggedStruct('FailedChangePassword', { message: Schema.String })
 
 export const AuthMessage = Schema.Union([
@@ -43,6 +49,7 @@ export type AuthMessage = typeof AuthMessage.Type
 // ============================================
 
 const failedSignIn = (error: BetterAuthHttpError) => Effect.succeed(FailedSignIn({ message: error.message }))
+
 const failedSignUp = (error: BetterAuthHttpError) => Effect.succeed(FailedSignUp({ message: error.message }))
 
 const failedChangePassword = (error: BetterAuthHttpError) =>

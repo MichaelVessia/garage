@@ -14,9 +14,11 @@ import type {
 import { SabnzbdApi } from './services.js'
 
 export const defaultLimit = 10
+
 export const defaultHistoryLimit = 50
 
 const defaultLimitOptions: LimitOptions = { limit: defaultLimit }
+
 const defaultHistoryOptions: LimitOptions = { limit: defaultHistoryLimit }
 
 export const status: Effect.Effect<SystemStatus, SabnzbdError, SabnzbdApi> = Effect.gen(function* () {

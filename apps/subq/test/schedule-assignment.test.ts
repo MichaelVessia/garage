@@ -2,6 +2,7 @@ import { assert, describe, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import * as P from 'effect/Predicate'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
 
@@ -200,7 +201,7 @@ describe('ScheduleAssignment', () => {
         const rows = yield* listAssignments(['inj-1'])
         assert.strictEqual(result._tag, 'Failure')
 
-        if (result._tag === 'Failure') {
+        if (P.isTagged(result, 'Failure')) {
           assert.strictEqual(result.failure._tag, 'ScheduleAssignmentTargetNotFoundError')
         }
 

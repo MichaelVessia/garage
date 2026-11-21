@@ -127,23 +127,41 @@ export const ClickedStatsPreset = taggedStruct('ClickedStatsPreset', {
 })
 
 export const ChangedCustomStart = taggedStruct('ChangedCustomStart', { value: Schema.String })
+
 export const ChangedCustomEnd = taggedStruct('ChangedCustomEnd', { value: Schema.String })
+
 export const CommittedCustomRange = taggedStruct('CommittedCustomRange')
+
 export const ClickedSetGoal = taggedStruct('ClickedSetGoal')
+
 export const CompletedOpenGoalForm = taggedStruct('CompletedOpenGoalForm', { todayLocal: CalendarDate })
+
 export const ClickedEditGoal = taggedStruct('ClickedEditGoal')
+
 export const ClickedCancelGoalForm = taggedStruct('ClickedCancelGoalForm')
+
 export const ChangedGoalWeight = taggedStruct('ChangedGoalWeight', { value: Schema.String })
+
 export const ChangedGoalStartDate = taggedStruct('ChangedGoalStartDate', { value: Schema.String })
+
 export const ChangedGoalTargetDate = taggedStruct('ChangedGoalTargetDate', { value: Schema.String })
+
 export const ChangedGoalNotes = taggedStruct('ChangedGoalNotes', { value: Schema.String })
+
 export const SubmittedGoalForm = taggedStruct('SubmittedGoalForm', { unit: Schema.Literals(['lbs', 'kg']) })
+
 export const SucceededSaveGoal = taggedStruct('SucceededSaveGoal')
+
 export const FailedSaveGoal = taggedStruct('FailedSaveGoal', { message: Schema.String })
+
 export const RequestedDeleteGoal = taggedStruct('RequestedDeleteGoal')
+
 export const CancelledDeleteGoal = taggedStruct('CancelledDeleteGoal')
+
 export const ConfirmedDeleteGoal = taggedStruct('ConfirmedDeleteGoal', { goalId: GoalId })
+
 export const SucceededDeleteGoal = taggedStruct('SucceededDeleteGoal')
+
 export const NavigatedStats = taggedStruct('NavigatedStats')
 
 export const FetchStatsResult = Schema.Union([SucceededFetchStats, RejectedFetchStats])

@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
 import * as Schema from 'effect/Schema'
+import * as Stream from 'effect/Stream'
 import * as Str from 'effect/String'
 
 import { WebviewIncompatible } from './errors.js'
@@ -22,7 +23,11 @@ const checkDist = Effect.fn('frame.checkWebviewCompat')(function* () {
   const findings = yield* Effect.forEach(
     Arr.filter(files, (file) => Str.endsWith('.js')(file) || Str.endsWith('.css')(file)),
     (file) =>
-      fs.readFileString(path.join(dist, file)).pipe(Effect.map((text) => findIncompatibilities({ file, text }))),
+      fs.stream(path.join(dist, file)).pipe(
+        Stream.decodeText(),
+        Stream.mkString,
+        Effect.map((text) => findIncompatibilities({ file, text }))
+      ),
     { concurrency: 4 }
   )
 

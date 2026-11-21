@@ -61,7 +61,9 @@ export const ClickedSettingsWeightUnit = taggedStruct('ClickedSettingsWeightUnit
 })
 
 export const ChangedSettingsTimezone = taggedStruct('ChangedSettingsTimezone', { value: Schema.String })
+
 export const SubmittedSettingsTimezone = taggedStruct('SubmittedSettingsTimezone')
+
 export const SucceededUpdateSettingsPreference = taggedStruct('SucceededUpdateSettingsPreference')
 
 export const FailedUpdateSettingsPreference = taggedStruct('FailedUpdateSettingsPreference', {
@@ -79,16 +81,27 @@ export const ChangedSettingsConfirmPassword = taggedStruct('ChangedSettingsConfi
 })
 
 export const SubmittedSettingsPassword = taggedStruct('SubmittedSettingsPassword')
+
 export const ClickedExportData = taggedStruct('ClickedExportData')
+
 export const SucceededExportData = taggedStruct('SucceededExportData')
+
 export const FailedExportData = taggedStruct('FailedExportData', { message: Schema.String })
+
 export const ClickedSelectImportFile = taggedStruct('ClickedSelectImportFile')
+
 export const SelectedImportFile = taggedStruct('SelectedImportFile', { file: File.File })
+
 export const CancelledSelectImportFile = taggedStruct('CancelledSelectImportFile')
+
 export const PreparedImportData = taggedStruct('PreparedImportData', { data: DataExport })
+
 export const ConfirmedImportData = taggedStruct('ConfirmedImportData')
+
 export const CancelledImportData = taggedStruct('CancelledImportData')
+
 export const SucceededImportData = taggedStruct('SucceededImportData', { result: DataImportResult })
+
 export const FailedImportData = taggedStruct('FailedImportData', { message: Schema.String })
 
 export const SettingsPageMessage = Schema.Union([

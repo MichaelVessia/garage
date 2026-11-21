@@ -78,6 +78,10 @@ const goalUpdatePatch = (data: UserGoalUpdate) => ({
 // Repository Service Definition
 // ============================================
 
+// ============================================
+// Repository Implementation
+// ============================================
+
 export class GoalRepo extends Context.Service<
   GoalRepo,
   {
@@ -96,15 +100,8 @@ export class GoalRepo extends Context.Service<
     ) => Effect.Effect<UserGoal, GoalNotFoundError | GoalDatabaseError | SettingsTimezoneNotInitialized>
     readonly delete: (id: string, userId: string) => Effect.Effect<boolean, GoalDatabaseError>
   }
->()('@garage/subq/goals/goal-repo/GoalRepo') {}
-
-// ============================================
-// Repository Implementation
-// ============================================
-
-export const GoalRepoLive = Layer.effect(
-  GoalRepo,
-  Effect.gen(function* () {
+>()('@garage/subq/goals/goal-repo/GoalRepo') {
+  public static readonly make = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     const list = Effect.fn('goalRepo.list')(
@@ -294,4 +291,8 @@ export const GoalRepoLive = Layer.effect(
       delete: del,
     }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const GoalRepoLive = GoalRepo.layer

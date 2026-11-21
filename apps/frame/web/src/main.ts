@@ -58,10 +58,10 @@ const EventsFeed = feed(CalendarEvent.pipe(Schema.Array))
 type EventsFeed = typeof EventsFeed.Type
 
 /** A sheet open over the current screen with more about one thing on it. */
-const Detail = Schema.Union([
-  Schema.TaggedStruct('WeatherDetail', {}),
-  Schema.TaggedStruct('EventDetail', { event: CalendarEvent }),
-])
+const Detail = Schema.TaggedUnion({
+  WeatherDetail: {},
+  EventDetail: { event: CalendarEvent },
+})
 
 export const Flags = Schema.Struct({ now: Schema.DateTimeUtc, bootVersion: Schema.Option(Schema.String) })
 
@@ -90,6 +90,7 @@ export type Model = typeof Model.Type
 
 // The frame dims to the ambient clock after this much idle time, sooner at night.
 const IDLE_DAY = Duration.minutes(5)
+
 const IDLE_NIGHT = Duration.minutes(1)
 
 // ============================================
@@ -127,6 +128,7 @@ export const init = (flags: Flags): UpdateReturn => ({
 // ============================================
 
 const succeeded = <A>(data: A) => ({ data: Option.some(data), failed: false })
+
 const online = (model: Model): Model => modifyFields(model, { isOffline: () => false })
 
 const reachability = (model: Model, isServerReachable: boolean): Model =>
@@ -350,10 +352,10 @@ export const update: {
     },
     ClickedDate: ({ date, mode }) => onDate(model, date, mode),
     ClickedEvent: ({ event }) => ({
-      model: modifyFields(model, { detail: () => Option.some({ _tag: 'EventDetail' as const, event }) }),
+      model: modifyFields(model, { detail: () => Option.some(Detail.cases.EventDetail.make({ event })) }),
     }),
     ClickedWeather: () => ({
-      model: modifyFields(model, { detail: () => Option.some({ _tag: 'WeatherDetail' as const }) }),
+      model: modifyFields(model, { detail: () => Option.some(Detail.cases.WeatherDetail.make({})) }),
       commands: [FetchWeather()],
     }),
     ClosedDetail: () => ({ model: modifyFields(model, { detail: () => Option.none() }) }),

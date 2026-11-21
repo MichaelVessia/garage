@@ -18,13 +18,8 @@ import { insertSchedule, insertSchedulePhase, makeInitializedTestLayer } from '.
 
 const TestLayer = makeInitializedTestLayer(ScheduleRepoLive)
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => assert.fail('Expected value to be defined'))
 
 describe('ScheduleRepo', () => {
   describe('list', () => {
@@ -92,9 +87,9 @@ describe('ScheduleRepo', () => {
           const schedules = yield* repo.list('user-123')
 
           assert.strictEqual(schedules.length, 3)
-          assert.strictEqual(requireValue(schedules[0]).name, 'March')
-          assert.strictEqual(requireValue(schedules[1]).name, 'February')
-          assert.strictEqual(requireValue(schedules[2]).name, 'January')
+          assert.strictEqual(requireValue(Option.fromNullishOr(schedules[0])).name, 'March')
+          assert.strictEqual(requireValue(Option.fromNullishOr(schedules[1])).name, 'February')
+          assert.strictEqual(requireValue(Option.fromNullishOr(schedules[2])).name, 'January')
         })
       )
     })
@@ -123,7 +118,7 @@ describe('ScheduleRepo', () => {
           const schedules = yield* repo.list('user-123')
 
           assert.strictEqual(schedules.length, 1)
-          assert.strictEqual(requireValue(schedules[0]).id, 'sched-1')
+          assert.strictEqual(requireValue(Option.fromNullishOr(schedules[0])).id, 'sched-1')
         })
       )
     })
@@ -145,17 +140,16 @@ describe('ScheduleRepo', () => {
             scheduleId: 'sched-1',
             order: 2,
             doseMg: 200,
-            durationDays: null,
           })
 
           const repo = yield* ScheduleRepo
           const schedules = yield* repo.list('user-123')
 
           assert.strictEqual(schedules.length, 1)
-          const schedule = requireValue(schedules[0])
+          const schedule = requireValue(Option.fromNullishOr(schedules[0]))
           assert.strictEqual(schedule.phases.length, 2)
-          assert.strictEqual(requireValue(schedule.phases[0]).doseMg, 100)
-          assert.isNull(requireValue(schedule.phases[1]).durationDays)
+          assert.strictEqual(requireValue(Option.fromNullishOr(schedule.phases[0])).doseMg, 100)
+          assert.isNull(requireValue(Option.fromNullishOr(schedule.phases[1])).durationDays)
         })
       )
     })

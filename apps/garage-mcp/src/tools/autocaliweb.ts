@@ -180,6 +180,7 @@ export const AutocaliwebToolkitHandlers = AutocaliwebToolkit.toLayer(
     const api = yield* AutocaliwebApi
 
     const run = <A>(operation: Effect.Effect<A, AutocaliwebError, AutocaliwebApi>) =>
+      // oxlint-disable-next-line anti-slop/no-reprovide-ambient-service -- Toolkit.toLayer requires R = never tool handlers while the layer itself requires AutocaliwebApi
       operation.pipe(Effect.provideService(AutocaliwebApi, api), Effect.catch(failAutocaliwebTool))
 
     return AutocaliwebToolkit.of({

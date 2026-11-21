@@ -26,7 +26,7 @@ import {
 const timestamp = DateTime.makeUnsafe('2024-01-01T00:00:00Z')
 
 const makeSchedule = (
-  phases: ReadonlyArray<{ readonly order: number; readonly durationDays: number | null; readonly doseMg: number }>,
+  phases: ReadonlyArray<{ readonly order: number; readonly durationDays?: number; readonly doseMg: number }>,
   startDate = CalendarDate.make('2024-01-01')
 ) => {
   const scheduleId = InjectionScheduleId.make('schedule-1')
@@ -45,7 +45,7 @@ const makeSchedule = (
         id: SchedulePhaseId.make(`phase-${phase.order}`),
         scheduleId,
         order: PhaseOrder.make(phase.order),
-        durationDays: phase.durationDays === null ? null : PhaseDurationDays.make(phase.durationDays),
+        durationDays: phase.durationDays === undefined ? null : PhaseDurationDays.make(phase.durationDays),
         doseMg: DoseMg.make(phase.doseMg),
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -70,13 +70,8 @@ const makeInjection = (id: string, datetime: string, doseMg: number, scheduleId:
     updatedAt: timestamp,
   })
 
-const requireValue = <T>(value: T | null | undefined): T => {
-  if (value === null || value === undefined) {
-    throw new Error('Expected value to be present')
-  }
-
-  return value
-}
+const requireValue = <T>(value: Option.Option<T>): T =>
+  Option.getOrElse(value, () => expect.unreachable('Expected value to be defined'))
 
 const requireSome = <A>(option: Option.Option<A>): A =>
   Option.getOrElse(option, () => expect.unreachable('Expected Option.some'))
@@ -85,7 +80,7 @@ describe('ScheduleEngine', () => {
   it('keeps the current phase before an indefinite maintenance phase is reached', () => {
     const schedule = makeSchedule([
       { order: 1, durationDays: 28, doseMg: 2.5 },
-      { order: 2, durationDays: null, doseMg: 5 },
+      { order: 2, doseMg: 5 },
     ])
 
     const active = requireSome(currentPhase(schedule, CalendarDate.make('2024-01-20')))
@@ -98,7 +93,7 @@ describe('ScheduleEngine', () => {
     const schedule = makeSchedule([
       { order: 1, durationDays: 28, doseMg: 2.5 },
       { order: 2, durationDays: 28, doseMg: 5 },
-      { order: 3, durationDays: null, doseMg: 7.5 },
+      { order: 3, doseMg: 7.5 },
     ])
 
     const dose = requireSome(
@@ -115,7 +110,7 @@ describe('ScheduleEngine', () => {
   it('builds a schedule view with phase status, expected counts, and assigned injections', () => {
     const schedule = makeSchedule([
       { order: 1, durationDays: 28, doseMg: 2.5 },
-      { order: 2, durationDays: null, doseMg: 5 },
+      { order: 2, doseMg: 5 },
     ])
 
     const injections = [
@@ -125,8 +120,8 @@ describe('ScheduleEngine', () => {
     ]
 
     const view = scheduleView(schedule, injections, CalendarDate.make('2024-02-05'), IanaTimezone.make('UTC'))
-    const firstPhase = requireValue(view.phases[0])
-    const secondPhase = requireValue(view.phases[1])
+    const firstPhase = requireValue(Option.fromNullishOr(view.phases[0]))
+    const secondPhase = requireValue(Option.fromNullishOr(view.phases[1]))
 
     expect(view.endDate).toBeNull()
     expect(view.totalExpectedInjections).toBeNull()
@@ -143,7 +138,7 @@ describe('ScheduleEngine', () => {
     const schedule = makeSchedule(
       [
         { order: 1, durationDays: 1, doseMg: 2.5 },
-        { order: 2, durationDays: null, doseMg: 5 },
+        { order: 2, doseMg: 5 },
       ],
       CalendarDate.make('2024-12-04')
     )
@@ -157,7 +152,7 @@ describe('ScheduleEngine', () => {
       IanaTimezone.make('America/New_York')
     )
 
-    expect(requireValue(view.phases[0]).completedInjections).toBe(1)
-    expect(requireValue(view.phases[1]).completedInjections).toBe(0)
+    expect(requireValue(Option.fromNullishOr(view.phases[0])).completedInjections).toBe(1)
+    expect(requireValue(Option.fromNullishOr(view.phases[1])).completedInjections).toBe(0)
   })
 })

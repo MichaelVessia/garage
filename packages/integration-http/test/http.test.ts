@@ -41,7 +41,7 @@ const clientFrom = (respond: Parameters<typeof makeRecordingHttpClient>[0]) =>
     return { client, requests: fake.requests }
   })
 
-const authHeaderOf = (raw: HttpClientRequest.HttpClientRequest): string | undefined =>
+const authHeaderOf = (raw: HttpClientRequest.HttpClientRequest) =>
   Headers.get(raw.headers, 'x-test-auth').pipe(Option.getOrUndefined)
 
 const transportFailureClient = HttpClient.make((request) =>

@@ -27,11 +27,8 @@ export class ScheduleCadenceService extends Context.Service<
       scheduleId: InjectionScheduleId
     ) => Effect.Effect<Option.Option<ScheduleView>, ScheduleDatabaseError>
   }
->()('@garage/subq/schedule/schedule-cadence-service/ScheduleCadenceService') {}
-
-export const ScheduleCadenceServiceLive = Layer.effect(
-  ScheduleCadenceService,
-  Effect.gen(function* () {
+>()('@garage/subq/schedule/schedule-cadence-service/ScheduleCadenceService') {
+  public static readonly make = Effect.gen(function* () {
     const scheduleRepo = yield* ScheduleRepo
     const injectionLogRepo = yield* InjectionLogRepo
     const settingsRepo = yield* SettingsRepo
@@ -98,4 +95,8 @@ export const ScheduleCadenceServiceLive = Layer.effect(
 
     return { getNextScheduledDose, getScheduleView }
   })
-)
+
+  public static readonly layer = Layer.effect(this, this.make)
+}
+
+export const ScheduleCadenceServiceLive = ScheduleCadenceService.layer

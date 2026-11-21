@@ -203,7 +203,7 @@ export const viewDosePills = <Message>({
           h.OnClick(ClickedChartPill({ doseMg: pill.doseMg, drug: pill.drug })),
           h.OnMouseEnter(
             HoveredChartTooltip({
-              lines: [formatDate(pill.date), ...(filter === null ? ['Click to filter'] : [])],
+              lines: filter === null ? [formatDate(pill.date), 'Click to filter'] : [formatDate(pill.date)],
               title: `${pill.drug} ${pill.doseMg} mg`,
               x: margin.left + px,
               y: margin.top + py,

@@ -30,7 +30,9 @@ import { view } from '../src/view.js'
 import { renderedHtml } from './rendered-html.js'
 
 const detectedTimezone = IanaTimezone.make('America/New_York')
+
 const persistedTimezone = IanaTimezone.make('Pacific/Auckland')
+
 const user = { email: 'person@example.com', id: 'user-1', name: 'Person' }
 
 const settings = UserSettings.make({
