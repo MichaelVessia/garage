@@ -18,7 +18,6 @@ import { requireOperationSpanRule } from "./rules/require-operation-span.ts";
 import { requireServiceMakeLayerRule } from "./rules/require-service-make-layer.ts";
 import { streamLargeFilesRule } from "./rules/stream-large-files.ts";
 import { throwInEffectGenRule } from "./rules/throw-in-effect-gen.ts";
-import { withModes } from "../modes/wrap.ts";
 
 /** Opt-in Oxlint rules for Effect service and Layer architecture. */
 const antiSlopEffectPlugin = eslintCompatPlugin({
@@ -45,5 +44,4 @@ const antiSlopEffectPlugin = eslintCompatPlugin({
 	},
 });
 
-/** Every rule also takes `mode` in its options and reports only the first line it spans; see `modes/wrap.ts`. */
-export default withModes(antiSlopEffectPlugin, { firstLineOnly: true });
+export default antiSlopEffectPlugin;

@@ -135,7 +135,6 @@ export const CalendarFeedLive: Layer.Layer<
         },
         signingKey
       ).pipe(
-        // oxlint-disable-next-line anti-slop/no-reprovide-ambient-service -- CalendarFeed service methods have R = never; Signature is captured at layer construction
         Effect.provideService(Signature.Signature, signature),
         Effect.mapError(() => calendarDecodeError({ message: 'The Google sign-in assertion could not be signed' }))
       )
@@ -190,7 +189,6 @@ export const CalendarFeedLive: Layer.Layer<
         { concurrency: 2 }
       ).pipe(
         Effect.provideService(Credentials, Effect.succeed({ accessToken: token })),
-        // oxlint-disable-next-line anti-slop/no-reprovide-ambient-service -- CalendarFeed service methods have R = never; HttpClient is captured at layer construction
         Effect.provideService(HttpClient.HttpClient, client),
         // A rejected token is signed in again on the next request.
         Effect.tapError((error) => (P.isTagged(error, 'Unauthorized') ? Ref.set(tokens, Option.none()) : Effect.void)),
