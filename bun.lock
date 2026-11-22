@@ -27,25 +27,6 @@
         "vitest": "5.1.0",
       },
     },
-    "apps/frame": {
-      "name": "@garage/frame",
-      "version": "0.0.0",
-      "dependencies": {
-        "@distilled.cloud/google-workspace": "1.0.0-rc.17",
-        "@effect/platform-browser": "4.1.2",
-        "@effect/platform-bun": "4.1.2",
-        "@fontsource-variable/figtree": "5.3.0",
-        "@garage/integration-http": "workspace:*",
-        "effect": "4.1.2",
-        "foldkit": "^0.170.0",
-      },
-      "devDependencies": {
-        "@alchemy.run/docker": "2.0.0-beta.84",
-        "alchemy": "2.0.0-beta.84",
-        "happy-dom": "^20.12.0",
-        "vite": "^8.2.2",
-      },
-    },
     "apps/garage-mcp": {
       "name": "@garage/mcp",
       "version": "0.0.0",
@@ -279,8 +260,6 @@
 
     "@distilled.cloud/core": ["@distilled.cloud/core@1.0.0-rc.17", "", { "peerDependencies": { "effect": "^4.0.5" } }, "sha512-BHcVEtqIbyyqU3S3o8DjUtqoAJ4FLnsb4BX3nTK2+mcDARS2Puc+Qak6sn+b+W5CRKOOWyrhltbc+kaYDUwxeQ=="],
 
-    "@distilled.cloud/google-workspace": ["@distilled.cloud/google-workspace@1.0.0-rc.17", "", { "dependencies": { "@distilled.cloud/core": "1.0.0-rc.17" }, "peerDependencies": { "effect": "^4.0.5" } }, "sha512-VDt6IiDHWN+Nw7ZJqk4tVhGaxnLUZ8jSpyJss9C8UmITqbcPqn6WuY7c2l6QulujAPKcRhtWkaycpxxkxWyzvA=="],
-
     "@distilled.cloud/iceberg": ["@distilled.cloud/iceberg@1.0.0-rc.17", "", { "dependencies": { "@distilled.cloud/core": "1.0.0-rc.17" }, "peerDependencies": { "effect": "^4.0.5" } }, "sha512-hO9Kqc91dq7SLBCagxlr2RDSTbp7/urqjfxNitSNaaOyKIsUr85llsADT/rS6H85ezOsGf2vSP5y1Qk0kQWLCg=="],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
@@ -407,11 +386,7 @@
 
     "@fallow-cli/win32-x64-msvc": ["@fallow-cli/win32-x64-msvc@3.38.1", "", { "os": "win32", "cpu": "x64" }, "sha512-27HnShKI58XPYMLUIwMstf2DDhOGQAorSIJk1kZy0HRrB3RBhTfee3Mh9nHKi7GCFjPp4XjQ2YtdTyifX0jHfg=="],
 
-    "@fontsource-variable/figtree": ["@fontsource-variable/figtree@5.3.0", "", {}, "sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ=="],
-
     "@garage/autocaliweb": ["@garage/autocaliweb@workspace:packages/autocaliweb"],
-
-    "@garage/frame": ["@garage/frame@workspace:apps/frame"],
 
     "@garage/integration-http": ["@garage/integration-http@workspace:packages/integration-http"],
 

@@ -349,10 +349,6 @@
     url = "https://registry.npmjs.org/@distilled.cloud/core/-/core-1.0.0-rc.17.tgz";
     hash = "sha512-BHcVEtqIbyyqU3S3o8DjUtqoAJ4FLnsb4BX3nTK2+mcDARS2Puc+Qak6sn+b+W5CRKOOWyrhltbc+kaYDUwxeQ==";
   };
-  "@distilled.cloud/google-workspace@1.0.0-rc.17" = fetchurl {
-    url = "https://registry.npmjs.org/@distilled.cloud/google-workspace/-/google-workspace-1.0.0-rc.17.tgz";
-    hash = "sha512-VDt6IiDHWN+Nw7ZJqk4tVhGaxnLUZ8jSpyJss9C8UmITqbcPqn6WuY7c2l6QulujAPKcRhtWkaycpxxkxWyzvA==";
-  };
   "@distilled.cloud/iceberg@1.0.0-rc.17" = fetchurl {
     url = "https://registry.npmjs.org/@distilled.cloud/iceberg/-/iceberg-1.0.0-rc.17.tgz";
     hash = "sha512-hO9Kqc91dq7SLBCagxlr2RDSTbp7/urqjfxNitSNaaOyKIsUr85llsADT/rS6H85ezOsGf2vSP5y1Qk0kQWLCg==";
@@ -809,12 +805,7 @@
     url = "https://registry.npmjs.org/@fallow-cli/win32-x64-msvc/-/win32-x64-msvc-3.38.1.tgz";
     hash = "sha512-27HnShKI58XPYMLUIwMstf2DDhOGQAorSIJk1kZy0HRrB3RBhTfee3Mh9nHKi7GCFjPp4XjQ2YtdTyifX0jHfg==";
   };
-  "@fontsource-variable/figtree@5.3.0" = fetchurl {
-    url = "https://registry.npmjs.org/@fontsource-variable/figtree/-/figtree-5.3.0.tgz";
-    hash = "sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==";
-  };
   "@garage/autocaliweb" = copyPathToStore ./packages/autocaliweb;
-  "@garage/frame" = copyPathToStore ./apps/frame;
   "@garage/integration-http" = copyPathToStore ./packages/integration-http;
   "@garage/mcp" = copyPathToStore ./apps/garage-mcp;
   "@garage/sabnzbd" = copyPathToStore ./packages/sabnzbd;

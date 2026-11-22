@@ -15,12 +15,7 @@ it('keeps strict all-code and production API dead-code gates enabled', () => {
 it('keeps the complete Fallow configuration narrow and reviewable', () => {
   assert.deepStrictEqual(fallowConfig, {
     $schema: 'https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json',
-    entry: [
-      'apps/frame/alchemy.run.ts',
-      'apps/frame/web/index.html',
-      'apps/subq/alchemy.run.ts',
-      'apps/subq/web/index.html',
-    ],
+    entry: ['apps/subq/alchemy.run.ts', 'apps/subq/web/index.html'],
     dynamicallyLoaded: ['tools/oxlint/anti-slop/effect/index.ts'],
     rulePacks: ['fallow/effect-service-boundaries.jsonc'],
     rules: { 'boundary-violation': 'error', 'policy-violation': 'error' },
@@ -52,7 +47,6 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
     ignoreDependencies: ['@enfect/oxlint', '@oxlint/plugins', 'oxlint-plugin-effect'],
     ignoreExports: [
       { file: '**/*.config.{js,mjs,ts}', exports: ['default'] },
-      { file: 'apps/frame/alchemy.run.ts', exports: ['default'] },
       { file: 'apps/subq/src/db/schema.ts', exports: ['*'] },
       { file: 'apps/subq/alchemy.run.ts', exports: ['default'] },
       {

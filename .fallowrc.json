@@ -1,8 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
-    "apps/frame/alchemy.run.ts",
-    "apps/frame/web/index.html",
     "apps/subq/alchemy.run.ts",
     "apps/subq/web/index.html"
   ],
@@ -89,12 +87,6 @@
   "ignoreExports": [
     {
       "file": "**/*.config.{js,mjs,ts}",
-      "exports": [
-        "default"
-      ]
-    },
-    {
-      "file": "apps/frame/alchemy.run.ts",
       "exports": [
         "default"
       ]
