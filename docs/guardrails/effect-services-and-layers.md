@@ -5,7 +5,7 @@ Infrastructure stays visible at application boundaries, external adapters are
 testable without a live system, and wiring tests prove the composition users
 actually run. The goal is not maximal indirection.
 
-An integration package plus a thin Garage MCP adapter is one workspace archetype, not a universal repository taxonomy. Conventional APIs may live only in Executor, while shared packages and deployed applications use boundaries appropriate to their ownership. HTTP, XML, process execution, filesystem access, and browser APIs are adapter variants within those shapes.
+Shared packages and deployed applications use boundaries appropriate to their ownership. Homelab service integrations live in Executor v2 apps rather than Garage. HTTP, XML, process execution, filesystem access, and browser APIs are adapter variants within those shapes.
 
 ## Default stance
 
@@ -19,48 +19,26 @@ An integration package plus a thin Garage MCP adapter is one workspace archetype
 
 ## Composition ownership
 
-A deployed app's `main.ts` selects and composes domain, configuration, platform, and server layers. Keep platform requirements visible there rather than hiding `BunHttpClient.layer`, filesystem, or process services inside a domain layer. Choosing an implementation based on configuration also belongs at this boundary; `Layer.unwrap` is appropriate when selecting a layer effectfully.
-
-Garage MCP tool modules own names, schemas, annotations, and safe error translation. The Garage MCP composition root owns HTTP and Bun runtime wiring; integration packages remain unaware of MCP transport.
+A deployed app's `main.ts` or `worker.ts` selects and composes domain, configuration, platform, and server layers. Keep platform requirements visible there rather than hiding HTTP clients, SQL drivers, filesystem, or process services inside a domain layer. Choosing an implementation based on configuration also belongs at this boundary; `Layer.unwrap` is appropriate when selecting a layer effectfully.
 
 Composing owned domain dependencies differs from sealing infrastructure.
-`Layer.provide` or `Layer.provideMerge` may join services in `main.ts`, while the
+`Layer.provide` or `Layer.provideMerge` may join services in the composition root, while the
 underlying live adapter remains exported with its real requirements.
-
-## Paired integration responsibilities
-
-A typical `packages/<svc>` owns:
-
-- `model.ts` — public decoded domain shapes;
-- `api-schema.ts` — codecs for upstream wire payloads;
-- `errors.ts` — tagged errors;
-- `services.ts` — API interfaces and genuine configuration or policy services;
-- `http.ts`, `process.ts`, or another adapter — external I/O and mapping;
-- `operations.ts` — domain Effects consumed by commands;
-- `index.ts` — the public barrel.
-
-These responsibilities do not require every filename in every archetype.
-Struct keys in wire schemas follow upstream payloads; decode unknown input with
-`Schema.decodeUnknown` rather than asserting a type.
-
-Retained integrations have one HTTP adapter as the sole live `HttpClient` owner. AutoCaliWeb additionally owns OPDS/XML parsing, while SABnzbd owns its query-RPC response mapping. Garage MCP delegates to both rather than duplicating either protocol.
 
 ## Testing strategy
 
 Do not require every adapter to ship a broad exported test layer. Use the seam
 that proves the behavior under test:
 
-1. **Operation and command tests:** provide a local, complete implementation of
-   the API service. Keeping the fake local exposes interface drift and avoids a
+1. **Operation and service tests:** provide a local, complete implementation of
+   the API or repository service. Keeping the fake local exposes interface drift and avoids a
    speculative repository-wide `ApiTest` abstraction.
 2. **Live adapter tests:** provide canned infrastructure to the unsealed live
-   layer. HTTP integrations use `makeRecordingHttpClient` from
-   `@garage/integration-http/testing` to assert method, URL, ordering, status
-   mapping, and decoding. Process adapters provide a canned
-   `ChildProcessSpawner`; filesystem adapters provide test filesystem services.
-3. **Wiring tests:** drive a representative command through the actual live
-   adapter with canned infrastructure, then assert the complete envelope and
-   external request or invocation.
+   layer (for example in-memory SQLite for `SqlClient`, canned `HttpClient`,
+   `ChildProcessSpawner`, or test filesystem services).
+3. **Wiring tests:** drive a representative entrypoint or handler through the actual live
+   adapter with canned infrastructure, then assert the complete result and
+   external interaction.
 4. **Memory layers:** export `layerMemory` only when an in-memory implementation has real semantics worth reusing, not merely because tests need a stub.
 
 A hand-written API fake proves operation composition, while a canned

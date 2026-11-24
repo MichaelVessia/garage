@@ -25,8 +25,14 @@ const discoverManifests = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
 
-  const workspaceDirectories = yield* Effect.forEach(
+  const existingRoots = yield* Effect.forEach(
     ['apps', 'packages'],
+    (root) => fs.exists(root).pipe(Effect.map((exists) => (exists ? Option.some(root) : Option.none()))),
+    { concurrency: 'unbounded' }
+  ).pipe(Effect.map(Arr.getSomes))
+
+  const workspaceDirectories = yield* Effect.forEach(
+    existingRoots,
     (root) => fs.readDirectory(root).pipe(Effect.map((entries) => Arr.map(entries, (entry) => path.join(root, entry)))),
     { concurrency: 'unbounded' }
   )

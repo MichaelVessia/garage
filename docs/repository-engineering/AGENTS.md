@@ -14,9 +14,8 @@ This context owns root tooling and manifests, `scripts/`, `rules/`, `rule-tests/
 
 - Never edit generated dependency/build output.
 - Do not add an ast-grep rule that duplicates an oxlint Effect-plugin rule; every structural rule needs fixtures.
-- Regenerate `bun.nix` from `bun.lock` using the documented Nix procedure; do not hand-edit it.
 - Preserve exact-SHA validation and concurrency safety in deployment or release workflows.
-- Treat root artifact inputs and `packages/integration-http` production changes as cross-workspace risks.
+- Treat root artifact inputs as cross-workspace risks.
 
 ## Validation
 

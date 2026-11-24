@@ -74,24 +74,9 @@ pre-PR gate is non-negotiable.
 
 ### Dead-code policy
 
-`bun run dead-code` runs two zero-baseline Fallow passes:
+`bun run dead-code` runs a zero-baseline Fallow pass checking repository-wide reachability, dependencies, imports, cycles, boundaries, policy rules, and suppressions, including tests.
 
-1. repository-wide reachability, dependency, import, cycle, boundary, rule-pack
-   policy, and suppression analysis, including tests; and
-2. type-aware, production-only unused-export and unused-type analysis for
-   private packages and Garage MCP, where test-only references
-   must not keep a public API alive.
-
-Subq remains in the repository-wide pass because its browser and Worker modules
-expose intentional test seams throughout one deployed application. Runtime
-entry points and narrow dynamic/test-infrastructure exceptions are declared in
-`.fallowrc.json` and locked by `scripts/fallow-policy.test.ts`; do not add broad
-ignores or issue baselines.
-
-Fallow zones in `.fallowrc.json` protect the integration packages: contracts
-(`services`, `model`, `errors`, `api-schema`) and operations may not import
-adapters (`http`, `opds`), and `fallow/effect-service-boundaries.jsonc` keeps
-them away from concrete runtimes and SDKs.
+Runtime entry points and narrow dynamic/test-infrastructure exceptions are declared in `.fallowrc.json` and locked by `scripts/fallow-policy.test.ts`; do not add broad ignores or issue baselines.
 
 ### Exceptions
 
@@ -105,11 +90,11 @@ unstable Effect module, add it to `allowedUnstableApis` in
 
 ## Choosing a workspace shape
 
-New work starts by choosing an archetype: integration package plus Garage MCP adapter, shared/library package, or deployed application/worker/web app. Conventional service APIs should normally be imported directly into Executor instead of duplicated in Garage. HTTP, process, and file access are adapter choices, not workspace types. See [the workspace how-to](docs/how-to/add-a-workspace.md).
+New work starts by choosing an archetype: shared/library package under `packages/*`, or deployed application/worker/web app under `apps/*`. Homelab service integrations belong in Executor v2 apps rather than Garage. See [the workspace how-to](docs/how-to/add-a-workspace.md).
 
 ## Committing
 
-Use [conventional commits](https://www.conventionalcommits.org/). Scopes are optional and map to workspaces (`feat(mcp): ...`, `fix(integration-http): ...`); commitlint validates the format.
+Use [conventional commits](https://www.conventionalcommits.org/). Scopes are optional and map to workspaces (`feat(subq): ...`); commitlint validates the format.
 
 ## Going deeper
 

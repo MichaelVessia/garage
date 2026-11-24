@@ -12,41 +12,31 @@ routing and [CONTRIBUTING.md](../../CONTRIBUTING.md) for contributor setup.
   allowed for these packages. Tooling such as the language service and lint
   plugin follows its own version line.
 - Upgrade Effect atomically: update every first-party manifest, run
-  `bun install`, regenerate `bun.nix` with
-  `nix develop --command bun2nix -l bun.lock -o bun.nix`, verify stdout
-  regeneration with `nix develop --command bun2nix -l bun.lock | diff -u
-  bun.nix -`, then run `bunx vitest run scripts/effect-pins.test.ts`,
+  `bun install`, then run `bunx vitest run scripts/effect-pins.test.ts`,
   `bun install --frozen-lockfile`, and `bun run validate:release`.
 
 ## Workspace archetypes
 
 Choose the smallest truthful ownership shape:
 
-- **Executor-only integration** — a conventional API imported directly into Executor, with no Garage workspace.
-- **Integration package + Garage MCP adapter** — a typed protocol/domain package under `packages/<svc>` plus thin service-prefixed tools in `apps/garage-mcp`.
-- **Shared/library package** — reusable code without an executable.
-- **Deployed application/worker/web app** — an independently deployed system such as Subq.
+- **Executor v2 app (outside Garage)** — homelab or third-party service integrations run directly as Executor v2 TypeScript apps, with no Garage workspace.
+- **Shared/library package** — reusable code under `packages/<name>` without an executable.
+- **Deployed application/worker/web app** — an independently deployed system under `apps/<name>` such as Subq.
 
-HTTP, XML, process, session, or file access is an adapter choice rather than repository taxonomy. Use a separate MCP process only when authority or isolation requires it.
+HTTP, XML, process, session, or file access is an adapter choice rather than repository taxonomy.
 
-## Integration vocabulary
+## Vocabulary
 
-- **Self-hosted service**: the external system being operated.
-- **Integration package**: the workspace owning models, wire decoding, external adapter, errors, and domain operations.
-- **Garage MCP adapter**: the delivery-edge code owning MCP names, input schemas, annotations, safe error mapping, and delegation.
 - **Model**: an exported Effect `Schema` value and decoded type.
 - **External adapter**: the sole module that contacts an external system.
-- **Domain operation**: a deterministic typed Effect built over the package API service.
-- **Integration HTTP**: the shared package owning typed configuration, error, JSON HTTP, and recording-test infrastructure used by retained integration packages.
+- **Domain operation**: a deterministic typed Effect built over a narrow service contract.
 - **Tagged error**: a schema-tagged value in an Effect error channel.
 - **Validation gate**: `bun run validate`.
 - **Workspace**: an independently owned package or app.
 
 ## Cross-workspace imports
 
-Never import across workspaces via a relative path. Use the workspace's package name (`@garage/<pkg>`). Garage MCP imports integration packages by name, and each package exposes its public API through its `index.ts` barrel.
-
-Service packages do not import each other or delivery-edge implementation files.
+Never import across workspaces via a relative path. Use the workspace's package name (`@garage/<pkg>`), and expose each shared package's public API through its `index.ts` barrel. Never import production code from another app.
 
 ## Type safety
 
@@ -71,11 +61,9 @@ Judgment the lints cannot check (where layers are provided, what a service
 requires, what the tests prove) lives in
 [docs/guardrails/](../guardrails/README.md).
 
-## Integration package responsibilities
+## Package and application responsibilities
 
-Typical integration package files are `model.ts` for public domain values, `api-schema.ts` for upstream wire codecs, `errors.ts` for tagged errors, `services.ts` for service interfaces and configuration/policy services, an adapter such as `http.ts` or `process.ts`, `operations.ts` for domain Effects, and `index.ts` for the public barrel. These are responsibilities, not a demand that every workspace contain every filename.
-
-Garage MCP's `main.ts` owns selection and composition of integration, configuration, platform, HTTP server, and toolkit layers. Tool adapter files remain thin and do not seal platform infrastructure into integration packages.
+Keep platform requirements visible in adapters and select concrete infrastructure in the application composition root (`main.ts` or `worker.ts`). Do not seal concrete platform layers into reusable library or domain modules.
 
 ## Errors
 

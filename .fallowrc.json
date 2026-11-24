@@ -1,145 +1,28 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": [
-    "apps/subq/alchemy.run.ts",
-    "apps/subq/web/index.html"
-  ],
-  "dynamicallyLoaded": [
-    "tools/oxlint/anti-slop/effect/index.ts"
-  ],
-  "rulePacks": [
-    "fallow/effect-service-boundaries.jsonc"
-  ],
+  "entry": ["apps/subq/alchemy.run.ts", "apps/subq/web/index.html"],
+  "dynamicallyLoaded": ["tools/oxlint/anti-slop/effect/index.ts"],
   "rules": {
     "boundary-violation": "error",
     "policy-violation": "error"
   },
-  "boundaries": {
-    "zones": [
-      {
-        "name": "roots",
-        "patterns": [
-          "packages/{autocaliweb,sabnzbd}/src/index.ts"
-        ]
-      },
-      {
-        "name": "adapters",
-        "patterns": [
-          "packages/{autocaliweb,sabnzbd}/src/http.ts",
-          "packages/{autocaliweb,sabnzbd}/src/opds.ts"
-        ]
-      },
-      {
-        "name": "contracts",
-        "patterns": [
-          "packages/{autocaliweb,sabnzbd}/src/services.ts",
-          "packages/{autocaliweb,sabnzbd}/src/model.ts",
-          "packages/{autocaliweb,sabnzbd}/src/errors.ts",
-          "packages/{autocaliweb,sabnzbd}/src/api-schema.ts"
-        ]
-      },
-      {
-        "name": "operations",
-        "patterns": [
-          "packages/{autocaliweb,sabnzbd}/src/operations.ts"
-        ]
-      }
-    ],
-    "rules": [
-      {
-        "from": "roots",
-        "allow": [
-          "roots",
-          "contracts",
-          "adapters",
-          "operations"
-        ]
-      },
-      {
-        "from": "adapters",
-        "allow": [
-          "adapters",
-          "contracts",
-          "operations"
-        ]
-      },
-      {
-        "from": "contracts",
-        "allow": [
-          "contracts",
-          "operations"
-        ]
-      },
-      {
-        "from": "operations",
-        "allow": [
-          "contracts",
-          "operations"
-        ]
-      }
-    ]
-  },
-  "ignoreDependencies": [
-    "@enfect/oxlint",
-    "@oxlint/plugins",
-    "oxlint-plugin-effect"
-  ],
+  "ignoreDependencies": ["@enfect/oxlint", "@oxlint/plugins", "oxlint-plugin-effect"],
   "ignoreExports": [
     {
       "file": "**/*.config.{js,mjs,ts}",
-      "exports": [
-        "default"
-      ]
+      "exports": ["default"]
     },
     {
       "file": "apps/subq/src/db/schema.ts",
-      "exports": [
-        "*"
-      ]
+      "exports": ["*"]
     },
     {
       "file": "apps/subq/alchemy.run.ts",
-      "exports": [
-        "default"
-      ]
-    },
-    {
-      "file": "packages/autocaliweb/src/index.ts",
-      "exports": [
-        "AutocaliwebConfig",
-        "LimitOptions",
-        "SearchOptions",
-        "unreachable"
-      ]
-    },
-    {
-      "file": "packages/integration-http/src/index.ts",
-      "exports": [
-        "ErrorFailure",
-        "JsonClientErrors"
-      ]
-    },
-    {
-      "file": "packages/integration-http/src/testing.ts",
-      "exports": [
-        "*"
-      ]
-    },
-    {
-      "file": "packages/sabnzbd/src/index.ts",
-      "exports": [
-        "DeleteOptions",
-        "LimitOptions",
-        "SabnzbdConfig",
-        "envMissing",
-        "unreachable"
-      ]
+      "exports": ["default"]
     },
     {
       "file": "tools/oxlint/anti-slop/effect/index.ts",
-      "exports": [
-        "default"
-      ]
+      "exports": ["default"]
     }
   ]
 }

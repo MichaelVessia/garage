@@ -1,6 +1,6 @@
 # ADR 0002: Consolidate MCP delivery over existing integration packages
 
-- Status: accepted
+- Status: superseded (2026-11-24 — replaced by native Executor v2 apps for SABnzbd and AutoCaliWeb; `apps/garage-mcp`, `packages/sabnzbd`, `packages/autocaliweb`, and `packages/integration-http` removed)
 - Date: 2026-08-26
 
 ## Context
