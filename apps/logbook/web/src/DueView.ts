@@ -1,5 +1,5 @@
 import type { AssetId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
-import { addDays, computeDueStatus } from '@garage/logbook-domain/ScheduleMath'
+import { addDays, computeDueStatus, defaultWithinMeter } from '@garage/logbook-domain/ScheduleMath'
 import type { DueThresholds, IsoDate } from '@garage/logbook-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Order from 'effect/Order'
@@ -39,13 +39,14 @@ const dueItems = (model: Model) => {
       continue
     }
     const identity = { assetId: asset.id, assetName: asset.name }
+    const withinMeter = defaultWithinMeter(asset.meter?.unit)
     for (const [scheduleId, schedule] of Record.toEntries(asset.schedules)) {
       const input = {
         ...schedule,
         currentMeter: asset.meter?.reading,
         nowDate: model.today,
         withinDays: 30,
-        withinMeter: 500,
+        withinMeter,
       }
       const status = computeDueStatus(
         input.currentMeter === undefined

@@ -36,6 +36,6 @@ Use the app Worker URL for the web app and its APIs. The browser uses the Access
 ## Connect clients
 
 - In Executor v2, configure an HTTP MCP server at `https://<logbook-host>/mcp`.
-- For Frame (`apps/frame`), use `GET https://<logbook-host>/frame/due`. The report defaults to 30 days, 500 meter units, and 60 days for warranties. Use the `withinDays`, `withinMeter`, and `warrantyDays` query parameters to change those limits.
+- For Frame (`apps/frame`), use `GET https://<logbook-host>/frame/due`. The report looks ahead 30 days for maintenance and 60 days for warranties. The default meter threshold is 500 miles or 25 hours, according to the asset's meter unit. Use the optional `withinMeter` query parameter to set the same numeric threshold for all metered assets, in each asset's meter unit. Use `withinDays` and `warrantyDays` to change the date limits.
 
 For both clients, set `CF-Access-Client-Id` and `CF-Access-Client-Secret` to the service token credentials when Access protects the host. For a host that accepts the optional Logbook API token, send `Authorization: Bearer <token>`.

@@ -189,6 +189,63 @@ it.live('returns only due maintenance and expiring warranties for active assets'
   }).pipe(Effect.provide(server))
 )
 
+// The in-memory model uses the live clock for projection workers.
+// ast-grep-ignore: no-it-live
+it.live('uses a 25-hour due window by default and accepts a meter override', () =>
+  Effect.gen(function* () {
+    const now = yield* DateTime.now
+    const today = isoDateFromUtc(now)
+    const client = yield* LogbookApi.clientInProcess
+    const generator = AssetId.make('generator')
+    const oil = ScheduleId.make('oil')
+    const filter = ScheduleId.make('filter')
+    const cadence = Cadence.cases.Either.make({ days: 730, every: 200, unit: 'hours' })
+
+    yield* client.RegisterAsset(
+      generator,
+      { name: 'Generator', category: 'equipment', meterUnit: 'hours', initialMeter: 0 },
+      session
+    )
+    yield* client.AddSchedule(
+      generator,
+      { scheduleId: oil, title: 'Change oil', cadence, lastCompletedOn: today },
+      session
+    )
+    const write = yield* client.AddSchedule(
+      generator,
+      { scheduleId: filter, title: 'Replace filter', cadence: { ...cadence, every: 25 }, lastCompletedOn: today },
+      session
+    )
+    yield* client.HomeCatalog.get(HOME_HOUSEHOLD_ID, { ...session, atLeast: write })
+
+    const item = {
+      assetId: generator,
+      assetName: 'Generator',
+      category: 'equipment',
+      currentMeter: 0,
+      meterUnit: 'hours',
+      nextDueOn: addDays(today, 730),
+    }
+    const filterItem = { ...item, scheduleId: filter, title: 'Replace filter', nextDueMeter: 25 }
+    const oilItem = { ...item, scheduleId: oil, title: 'Change oil', nextDueMeter: 200 }
+
+    const response = yield* handle('/frame/due', session)
+    assert.strictEqual(response.status, 200)
+    const report = yield* json(response)
+    assert.deepPropertyVal(report, 'dueSoon', [filterItem])
+
+    const expanded = yield* handle('/frame/due?withinMeter=200', session)
+    assert.strictEqual(expanded.status, 200)
+    const expandedReport = yield* json(expanded)
+    assert.deepPropertyVal(expandedReport, 'dueSoon', [filterItem, oilItem])
+
+    const narrowed = yield* handle('/frame/due?withinMeter=0', session)
+    assert.strictEqual(narrowed.status, 200)
+    const narrowedReport = yield* json(narrowed)
+    assert.deepPropertyVal(narrowedReport, 'dueSoon', [])
+  }).pipe(Effect.provide(server))
+)
+
 // The HTTP read waits for the live projection worker after the write.
 // ast-grep-ignore: no-it-live
 it.live('protects the OpenAPI document and serves HTTP commands and reads', () =>

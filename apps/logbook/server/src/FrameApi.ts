@@ -1,7 +1,7 @@
 import { AssetId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { HOME_HOUSEHOLD_ID } from '@garage/logbook-domain/Household.id'
 import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
-import { computeDueStatus, isoDateFromUtc } from '@garage/logbook-domain/ScheduleMath'
+import { computeDueStatus, defaultWithinMeter, isoDateFromUtc } from '@garage/logbook-domain/ScheduleMath'
 import { Unauthorized } from '@garage/logbook-domain/Session.middleware'
 import { AssetCategory, DueThresholds, IsoDate, MeterReading, MeterUnit } from '@garage/logbook-domain/Values'
 import { Platform } from 'alchemy/Http'
@@ -22,9 +22,7 @@ import * as Schema from 'effect/Schema'
 const dayCount = Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
 const DueQuery = Schema.Struct({
   withinDays: dayCount.pipe(Schema.withDecodingDefaultKey(Effect.succeed('30'))),
-  withinMeter: Schema.NumberFromString.check(Schema.isFinite(), Schema.isGreaterThanOrEqualTo(0)).pipe(
-    Schema.withDecodingDefaultKey(Effect.succeed('500'))
-  ),
+  withinMeter: Schema.optionalKey(Schema.NumberFromString.check(Schema.isFinite(), Schema.isGreaterThanOrEqualTo(0))),
   warrantyDays: dayCount.pipe(Schema.withDecodingDefaultKey(Effect.succeed('60'))),
 })
 
@@ -104,8 +102,15 @@ const handlers = HttpApiBuilder.group(api, 'frame', (group) =>
         const identity = { assetId: asset.id, assetName: asset.name }
         const meter =
           asset.meter === undefined ? {} : { currentMeter: asset.meter.reading, meterUnit: asset.meter.unit }
+        const withinMeter = query.withinMeter ?? defaultWithinMeter(asset.meter?.unit)
         for (const [scheduleId, schedule] of Record.toEntries(asset.schedules)) {
-          const status = computeDueStatus({ ...schedule, ...meter, ...query, nowDate: generatedOn })
+          const status = computeDueStatus({
+            ...schedule,
+            ...meter,
+            nowDate: generatedOn,
+            withinDays: query.withinDays,
+            withinMeter,
+          })
           const item = { ...identity, category: asset.category, scheduleId, ...schedule, ...meter }
           if (status === 'overdue') {
             overdue.push(item)

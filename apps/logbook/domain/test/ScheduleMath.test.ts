@@ -2,7 +2,14 @@ import { expect, it } from '@effect/vitest'
 import * as DateTime from 'effect/DateTime'
 import * as Schema from 'effect/Schema'
 
-import { addDays, computeDueStatus, computeNextDue, isoDateFromUtc, nextSeasonalDate } from '../src/ScheduleMath.ts'
+import {
+  addDays,
+  computeDueStatus,
+  computeNextDue,
+  defaultWithinMeter,
+  isoDateFromUtc,
+  nextSeasonalDate,
+} from '../src/ScheduleMath.ts'
 import { Cadence, Cents, IsoDate, MeterReading } from '../src/Values.ts'
 
 const date = IsoDate.make
@@ -39,6 +46,12 @@ it('calculates both due thresholds and omits the meter threshold when the refere
     nextDueMeter: 20.5,
   })
   expect(computeNextDue(date('2025-12-31'))(cadence)).toEqual({ nextDueOn: '2026-01-01' })
+})
+
+it('uses meter defaults of 500 miles, 25 hours, and zero for assets without a meter', () => {
+  expect(defaultWithinMeter('miles')).toBe(500)
+  expect(defaultWithinMeter('hours')).toBe(25)
+  expect(defaultWithinMeter(undefined)).toBe(0)
 })
 
 it('classifies either threshold with overdue taking priority', () => {

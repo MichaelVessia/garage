@@ -87,6 +87,35 @@ it('places tasks and warranties in the correct groups when the catalog arrives',
   )
 })
 
+it('shows only hours-metered tasks within the due window', () => {
+  const generator = AssetId.make('generator')
+  const nextDueOn = IsoDate.make('2028-11-24')
+  const generatorAsset: CatalogAsset = {
+    id: generator,
+    name: 'Generator',
+    category: 'equipment',
+    status: 'active',
+    meter: { unit: 'hours', reading: 0 },
+    specs: {},
+    schedules: {
+      [oil]: { title: 'Change generator oil', nextDueOn, nextDueMeter: 200 },
+      [inspection]: { title: 'Inspect generator', nextDueOn, nextDueMeter: 25 },
+    },
+    warranties: {},
+  }
+  const dueSoon = role('region', { name: 'Due Soon' })
+
+  Scene.scene(
+    app,
+    Scene.given(initial),
+    Scene.Subscription.emit(
+      Message.ReceivedCatalog({ catalog: { ...catalog, assets: { [generator]: generatorAsset } } })
+    ),
+    Scene.expect(within(dueSoon, text('Inspect generator'))).toExist(),
+    Scene.expect(within(dueSoon, text('Change generator oil'))).toBeAbsent()
+  )
+})
+
 it('finds spec keys and values and opens live asset detail and activity', () => {
   Scene.scene(
     app,

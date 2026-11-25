@@ -3,7 +3,7 @@ import * as Duration from 'effect/Duration'
 import * as Function from 'effect/Function'
 import * as Schema from 'effect/Schema'
 
-import type { DueThresholds } from './Values.ts'
+import type { DueThresholds, MeterUnit } from './Values.ts'
 import { Cadence, IsoDate, MeterReading } from './Values.ts'
 
 export const isoDateFromUtc = (now: DateTime.Utc): IsoDate => IsoDate.make(DateTime.formatIsoDateUtc(now))
@@ -66,6 +66,11 @@ export const computeNextDue: {
     })
   }
 )
+
+const meterWindows: Readonly<Record<typeof MeterUnit.Type, number>> = { miles: 500, hours: 25 }
+
+export const defaultWithinMeter = (unit?: typeof MeterUnit.Type): number =>
+  unit === undefined ? 0 : meterWindows[unit]
 
 type DueStatusInput = DueThresholds & {
   readonly nowDate: IsoDate
