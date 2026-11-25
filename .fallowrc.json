@@ -1,6 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": ["apps/subq/alchemy.run.ts", "apps/subq/web/index.html"],
+  "entry": [
+    "apps/subq/alchemy.run.ts",
+    "apps/subq/web/index.html",
+    "apps/logbook/alchemy.run.ts",
+    "apps/logbook/web/index.html",
+    "apps/logbook/web/src/worker.ts"
+  ],
   "dynamicallyLoaded": ["tools/oxlint/anti-slop/effect/index.ts"],
   "rules": {
     "boundary-violation": "error",
@@ -18,6 +24,10 @@
     },
     {
       "file": "apps/subq/alchemy.run.ts",
+      "exports": ["default"]
+    },
+    {
+      "file": "apps/logbook/alchemy.run.ts",
       "exports": ["default"]
     },
     {

@@ -170,8 +170,23 @@ it.effect('authenticates a configured API token and uses the development email f
   }).pipe(
     Effect.provide(
       sessionLayer(
-        { LOGBOOK_API_TOKEN: 'api-secret', LOGBOOK_DEV_EMAIL: 'dev@example.com' },
+        { ALCHEMY_DEV: 'true', LOGBOOK_API_TOKEN: 'api-secret', LOGBOOK_DEV_EMAIL: 'dev@example.com' },
         jwksClient(Effect.die('Bearer and development authentication do not use JWKS'))
+      )
+    )
+  )
+)
+
+it.effect('ignores the development email outside alchemy dev', () =>
+  Effect.gen(function* () {
+    const { authenticate } = yield* SessionAuthentication
+    const error = yield* authenticate(Headers.empty).pipe(Effect.flip)
+    assert.instanceOf(error, Unauthorized)
+  }).pipe(
+    Effect.provide(
+      sessionLayer(
+        { LOGBOOK_DEV_EMAIL: 'dev@example.com' },
+        jwksClient(Effect.die('Missing credentials do not use JWKS'))
       )
     )
   )

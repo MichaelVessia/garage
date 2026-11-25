@@ -5,6 +5,7 @@ import type { Actor } from '@garage/logbook-domain/Actor'
 import { owner, system } from '@garage/logbook-domain/Actor'
 import { CurrentActor } from '@garage/logbook-domain/CurrentActor.context'
 import { Session, Unauthorized } from '@garage/logbook-domain/Session.middleware'
+import { ALCHEMY_DEV } from 'alchemy'
 import * as Config from 'effect/Config'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
@@ -30,13 +31,14 @@ export class SessionAuthentication extends Context.Service<
 >()('@garage/logbook-server/Session/SessionAuthentication', {
   make: Effect.gen(function* () {
     const jwt = yield* AccessJwt
-    const { teamDomain, audience, ownerEmail, apiToken, devEmail } = yield* Config.all({
+    const dev = yield* ALCHEMY_DEV
+    const { teamDomain, audience, ownerEmail, apiToken } = yield* Config.all({
       teamDomain: optionalText('CF_ACCESS_TEAM_DOMAIN'),
       audience: optionalText('CF_ACCESS_AUD'),
       ownerEmail: optionalText('LOGBOOK_OWNER_EMAIL'),
       apiToken: Config.Redacted('LOGBOOK_API_TOKEN').pipe(Config.option),
-      devEmail: optionalText('LOGBOOK_DEV_EMAIL'),
     })
+    const devEmail = dev ? yield* optionalText('LOGBOOK_DEV_EMAIL') : Option.none()
     const access = Option.all({ teamDomain, audience }).pipe(
       Option.map(({ teamDomain, audience }) => ({
         issuer: `https://${Fn.pipe(teamDomain, Str.replace(/^https:\/\//u, ''), Str.replace(/\/$/u, ''))}`,

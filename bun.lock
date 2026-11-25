@@ -27,6 +27,16 @@
         "vitest": "5.1.0",
       },
     },
+    "apps/logbook": {
+      "name": "@garage/logbook",
+      "dependencies": {
+        "@alchemy.run/cloudflare": "2.0.0-beta.87",
+        "@alchemy.run/domain": "2.0.0-beta.87",
+        "@garage/logbook-server": "workspace:*",
+        "alchemy": "2.0.0-beta.87",
+        "effect": "4.1.5",
+      },
+    },
     "apps/logbook/domain": {
       "name": "@garage/logbook-domain",
       "dependencies": {
@@ -50,6 +60,25 @@
       "devDependencies": {
         "@cloudflare/workers-types": "^5.20260829.1",
         "@effect/vitest": "4.1.5",
+        "vitest": "5.1.0",
+      },
+    },
+    "apps/logbook/web": {
+      "name": "@garage/logbook-web",
+      "dependencies": {
+        "@alchemy.run/domain": "2.0.0-beta.87",
+        "@effect/platform-browser": "4.1.5",
+        "@garage/logbook-domain": "workspace:*",
+        "effect": "4.1.5",
+        "foldkit": "^0.170.0",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^5.20260829.1",
+        "@effect/vitest": "4.1.5",
+        "@tailwindcss/vite": "^4.3.3",
+        "happy-dom": "^20.12.0",
+        "tailwindcss": "^4.3.3",
+        "vite": "^8.2.2",
         "vitest": "5.1.0",
       },
     },
@@ -384,9 +413,13 @@
 
     "@fallow-cli/win32-x64-msvc": ["@fallow-cli/win32-x64-msvc@3.38.1", "", { "os": "win32", "cpu": "x64" }, "sha512-27HnShKI58XPYMLUIwMstf2DDhOGQAorSIJk1kZy0HRrB3RBhTfee3Mh9nHKi7GCFjPp4XjQ2YtdTyifX0jHfg=="],
 
+    "@garage/logbook": ["@garage/logbook@workspace:apps/logbook"],
+
     "@garage/logbook-domain": ["@garage/logbook-domain@workspace:apps/logbook/domain"],
 
     "@garage/logbook-server": ["@garage/logbook-server@workspace:apps/logbook/server"],
+
+    "@garage/logbook-web": ["@garage/logbook-web@workspace:apps/logbook/web"],
 
     "@garage/subq": ["@garage/subq@workspace:apps/subq"],
 

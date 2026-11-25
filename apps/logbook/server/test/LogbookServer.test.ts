@@ -310,3 +310,16 @@ it.live('discovers, lists, and calls Logbook MCP tools over HTTP', () =>
     assert.nestedPropertyVal(viewResult, 'result.structuredContent.value.assets.furnace.name', 'Furnace')
   }).pipe(Effect.provide(server))
 )
+
+it.effect('returns a typed session denial for browser RPC commands', () =>
+  Effect.gen(function* () {
+    const response = yield* handle('/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-ndjson' },
+      body: '{"_tag":"Request","id":"1","tag":"RecordMeter","payload":{"target":"truck","input":{"reading":10}},"headers":[]}\n',
+    })
+    assert.strictEqual(response.status, 200)
+    const body = yield* Effect.promise(() => response.text())
+    assert.include(body, '"_tag":"Unauthorized"')
+  }).pipe(Effect.provide(server))
+)

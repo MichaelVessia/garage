@@ -27,7 +27,16 @@ export const LogbookRouter = Effect.gen(function* () {
     if (path === '/frame/due') {
       return yield* frame
     }
-    if (path === '/api' || Str.startsWith('/api/')(path) || path === '/mcp') {
+    const isRpcPath = path === '/api' || Str.startsWith('/api/')(path)
+    // RPC middleware sends typed denials to clients, including after a WebSocket upgrade.
+    if (
+      isRpcPath &&
+      (request.headers['upgrade'] === 'websocket' ||
+        Str.startsWith('application/x-ndjson')(request.headers['content-type'] ?? ''))
+    ) {
+      return yield* rpc
+    }
+    if (isRpcPath || path === '/mcp') {
       return yield* authenticate(request.headers).pipe(
         Effect.matchEffect({
           onFailure: (error: Unauthorized) => Effect.succeed(HttpServerResponse.jsonUnsafe(error, { status: 401 })),
