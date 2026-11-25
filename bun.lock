@@ -109,6 +109,17 @@
         "vite": "^8.2.2",
       },
     },
+    "apps/subq/domain": {
+      "name": "@garage/subq-domain",
+      "dependencies": {
+        "@alchemy.run/domain": "2.0.0-beta.87",
+        "effect": "4.1.5",
+      },
+      "devDependencies": {
+        "@effect/vitest": "4.1.5",
+        "vitest": "5.1.0",
+      },
+    },
   },
   "trustedDependencies": [
     "@ast-grep/cli",
@@ -422,6 +433,8 @@
     "@garage/logbook-web": ["@garage/logbook-web@workspace:apps/logbook/web"],
 
     "@garage/subq": ["@garage/subq@workspace:apps/subq"],
+
+    "@garage/subq-domain": ["@garage/subq-domain@workspace:apps/subq/domain"],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
 

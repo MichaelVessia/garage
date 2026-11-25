@@ -1,0 +1,216 @@
+{
+  "weightSummary": {
+    "rateOfChange": -0.4374999999999983,
+    "entryCount": 1000,
+    "minWeightLbs": 187.5625,
+    "maxWeightLbs": 250,
+    "avgWeightLbs": 218.78125
+  },
+  "weightTrend": {
+    "trendLine": {
+      "slope": -7.233796296296268e-10,
+      "intercept": 1437.072916666662,
+      "startDate": "2022-01-01T04:00:00.000Z",
+      "endDate": "2024-09-26T04:00:00.000Z",
+      "startWeightLbs": 250,
+      "endWeightLbs": 187.56250000000023
+    }
+  },
+  "sites": {
+    "sites": [
+      {
+        "site": "Unknown",
+        "count": 50
+      },
+      {
+        "site": "Right thigh",
+        "count": 50
+      },
+      {
+        "site": "Left abdomen",
+        "count": 50
+      },
+      {
+        "site": "Unknown",
+        "count": 50
+      }
+    ],
+    "totalInjections": 200
+  },
+  "frequency": {
+    "totalInjections": 200,
+    "avgDaysBetween": 5,
+    "mostFrequentDayOfWeek": 1,
+    "injectionsPerWeek": 1.407035175879397
+  },
+  "compounds": {
+    "totalInjections": 200,
+    "compounds": [
+      {
+        "compound": "Tirzepatide",
+        "count": 67
+      },
+      {
+        "compound": "Semaglutide",
+        "count": 67
+      },
+      {
+        "compound": "Dulaglutide",
+        "count": 66
+      }
+    ]
+  },
+  "weekdays": {
+    "days": [
+      {
+        "dayOfWeek": 0,
+        "count": 28
+      },
+      {
+        "dayOfWeek": 1,
+        "count": 29
+      },
+      {
+        "dayOfWeek": 2,
+        "count": 28
+      },
+      {
+        "dayOfWeek": 3,
+        "count": 28
+      },
+      {
+        "dayOfWeek": 4,
+        "count": 29
+      },
+      {
+        "dayOfWeek": 5,
+        "count": 29
+      },
+      {
+        "dayOfWeek": 6,
+        "count": 29
+      }
+    ],
+    "totalInjections": 200
+  },
+  "goalProgress": {
+    "lbsLost": 62.4375,
+    "lbsRemaining": 12.5625,
+    "percentComplete": 83.25,
+    "projectedDate": "2025-04-20",
+    "paceStatus": "behind",
+    "daysOnPlan": 1004,
+    "avgLbsPerWeek": 0.4374999999999983,
+    "currentWeightLbs": 187.5625
+  },
+  "nextDose": {
+    "scheduleId": "schedule-0",
+    "scheduleName": "Schedule 0",
+    "doseMg": 1,
+    "suggestedDate": "2024-09-24",
+    "currentPhase": 2,
+    "totalPhases": 2,
+    "daysUntilDue": -7,
+    "isOverdue": true,
+    "compound": "Semaglutide"
+  },
+  "scheduleProgress": {
+    "id": "schedule-0",
+    "name": "Schedule 0",
+    "supplier": null,
+    "frequency": "weekly",
+    "startDate": "2022-01-01",
+    "endDate": null,
+    "isActive": true,
+    "notes": null,
+    "totalExpectedInjections": null,
+    "totalCompletedInjections": 56,
+    "createdAt": "2022-01-01T04:00:00.000Z",
+    "updatedAt": "2022-01-01T04:00:00.000Z",
+    "compound": "Semaglutide",
+    "phases": [
+      {
+        "id": "phase-0-1",
+        "order": 1,
+        "durationDays": 28,
+        "doseMg": 0.5,
+        "startDate": "2022-01-01",
+        "endDate": "2022-01-28",
+        "status": "completed",
+        "expectedInjections": 4,
+        "completedInjections": 1,
+        "injectionIds": [
+          "injection-3"
+        ]
+      },
+      {
+        "id": "phase-0-2",
+        "order": 2,
+        "durationDays": null,
+        "doseMg": 1,
+        "startDate": "2022-01-29",
+        "endDate": null,
+        "status": "current",
+        "expectedInjections": null,
+        "completedInjections": 55,
+        "injectionIds": [
+          "injection-6",
+          "injection-9",
+          "injection-12",
+          "injection-15",
+          "injection-18",
+          "injection-24",
+          "injection-27",
+          "injection-30",
+          "injection-33",
+          "injection-36",
+          "injection-39",
+          "injection-45",
+          "injection-48",
+          "injection-51",
+          "injection-54",
+          "injection-57",
+          "injection-60",
+          "injection-66",
+          "injection-69",
+          "injection-72",
+          "injection-75",
+          "injection-78",
+          "injection-81",
+          "injection-87",
+          "injection-90",
+          "injection-93",
+          "injection-96",
+          "injection-99",
+          "injection-102",
+          "injection-108",
+          "injection-111",
+          "injection-114",
+          "injection-117",
+          "injection-120",
+          "injection-123",
+          "injection-129",
+          "injection-132",
+          "injection-135",
+          "injection-138",
+          "injection-141",
+          "injection-144",
+          "injection-150",
+          "injection-153",
+          "injection-156",
+          "injection-159",
+          "injection-162",
+          "injection-165",
+          "injection-171",
+          "injection-174",
+          "injection-177",
+          "injection-180",
+          "injection-183",
+          "injection-186",
+          "injection-192",
+          "injection-195"
+        ]
+      }
+    ]
+  }
+}
