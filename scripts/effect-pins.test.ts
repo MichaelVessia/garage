@@ -10,7 +10,8 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import { describe } from 'vitest'
 
-const effectVersion = '4.1.2'
+const effectVersion = '4.1.5'
+const nestedAppWorkspaces = ['domain', 'server', 'web']
 
 const DependencyMap = Schema.Record(Schema.String, Schema.String)
 
@@ -18,6 +19,7 @@ const Manifest = Schema.fromJsonString(
   Schema.Struct({
     dependencies: Schema.optional(DependencyMap),
     devDependencies: Schema.optional(DependencyMap),
+    overrides: Schema.optional(DependencyMap),
   })
 )
 
@@ -31,16 +33,27 @@ const discoverManifests = Effect.gen(function* () {
     { concurrency: 'unbounded' }
   ).pipe(Effect.map(Arr.getSomes))
 
-  const workspaceDirectories = yield* Effect.forEach(
+  const workspaceManifests = yield* Effect.forEach(
     existingRoots,
-    (root) => fs.readDirectory(root).pipe(Effect.map((entries) => Arr.map(entries, (entry) => path.join(root, entry)))),
+    (root) =>
+      fs.readDirectory(root).pipe(
+        Effect.map((entries) =>
+          Arr.flatMap(entries, (entry) => {
+            const manifest = path.join(root, entry, 'package.json')
+
+            return root === 'apps'
+              ? [
+                  manifest,
+                  ...Arr.map(nestedAppWorkspaces, (workspace) => path.join(root, entry, workspace, 'package.json')),
+                ]
+              : [manifest]
+          })
+        )
+      ),
     { concurrency: 'unbounded' }
   )
 
-  const candidates = [
-    'package.json',
-    ...Arr.map(Arr.flatten(workspaceDirectories), (entry) => path.join(entry, 'package.json')),
-  ]
+  const candidates = ['package.json', ...Arr.flatten(workspaceManifests)]
 
   const manifests = yield* Effect.forEach(
     candidates,
@@ -70,8 +83,11 @@ describe('Effect dependency pins', () => {
         (path) =>
           fs.readFileString(path).pipe(
             Effect.flatMap(Schema.decodeEffect(Manifest)),
-            Effect.map((manifest) => ({ ...manifest.dependencies, ...manifest.devDependencies })),
-            Effect.map(R.toEntries),
+            Effect.map((manifest) => [
+              ...R.toEntries(manifest.dependencies ?? {}),
+              ...R.toEntries(manifest.devDependencies ?? {}),
+              ...R.toEntries(manifest.overrides ?? {}),
+            ]),
             Effect.map((dependencies) =>
               Arr.filter(dependencies, ([name, version]) => isPinnedEffectDependency(name) && version !== effectVersion)
             ),

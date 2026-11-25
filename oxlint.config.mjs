@@ -30,8 +30,8 @@ export default defineConfig({
   rules: {
     ...cloudflare.rules,
 
-    // Effect v4 requires namespace imports (`preferNamespaceImport` in tsconfig.base.json).
-    'import/no-namespace': ['error', { ignore: ['effect', 'effect/**', '@effect/**'] }],
+    // Effect and Alchemy expose APIs through namespace imports.
+    'import/no-namespace': ['error', { ignore: ['effect', 'effect/**', '@effect/**', 'alchemy', '@alchemy.run/**'] }],
 
     // Effect AST rules (K-Mistele/anti-slop)
     'anti-slop-effect/no-manual-effect-error-tag': 'error',
@@ -92,7 +92,14 @@ export default defineConfig({
     },
     {
       // Real entry points where Effect programs may be executed.
-      files: ['apps/*/src/main.ts', 'apps/*/src/worker.ts', 'apps/*/scripts/**', 'apps/*/alchemy.run.ts'],
+      files: [
+        'apps/*/src/main.ts',
+        'apps/*/src/worker.ts',
+        'apps/*/server/src/worker.ts',
+        'apps/*/web/src/worker.ts',
+        'apps/*/scripts/**',
+        'apps/*/alchemy.run.ts',
+      ],
       rules: {
         'enfect/effect-run-in-body': 'off',
       },

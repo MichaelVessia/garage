@@ -1,5 +1,17 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["scripts", "packages/*/src", "packages/*/test", "apps/*/src", "apps/*/test"],
+  "include": [
+    "scripts",
+    "packages/*/src",
+    "packages/*/test",
+    "apps/*/src",
+    "apps/*/test",
+    "apps/*/domain/src",
+    "apps/*/domain/test",
+    "apps/*/server/src",
+    "apps/*/server/test",
+    "apps/*/web/src",
+    "apps/*/web/test"
+  ],
   "compilerOptions": {}
 }
