@@ -1,22 +1,23 @@
+import { addCalendarDays, calendarDateStartUtc } from '@garage/subq-domain/Calendar'
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import type { WeightUnit } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
-import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { addCalendarDays, calendarDateStartUtc } from '#shared'
-import type { IanaTimezone, InjectionSchedule, WeightUnit } from '#shared'
-
-import type { InjectionPoint, SchedulePeriod, WeightPoint } from '../../chart/layout.js'
-import { viewWeightTrend } from '../../chart/weight-trend.js'
-import { displayWeight, formatWeight } from '../../data/settings.js'
-import { button, card, input } from '../../ui.js'
-import { viewBarChart, viewDoseHistory, viewPieChart } from './chart-view.js'
-import { viewGoalCardContent } from './goal-view.js'
-import { ChangedCustomEnd, ChangedCustomStart, ClickedStatsPreset, CommittedCustomRange } from './model.js'
-import type { StatsBundle, StatsMessage, StatsModel, StatsPreset, StatsRange } from './model.js'
+import type { InjectionPoint, SchedulePeriod, WeightPoint } from '../../chart/layout.ts'
+import { viewWeightTrend } from '../../chart/weight-trend.ts'
+import { displayWeight, formatWeight } from '../../lib/weight-unit.ts'
+import { button, card, input } from '../../ui.ts'
+import { viewBarChart, viewDoseHistory, viewPieChart } from './chart-view.ts'
+import type { StatsBundle } from './data.ts'
+import { viewGoalCardContent } from './goal-view.ts'
+import { ChangedCustomEnd, ChangedCustomStart, ClickedStatsPreset, CommittedCustomRange } from './model.ts'
+import type { StatsMessage, StatsPage, StatsPreset, StatsRange } from './model.ts'
 
 // ============================================
 // Views
@@ -24,7 +25,7 @@ import type { StatsBundle, StatsMessage, StatsModel, StatsPreset, StatsRange } f
 
 // Ended schedules display their final included local day, while chart
 // geometry uses the following local-day boundary as an exclusive end.
-const finiteScheduleDays = (schedule: InjectionSchedule): Option.Option<number> => {
+const finiteScheduleDays = (schedule: Schedule): Option.Option<number> => {
   if (schedule.isActive) {
     return Option.none()
   }
@@ -38,18 +39,18 @@ const finiteScheduleDays = (schedule: InjectionSchedule): Option.Option<number> 
 }
 
 export const scheduleEndDate: {
-  (timezone: IanaTimezone): (schedule: InjectionSchedule) => Option.Option<Date>
-  (schedule: InjectionSchedule, timezone: IanaTimezone): Option.Option<Date>
-} = Function.dual(2, (schedule: InjectionSchedule, timezone: IanaTimezone): Option.Option<Date> =>
+  (timezone: IanaTimezone): (schedule: Schedule) => Option.Option<Date>
+  (schedule: Schedule, timezone: IanaTimezone): Option.Option<Date>
+} = Function.dual(2, (schedule: Schedule, timezone: IanaTimezone): Option.Option<Date> =>
   Option.map(finiteScheduleDays(schedule), (totalDays) =>
     calendarDateStartUtc(addCalendarDays(schedule.startDate, totalDays - 1), timezone).pipe(DateTime.toDate)
   )
 )
 
 export const scheduleEndExclusiveDate: {
-  (timezone: IanaTimezone): (schedule: InjectionSchedule) => Option.Option<Date>
-  (schedule: InjectionSchedule, timezone: IanaTimezone): Option.Option<Date>
-} = Function.dual(2, (schedule: InjectionSchedule, timezone: IanaTimezone): Option.Option<Date> =>
+  (timezone: IanaTimezone): (schedule: Schedule) => Option.Option<Date>
+  (schedule: Schedule, timezone: IanaTimezone): Option.Option<Date>
+} = Function.dual(2, (schedule: Schedule, timezone: IanaTimezone): Option.Option<Date> =>
   Option.map(finiteScheduleDays(schedule), (totalDays) =>
     calendarDateStartUtc(addCalendarDays(schedule.startDate, totalDays), timezone).pipe(DateTime.toDate)
   )
@@ -95,7 +96,7 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
       )
     )
 
-  const viewRangeSelector = (model: StatsModel, range: StatsRange) => {
+  const viewRangeSelector = (model: StatsPage, range: StatsRange) => {
     const active = activePresetOf(range)
 
     return h.div(
@@ -153,7 +154,7 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
   }
 
   const viewBundle = (
-    model: StatsModel,
+    model: StatsPage,
     bundle: StatsBundle,
     unit: WeightUnit,
     range: StatsRange,
@@ -165,12 +166,12 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
       bundle.weightStats === null
         ? []
         : [
-            ['Min', formatWeight(unit, bundle.weightStats.minWeight)],
-            ['Max', formatWeight(unit, bundle.weightStats.maxWeight)],
-            ['Average', formatWeight(unit, bundle.weightStats.avgWeight)],
+            ['Min', formatWeight(unit, bundle.weightStats.minWeightLbs)],
+            ['Max', formatWeight(unit, bundle.weightStats.maxWeightLbs)],
+            ['Average', formatWeight(unit, bundle.weightStats.avgWeightLbs)],
             [
               'Rate',
-              `${bundle.weightStats.rateOfChange >= 0 ? '+' : ''}${show(Math.abs(bundle.weightStats.rateOfChange)).toFixed(2)} ${unit}/wk`,
+              `${bundle.weightStats.rateOfChange >= 0 ? '+' : '-'}${show(Math.abs(bundle.weightStats.rateOfChange)).toFixed(2)} ${unit}/wk`,
             ],
             ['Entries', String(bundle.weightStats.entryCount)],
           ]
@@ -193,17 +194,17 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
     const weightData: ReadonlyArray<WeightPoint> = Arr.map(bundle.weightTrend.points, (point) => ({
       date: point.date,
       notes: Option.none(),
-      weight: point.weight,
+      weight: point.weightLbs,
     }))
 
     const injectionData: ReadonlyArray<InjectionPoint> = Arr.map(bundle.injections, (injection) => ({
-      date: DateTime.toDate(injection.datetime),
+      date: injection.date,
       doseMg: injection.doseMg,
-      drug: injection.drug,
+      compound: injection.compound,
     }))
 
     const schedulePeriods: ReadonlyArray<SchedulePeriod> = Arr.map(bundle.schedules, (schedule) => ({
-      drug: schedule.drug,
+      compound: schedule.compound,
       endDateExclusive: scheduleEndExclusiveDate(schedule, timezone),
       endDateInclusive: scheduleEndDate(schedule, timezone),
       scheduleName: schedule.name,
@@ -273,7 +274,10 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
             ),
             viewCard(
               'Medications Used',
-              viewBarChart({ data: Arr.map(bundle.drugBreakdown.drugs, (drug) => [drug.drug, drug.count]), h })
+              viewBarChart({
+                data: Arr.map(bundle.compoundBreakdown.compounds, (compound) => [compound.compound, compound.count]),
+                h,
+              })
             ),
           ]
         ),
@@ -282,20 +286,12 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
     )
   }
 
-  return (model: StatsModel, unit: WeightUnit, range: StatsRange, timezone: IanaTimezone): Html =>
+  return (model: StatsPage, unit: WeightUnit, range: StatsRange, timezone: IanaTimezone): Html =>
     h.div(
       [],
       [
         h.div([h.Class('mb-6')], [viewRangeSelector(model, range)]),
-        AsyncData.match(model.data, {
-          onFailure: () =>
-            h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-          onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onRefreshing: (bundle) => viewBundle(model, bundle, unit, range, timezone),
-          onStale: ({ data }) => viewBundle(model, data, unit, range, timezone),
-          onSuccess: (bundle) => viewBundle(model, bundle, unit, range, timezone),
-        }),
+        viewBundle(model, model.data, unit, range, timezone),
       ]
     )
 }
@@ -307,7 +303,7 @@ export const viewStats = <ParentMessage>({
   timezone,
   h,
 }: {
-  readonly model: StatsModel
+  readonly model: StatsPage
   readonly unit: WeightUnit
   readonly range: StatsRange
   readonly timezone: IanaTimezone

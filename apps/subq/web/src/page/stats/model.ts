@@ -1,45 +1,13 @@
-import * as Arr from 'effect/Array'
-import * as Option from 'effect/Option'
+import { CalendarDate } from '@garage/subq-domain/Calendar'
+import { GoalId } from '@garage/subq-domain/Journal/Journal.id'
+import { Goal } from '@garage/subq-domain/Journal/JournalRecords'
+import { WeightLbs } from '@garage/subq-domain/Values'
+import type * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { AsyncData } from 'foldkit'
 import { taggedStruct } from 'foldkit/schema'
 
-import {
-  CalendarDate,
-  DoseHistoryStats,
-  DrugBreakdownStats,
-  GoalId,
-  GoalProgress,
-  IanaTimezone,
-  InjectionDayOfWeekStats,
-  InjectionFrequencyStats,
-  InjectionLog,
-  InjectionSchedule,
-  InjectionSiteStats,
-  WeightStats,
-  WeightTrendStats,
-} from '#shared'
-
-import { ChartMessage, ChartState, initialChartState } from '../../chart/state.js'
-
-// ============================================
-// Model
-// ============================================
-
-export const StatsBundle = Schema.Struct({
-  weightStats: Schema.NullOr(WeightStats),
-  weightTrend: WeightTrendStats,
-  injections: Schema.Array(InjectionLog),
-  siteStats: InjectionSiteStats,
-  doseHistory: DoseHistoryStats,
-  frequency: Schema.NullOr(InjectionFrequencyStats),
-  drugBreakdown: DrugBreakdownStats,
-  dayOfWeek: InjectionDayOfWeekStats,
-  schedules: Schema.Array(InjectionSchedule),
-  goal: Schema.NullOr(GoalProgress),
-})
-
-export type StatsBundle = typeof StatsBundle.Type
+import { ChartMessage, ChartState, initialChartState } from '../../chart/state.ts'
+import type { StatsBundle } from './data.ts'
 
 export const StatsPreset = Schema.Literals(['1m', '3m', '6m', '1y', 'all'])
 
@@ -48,6 +16,7 @@ export type StatsPreset = typeof StatsPreset.Type
 const GoalForm = Schema.Struct({
   editingId: Schema.NullOr(GoalId),
   goalWeight: Schema.String,
+  originalWeightLbs: Schema.NullOr(WeightLbs),
   startDate: Schema.String,
   targetDate: Schema.String,
   notes: Schema.String,
@@ -58,11 +27,6 @@ const GoalForm = Schema.Struct({
 export type GoalForm = typeof GoalForm.Type
 
 export const StatsModel = Schema.Struct({
-  data: AsyncData.Schema(StatsBundle, Schema.String).schema,
-  // range key ("startIso|endIso") and timezone for the current request
-  fetchedRange: Schema.NullOr(Schema.String),
-  fetchedTimezone: Schema.NullOr(IanaTimezone),
-  requestGeneration: Schema.Int,
   chart: ChartState,
   goalForm: Schema.NullOr(GoalForm),
   goalDeleteConfirm: Schema.Boolean,
@@ -76,51 +40,14 @@ export const initialStatsModel: StatsModel = {
   chart: initialChartState,
   customEnd: '',
   customStart: '',
-  data: AsyncData.Idle(),
-  fetchedRange: null,
-  fetchedTimezone: null,
   goalDeleteConfirm: false,
   goalForm: null,
-  requestGeneration: 0,
 }
 
 export interface StatsRange {
   readonly start: Option.Option<CalendarDate>
   readonly end: Option.Option<CalendarDate>
 }
-
-export const rangeKey = (range: StatsRange): string =>
-  `${Option.getOrElse(range.start, () => '')}|${Option.getOrElse(range.end, () => '')}`
-
-export const distinctStatsResultTimezones = (
-  results: ReadonlyArray<{ readonly timezone: IanaTimezone }>
-): ReadonlyArray<IanaTimezone> => Arr.dedupe(Arr.map(results, ({ timezone }) => timezone))
-
-// ============================================
-// Messages
-// ============================================
-
-export const SucceededFetchStats = taggedStruct('SucceededFetchStats', {
-  bundle: StatsBundle,
-  key: Schema.String,
-  requestedTimezone: IanaTimezone,
-  requestGeneration: Schema.Int,
-  timezone: IanaTimezone,
-})
-
-export const RejectedFetchStats = taggedStruct('RejectedFetchStats', {
-  key: Schema.String,
-  requestedTimezone: IanaTimezone,
-  requestGeneration: Schema.Int,
-  timezones: Schema.Array(IanaTimezone),
-})
-
-export const FailedFetchStats = taggedStruct('FailedFetchStats', {
-  key: Schema.String,
-  requestedTimezone: IanaTimezone,
-  requestGeneration: Schema.Int,
-  message: Schema.String,
-})
 
 export const ClickedStatsPreset = taggedStruct('ClickedStatsPreset', {
   preset: StatsPreset,
@@ -136,7 +63,9 @@ export const ClickedSetGoal = taggedStruct('ClickedSetGoal')
 
 export const CompletedOpenGoalForm = taggedStruct('CompletedOpenGoalForm', { todayLocal: CalendarDate })
 
-export const ClickedEditGoal = taggedStruct('ClickedEditGoal')
+export const ClickedEditGoal = taggedStruct('ClickedEditGoal', { goal: Goal })
+
+export const ClickedCompleteGoal = taggedStruct('ClickedCompleteGoal', { goalId: GoalId })
 
 export const ClickedCancelGoalForm = taggedStruct('ClickedCancelGoalForm')
 
@@ -148,7 +77,7 @@ export const ChangedGoalTargetDate = taggedStruct('ChangedGoalTargetDate', { val
 
 export const ChangedGoalNotes = taggedStruct('ChangedGoalNotes', { value: Schema.String })
 
-export const SubmittedGoalForm = taggedStruct('SubmittedGoalForm', { unit: Schema.Literals(['lbs', 'kg']) })
+export const SubmittedGoalForm = taggedStruct('SubmittedGoalForm')
 
 export const SucceededSaveGoal = taggedStruct('SucceededSaveGoal')
 
@@ -160,18 +89,11 @@ export const CancelledDeleteGoal = taggedStruct('CancelledDeleteGoal')
 
 export const ConfirmedDeleteGoal = taggedStruct('ConfirmedDeleteGoal', { goalId: GoalId })
 
-export const SucceededDeleteGoal = taggedStruct('SucceededDeleteGoal')
+export const SucceededChangeGoalStatus = taggedStruct('SucceededChangeGoalStatus')
 
 export const NavigatedStats = taggedStruct('NavigatedStats')
 
-export const FetchStatsResult = Schema.Union([SucceededFetchStats, RejectedFetchStats])
-
-export type FetchStatsResult = typeof FetchStatsResult.Type
-
 export const StatsMessage = Schema.Union([
-  SucceededFetchStats,
-  RejectedFetchStats,
-  FailedFetchStats,
   ClickedStatsPreset,
   ChangedCustomStart,
   ChangedCustomEnd,
@@ -179,6 +101,7 @@ export const StatsMessage = Schema.Union([
   ClickedSetGoal,
   CompletedOpenGoalForm,
   ClickedEditGoal,
+  ClickedCompleteGoal,
   ClickedCancelGoalForm,
   ChangedGoalWeight,
   ChangedGoalStartDate,
@@ -190,9 +113,11 @@ export const StatsMessage = Schema.Union([
   RequestedDeleteGoal,
   CancelledDeleteGoal,
   ConfirmedDeleteGoal,
-  SucceededDeleteGoal,
+  SucceededChangeGoalStatus,
   NavigatedStats,
   ChartMessage,
 ])
 
 export type StatsMessage = typeof StatsMessage.Type
+
+export type StatsPage = StatsModel & { readonly data: StatsBundle }

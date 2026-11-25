@@ -1,25 +1,24 @@
+import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import type { NextScheduledDose } from '@garage/subq-domain/ScheduleMath'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import * as Str from 'effect/String'
-import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { InjectionSchedule, NextScheduledDose } from '#shared'
-
-import { formatDate, formatShortDate } from '../../lib/datetime.js'
-import { frequencyLabel } from '../../lib/frequency.js'
-import { scheduleViewRouter } from '../../route.js'
-import { button, card } from '../../ui.js'
-import { viewScheduleForm } from './form-view.js'
+import { formatDate, formatShortDate } from '../../lib/datetime.ts'
+import { frequencyLabel } from '../../lib/frequency.ts'
+import { scheduleViewRouter } from '../../route.ts'
+import { button, card } from '../../ui.ts'
+import { viewScheduleForm } from './form-view.ts'
 import {
   CancelledDeleteSchedule,
-  ClickedActivateSchedule,
+  ClickedToggleScheduleActivity,
   ClickedAddSchedule,
   ClickedEditSchedule,
   ConfirmedDeleteSchedule,
   RequestedDeleteSchedule,
-} from './model.js'
-import type { NextDoseData, ScheduleMessage, ScheduleModel } from './model.js'
+} from './model.ts'
+import type { ScheduleMessage, SchedulePage } from './model.ts'
 
 // ============================================
 // View
@@ -67,7 +66,7 @@ const dueClassFor = (nextDose: NextScheduledDose): string => {
   return 'text-muted-foreground'
 }
 
-const totalScheduleDays = (schedule: InjectionSchedule): Option.Option<number> =>
+const totalScheduleDays = (schedule: Schedule): Option.Option<number> =>
   Arr.some(schedule.phases, (phase) => phase.durationDays === null)
     ? Option.none()
     : Option.some(Arr.reduce(schedule.phases, 0, (sum, phase) => sum + (phase.durationDays ?? 0)))
@@ -99,7 +98,7 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
                     h.div(
                       [h.Class('flex items-center gap-1.5')],
                       [
-                        h.span([h.Class('font-medium')], [nextDose.drug]),
+                        h.span([h.Class('font-medium')], [nextDose.compound]),
                         h.span([h.Class('text-muted-foreground')], ['-']),
                         h.span([h.Class('font-mono text-primary')], [`${nextDose.doseMg} mg`]),
                       ]
@@ -121,17 +120,7 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
       ]
     )
 
-  const viewNextDoseBanner = (nextDoseData: NextDoseData) =>
-    AsyncData.match(nextDoseData, {
-      onFailure: () => h.div([h.Class('mb-6 text-sm text-destructive')], ['Failed to load next dose info']),
-      onIdle: () => h.empty,
-      onLoading: () => h.empty,
-      onRefreshing: (nextDose) => Option.match(nextDose, { onNone: () => h.empty, onSome: viewNextDoseValue }),
-      onStale: ({ data }) => Option.match(data, { onNone: () => h.empty, onSome: viewNextDoseValue }),
-      onSuccess: (nextDose) => Option.match(nextDose, { onNone: () => h.empty, onSome: viewNextDoseValue }),
-    })
-
-  const viewScheduleCard = (schedule: InjectionSchedule) => {
+  const viewScheduleCard = (schedule: Schedule) => {
     const totalDays = totalScheduleDays(schedule)
 
     return h.div(
@@ -152,7 +141,7 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
                       : h.empty,
                   ]
                 ),
-                h.p([h.Class('text-sm text-muted-foreground')], [schedule.drug]),
+                h.p([h.Class('text-sm text-muted-foreground')], [schedule.compound]),
                 schedule.supplier === null
                   ? h.empty
                   : h.p([h.Class('text-xs text-muted-foreground')], [`Supplier: ${schedule.supplier}`]),
@@ -161,15 +150,13 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
             h.div(
               [h.Class('flex items-center gap-1')],
               [
-                schedule.isActive
-                  ? h.empty
-                  : h.button(
-                      [
-                        h.Class(button({ size: 'sm', variant: 'outline' })),
-                        h.OnClick(ClickedActivateSchedule({ schedule })),
-                      ],
-                      ['Activate']
-                    ),
+                h.button(
+                  [
+                    h.Class(button({ size: 'sm', variant: 'outline' })),
+                    h.OnClick(ClickedToggleScheduleActivity({ schedule })),
+                  ],
+                  [schedule.isActive ? 'Deactivate' : 'Activate']
+                ),
                 h.a(
                   [h.Href(scheduleViewRouter({ scheduleId: schedule.id }))],
                   [h.button([h.Class(button({ class: 'h-8 w-8', size: 'icon', variant: 'ghost' }))], ['View'])]
@@ -266,7 +253,7 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
       ]
     )
 
-  const viewSchedules = (schedules: ReadonlyArray<InjectionSchedule>) =>
+  const viewSchedules = (schedules: ReadonlyArray<Schedule>) =>
     Arr.isReadonlyArrayNonEmpty(schedules)
       ? h.div(
           [h.Class('space-y-4')],
@@ -284,11 +271,11 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
           ]
         )
 
-  return (model: ScheduleModel) =>
+  return (model: SchedulePage) =>
     h.div(
       [],
       [
-        viewNextDoseBanner(model.nextDose),
+        Option.match(model.nextDose, { onNone: () => h.empty, onSome: viewNextDoseValue }),
         h.div(
           [h.Class('flex justify-between items-center mb-6 gap-4')],
           [
@@ -306,15 +293,7 @@ const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | Schedule
           ]
         ),
         model.form === null ? h.empty : viewScheduleForm({ form: model.form, h }),
-        AsyncData.match(model.schedules, {
-          onFailure: () =>
-            h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-          onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onRefreshing: viewSchedules,
-          onStale: ({ data }) => viewSchedules(data),
-          onSuccess: viewSchedules,
-        }),
+        viewSchedules(model.schedules),
         model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
       ]
     )
@@ -324,6 +303,6 @@ export const viewSchedule = <ParentMessage>({
   h,
   model,
 }: {
-  readonly model: ScheduleModel
+  readonly model: SchedulePage
   readonly h: HtmlBuilder<ParentMessage | ScheduleMessage>
 }): Html => makeViewSchedule(h)(model)

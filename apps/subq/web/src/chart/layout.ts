@@ -1,12 +1,12 @@
-import type { ScaleLinear, ScaleTime } from 'd3'
 import * as Arr from 'effect/Array'
 import * as Function from 'effect/Function'
 import * as HashSet from 'effect/HashSet'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 
-import { getDoseColor } from './colors.js'
-import type { ChartState } from './state.js'
+import { getDoseColor } from './colors.ts'
+import type { linearScale, utcScale } from './scale.ts'
+import type { ChartState } from './state.ts'
 
 // ============================================
 // Data types (plain, computed from RPC results)
@@ -20,13 +20,13 @@ export interface WeightPoint {
 
 export interface InjectionPoint {
   readonly date: Date
-  readonly drug: string
+  readonly compound: string
   readonly doseMg: number
 }
 
 export interface SchedulePeriod {
   readonly scheduleName: string
-  readonly drug: string
+  readonly compound: string
   readonly startDate: Date
   readonly endDateExclusive: Option.Option<Date>
   readonly endDateInclusive: Option.Option<Date>
@@ -49,19 +49,19 @@ export const CHART_HEIGHT = 320
 
 export interface WeightPointColored extends WeightPoint {
   readonly color: string
-  readonly drug: Option.Option<string>
+  readonly compound: Option.Option<string>
   readonly doseMg: Option.Option<number>
 }
 
 export interface Segment {
   readonly points: ReadonlyArray<WeightPointColored>
   readonly color: string
-  readonly drug: Option.Option<string>
+  readonly compound: Option.Option<string>
   readonly doseMg: Option.Option<number>
 }
 
 export interface Pill {
-  readonly drug: string
+  readonly compound: string
   readonly doseMg: number
   readonly color: string
   readonly date: Date
@@ -94,13 +94,13 @@ interface SegmentBuild {
   readonly segments: ReadonlyArray<Segment>
   readonly current: ReadonlyArray<WeightPointColored>
   readonly color: string
-  readonly drug: Option.Option<string>
+  readonly compound: Option.Option<string>
   readonly doseMg: Option.Option<number>
 }
 
 const flushSegment = (build: SegmentBuild): ReadonlyArray<Segment> =>
   Arr.isReadonlyArrayNonEmpty(build.current)
-    ? [...build.segments, { color: build.color, doseMg: build.doseMg, drug: build.drug, points: build.current }]
+    ? [...build.segments, { color: build.color, doseMg: build.doseMg, compound: build.compound, points: build.current }]
     : build.segments
 
 export const computeSegments: {
@@ -119,14 +119,20 @@ export const computeSegments: {
         ...point,
         color: Option.match(recent, {
           onNone: () => '#94a3b8',
-          onSome: (inj) => getDoseColor(`${inj.drug}::${inj.doseMg}`),
+          onSome: (inj) => getDoseColor(`${inj.compound}::${inj.doseMg}`),
         }),
         doseMg: Option.map(recent, (inj) => inj.doseMg),
-        drug: Option.map(recent, (inj) => inj.drug),
+        compound: Option.map(recent, (inj) => inj.compound),
       }
     })
 
-    const initial: SegmentBuild = { color: '', current: [], doseMg: Option.none(), drug: Option.none(), segments: [] }
+    const initial: SegmentBuild = {
+      color: '',
+      current: [],
+      doseMg: Option.none(),
+      compound: Option.none(),
+      segments: [],
+    }
 
     const built = Arr.reduce(colored, initial, (build, point) => {
       if (point.color === build.color) {
@@ -139,7 +145,7 @@ export const computeSegments: {
         color: point.color,
         current: seed,
         doseMg: point.doseMg,
-        drug: point.drug,
+        compound: point.compound,
         segments: flushSegment(build),
       }
     })
@@ -155,13 +161,13 @@ export const computePills: {
   (
     allInjections: ReadonlyArray<InjectionPoint>,
     zoom: Option.Option<ZoomRange>,
-    xScale: ScaleTime<number, number>
+    xScale: ReturnType<typeof utcScale>
   ): (sortedWeight: ReadonlyArray<WeightPoint>) => PillLayout
   (
     sortedWeight: ReadonlyArray<WeightPoint>,
     allInjections: ReadonlyArray<InjectionPoint>,
     zoom: Option.Option<ZoomRange>,
-    xScale: ScaleTime<number, number>
+    xScale: ReturnType<typeof utcScale>
   ): PillLayout
 } = Function.dual(
   4,
@@ -169,7 +175,7 @@ export const computePills: {
     sortedWeight: ReadonlyArray<WeightPoint>,
     allInjections: ReadonlyArray<InjectionPoint>,
     zoom: Option.Option<ZoomRange>,
-    xScale: ScaleTime<number, number>
+    xScale: ReturnType<typeof utcScale>
   ): PillLayout => {
     const sortedInjections = bySortedDate(allInjections)
 
@@ -200,10 +206,10 @@ export const computePills: {
                 color: getDoseColor(prior.doseMg),
                 date: range.start,
                 doseMg: prior.doseMg,
-                drug: prior.drug,
+                compound: prior.compound,
                 row: 0,
                 weight: first.weight,
-                x: xScale(range.start),
+                x: xScale.position(range.start),
               },
             ],
           })
@@ -215,11 +221,10 @@ export const computePills: {
       Option.getOrNull
     )
 
-    const [domainStart, domainEnd] = xScale.domain()
+    const { start, end } = xScale
 
     const built = Arr.reduce(visible, { pills: priorPills, prevDose: initialDose }, (acc, inj) => {
-      const outOfDomain =
-        domainStart !== undefined && domainEnd !== undefined && (inj.date < domainStart || inj.date > domainEnd)
+      const outOfDomain = inj.date < start || inj.date > end
 
       if (outOfDomain || inj.doseMg === acc.prevDose) {
         return acc
@@ -233,10 +238,10 @@ export const computePills: {
             color: getDoseColor(inj.doseMg),
             date: inj.date,
             doseMg: inj.doseMg,
-            drug: inj.drug,
+            compound: inj.compound,
             row: 0,
             weight: near.weight,
-            x: xScale(inj.date),
+            x: xScale.position(inj.date),
           },
         ],
       })
@@ -266,13 +271,13 @@ export interface ChartFrame {
   readonly margin: { readonly bottom: number; readonly left: number; readonly right: number; readonly top: number }
   readonly width: number
   readonly height: number
-  readonly xScale: ScaleTime<number, number>
-  readonly yScale: ScaleLinear<number, number>
+  readonly xScale: ReturnType<typeof utcScale>
+  readonly yScale: ReturnType<typeof linearScale>
   readonly domainStartMs: number
   readonly domainEndMs: number
   readonly filter: ChartState['filter']
   readonly displayWeight: (lbs: number) => number
   readonly unitLabel: string
   readonly formatDate: (date: Date) => string
-  readonly isSelected: (drug: Option.Option<string>, doseMg: Option.Option<number>) => boolean
+  readonly isSelected: (compound: Option.Option<string>, doseMg: Option.Option<number>) => boolean
 }

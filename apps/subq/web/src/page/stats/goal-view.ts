@@ -1,11 +1,11 @@
+import type { GoalProgress } from '@garage/subq-domain/GoalMath'
+import type { WeightUnit } from '@garage/subq-domain/Values'
 import * as Option from 'effect/Option'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { GoalProgress, WeightUnit } from '#shared'
-
-import { displayWeight } from '../../data/settings.js'
-import { formatDate } from '../../lib/datetime.js'
-import { button, input } from '../../ui.js'
+import { formatDate } from '../../lib/datetime.ts'
+import { displayWeight } from '../../lib/weight-unit.ts'
+import { button, input } from '../../ui.ts'
 import {
   CancelledDeleteGoal,
   ChangedGoalNotes,
@@ -14,12 +14,13 @@ import {
   ChangedGoalWeight,
   ClickedCancelGoalForm,
   ClickedEditGoal,
+  ClickedCompleteGoal,
   ClickedSetGoal,
   ConfirmedDeleteGoal,
   RequestedDeleteGoal,
   SubmittedGoalForm,
-} from './model.js'
-import type { GoalForm, StatsMessage, StatsModel } from './model.js'
+} from './model.ts'
+import type { GoalForm, StatsMessage, StatsModel } from './model.ts'
 
 const goalSubmitLabel = (form: GoalForm): string => {
   if (form.submitting) {
@@ -39,7 +40,7 @@ const PACE_BADGES = {
 const makeViewGoal = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessage>) => {
   const viewGoalForm = (form: GoalForm, unit: WeightUnit) =>
     h.form(
-      [h.OnSubmit(SubmittedGoalForm({ unit }))],
+      [h.OnSubmit(SubmittedGoalForm())],
       [
         h.div(
           [h.Class('grid gap-4 sm:grid-cols-2')],
@@ -55,7 +56,7 @@ const makeViewGoal = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessage
                   h.Class(input()),
                   h.Type('number'),
                   h.Id('goal-weight'),
-                  h.Step('0.1'),
+                  h.Step('any'),
                   h.Min('0'),
                   h.Value(form.goalWeight),
                   h.OnInput((value) => ChangedGoalWeight({ value })),
@@ -183,7 +184,17 @@ const makeViewGoal = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessage
                   [
                     paceBadge(progress.paceStatus),
                     h.button(
-                      [h.Class(button({ size: 'sm', variant: 'ghost' })), h.OnClick(ClickedEditGoal())],
+                      [
+                        h.Class(button({ size: 'sm', variant: 'outline' })),
+                        h.OnClick(ClickedCompleteGoal({ goalId: progress.goal.id })),
+                      ],
+                      ['Complete Goal']
+                    ),
+                    h.button(
+                      [
+                        h.Class(button({ size: 'sm', variant: 'ghost' })),
+                        h.OnClick(ClickedEditGoal({ goal: progress.goal })),
+                      ],
                       ['Edit']
                     ),
                     h.button(
@@ -209,9 +220,9 @@ const makeViewGoal = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessage
             h.div(
               [h.Class('flex justify-between mt-2 text-sm')],
               [
-                h.span([h.Class('font-mono')], [`${show(progress.goal.startingWeight).toFixed(1)} ${unit}`]),
+                h.span([h.Class('font-mono')], [`${show(progress.goal.startingWeightLbs).toFixed(1)} ${unit}`]),
                 h.span([h.Class('font-semibold')], [`${progress.percentComplete.toFixed(0)}%`]),
-                h.span([h.Class('font-mono')], [`${show(progress.goal.goalWeight).toFixed(1)} ${unit}`]),
+                h.span([h.Class('font-mono')], [`${show(progress.goal.goalWeightLbs).toFixed(1)} ${unit}`]),
               ]
             ),
           ]

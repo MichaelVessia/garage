@@ -323,8 +323,10 @@ it.effect('keeps one active schedule and rejects missing schedules and invalid p
 it.effect('resolves a goal starting weight in the journal timezone and records explicit completion', () => {
   const tiedWeight = { ...weight, id: WeightId.make('tie'), weightLbs: WeightLbs.make(190) }
   const revised = { ...goal, notes: Notes.make('Revised') }
+  const redated = { ...revised, startingDate: jan2, startingWeightLbs: weight.weightLbs }
+  const restored = { ...redated, startingDate: jan1, startingWeightLbs: earlierWeight.weightLbs }
   const goal2 = { ...goal, ...goalInput, id: goal2Id, startingDate: jan2, startingWeightLbs: weight.weightLbs }
-  const inactive = { ...revised, isActive: false }
+  const inactive = { ...restored, isActive: false }
   const complete = { ...goal2, completedAt: later, updatedAt: later, isActive: false }
   const missing = GoalNotFound.make({ goalId })
   return story(
@@ -358,8 +360,12 @@ it.effect('resolves a goal starting weight in the journal timezone and records e
     Story.then(journal, GoalSet.make({ goal, deactivated: null })),
     Story.when(journal, SetGoal.make({ goalId, ...goalInput })),
     Story.rejected(GoalAlreadyExists.make({ goalId })),
-    Story.when(journal, ReviseGoal.make({ goalId, notes: revised.notes })),
+    Story.when(journal, ReviseGoal.make({ goalId, notes: revised.notes, startingDate: jan1 })),
     Story.then(journal, GoalRevised.make({ goal: revised })),
+    Story.when(journal, ReviseGoal.make({ goalId, startingDate: jan2 })),
+    Story.then(journal, GoalRevised.make({ goal: redated })),
+    Story.when(journal, ReviseGoal.make({ goalId, startingDate: jan1 })),
+    Story.then(journal, GoalRevised.make({ goal: restored })),
     Story.when(
       journal,
       RecordWeight.make({ weightId: tiedWeight.id, recordedAt: now, weightLbs: tiedWeight.weightLbs })
@@ -380,6 +386,46 @@ it.effect('resolves a goal starting weight in the journal timezone and records e
       latestWeight: weight,
       goals: { [goal2Id]: complete },
     })
+  )
+})
+
+it.effect('recomputes goal starting weight only when startingDate changes without explicit weight', () => {
+  const customWeight = WeightLbs.make(195)
+  const importedGoal = { ...goal, startingWeightLbs: customWeight }
+  const unchangedDateRevised = { ...importedGoal, notes: Notes.make('Keep custom weight') }
+  return story(
+    clock,
+    signedIn,
+    Story.when(
+      journal,
+      ImportJournal.make({
+        snapshot: {
+          version: '4.0.0',
+          exportedAt: now,
+          data: { preferences: {}, weights: [], injections: [], schedules: [], goals: [importedGoal] },
+        },
+      })
+    ),
+    Story.then(
+      journal,
+      JournalImported.make({
+        journal: {
+          preferences: {},
+          weights: {},
+          injections: {},
+          schedules: {},
+          goals: { [goalId]: importedGoal },
+        },
+      })
+    ),
+    Story.when(journal, ReviseGoal.make({ goalId, startingDate: jan1, notes: unchangedDateRevised.notes })),
+    Story.then(journal, GoalRevised.make({ goal: unchangedDateRevised })),
+    Story.when(journal, ReviseGoal.make({ goalId, startingDate: jan2 })),
+    Story.rejected(TimezoneNotConfigured.make({ goalId })),
+    Story.when(journal, UpdatePreferences.make({ timezone })),
+    Story.then(journal, PreferencesUpdated.make({ preferences: { timezone } })),
+    Story.when(journal, ReviseGoal.make({ goalId, startingDate: jan2 })),
+    Story.rejected(NoWeightData.make({ goalId }))
   )
 })
 

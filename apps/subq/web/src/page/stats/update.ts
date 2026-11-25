@@ -1,80 +1,46 @@
-import * as Function from 'effect/Function'
+import { CalendarDate } from '@garage/subq-domain/Calendar'
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import { GoalId } from '@garage/subq-domain/Journal/Journal.id'
+import type { Goal, NewGoal } from '@garage/subq-domain/Journal/JournalRecords'
+import { Notes, WeightLbs } from '@garage/subq-domain/Values'
+import type { WeightUnit } from '@garage/subq-domain/Values'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import * as Str from 'effect/String'
-import { AsyncData } from 'foldkit'
-import type { Update } from 'foldkit'
+import type * as Types from 'effect/Types'
 import { modifyFields } from 'foldkit/struct'
 
-import { CalendarDate } from '#shared'
-import type { IanaTimezone } from '#shared'
+import { ChartMessage, updateChart } from '../../chart/state.ts'
+import { client, mutate } from '../../client.ts'
+import type { PageUpdate } from '../../client.ts'
+import { dateToCalendarDate, epochToDate } from '../../lib/datetime.ts'
+import { optionalText } from '../../lib/form.ts'
+import { toStorageLbs, weightInputValue } from '../../lib/weight-unit.ts'
+import { ApplyPreset, NavigateStatsRange, OpenGoalForm } from './command.ts'
+import { FailedSaveGoal, SucceededChangeGoalStatus, SucceededSaveGoal } from './model.ts'
+import type { StatsMessage, StatsModel } from './model.ts'
 
-import type { Api } from '../../api.js'
-import { ChartMessage, updateChart } from '../../chart/state.js'
-import { FetchSettings } from '../../data/settings.js'
-import type { FailedFetchSettings, SucceededFetchSettings } from '../../data/settings.js'
-import { dateToCalendarDate, epochToDate } from '../../lib/datetime.js'
-import { ApplyPreset, DeleteGoal, FetchStats, NavigateStatsRange, OpenGoalForm, SaveGoal } from './command.js'
-import { rangeKey } from './model.js'
-import type { NavigatedStats, StatsMessage, StatsModel, StatsRange } from './model.js'
+type UpdateReturn = PageUpdate<StatsModel, StatsMessage>
 
-// ============================================
-// Update
-// ============================================
+const saveGoal = (id: Option.Option<GoalId>, fields: typeof NewGoal.Type) =>
+  mutate(
+    (request) =>
+      Option.isNone(id)
+        ? client.SetGoal({ ...request, input: { ...fields, goalId: GoalId.make(request.commandId) } })
+        : client.ReviseGoal({ ...request, input: { ...fields, goalId: id.value } }),
+    SucceededSaveGoal(),
+    (message) => FailedSaveGoal({ message })
+  )
 
-type StatsCommandMessage =
-  | StatsMessage
-  | typeof NavigatedStats.Type
-  | typeof SucceededFetchSettings.Type
-  | typeof FailedFetchSettings.Type
-
-type UpdateReturn = Update.Return<StatsModel, StatsCommandMessage, Api>
-
-const fetchStatsCommand = (range: StatsRange, timezone: IanaTimezone, requestGeneration: number) =>
-  FetchStats({
-    end: Option.getOrNull(range.end),
-    requestGeneration,
-    start: Option.getOrNull(range.start),
-    timezone,
-  })
-
-const startStatsFetch = (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn => {
-  const requestGeneration = model.requestGeneration + 1
-
-  return {
-    model: modifyFields(model, {
-      customEnd: () => Option.getOrElse(range.end, () => ''),
-      customStart: () => Option.getOrElse(range.start, () => ''),
-      data: () => AsyncData.Loading(),
-      fetchedRange: () => rangeKey(range),
-      fetchedTimezone: () => timezone,
-      requestGeneration: () => requestGeneration,
-    }),
-    commands: [fetchStatsCommand(range, timezone, requestGeneration)],
-  }
-}
-
-// Called by the app root when the stats route is entered or its range changes.
-export const syncStatsFetch: {
-  (range: StatsRange, timezone: IanaTimezone): (model: StatsModel) => UpdateReturn
-  (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn
-} = Function.dual(3, (model: StatsModel, range: StatsRange, timezone: IanaTimezone): UpdateReturn => {
-  const key = rangeKey(range)
-
-  return model.fetchedRange === key && model.fetchedTimezone === timezone && !AsyncData.isIdle(model.data)
-    ? { model }
-    : startStatsFetch(model, range, timezone)
-})
-
-const splitRangeKey = (key: string): StatsRange => {
-  const [start, end] = Str.split(key, '|')
-
-  return {
-    end: end === undefined || end === '' ? Option.none() : Option.some(CalendarDate.make(end)),
-    start: start === '' ? Option.none() : Option.some(CalendarDate.make(start)),
-  }
-}
+const changeGoalStatus = (goalId: GoalId, complete: boolean) =>
+  mutate(
+    (request) =>
+      complete
+        ? client.CompleteGoal({ ...request, input: { goalId } })
+        : client.RemoveGoal({ ...request, input: { goalId } }),
+    SucceededChangeGoalStatus(),
+    (message) => FailedSaveGoal({ message })
+  )
 
 const isChartMessage = Schema.is(ChartMessage)
 
@@ -83,33 +49,18 @@ const decodeCalendarDate = Schema.decodeOption(CalendarDate)
 const parseOptionalCalendarDate = (value: string): Option.Option<Option.Option<CalendarDate>> =>
   value === '' ? Option.some(Option.none()) : decodeCalendarDate(value).pipe(Option.map(Option.some))
 
-const prepareStatsTimezoneReconciliation = (model: StatsModel): StatsModel =>
-  modifyFields(model, {
-    data: () => AsyncData.Idle(),
-    fetchedRange: () => null,
-    fetchedTimezone: () => null,
-  })
-
-const isCurrentStatsResponse = (
-  model: StatsModel,
-  key: string,
-  requestedTimezone: IanaTimezone,
-  requestGeneration: number,
-  timezone: IanaTimezone
-): boolean =>
-  key === model.fetchedRange &&
-  requestedTimezone === model.fetchedTimezone &&
-  requestedTimezone === timezone &&
-  requestGeneration === model.requestGeneration
-
-const submitGoalForm = (model: StatsModel, unit: 'lbs' | 'kg'): UpdateReturn => {
-  if (model.goalForm === null) {
+const submitGoalForm = (model: StatsModel, unit: WeightUnit): UpdateReturn => {
+  if (model.goalForm === null || model.goalForm.submitting) {
     return { model }
   }
 
-  const parsed = Number(model.goalForm.goalWeight)
+  const { goalWeight, originalWeightLbs } = model.goalForm
+  const parsed =
+    originalWeightLbs !== null && goalWeight === weightInputValue({ unit, lbs: originalWeightLbs })
+      ? originalWeightLbs
+      : toStorageLbs(unit, Number(goalWeight))
 
-  if (Number.isNaN(parsed) || parsed <= 0) {
+  if (!Number.isFinite(parsed) || parsed <= 0) {
     return {
       model: modifyFields(model, {
         goalForm: (form) => (form === null ? null : modifyFields(form, { error: () => 'Enter a valid goal weight' })),
@@ -128,46 +79,37 @@ const submitGoalForm = (model: StatsModel, unit: 'lbs' | 'kg'): UpdateReturn => 
     }
   }
 
-  const lbs = unit === 'kg' ? parsed * 2.2046226 : parsed
+  const input: Types.Mutable<typeof NewGoal.Type> = {
+    goalWeightLbs: WeightLbs.make(parsed),
+    notes: Option.getOrNull(Option.map(optionalText(model.goalForm.notes), (note) => Notes.make(note))),
+    targetDate: Option.getOrNull(targetDate.value),
+  }
+  if (Option.isSome(startDate.value)) {
+    input.startingDate = startDate.value.value
+  }
 
   return {
     model: modifyFields(model, {
       goalForm: (form) => (form === null ? null : modifyFields(form, { error: () => null, submitting: () => true })),
     }),
-    commands: [
-      SaveGoal({
-        editingId: model.goalForm.editingId,
-        goalWeightLbs: lbs,
-        notes: model.goalForm.notes,
-        startDate: Option.getOrNull(startDate.value),
-        targetDate: Option.getOrNull(targetDate.value),
-      }),
-    ],
+    mutation: saveGoal(Option.fromNullOr(model.goalForm.editingId), input),
   }
 }
 
-const editGoal = (model: StatsModel): UpdateReturn => {
-  const bundle = AsyncData.getData(model.data)
-  const goal = Option.isSome(bundle) ? bundle.value.goal : null
-
-  if (goal === null) {
-    return { model }
-  }
-
-  return {
-    model: modifyFields(model, {
-      goalForm: () => ({
-        editingId: goal.goal.id,
-        error: null,
-        goalWeight: String(goal.goal.goalWeight),
-        notes: goal.goal.notes ?? '',
-        startDate: goal.goal.startingDate,
-        submitting: false,
-        targetDate: goal.goal.targetDate ?? '',
-      }),
+const editGoal = (model: StatsModel, goal: Goal, unit: WeightUnit): UpdateReturn => ({
+  model: modifyFields(model, {
+    goalForm: () => ({
+      editingId: goal.id,
+      error: null,
+      goalWeight: weightInputValue({ unit, lbs: goal.goalWeightLbs }),
+      originalWeightLbs: goal.goalWeightLbs,
+      notes: goal.notes ?? '',
+      startDate: goal.startingDate,
+      submitting: false,
+      targetDate: goal.targetDate ?? '',
     }),
-  }
-}
+  }),
+})
 
 const commitCustomRange = (model: StatsModel): UpdateReturn => {
   if (model.customStart === '' || model.customEnd === '' || model.customStart >= model.customEnd) {
@@ -197,11 +139,12 @@ const updateChartMessage = (model: StatsModel, message: ChartMessage, timezone: 
   })
 }
 
-const updateStatsPage = (
+// @effect-diagnostics-next-line missingPipeableSignature:off -- The reducer takes the current page state and display preferences.
+export const updateStats = (
   model: StatsModel,
   message: StatsMessage,
   timezone: IanaTimezone,
-  settingsRequestGeneration: number
+  unit: WeightUnit
 ): UpdateReturn => {
   if (isChartMessage(message)) {
     return updateChartMessage(model, message, timezone)
@@ -234,18 +177,15 @@ const updateStatsPage = (
         }),
       }),
       ClickedCancelGoalForm: () => ({ model: modifyFields(model, { goalForm: () => null }) }),
-      ClickedEditGoal: () => editGoal(model),
+      ClickedEditGoal: ({ goal }) => editGoal(model, goal, unit),
+      ClickedCompleteGoal: ({ goalId }) => ({ model, mutation: changeGoalStatus(goalId, true) }),
       ClickedSetGoal: () => ({ model, commands: [OpenGoalForm({ timezone })] }),
       ClickedStatsPreset: ({ preset }) => ({ model, commands: [ApplyPreset({ preset, timezone })] }),
       CommittedCustomRange: () => commitCustomRange(model),
       ConfirmedDeleteGoal: ({ goalId }) => ({
         model: modifyFields(model, { goalDeleteConfirm: () => false }),
-        commands: [DeleteGoal({ goalId })],
+        mutation: changeGoalStatus(goalId, false),
       }),
-      FailedFetchStats: ({ key, message: error, requestedTimezone, requestGeneration }) =>
-        isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)
-          ? { model: modifyFields(model, { data: () => AsyncData.Failure({ error }) }) }
-          : { model },
       NavigatedStats: () => ({ model }),
       FailedSaveGoal: ({ message: error }) => ({
         model: modifyFields(model, {
@@ -259,6 +199,7 @@ const updateStatsPage = (
             editingId: null,
             error: null,
             goalWeight: '',
+            originalWeightLbs: null,
             notes: '',
             startDate: todayLocal,
             submitting: false,
@@ -266,45 +207,10 @@ const updateStatsPage = (
           }),
         }),
       }),
-      RejectedFetchStats: ({ key, requestedTimezone, requestGeneration }) =>
-        isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)
-          ? {
-              model: prepareStatsTimezoneReconciliation(model),
-              commands: [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
-            }
-          : { model },
       RequestedDeleteGoal: () => ({ model: modifyFields(model, { goalDeleteConfirm: () => true }) }),
-      SubmittedGoalForm: ({ unit }) => submitGoalForm(model, unit),
-      SucceededDeleteGoal: () =>
-        model.fetchedRange === null ? { model } : startStatsFetch(model, splitRangeKey(model.fetchedRange), timezone),
-      SucceededFetchStats: ({ bundle, key, requestedTimezone, requestGeneration, timezone: responseTimezone }) => {
-        if (!isCurrentStatsResponse(model, key, requestedTimezone, requestGeneration, timezone)) {
-          return { model }
-        }
-
-        return responseTimezone === timezone
-          ? { model: modifyFields(model, { data: () => AsyncData.succeed(bundle), fetchedRange: () => key }) }
-          : {
-              model: prepareStatsTimezoneReconciliation(model),
-              commands: [FetchSettings({ detectedTimezone: timezone, requestGeneration: settingsRequestGeneration })],
-            }
-      },
-      SucceededSaveGoal: () => {
-        const next = modifyFields(model, { goalForm: () => null })
-
-        return model.fetchedRange === null
-          ? { model: next }
-          : startStatsFetch(next, splitRangeKey(model.fetchedRange), timezone)
-      },
+      SubmittedGoalForm: () => submitGoalForm(model, unit),
+      SucceededChangeGoalStatus: () => ({ model }),
+      SucceededSaveGoal: () => ({ model: { ...model, goalForm: null } }),
     })
   )
 }
-
-export const updateStats: {
-  (
-    message: StatsMessage,
-    timezone: IanaTimezone,
-    settingsRequestGeneration: number
-  ): (model: StatsModel) => UpdateReturn
-  (model: StatsModel, message: StatsMessage, timezone: IanaTimezone, settingsRequestGeneration: number): UpdateReturn
-} = Function.dual(4, updateStatsPage)

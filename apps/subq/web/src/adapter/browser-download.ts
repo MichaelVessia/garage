@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect'
 
-import { BrowserDownloadError } from '../errors.js'
+import { BrowserDownloadError } from '../errors.ts'
 
 export interface DownloadTextFileOptions {
   readonly contents: string

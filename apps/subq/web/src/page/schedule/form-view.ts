@@ -1,16 +1,16 @@
+import { listMedicationCompounds, suggestedDoseMgForCompound } from '@garage/subq-domain/MedicationVocabulary'
+import { MedicationCompound } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { MedicationCompound, listMedicationCompounds, suggestedDoseMgForCompound } from '#shared'
-
-import { FREQUENCIES, frequencyFromString } from '../../lib/frequency.js'
-import { viewDatalist } from '../../lib/view.js'
-import { button, card, input, select } from '../../ui.js'
+import { FREQUENCIES, frequencyFromString } from '../../lib/frequency.ts'
+import { viewDatalist } from '../../lib/view.ts'
+import { button, card, input, select } from '../../ui.ts'
 import {
   AddedSchedulePhase,
-  ChangedScheduleDrug,
+  ChangedScheduleCompound,
   ChangedScheduleFrequency,
   ChangedScheduleName,
   ChangedScheduleNotes,
@@ -22,8 +22,8 @@ import {
   RemovedSchedulePhase,
   SubmittedScheduleForm,
   ToggledSchedulePhaseIndefinite,
-} from './model.js'
-import type { ScheduleForm, ScheduleMessage } from './model.js'
+} from './model.ts'
+import type { ScheduleForm, ScheduleMessage } from './model.ts'
 
 // ============================================
 // Schedule form view
@@ -144,13 +144,13 @@ const makeViewScheduleForm = <ParentMessage>(
     const submitLabel = scheduleSubmitLabel(form)
 
     const doseMgSuggestions = Arr.map(
-      Schema.is(MedicationCompound)(form.drug) ? suggestedDoseMgForCompound(form.drug) : [],
+      Schema.is(MedicationCompound)(form.compound) ? suggestedDoseMgForCompound(form.compound) : [],
       String
     )
 
     const isValid =
       Str.trim(form.name) !== '' &&
-      Str.trim(form.drug) !== '' &&
+      Str.trim(form.compound) !== '' &&
       form.startDate !== '' &&
       Arr.every(
         form.phases,
@@ -184,15 +184,15 @@ const makeViewScheduleForm = <ParentMessage>(
               [h.Class('mb-4')],
               [
                 h.label(
-                  [h.For('schedule-drug'), h.Class('mb-2 block text-sm font-medium')],
+                  [h.For('schedule-compound'), h.Class('mb-2 block text-sm font-medium')],
                   ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
                 ),
                 h.select(
                   [
                     h.Class(select()),
-                    h.Id('schedule-drug'),
-                    h.Value(form.drug),
-                    h.OnChange((value) => ChangedScheduleDrug({ value })),
+                    h.Id('schedule-compound'),
+                    h.Value(form.compound),
+                    h.OnChange((value) => ChangedScheduleCompound({ value })),
                   ],
                   [
                     h.option([h.Value('')], ['Select medication']),

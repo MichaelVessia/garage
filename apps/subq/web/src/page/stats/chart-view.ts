@@ -1,18 +1,22 @@
-import { arc, curveStepAfter, extent, line, pie, scaleLinear, scaleUtc } from 'd3'
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import type { doseHistory } from '@garage/subq-domain/StatsMath'
+import { arc, curveStepAfter, extent, line, pie } from 'd3'
 import type { PieArcDatum } from 'd3'
 import * as Arr from 'effect/Array'
 import * as Order from 'effect/Order'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { DoseHistoryStats, IanaTimezone } from '#shared'
+import { linearScale, utcScale } from '../../chart/scale.ts'
 
-import { CHART_COLORS, getDoseColor } from '../../chart/colors.js'
+type DoseHistoryStats = ReturnType<typeof doseHistory>
+
+import { CHART_COLORS, getDoseColor } from '../../chart/colors.ts'
 
 type ChartDatum = readonly [string, number]
 
 interface DosePoint {
   readonly date: Date
-  readonly drug: string
+  readonly compound: string
   readonly doseMg: number
   readonly color: string
 }
@@ -177,10 +181,10 @@ export const viewDoseHistory = <Message>({
 
   const points: ReadonlyArray<DosePoint> = Arr.sortWith(
     Arr.map(data.points, (point) => ({
-      color: getDoseColor(`${point.drug}::${point.doseMg}`),
+      color: getDoseColor(`${point.compound}::${point.doseMg}`),
       date: point.date,
       doseMg: point.doseMg,
-      drug: point.drug,
+      compound: point.compound,
     })),
     (point) => point.date.getTime(),
     Order.Number
@@ -193,16 +197,14 @@ export const viewDoseHistory = <Message>({
     return h.empty
   }
 
-  const xScale = scaleUtc().domain([minDate, maxDate]).range([0, width])
+  const xScale = utcScale({ start: minDate, end: maxDate, width })
   const yPadding = (maxDose - minDose) * 0.2 || 2
 
-  const yScale = scaleLinear()
-    .domain([Math.max(0, minDose - yPadding), maxDose + yPadding])
-    .range([height, 0])
+  const yScale = linearScale({ min: Math.max(0, minDose - yPadding), max: maxDose + yPadding, height })
 
   const doseLine = line<DosePoint>()
-    .x((point) => xScale(point.date))
-    .y((point) => yScale(point.doseMg))
+    .x((point) => xScale.position(point.date))
+    .y((point) => yScale.position(point.doseMg))
     .curve(curveStepAfter)
 
   const segmentInitial: DoseSegmentBuild = { color: '', current: [], segments: [] }
@@ -240,8 +242,8 @@ export const viewDoseHistory = <Message>({
                   [
                     attr('x1', '0'),
                     attr('x2', String(width)),
-                    attr('y1', String(yScale(tick))),
-                    attr('y2', String(yScale(tick))),
+                    attr('y1', String(yScale.position(tick))),
+                    attr('y2', String(yScale.position(tick))),
                     h.Stroke('currentColor'),
                     h.Opacity('0.1'),
                   ],
@@ -262,14 +264,14 @@ export const viewDoseHistory = <Message>({
               ...Arr.map(points, (point) =>
                 h.circle(
                   [
-                    h.Cx(String(xScale(point.date))),
-                    h.Cy(String(yScale(point.doseMg))),
+                    h.Cx(String(xScale.position(point.date))),
+                    h.Cy(String(yScale.position(point.doseMg))),
                     attr('r', '4'),
                     h.Fill(point.color),
                     h.Stroke('var(--card)'),
                     h.StrokeWidth('2'),
                     h.Cursor('pointer'),
-                    h.AriaLabel(`${point.drug} ${point.doseMg} mg on ${formatDoseDate(point.date)}`),
+                    h.AriaLabel(`${point.compound} ${point.doseMg} mg on ${formatDoseDate(point.date)}`),
                   ],
                   []
                 )
@@ -281,7 +283,7 @@ export const viewDoseHistory = <Message>({
                   ...Arr.map(xScale.ticks(5), (tick) =>
                     h.text(
                       [
-                        attr('x', String(xScale(tick))),
+                        attr('x', String(xScale.position(tick))),
                         attr('y', '20'),
                         h.TextAnchor('middle'),
                         h.Fill('#9ca3af'),
@@ -298,7 +300,7 @@ export const viewDoseHistory = <Message>({
                   h.text(
                     [
                       attr('x', '-8'),
-                      attr('y', String(yScale(tick) + 3)),
+                      attr('y', String(yScale.position(tick) + 3)),
                       h.TextAnchor('end'),
                       h.Fill('#9ca3af'),
                       h.FontSize('10px'),

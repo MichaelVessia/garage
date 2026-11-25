@@ -7,6 +7,7 @@ import * as Result from 'effect/Result'
 import * as Struct from 'effect/Struct'
 
 import { calendarDaysBetween, projectInstantToCalendarDate } from '../Calendar.ts'
+import type { CalendarDate, IanaTimezone } from '../Calendar.ts'
 import { ActivateSchedule, ScheduleActivated } from './ActivateSchedule.command.ts'
 import { AssignInjectionsToSchedule, InjectionsAssignedToSchedule } from './AssignInjectionsToSchedule.command.ts'
 import { CompleteGoal, GoalCompleted } from './CompleteGoal.command.ts'
@@ -55,6 +56,22 @@ const priorActive = <Entry extends Schedule | Goal>(entries: ReadonlyArray<Entry
   )
 
 const stamp = (now: DateTime.Utc) => ({ createdAt: now, updatedAt: now })
+
+const nearestWeight = (
+  weights: typeof emptyJournal.weights,
+  startingDate: CalendarDate,
+  timezone: IanaTimezone
+): Option.Option<WeightEntry> =>
+  Arr.reduce(Rec.values(weights), Option.none<{ entry: WeightEntry; distance: number }>(), (best, entry) => {
+    const distance = Math.abs(
+      calendarDaysBetween(startingDate, projectInstantToCalendarDate(entry.recordedAt, timezone))
+    )
+    if (Option.isNone(best) || distance < best.value.distance) {
+      return Option.some({ entry, distance })
+    }
+    const earlier = DateTime.Order(entry.recordedAt, best.value.entry.recordedAt) < 0
+    return distance === best.value.distance && earlier ? Option.some({ entry, distance }) : best
+  }).pipe(Option.map(({ entry }) => entry))
 
 export class Journal extends Domain.Aggregate('Journal', {
   id: JournalId,
@@ -256,16 +273,7 @@ export class Journal extends Domain.Aggregate('Journal', {
       const nearest =
         startingDate === undefined
           ? Option.fromNullOr(summarizeWeights(weights).latestWeight)
-          : Arr.reduce(Rec.values(weights), Option.none<{ entry: WeightEntry; distance: number }>(), (best, entry) => {
-              const distance = Math.abs(
-                calendarDaysBetween(startingDate, projectInstantToCalendarDate(entry.recordedAt, timezone))
-              )
-              if (Option.isNone(best) || distance < best.value.distance) {
-                return Option.some({ entry, distance })
-              }
-              const earlier = DateTime.Order(entry.recordedAt, best.value.entry.recordedAt) < 0
-              return distance === best.value.distance && earlier ? Option.some({ entry, distance }) : best
-            }).pipe(Option.map(({ entry }) => entry))
+          : nearestWeight(weights, startingDate, timezone)
       if (Option.isNone(nearest)) {
         return NoWeightData.make({ goalId })
       }
@@ -282,11 +290,34 @@ export class Journal extends Domain.Aggregate('Journal', {
       }
       return [GoalSet.make({ goal, deactivated: priorActive(Rec.values(goals), goal, now) })]
     },
-    ReviseGoal: ({ goals }, cmd, { now }) => {
+    ReviseGoal: ({ preferences, weights, goals }, cmd, { now }) => {
       const previous = Rec.get(goals, cmd.goalId)
-      return Option.isNone(previous)
-        ? GoalNotFound.make({ goalId: cmd.goalId })
-        : [GoalRevised.make({ goal: { ...previous.value, ...Struct.omit(cmd, ['_tag', 'goalId']), updatedAt: now } })]
+      if (Option.isNone(previous)) {
+        return GoalNotFound.make({ goalId: cmd.goalId })
+      }
+      let resolvedStartingWeightLbs = cmd.startingWeightLbs
+      if (
+        cmd.startingDate !== undefined &&
+        cmd.startingDate !== previous.value.startingDate &&
+        cmd.startingWeightLbs === undefined
+      ) {
+        const { timezone } = preferences
+        if (timezone === undefined) {
+          return TimezoneNotConfigured.make({ goalId: cmd.goalId })
+        }
+        const nearest = nearestWeight(weights, cmd.startingDate, timezone)
+        if (Option.isNone(nearest)) {
+          return NoWeightData.make({ goalId: cmd.goalId })
+        }
+        resolvedStartingWeightLbs = nearest.value.weightLbs
+      }
+      const next: Goal = {
+        ...previous.value,
+        ...Struct.omit(cmd, ['_tag', 'goalId']),
+        startingWeightLbs: resolvedStartingWeightLbs ?? previous.value.startingWeightLbs,
+        updatedAt: now,
+      }
+      return [GoalRevised.make({ goal: next })]
     },
     CompleteGoal: ({ goals }, { goalId }, { now }) => {
       const previous = Rec.get(goals, goalId)

@@ -1,14 +1,13 @@
+import type { WeightTrajectoryTrendLine } from '@garage/subq-domain/WeightMath'
 import { curveMonotoneX, line } from 'd3'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { TrendLine } from '#shared'
-
-import { CHART_HEIGHT, CHART_WIDTH, PILL } from './layout.js'
-import type { ChartFrame, Pill, Segment, WeightPointColored } from './layout.js'
-import { ClearedChartTooltip, ClickedChartPill, HoveredChartTooltip } from './state.js'
-import type { ChartMessage, ChartState } from './state.js'
+import { CHART_HEIGHT, CHART_WIDTH, PILL } from './layout.ts'
+import type { ChartFrame, Pill, Segment, WeightPointColored } from './layout.ts'
+import { ClearedChartTooltip, ClickedChartPill, HoveredChartTooltip } from './state.ts'
+import type { ChartMessage, ChartState } from './state.ts'
 
 // Data marks drawn over the background layers: weight lines, trend, dots, dose pills, and the tooltip.
 
@@ -23,8 +22,8 @@ export const viewWeightPaths = <Message>({
   segments,
 }: MarkOptions<Message> & { readonly segments: ReadonlyArray<Segment> }): ReadonlyArray<Html> => {
   const path = line<WeightPointColored>()
-    .x((point) => frame.xScale(point.date))
-    .y((point) => frame.yScale(point.weight))
+    .x((point) => frame.xScale.position(point.date))
+    .y((point) => frame.yScale.position(point.weight))
     .curve(curveMonotoneX)
 
   return Arr.flatMap(segments, (segment) => {
@@ -38,7 +37,7 @@ export const viewWeightPaths = <Message>({
       return []
     }
 
-    const selected = frame.isSelected(segment.drug, segment.doseMg)
+    const selected = frame.isSelected(segment.compound, segment.doseMg)
 
     return [
       h.path(
@@ -60,14 +59,14 @@ export const viewTrendLine = <Message>({
   frame,
   h,
   trendLine,
-}: MarkOptions<Message> & { readonly trendLine: Option.Option<TrendLine> }): ReadonlyArray<Html> => {
+}: MarkOptions<Message> & { readonly trendLine: Option.Option<WeightTrajectoryTrendLine> }): ReadonlyArray<Html> => {
   const { displayWeight, domainEndMs, domainStartMs, filter, margin, unitLabel, width, yScale } = frame
 
   return Option.match(trendLine, {
     onNone: (): ReadonlyArray<Html> => [],
     onSome: (trend) => {
-      const y1 = yScale(trend.slope * domainStartMs + trend.intercept)
-      const y2 = yScale(trend.slope * domainEndMs + trend.intercept)
+      const y1 = yScale.position(trend.slope * domainStartMs + trend.intercept)
+      const y2 = yScale.position(trend.slope * domainEndMs + trend.intercept)
       const lbsPerWeek = trend.slope * 7 * 24 * 60 * 60 * 1000
       const ratePerWeek = displayWeight(Math.abs(lbsPerWeek))
 
@@ -90,7 +89,7 @@ export const viewTrendLine = <Message>({
               HoveredChartTooltip({
                 lines: [
                   rateText,
-                  `${displayWeight(trend.startWeight).toFixed(1)} → ${displayWeight(trend.endWeight).toFixed(1)} ${unitLabel}`,
+                  `${displayWeight(trend.startWeightLbs).toFixed(1)} → ${displayWeight(trend.endWeightLbs).toFixed(1)} ${unitLabel}`,
                 ],
                 title: 'Trend Line',
                 x: margin.left + width / 2,
@@ -130,9 +129,9 @@ export const viewWeightDots = <Message>({
   return Arr.map(
     Arr.flatMap(segments, (segment) => segment.points),
     (point) => {
-      const selected = frame.isSelected(point.drug, point.doseMg)
-      const cx = xScale(point.date)
-      const cy = yScale(point.weight)
+      const selected = frame.isSelected(point.compound, point.doseMg)
+      const cx = xScale.position(point.date)
+      const cy = yScale.position(point.weight)
 
       const noteLines = point.notes.pipe(
         Option.filter((note) => note !== ''),
@@ -176,7 +175,7 @@ export const viewDosePills = <Message>({
   const { filter, formatDate, margin, yScale } = frame
 
   return Arr.flatMap(pills, (pill) => {
-    const selected = filter === null || (pill.drug === filter.drug && pill.doseMg === filter.doseMg)
+    const selected = filter === null || (pill.compound === filter.compound && pill.doseMg === filter.doseMg)
     const px = Math.max(PILL.WIDTH / 2, pill.x)
     const py = 12 + rowOffset(pill.row)
 
@@ -186,7 +185,7 @@ export const viewDosePills = <Message>({
           h.Attribute('x1', String(px)),
           h.Attribute('x2', String(px)),
           h.Attribute('y1', String(20 + rowOffset(pill.row))),
-          h.Attribute('y2', String(yScale(pill.weight))),
+          h.Attribute('y2', String(yScale.position(pill.weight))),
           h.Stroke(pill.color),
           h.StrokeWidth('1'),
           h.StrokeDasharray('3,3'),
@@ -199,12 +198,12 @@ export const viewDosePills = <Message>({
         [
           h.Transform(`translate(${px},${py})`),
           h.Cursor('pointer'),
-          h.AriaLabel(`${pill.drug} ${pill.doseMg} mg on ${formatDate(pill.date)}`),
-          h.OnClick(ClickedChartPill({ doseMg: pill.doseMg, drug: pill.drug })),
+          h.AriaLabel(`${pill.compound} ${pill.doseMg} mg on ${formatDate(pill.date)}`),
+          h.OnClick(ClickedChartPill({ doseMg: pill.doseMg, compound: pill.compound })),
           h.OnMouseEnter(
             HoveredChartTooltip({
               lines: filter === null ? [formatDate(pill.date), 'Click to filter'] : [formatDate(pill.date)],
-              title: `${pill.drug} ${pill.doseMg} mg`,
+              title: `${pill.compound} ${pill.doseMg} mg`,
               x: margin.left + px,
               y: margin.top + py,
             })

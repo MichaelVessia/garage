@@ -2,10 +2,10 @@ import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { epochToDate } from '../lib/datetime.js'
-import type { ChartFrame, SchedulePeriod } from './layout.js'
-import { ClearedChartTooltip, HoveredChartTooltip, HoveredChartZoom, StartedChartZoom } from './state.js'
-import type { ChartMessage, ChartState } from './state.js'
+import { epochToDate } from '../lib/datetime.ts'
+import type { ChartFrame, SchedulePeriod } from './layout.ts'
+import { ClearedChartTooltip, HoveredChartTooltip, HoveredChartZoom, StartedChartZoom } from './state.ts'
+import type { ChartMessage, ChartState } from './state.ts'
 
 // Background chart layers: grid, axes, schedule bands, and drag-zoom hit strips.
 
@@ -20,8 +20,8 @@ export const viewGridLines = <Message>({ frame, h }: LayerOptions<Message>): Rea
       [
         h.Attribute('x1', '0'),
         h.Attribute('x2', String(frame.width)),
-        h.Attribute('y1', String(frame.yScale(tick))),
-        h.Attribute('y2', String(frame.yScale(tick))),
+        h.Attribute('y1', String(frame.yScale.position(tick))),
+        h.Attribute('y2', String(frame.yScale.position(tick))),
         h.Stroke('currentColor'),
         h.Opacity('0.08'),
       ],
@@ -40,7 +40,7 @@ export const viewXAxis = <Message>({
       h.line([h.Attribute('x1', '0'), h.Attribute('x2', String(frame.width)), h.Stroke('#e5e7eb')], []),
       ...Arr.map(frame.xScale.ticks(5), (tick) =>
         h.g(
-          [h.Transform(`translate(${frame.xScale(tick)},0)`)],
+          [h.Transform(`translate(${frame.xScale.position(tick)},0)`)],
           [
             h.line([h.Attribute('y2', '6'), h.Stroke('#e5e7eb')], []),
             h.text(
@@ -60,7 +60,7 @@ export const viewYAxis = <Message>({ frame, h }: LayerOptions<Message>): Html =>
       h.text(
         [
           h.Attribute('x', '-8'),
-          h.Attribute('y', String(frame.yScale(tick) + 3)),
+          h.Attribute('y', String(frame.yScale.position(tick) + 3)),
           h.TextAnchor('end'),
           h.Fill('#9ca3af'),
           h.FontSize('11px'),
@@ -102,8 +102,8 @@ export const viewScheduleBands = <Message>({
       return []
     }
 
-    const x1 = xScale(epochToDate(Math.max(startMs, domainStartMs)))
-    const x2 = xScale(epochToDate(Math.min(endMs, domainEndMs)))
+    const x1 = xScale.position(epochToDate(Math.max(startMs, domainStartMs)))
+    const x2 = xScale.position(epochToDate(Math.min(endMs, domainEndMs)))
 
     if (x2 - x1 < 2) {
       return []
@@ -123,11 +123,11 @@ export const viewScheduleBands = <Message>({
           h.Height(String(height)),
           h.Fill('currentColor'),
           h.Opacity('0.04'),
-          h.AriaLabel(`${schedule.scheduleName} (${schedule.drug}), ${displayedRange}`),
+          h.AriaLabel(`${schedule.scheduleName} (${schedule.compound}), ${displayedRange}`),
           h.OnMouseEnter(
             HoveredChartTooltip({
               lines: [displayedRange],
-              title: `${schedule.scheduleName} (${schedule.drug})`,
+              title: `${schedule.scheduleName} (${schedule.compound})`,
               x: margin.left + (x1 + x2) / 2,
               y: margin.top + 24,
             })
@@ -174,8 +174,8 @@ export const viewZoomSelection = <Message>({
     return h.empty
   }
 
-  const startX = frame.xScale(epochToDate(zoomDrag.startMs))
-  const hoverX = frame.xScale(epochToDate(zoomDrag.hoverMs))
+  const startX = frame.xScale.position(epochToDate(zoomDrag.startMs))
+  const hoverX = frame.xScale.position(epochToDate(zoomDrag.hoverMs))
 
   return h.rect(
     [

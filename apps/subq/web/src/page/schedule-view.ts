@@ -1,121 +1,17 @@
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import type { ScheduleView } from '@garage/subq-domain/ScheduleMath'
+import type { SchedulePhaseView } from '@garage/subq-domain/ScheduleMath'
 import * as Arr from 'effect/Array'
-import * as Effect from 'effect/Effect'
-import * as Function from 'effect/Function'
-import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
-import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
-import { AsyncData, Command } from 'foldkit'
-import type { Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { taggedStruct } from 'foldkit/schema'
-import { modifyFields } from 'foldkit/struct'
 
-import { InjectionScheduleId, ScheduleView } from '#shared'
-import type { IanaTimezone, SchedulePhaseView } from '#shared'
+import { formatDate, formatDateTime, formatShortDate } from '../lib/datetime.ts'
+import { frequencyLabel } from '../lib/frequency.ts'
+import { scheduleRouter } from '../route.ts'
+import { card } from '../ui.ts'
 
-import { Api } from '../api.js'
-import { toCommandResult } from '../lib/command.js'
-import { formatDate, formatDateTime, formatShortDate } from '../lib/datetime.js'
-import { frequencyLabel } from '../lib/frequency.js'
-import { scheduleRouter } from '../route.js'
-import { card } from '../ui.js'
-
-// ============================================
-// Model
-// ============================================
-
-export const ScheduleViewData = AsyncData.Schema(Schema.OptionFromNullOr(ScheduleView), Schema.String).schema
-
-export type ScheduleViewData = AsyncData.AsyncData<Option.Option<ScheduleView>, string>
-
-export const ScheduleViewModel = Schema.Struct({
-  scheduleId: Schema.NullOr(Schema.String),
-  view: ScheduleViewData,
-})
-
-export type ScheduleViewModel = typeof ScheduleViewModel.Type
-
-export const initialScheduleViewModel: ScheduleViewModel = {
-  scheduleId: null,
-  view: AsyncData.Idle(),
-}
-
-// ============================================
-// Messages
-// ============================================
-
-export const SucceededFetchScheduleView = taggedStruct('SucceededFetchScheduleView', {
-  view: Schema.NullOr(ScheduleView),
-})
-
-export const FailedFetchScheduleView = taggedStruct('FailedFetchScheduleView', { message: Schema.String })
-
-export const ScheduleViewMessage = Schema.Union([SucceededFetchScheduleView, FailedFetchScheduleView])
-
-export type ScheduleViewMessage = typeof ScheduleViewMessage.Type
-
-// ============================================
-// Commands
-// ============================================
-
-const FetchScheduleView = Command.define('FetchScheduleView', {
-  args: { scheduleId: Schema.String },
-  messages: [SucceededFetchScheduleView, FailedFetchScheduleView],
-  execute: ({ scheduleId }) =>
-    Effect.gen(function* () {
-      const api = yield* Api
-      const view = yield* api.ScheduleGetView({ id: InjectionScheduleId.make(scheduleId) })
-
-      return SucceededFetchScheduleView({ view })
-    }).pipe(toCommandResult(FailedFetchScheduleView, 'Failed to load schedule')),
-})
-
-// ============================================
-// Update
-// ============================================
-
-const ScheduleViewCommandMessage = Schema.Union([SucceededFetchScheduleView, FailedFetchScheduleView])
-
-type ScheduleViewCommandMessage = typeof ScheduleViewCommandMessage.Type
-
-type UpdateReturn = Update.Return<ScheduleViewModel, ScheduleViewCommandMessage, Api>
-
-export const fetchScheduleView: {
-  (scheduleId: string): (model: ScheduleViewModel) => UpdateReturn
-  (model: ScheduleViewModel, scheduleId: string): UpdateReturn
-} = Function.dual(2, (model: ScheduleViewModel, scheduleId: string): UpdateReturn =>
-  model.scheduleId !== scheduleId || AsyncData.isIdle(model.view)
-    ? {
-        model: modifyFields(model, {
-          scheduleId: () => scheduleId,
-          view: () => AsyncData.Loading(),
-        }),
-        commands: [FetchScheduleView({ scheduleId })],
-      }
-    : { model }
-)
-
-export const updateScheduleView: {
-  (message: ScheduleViewMessage): (model: ScheduleViewModel) => UpdateReturn
-  (model: ScheduleViewModel, message: ScheduleViewMessage): UpdateReturn
-} = Function.dual(2, (model: ScheduleViewModel, message: ScheduleViewMessage): UpdateReturn =>
-  Match.value(message).pipe(
-    Match.withReturnType<UpdateReturn>(),
-    Match.tagsExhaustive({
-      FailedFetchScheduleView: ({ message: error }) => ({
-        model: modifyFields(model, { view: () => AsyncData.Failure({ error }) }),
-      }),
-      SucceededFetchScheduleView: ({ view }) => ({
-        model: modifyFields(model, { view: () => AsyncData.succeed(Option.fromNullOr(view)) }),
-      }),
-    })
-  )
-)
-
-// ============================================
-// View
-// ============================================
+type ScheduleViewModel = Readonly<{ view: Option.Option<ScheduleView> }>
 
 const phaseCircleClass = (status: SchedulePhaseView['status']): string => {
   if (status === 'completed') {
@@ -163,7 +59,7 @@ const overallProgressPercent = (view: ScheduleView): number =>
     ? Math.round((view.totalCompletedInjections / view.totalExpectedInjections) * 100)
     : 0
 
-const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | ScheduleViewMessage>) => {
+const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage>) => {
   const statusBadge = (status: SchedulePhaseView['status']) => {
     if (status === 'completed') {
       return h.span(
@@ -275,13 +171,16 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
                           injection.id,
                           [h.Class('flex items-center justify-between gap-3 text-sm')],
                           [
-                            h.span([h.Class('text-muted-foreground')], [formatDateTime(injection.datetime, timezone)]),
+                            h.span(
+                              [h.Class('text-muted-foreground')],
+                              [formatDateTime(injection.administeredAt, timezone)]
+                            ),
                             h.div(
                               [h.Class('flex items-center gap-2')],
                               [
                                 h.span([h.Class('font-mono')], [`${injection.doseMg} mg`]),
-                                injection.injectionSite !== null && Str.isNonEmpty(injection.injectionSite)
-                                  ? h.span([h.Class('text-muted-foreground text-xs')], [`@ ${injection.injectionSite}`])
+                                injection.site !== null && Str.isNonEmpty(injection.site)
+                                  ? h.span([h.Class('text-muted-foreground text-xs')], [`@ ${injection.site}`])
                                   : h.empty,
                               ]
                             ),
@@ -313,7 +212,7 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
               [],
               [
                 h.h2([h.Class('text-xl font-semibold tracking-tight')], [view.name]),
-                h.p([h.Class('text-sm text-muted-foreground')], [view.drug]),
+                h.p([h.Class('text-sm text-muted-foreground')], [view.compound]),
                 view.supplier === null
                   ? h.empty
                   : h.p([h.Class('text-xs text-muted-foreground')], [`Supplier: ${view.supplier}`]),
@@ -420,26 +319,9 @@ const makeViewScheduleView = <ParentMessage>(h: HtmlBuilder<ParentMessage | Sche
   }
 
   return (model: ScheduleViewModel, timezone: IanaTimezone) =>
-    AsyncData.match(model.view, {
-      onFailure: () =>
-        h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-      onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-      onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-      onRefreshing: (view) =>
-        Option.match(view, {
-          onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
-          onSome: (found) => viewContent(found, timezone),
-        }),
-      onStale: ({ data }) =>
-        Option.match(data, {
-          onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
-          onSome: (found) => viewContent(found, timezone),
-        }),
-      onSuccess: (view) =>
-        Option.match(view, {
-          onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
-          onSome: (found) => viewContent(found, timezone),
-        }),
+    Option.match(model.view, {
+      onNone: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Schedule not found.']),
+      onSome: (found) => viewContent(found, timezone),
     })
 }
 
@@ -450,5 +332,5 @@ export const viewScheduleView = <ParentMessage>({
 }: {
   readonly model: ScheduleViewModel
   readonly timezone: IanaTimezone
-  readonly h: HtmlBuilder<ParentMessage | ScheduleViewMessage>
+  readonly h: HtmlBuilder<ParentMessage>
 }): Html => makeViewScheduleView(h)(model, timezone)

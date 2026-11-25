@@ -1,21 +1,18 @@
+import { WeightId } from '@garage/subq-domain/Journal/Journal.id'
+import { WeightEntry } from '@garage/subq-domain/Journal/JournalRecords'
+import { WeightLbs } from '@garage/subq-domain/Values'
 import * as Schema from 'effect/Schema'
-import { AsyncData } from 'foldkit'
 import { taggedStruct } from 'foldkit/schema'
-
-import { WeightLog, WeightLogId } from '#shared'
 
 // ============================================
 // Model
 // ============================================
 
-export const WeightLogsData = AsyncData.Schema(Schema.Array(WeightLog), Schema.String).schema
-
-export type WeightLogsData = AsyncData.AsyncData<ReadonlyArray<WeightLog>, string>
-
 export const WeightForm = Schema.Struct({
-  editingId: Schema.NullOr(WeightLogId),
+  editingId: Schema.NullOr(WeightId),
   datetime: Schema.String,
   maxDatetime: Schema.String,
+  originalWeightLbs: Schema.NullOr(WeightLbs),
   originalDatetime: Schema.NullOr(Schema.DateTimeUtc),
   weight: Schema.String,
   notes: Schema.String,
@@ -26,9 +23,8 @@ export const WeightForm = Schema.Struct({
 export type WeightForm = typeof WeightForm.Type
 
 export const WeightModel = Schema.Struct({
-  logs: WeightLogsData,
   form: Schema.NullOr(WeightForm),
-  pendingDeleteId: Schema.NullOr(WeightLogId),
+  pendingDeleteId: Schema.NullOr(WeightId),
   sortColumn: Schema.Literals(['datetime', 'weight']),
   sortDesc: Schema.Boolean,
   page: Schema.Int,
@@ -38,7 +34,6 @@ export type WeightModel = typeof WeightModel.Type
 
 export const initialWeightModel: WeightModel = {
   form: null,
-  logs: AsyncData.Idle(),
   page: 0,
   pendingDeleteId: null,
   sortColumn: 'datetime',
@@ -49,20 +44,14 @@ export const initialWeightModel: WeightModel = {
 // Messages
 // ============================================
 
-export const SucceededFetchWeightLogs = taggedStruct('SucceededFetchWeightLogs', {
-  logs: Schema.Array(WeightLog),
-})
-
-export const FailedFetchWeightLogs = taggedStruct('FailedFetchWeightLogs', { message: Schema.String })
-
 export const CompletedOpenWeightForm = taggedStruct('CompletedOpenWeightForm', {
   nowLocal: Schema.String,
-  log: Schema.NullOr(WeightLog),
+  log: Schema.NullOr(WeightEntry),
 })
 
 export const ClickedAddWeight = taggedStruct('ClickedAddWeight')
 
-export const ClickedEditWeight = taggedStruct('ClickedEditWeight', { log: WeightLog })
+export const ClickedEditWeight = taggedStruct('ClickedEditWeight', { log: WeightEntry })
 
 export const ClickedCancelWeightForm = taggedStruct('ClickedCancelWeightForm')
 
@@ -72,15 +61,13 @@ export const ChangedWeightValue = taggedStruct('ChangedWeightValue', { value: Sc
 
 export const ChangedWeightNotes = taggedStruct('ChangedWeightNotes', { value: Schema.String })
 
-export const SubmittedWeightForm = taggedStruct('SubmittedWeightForm', {
-  unit: Schema.Literals(['lbs', 'kg']),
-})
+export const SubmittedWeightForm = taggedStruct('SubmittedWeightForm')
 
 export const SucceededSaveWeight = taggedStruct('SucceededSaveWeight')
 
 export const FailedSaveWeight = taggedStruct('FailedSaveWeight', { message: Schema.String })
 
-export const RequestedDeleteWeight = taggedStruct('RequestedDeleteWeight', { id: WeightLogId })
+export const RequestedDeleteWeight = taggedStruct('RequestedDeleteWeight', { id: WeightId })
 
 export const CancelledDeleteWeight = taggedStruct('CancelledDeleteWeight')
 
@@ -97,8 +84,6 @@ export const ClickedWeightSort = taggedStruct('ClickedWeightSort', {
 export const ClickedWeightPage = taggedStruct('ClickedWeightPage', { delta: Schema.Int })
 
 export const WeightMessage = Schema.Union([
-  SucceededFetchWeightLogs,
-  FailedFetchWeightLogs,
   CompletedOpenWeightForm,
   ClickedAddWeight,
   ClickedEditWeight,
@@ -119,3 +104,7 @@ export const WeightMessage = Schema.Union([
 ])
 
 export type WeightMessage = typeof WeightMessage.Type
+
+export type WeightPage = WeightModel & {
+  readonly logs: ReadonlyArray<WeightEntry>
+}

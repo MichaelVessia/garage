@@ -16,13 +16,13 @@ const ChartTooltip = Schema.Struct({
   lines: Schema.Array(Schema.String),
 })
 
-const DrugDoseFilter = Schema.Struct({ drug: Schema.String, doseMg: Schema.Finite })
+const CompoundDoseFilter = Schema.Struct({ compound: Schema.String, doseMg: Schema.Finite })
 
 const ZoomDrag = Schema.Struct({ startMs: Schema.Finite, hoverMs: Schema.Finite })
 
 export const ChartState = Schema.Struct({
   tooltip: Schema.NullOr(ChartTooltip),
-  filter: Schema.NullOr(DrugDoseFilter),
+  filter: Schema.NullOr(CompoundDoseFilter),
   zoomDrag: Schema.NullOr(ZoomDrag),
 })
 
@@ -43,7 +43,7 @@ export const HoveredChartTooltip = taggedStruct('HoveredChartTooltip', {
 
 export const ClearedChartTooltip = taggedStruct('ClearedChartTooltip')
 
-export const ClickedChartPill = taggedStruct('ClickedChartPill', { drug: Schema.String, doseMg: Schema.Finite })
+export const ClickedChartPill = taggedStruct('ClickedChartPill', { compound: Schema.String, doseMg: Schema.Finite })
 
 export const ClearedChartFilter = taggedStruct('ClearedChartFilter')
 
@@ -81,10 +81,10 @@ export const updateChart: {
       CancelledChartZoom: () => [modifyFields(state, { zoomDrag: () => null }), Option.none()],
       ClearedChartFilter: () => [modifyFields(state, { filter: () => null }), Option.none()],
       ClearedChartTooltip: () => [modifyFields(state, { tooltip: () => null }), Option.none()],
-      ClickedChartPill: ({ doseMg, drug }) => [
+      ClickedChartPill: ({ doseMg, compound }) => [
         modifyFields(state, {
           filter: (filter) =>
-            filter !== null && filter.drug === drug && filter.doseMg === doseMg ? null : { doseMg, drug },
+            filter !== null && filter.compound === compound && filter.doseMg === doseMg ? null : { doseMg, compound },
           tooltip: () => null,
         }),
         Option.none(),

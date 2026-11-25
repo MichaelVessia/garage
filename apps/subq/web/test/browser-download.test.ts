@@ -4,7 +4,7 @@ import * as Effect from 'effect/Effect'
 import * as P from 'effect/Predicate'
 import { vi } from 'vitest'
 
-import { downloadTextFile } from '../src/adapter/browser-download.js'
+import { downloadTextFile } from '../src/adapter/browser-download.ts'
 
 afterEach(() => {
   vi.restoreAllMocks()

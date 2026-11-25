@@ -1,12 +1,10 @@
 {
   "extends": "../../../tsconfig.base.json",
-  "include": ["src", "test"],
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "preserve",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "declaration": false,
-    "declarationMap": false
-  }
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["src", "test", "vite.config.ts", "vitest.config.ts"]
 }

@@ -1,23 +1,17 @@
+import { ScheduleId, SchedulePhaseId } from '@garage/subq-domain/Journal/Journal.id'
+import { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import type { NextScheduledDose } from '@garage/subq-domain/ScheduleMath'
+import { Frequency } from '@garage/subq-domain/Values'
 import type * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { AsyncData } from 'foldkit'
 import { taggedStruct } from 'foldkit/schema'
-
-import { Frequency, IanaTimezone, InjectionSchedule, InjectionScheduleId, NextScheduledDose } from '#shared'
 
 // ============================================
 // Model
 // ============================================
 
-export const SchedulesData = AsyncData.Schema(Schema.Array(InjectionSchedule), Schema.String).schema
-
-export type SchedulesData = AsyncData.AsyncData<ReadonlyArray<InjectionSchedule>, string>
-
-export const NextDoseData = AsyncData.Schema(Schema.OptionFromNullOr(NextScheduledDose), Schema.String).schema
-
-export type NextDoseData = AsyncData.AsyncData<Option.Option<NextScheduledDose>, string>
-
 export const SchedulePhaseForm = Schema.Struct({
+  id: Schema.NullOr(SchedulePhaseId),
   order: Schema.Int,
   durationDays: Schema.String,
   doseMg: Schema.String,
@@ -27,9 +21,9 @@ export const SchedulePhaseForm = Schema.Struct({
 export type SchedulePhaseForm = typeof SchedulePhaseForm.Type
 
 export const ScheduleForm = Schema.Struct({
-  editingId: Schema.NullOr(InjectionScheduleId),
+  editingId: Schema.NullOr(ScheduleId),
   name: Schema.String,
-  drug: Schema.String,
+  compound: Schema.String,
   supplier: Schema.String,
   frequency: Frequency,
   startDate: Schema.String,
@@ -42,60 +36,35 @@ export const ScheduleForm = Schema.Struct({
 export type ScheduleForm = typeof ScheduleForm.Type
 
 export const ScheduleModel = Schema.Struct({
-  schedules: SchedulesData,
-  nextDose: NextDoseData,
-  nextDoseRequestKey: Schema.Int,
   form: Schema.NullOr(ScheduleForm),
-  pendingDeleteId: Schema.NullOr(InjectionScheduleId),
+  pendingDeleteId: Schema.NullOr(ScheduleId),
 })
 
 export type ScheduleModel = typeof ScheduleModel.Type
 
 export const initialScheduleModel: ScheduleModel = {
   form: null,
-  nextDose: AsyncData.Idle(),
-  nextDoseRequestKey: 0,
   pendingDeleteId: null,
-  schedules: AsyncData.Idle(),
 }
 
 // ============================================
 // Messages
 // ============================================
 
-export const SucceededFetchSchedules = taggedStruct('SucceededFetchSchedules', {
-  schedules: Schema.Array(InjectionSchedule),
-})
-
-export const FailedFetchSchedules = taggedStruct('FailedFetchSchedules', { message: Schema.String })
-
-export const SucceededFetchNextDose = taggedStruct('SucceededFetchNextDose', {
-  nextDose: Schema.NullOr(NextScheduledDose),
-  requestKey: Schema.Int,
-  requestedTimezone: IanaTimezone,
-  timezone: IanaTimezone,
-})
-
-export const FailedFetchNextDose = taggedStruct('FailedFetchNextDose', {
-  message: Schema.String,
-  requestKey: Schema.Int,
-  requestedTimezone: IanaTimezone,
-})
-
 export const CompletedOpenScheduleForm = taggedStruct('CompletedOpenScheduleForm', {
   todayLocal: Schema.String,
-  schedule: Schema.NullOr(InjectionSchedule),
+  schedule: Schema.NullOr(Schedule),
 })
 
 export const ClickedAddSchedule = taggedStruct('ClickedAddSchedule')
 
-export const ClickedEditSchedule = taggedStruct('ClickedEditSchedule', { schedule: InjectionSchedule })
+export const ClickedEditSchedule = taggedStruct('ClickedEditSchedule', { schedule: Schedule })
 
 export const ClickedCancelScheduleForm = taggedStruct('ClickedCancelScheduleForm')
 
 export const ChangedScheduleName = taggedStruct('ChangedScheduleName', { value: Schema.String })
 
-export const ChangedScheduleDrug = taggedStruct('ChangedScheduleDrug', { value: Schema.String })
+export const ChangedScheduleCompound = taggedStruct('ChangedScheduleCompound', { value: Schema.String })
 
 export const ChangedScheduleSupplier = taggedStruct('ChangedScheduleSupplier', { value: Schema.String })
 
@@ -130,7 +99,7 @@ export const SucceededSaveSchedule = taggedStruct('SucceededSaveSchedule')
 
 export const FailedSaveSchedule = taggedStruct('FailedSaveSchedule', { message: Schema.String })
 
-export const RequestedDeleteSchedule = taggedStruct('RequestedDeleteSchedule', { id: InjectionScheduleId })
+export const RequestedDeleteSchedule = taggedStruct('RequestedDeleteSchedule', { id: ScheduleId })
 
 export const CancelledDeleteSchedule = taggedStruct('CancelledDeleteSchedule')
 
@@ -140,23 +109,19 @@ export const SucceededDeleteSchedule = taggedStruct('SucceededDeleteSchedule')
 
 export const FailedDeleteSchedule = taggedStruct('FailedDeleteSchedule', { message: Schema.String })
 
-export const ClickedActivateSchedule = taggedStruct('ClickedActivateSchedule', { schedule: InjectionSchedule })
+export const ClickedToggleScheduleActivity = taggedStruct('ClickedToggleScheduleActivity', { schedule: Schedule })
 
 export const SucceededActivateSchedule = taggedStruct('SucceededActivateSchedule')
 
 export const FailedActivateSchedule = taggedStruct('FailedActivateSchedule', { message: Schema.String })
 
 export const ScheduleMessage = Schema.Union([
-  SucceededFetchSchedules,
-  FailedFetchSchedules,
-  SucceededFetchNextDose,
-  FailedFetchNextDose,
   CompletedOpenScheduleForm,
   ClickedAddSchedule,
   ClickedEditSchedule,
   ClickedCancelScheduleForm,
   ChangedScheduleName,
-  ChangedScheduleDrug,
+  ChangedScheduleCompound,
   ChangedScheduleSupplier,
   ChangedScheduleFrequency,
   ChangedScheduleStartDate,
@@ -174,9 +139,14 @@ export const ScheduleMessage = Schema.Union([
   ConfirmedDeleteSchedule,
   SucceededDeleteSchedule,
   FailedDeleteSchedule,
-  ClickedActivateSchedule,
+  ClickedToggleScheduleActivity,
   SucceededActivateSchedule,
   FailedActivateSchedule,
 ])
 
 export type ScheduleMessage = typeof ScheduleMessage.Type
+
+export type SchedulePage = ScheduleModel & {
+  readonly schedules: ReadonlyArray<Schedule>
+  readonly nextDose: Option.Option<NextScheduledDose>
+}

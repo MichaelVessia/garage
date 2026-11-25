@@ -1,8 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "rootDir": "."
-  },
-  "include": ["src", "test", "scripts", "alchemy.run.ts", "drizzle.config.ts"]
+  "compilerOptions": { "noEmit": true, "allowImportingTsExtensions": true },
+  "include": ["alchemy.run.ts"]
 }

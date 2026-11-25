@@ -1,15 +1,15 @@
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import type { WeightEntry } from '@garage/subq-domain/Journal/JournalRecords'
+import type { WeightUnit } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Order from 'effect/Order'
-import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { IanaTimezone, WeightLog, WeightUnit } from '#shared'
-
-import { formatWeight } from '../../data/settings.js'
-import { formatDateTime } from '../../lib/datetime.js'
-import { headerButton } from '../../lib/view.js'
-import { button, input } from '../../ui.js'
+import { formatDateTime } from '../../lib/datetime.ts'
+import { headerButton } from '../../lib/view.ts'
+import { formatWeight } from '../../lib/weight-unit.ts'
+import { button, input } from '../../ui.ts'
 import {
   CancelledDeleteWeight,
   ChangedWeightDatetime,
@@ -23,8 +23,8 @@ import {
   ConfirmedDeleteWeight,
   RequestedDeleteWeight,
   SubmittedWeightForm,
-} from './model.js'
-import type { WeightForm, WeightMessage, WeightModel } from './model.js'
+} from './model.ts'
+import type { WeightForm, WeightMessage, WeightPage } from './model.ts'
 
 const PAGE_SIZE = 10
 
@@ -32,21 +32,21 @@ const PAGE_SIZE = 10
 // View
 // ============================================
 
-const byWeight: Order.Order<WeightLog> = Order.mapInput(Order.Number, (log: WeightLog) => log.weight)
+const byWeight: Order.Order<WeightEntry> = Order.mapInput(Order.Number, (log: WeightEntry) => log.weightLbs)
 
-const byDatetime: Order.Order<WeightLog> = Order.mapInput(DateTime.Order, (log: WeightLog) => log.datetime)
+const byDatetime: Order.Order<WeightEntry> = Order.mapInput(DateTime.Order, (log: WeightEntry) => log.recordedAt)
 
 const sortLogs = (
-  logs: ReadonlyArray<WeightLog>,
+  logs: ReadonlyArray<WeightEntry>,
   column: 'datetime' | 'weight',
   desc: boolean
-): ReadonlyArray<WeightLog> => {
+): ReadonlyArray<WeightEntry> => {
   const order = column === 'weight' ? byWeight : byDatetime
 
   return Arr.sort(logs, desc ? Order.flip(order) : order)
 }
 
-const sortIndicator = (model: WeightModel, column: 'datetime' | 'weight'): string => {
+const sortIndicator = (model: WeightPage, column: 'datetime' | 'weight'): string => {
   if (model.sortColumn !== column) {
     return ''
   }
@@ -70,7 +70,7 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
       [h.Class('mb-6 p-6 rounded-lg border bg-card text-card-foreground shadow-sm')],
       [
         h.form(
-          [h.OnSubmit(SubmittedWeightForm({ unit }))],
+          [h.OnSubmit(SubmittedWeightForm())],
           [
             h.div(
               [h.Class('mb-4')],
@@ -100,7 +100,7 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
                   h.Class(input()),
                   h.Type('number'),
                   h.Id('weight-value'),
-                  h.Step('0.1'),
+                  h.Step('any'),
                   h.Min('0'),
                   h.Max('1000'),
                   h.Placeholder(unit === 'kg' ? 'e.g., 84.0' : 'e.g., 185.5'),
@@ -169,7 +169,7 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
       ]
     )
 
-  const viewTable = (model: WeightModel, logs: ReadonlyArray<WeightLog>, unit: WeightUnit, timezone: IanaTimezone) => {
+  const viewTable = (model: WeightPage, logs: ReadonlyArray<WeightEntry>, unit: WeightUnit, timezone: IanaTimezone) => {
     const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
     const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
     const page = Math.min(model.page, pageCount - 1)
@@ -223,8 +223,8 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
                       log.id,
                       [h.Class('border-b transition-colors hover:bg-muted/50')],
                       [
-                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
-                        h.td([h.Class('p-3 font-mono font-medium')], [formatWeight(unit, log.weight)]),
+                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.recordedAt, timezone)]),
+                        h.td([h.Class('p-3 font-mono font-medium')], [formatWeight(unit, log.weightLbs)]),
                         h.td(
                           [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
                           [log.notes ?? '-']
@@ -286,7 +286,7 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
     )
   }
 
-  return (model: WeightModel, unit: WeightUnit, timezone: IanaTimezone) =>
+  return (model: WeightPage, unit: WeightUnit, timezone: IanaTimezone) =>
     h.div(
       [],
       [
@@ -299,21 +299,9 @@ const makeViewWeight = <ParentMessage>(h: HtmlBuilder<ParentMessage | WeightMess
         ),
         model.form === null ? h.empty : viewForm(model.form, unit),
         model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
-        AsyncData.match(model.logs, {
-          onFailure: () =>
-            h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-          onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onRefreshing: (data) => viewTable(model, data, unit, timezone),
-          onStale: ({ data }) => viewTable(model, data, unit, timezone),
-          onSuccess: (data) =>
-            Arr.isReadonlyArrayNonEmpty(data)
-              ? viewTable(model, data, unit, timezone)
-              : h.div(
-                  [h.Class('text-center py-12 text-muted-foreground')],
-                  ['No entries yet. Add your first weight log.']
-                ),
-        }),
+        Arr.isReadonlyArrayNonEmpty(model.logs)
+          ? viewTable(model, model.logs, unit, timezone)
+          : h.div([h.Class('text-center py-12 text-muted-foreground')], ['No entries yet. Add your first weight log.']),
       ]
     )
 }
@@ -325,7 +313,7 @@ export const viewWeight = <ParentMessage>({
   unit,
 }: {
   readonly h: HtmlBuilder<ParentMessage | WeightMessage>
-  readonly model: WeightModel
+  readonly model: WeightPage
   readonly timezone: IanaTimezone
   readonly unit: WeightUnit
 }): Html => makeViewWeight(h)(model, unit, timezone)

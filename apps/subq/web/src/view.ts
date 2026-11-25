@@ -1,35 +1,42 @@
+import { calendarDateStartUtc } from '@garage/subq-domain/Calendar'
+import { nextDose, scheduleView } from '@garage/subq-domain/ScheduleMath'
 import * as Arr from 'effect/Array'
+import * as DateTime from 'effect/DateTime'
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
-import * as P from 'effect/Predicate'
-import { AsyncData } from 'foldkit'
+import * as Record from 'effect/Record'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { timezoneOf, weightUnitOf } from './data/settings.js'
-import { ClickedRetrySettings, ClickedSignOut, statsRangeOf } from './model.js'
-import type { Message, Model } from './model.js'
-import { viewInjections } from './page/injections/view.js'
-import { viewLogin } from './page/login.js'
-import { viewScheduleView } from './page/schedule-view.js'
-import { viewSchedule } from './page/schedule/view.js'
-import { viewSettings } from './page/settings/view.js'
-import { viewStats } from './page/stats/view.js'
-import { viewWeight } from './page/weight/view.js'
-import { injectionRouter, scheduleRouter, settingsRouter, statsHref, weightRouter } from './route.js'
-import { button, navLink } from './ui.js'
+import { journalData, Shell, statsRangeOf, timezoneOf, todayOf } from './model.ts'
+import type { Message, Model } from './model.ts'
+import { viewInjections } from './page/injections/view.ts'
+import { viewScheduleView } from './page/schedule-view.ts'
+import { viewSchedule } from './page/schedule/view.ts'
+import { viewSettings } from './page/settings/view.ts'
+import { calculateStats } from './page/stats/data.ts'
+import { viewStats } from './page/stats/view.ts'
+import { viewWeight } from './page/weight/view.ts'
+import { injectionRouter, scheduleRouter, settingsRouter, statsHref, weightRouter } from './route.ts'
+import { button, navLink } from './ui.ts'
 
 type Document = Readonly<{ body: Html; title: string }>
 
-// ============================================
-// View
-// ============================================
+const readFailed = (model: Model) => Arr.some(Record.values(model.readErrors), (failed) => failed)
 
 const makeView = (h: HtmlBuilder<Message>): ((model: Model) => Document) => {
-  const viewLoading = h.div(
-    [h.Class('flex items-center justify-center h-screen')],
-    [h.p([h.Class('text-muted-foreground')], ['Loading...'])]
-  )
+  const loading = h.p([h.Role('status'), h.Class('py-12 text-center text-muted-foreground')], ['Loading journal...'])
+  const alert = (message: string) =>
+    h.div(
+      [
+        h.Role('alert'),
+        h.Class('mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-600/40 p-3'),
+      ],
+      [
+        h.p([], [message]),
+        h.button([h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(Shell.ClickedReload())], ['Reload']),
+      ]
+    )
 
   const navItems: ReadonlyArray<readonly [label: string, href: string, tag: string]> = [
     ['Stats', statsHref, 'Stats'],
@@ -38,7 +45,7 @@ const makeView = (h: HtmlBuilder<Message>): ((model: Model) => Document) => {
     ['Schedule', scheduleRouter({}), 'Schedule'],
   ]
 
-  const viewShell = (model: Model, email: string, content: Html): Html =>
+  const viewShell = (model: Model, content: Html): Html =>
     h.div(
       [h.Class('max-w-7xl mx-auto p-4 sm:p-6')],
       [
@@ -55,14 +62,9 @@ const makeView = (h: HtmlBuilder<Message>): ((model: Model) => Document) => {
                 h.div(
                   [h.Class('flex items-center gap-3')],
                   [
-                    h.span([h.Class('hidden sm:inline text-xs text-muted-foreground')], [email]),
                     h.a(
                       [h.Href(settingsRouter({}))],
                       [h.button([h.Class(button({ size: 'icon', variant: 'ghost' })), h.Title('Settings')], ['⚙'])]
-                    ),
-                    h.button(
-                      [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(ClickedSignOut())],
-                      ['Sign Out']
                     ),
                   ]
                 ),
@@ -76,70 +78,100 @@ const makeView = (h: HtmlBuilder<Message>): ((model: Model) => Document) => {
             ),
           ]
         ),
-        h.main([], [content]),
-      ]
-    )
-
-  const viewPlaceholder = (title: string): Html => h.div([h.Class('text-muted-foreground')], [`${title} — coming soon`])
-
-  const viewSettingsFailure = (error: string): Html =>
-    h.div(
-      [h.Class('mx-auto max-w-2xl rounded-md border border-destructive/40 p-6')],
-      [
-        h.h2([h.Class('text-lg font-semibold text-destructive')], ['Timezone setup needs attention']),
-        h.p([h.Class('mt-3 break-words text-sm')], [error]),
-        h.p(
-          [h.Class('mt-3 text-sm text-muted-foreground')],
+        h.main(
+          [],
           [
-            'Some earlier records may already have been converted. Correct the identified problem and retry; migration retries are idempotent and completed conversions are not applied again.',
+            model.sessionExpired
+              ? alert('Session expired. Reload to sign in.')
+              : readFailed(model)
+                ? alert('Cannot load the journal. Reload to try again.')
+                : h.empty,
+            model.mutationError === null
+              ? h.empty
+              : h.p([h.Role('alert'), h.Class('mb-4 text-sm text-destructive')], [model.mutationError]),
+            h.fieldset(
+              [h.Disabled(model.saving || model.sessionExpired || readFailed(model)), h.Class('min-w-0')],
+              [content]
+            ),
           ]
         ),
-        h.button([h.Class(button({ class: 'mt-4' })), h.OnClick(ClickedRetrySettings())], ['Retry timezone setup']),
       ]
     )
 
   const viewPage = (model: Model): Html => {
-    const timezone = timezoneOf(model.settings, model.detectedTimezone)
-
-    return Match.value(model.route).pipe(
-      Match.tagsExhaustive({
-        Injection: () => viewInjections({ h, model: model.injections, timezone }),
-        Login: () => viewPlaceholder('Login'),
-        NotFound: () => h.div([h.Class('text-muted-foreground')], ['Page not found']),
-        Schedule: () => viewSchedule({ h, model: model.schedule }),
-        ScheduleView: () => viewScheduleView({ h, model: model.scheduleView, timezone }),
-        Settings: () => viewSettings({ h, model: model.settingsPage, settings: model.settings, timezone }),
-        Stats: () =>
-          viewStats({
-            h,
-            model: model.stats,
-            range: statsRangeOf(model),
-            timezone,
-            unit: weightUnitOf(model.settings),
-          }),
-        Weight: () => viewWeight({ h, model: model.weight, timezone, unit: weightUnitOf(model.settings) }),
-      })
-    )
-  }
-
-  return (model: Model): Document => {
-    if (!model.sessionLoaded) {
-      return { body: viewLoading, title: 'SubQ' }
+    const data = journalData(model)
+    if (Option.isNone(data) || model.profile === null) {
+      return model.sessionExpired || readFailed(model) ? h.empty : loading
     }
+    const { weights, injections, schedules, goals } = data.value
+    const { latestWeight, knownSites } = model.profile
+    const timezone = timezoneOf(model)
+    const today = todayOf(model)
+    const unit = data.value.preferences.weightUnit ?? 'lbs'
+    const selected = statsRangeOf(model)
 
-    if (model.user === null || P.isTagged(model.route, 'Login')) {
-      return { body: viewLogin({ h, model: model.login }), title: 'SubQ — Sign In' }
-    }
-
-    const settingsError = AsyncData.getError(model.settings)
-
-    const page = Option.match(settingsError, {
-      onNone: () => viewPage(model),
-      onSome: viewSettingsFailure,
+    return Match.valueTags(model.route, {
+      Injection: () =>
+        viewInjections({
+          h,
+          timezone,
+          model: {
+            ...model.injections,
+            logs: injections,
+            sites: knownSites,
+            schedules,
+          },
+        }),
+      NotFound: () => h.div([h.Class('text-muted-foreground')], ['Page not found']),
+      Schedule: () =>
+        viewSchedule({
+          h,
+          model: {
+            ...model.schedule,
+            schedules,
+            nextDose: Option.flatMap(
+              Arr.findFirst(schedules, (schedule) => schedule.isActive),
+              (schedule) => nextDose({ schedule, injections, today, timezone })
+            ),
+          },
+        }),
+      ScheduleView: ({ scheduleId }) =>
+        viewScheduleView({
+          h,
+          timezone,
+          model: {
+            view: Option.map(
+              Arr.findFirst(schedules, ({ id }) => id === scheduleId),
+              scheduleView(injections, today, timezone)
+            ),
+          },
+        }),
+      Settings: () => viewSettings({ h, model: model.settingsPage, unit, timezone }),
+      Stats: () =>
+        viewStats({
+          h,
+          model: {
+            ...model.stats,
+            data: calculateStats({
+              weights,
+              injections,
+              schedules,
+              latestWeight: Option.fromNullOr(latestWeight),
+              selected,
+              timezone,
+              goal: Arr.findFirst(goals, (goal) => goal.isActive),
+              now: DateTime.toDate(model.now ?? calendarDateStartUtc(today, timezone)),
+            }),
+          },
+          range: selected,
+          timezone,
+          unit,
+        }),
+      Weight: () => viewWeight({ h, model: { ...model.weight, logs: weights }, timezone, unit }),
     })
-
-    return { body: viewShell(model, model.user.email, page), title: 'SubQ' }
   }
+
+  return (model: Model): Document => ({ body: viewShell(model, viewPage(model)), title: 'SubQ' })
 }
 
 export const view: {

@@ -1,7 +1,6 @@
+import type { Frequency } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
-
-import type { Frequency } from '#shared'
 
 export const FREQUENCIES: ReadonlyArray<readonly [value: Frequency, label: string]> = [
   ['daily', 'Daily'],

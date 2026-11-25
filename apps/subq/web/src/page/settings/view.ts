@@ -1,34 +1,20 @@
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import type { JournalSnapshot } from '@garage/subq-domain/ExportFormat'
+import type { WeightUnit } from '@garage/subq-domain/Values'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { DataExport, IanaTimezone, WeightUnit } from '#shared'
-
-import { weightUnitOf } from '../../data/settings.js'
-import type { SettingsData } from '../../data/settings.js'
-import { button, card, input } from '../../ui.js'
+import { button, card, input } from '../../ui.ts'
 import {
   CancelledImportData,
-  ChangedSettingsConfirmPassword,
-  ChangedSettingsCurrentPassword,
-  ChangedSettingsNewPassword,
   ChangedSettingsTimezone,
   ClickedExportData,
   ClickedSelectImportFile,
   ClickedSettingsWeightUnit,
   ConfirmedImportData,
-  SubmittedSettingsPassword,
   SubmittedSettingsTimezone,
-} from './model.js'
-import type { PasswordForm, SettingsModel, SettingsPageMessage } from './model.js'
-
-const importSummary = (data: DataExport): string => {
-  const records = data.data
-
-  return `${records.weightLogs.length} weight logs, ${records.injectionLogs.length} injection logs, ${records.schedules.length} schedules, ${records.goals.length} goals`
-}
-
-// ============================================
-// View
-// ============================================
+} from './model.ts'
+import type { SettingsModel, SettingsPageMessage } from './model.ts'
+import { importSummary } from './update.ts'
 
 const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | SettingsPageMessage>) => {
   const viewCard = (title: string, children: ReadonlyArray<ReturnType<typeof h.div>>) =>
@@ -53,7 +39,7 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
       [label]
     )
 
-  const viewDisplayPreferences = (model: SettingsModel, settings: SettingsData, timezone: IanaTimezone) =>
+  const viewDisplayPreferences = (model: SettingsModel, unit: WeightUnit, timezone: IanaTimezone) =>
     viewCard('Display Preferences', [
       h.div(
         [h.Class('space-y-4')],
@@ -69,8 +55,8 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
               h.div(
                 [h.Class('flex flex-wrap gap-3')],
                 [
-                  unitButton(weightUnitOf(settings), 'lbs', 'Pounds (lbs)', model.preferenceSubmitting),
-                  unitButton(weightUnitOf(settings), 'kg', 'Kilograms (kg)', model.preferenceSubmitting),
+                  unitButton(unit, 'lbs', 'Pounds (lbs)', model.preferenceSubmitting),
+                  unitButton(unit, 'kg', 'Kilograms (kg)', model.preferenceSubmitting),
                 ]
               ),
             ]
@@ -104,60 +90,6 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
           model.preferenceError === null
             ? h.empty
             : h.p([h.Class('text-sm text-destructive')], [model.preferenceError]),
-        ]
-      ),
-    ])
-
-  const viewPasswordForm = (form: PasswordForm) =>
-    viewCard('Change Password', [
-      form.success ? h.p([h.Class('text-sm text-green-600 mb-4')], ['Password changed successfully']) : h.empty,
-      h.form(
-        [h.Class('space-y-4'), h.OnSubmit(SubmittedSettingsPassword())],
-        [
-          h.div(
-            [],
-            [
-              h.label([h.For('currentPassword'), h.Class('mb-2 block text-sm font-medium')], ['Current Password']),
-              h.input([
-                h.Class(input()),
-                h.Id('currentPassword'),
-                h.Type('password'),
-                h.Value(form.currentPassword),
-                h.OnInput((value) => ChangedSettingsCurrentPassword({ value })),
-              ]),
-            ]
-          ),
-          h.div(
-            [],
-            [
-              h.label([h.For('newPassword'), h.Class('mb-2 block text-sm font-medium')], ['New Password']),
-              h.input([
-                h.Class(input()),
-                h.Id('newPassword'),
-                h.Type('password'),
-                h.Value(form.newPassword),
-                h.OnInput((value) => ChangedSettingsNewPassword({ value })),
-              ]),
-            ]
-          ),
-          h.div(
-            [],
-            [
-              h.label([h.For('confirmPassword'), h.Class('mb-2 block text-sm font-medium')], ['Confirm New Password']),
-              h.input([
-                h.Class(input()),
-                h.Id('confirmPassword'),
-                h.Type('password'),
-                h.Value(form.confirmPassword),
-                h.OnInput((value) => ChangedSettingsConfirmPassword({ value })),
-              ]),
-            ]
-          ),
-          form.error === null ? h.empty : h.p([h.Class('text-sm text-destructive')], [form.error]),
-          h.button(
-            [h.Class(button()), h.Type('submit'), h.Disabled(form.submitting)],
-            [form.submitting ? 'Changing...' : 'Change Password']
-          ),
         ]
       ),
     ])
@@ -227,7 +159,7 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
       ),
     ])
 
-  const viewImportConfirm = (data: DataExport) =>
+  const viewImportConfirm = (data: JournalSnapshot) =>
     h.div(
       [h.Class('fixed inset-0 bg-black/50 flex items-center justify-center z-50')],
       [
@@ -239,7 +171,7 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
               [h.Class('text-sm text-muted-foreground mb-4')],
               ['This will ', h.strong([], ['replace all your existing data']), ' with the imported data:']
             ),
-            h.p([h.Class('text-sm mb-4 font-mono bg-muted p-2 rounded')], [importSummary(data)]),
+            h.p([h.Class('text-sm mb-4 font-mono bg-muted p-2 rounded')], [importSummary(data.data)]),
             h.p([h.Class('text-sm text-destructive mb-4')], ['This action cannot be undone.']),
             h.div(
               [h.Class('flex gap-3 justify-end')],
@@ -256,13 +188,12 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
       ]
     )
 
-  return (model: SettingsModel, settings: SettingsData, timezone: IanaTimezone) =>
+  return (model: SettingsModel, unit: WeightUnit, timezone: IanaTimezone) =>
     h.div(
       [],
       [
         h.h2([h.Class('text-xl font-semibold tracking-tight mb-6')], ['Settings']),
-        viewDisplayPreferences(model, settings, timezone),
-        viewPasswordForm(model.password),
+        viewDisplayPreferences(model, unit, timezone),
         viewDataManagement(model),
         model.importConfirm === null ? h.empty : viewImportConfirm(model.importConfirm),
       ]
@@ -272,11 +203,11 @@ const makeViewSettings = <ParentMessage>(h: HtmlBuilder<ParentMessage | Settings
 export const viewSettings = <ParentMessage>({
   h,
   model,
-  settings,
+  unit,
   timezone,
 }: {
   readonly h: HtmlBuilder<ParentMessage | SettingsPageMessage>
   readonly model: SettingsModel
-  readonly settings: SettingsData
+  readonly unit: WeightUnit
   readonly timezone: IanaTimezone
-}): Html => makeViewSettings(h)(model, settings, timezone)
+}): Html => makeViewSettings(h)(model, unit, timezone)

@@ -1,9 +1,9 @@
-import { extent, scaleLinear, scaleUtc } from 'd3'
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import type { WeightTrajectoryTrendLine } from '@garage/subq-domain/WeightMath'
+import { extent } from 'd3'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-
-import type { IanaTimezone, TrendLine } from '#shared'
 
 import {
   viewGridLines,
@@ -13,12 +13,13 @@ import {
   viewYLabel,
   viewZoomSelection,
   viewZoomStrips,
-} from './axes.js'
-import { CHART_HEIGHT, CHART_WIDTH, PILL, bySortedDate, computePills, computeSegments } from './layout.js'
-import type { ChartFrame, InjectionPoint, SchedulePeriod, WeightPoint, ZoomRange } from './layout.js'
-import { viewDosePills, viewTooltip, viewTrendLine, viewWeightDots, viewWeightPaths } from './marks.js'
-import { CancelledChartZoom, ClearedChartFilter, EndedChartZoom } from './state.js'
-import type { ChartMessage, ChartState } from './state.js'
+} from './axes.ts'
+import { CHART_HEIGHT, CHART_WIDTH, PILL, bySortedDate, computePills, computeSegments } from './layout.ts'
+import type { ChartFrame, InjectionPoint, SchedulePeriod, WeightPoint, ZoomRange } from './layout.ts'
+import { viewDosePills, viewTooltip, viewTrendLine, viewWeightDots, viewWeightPaths } from './marks.ts'
+import { linearScale, utcScale } from './scale.ts'
+import { CancelledChartZoom, ClearedChartFilter, EndedChartZoom } from './state.ts'
+import type { ChartMessage, ChartState } from './state.ts'
 
 // Ported from web/src/components/stats/weight-trend-chart (React + imperative
 // d3). All layout math is the same pure code; rendering is hyperscript SVG in
@@ -36,7 +37,7 @@ export interface WeightTrendProps {
   readonly weightData: ReadonlyArray<WeightPoint>
   readonly injectionData: ReadonlyArray<InjectionPoint>
   readonly schedulePeriods: ReadonlyArray<SchedulePeriod>
-  readonly trendLine: Option.Option<TrendLine>
+  readonly trendLine: Option.Option<WeightTrajectoryTrendLine>
   readonly zoomRange: Option.Option<ZoomRange>
   readonly displayWeight: (lbs: number) => number
   readonly unitLabel: string
@@ -90,16 +91,14 @@ export const viewWeightTrend = <ParentMessage>({
     return h.empty
   }
 
-  const xScale = scaleUtc().domain([minDate, maxDate]).range([0, width])
+  const xScale = utcScale({ start: minDate, end: maxDate, width })
   const { maxRow, pills } = computePills(sorted, injectionData, zoomRange, xScale)
   const yPaddingBottom = (maxWeight - minWeight) * 0.1 || 5
   const pillSpace = (maxRow + 1) * (PILL.HEIGHT + PILL.VERTICAL_GAP) + 20
   const pixelsPerUnit = height / (maxWeight - minWeight + yPaddingBottom * 2 || 10)
   const yPaddingTop = pillSpace / pixelsPerUnit
 
-  const yScale = scaleLinear()
-    .domain([minWeight - yPaddingBottom, maxWeight + yPaddingTop])
-    .range([height, 0])
+  const yScale = linearScale({ min: minWeight - yPaddingBottom, max: maxWeight + yPaddingTop, height })
 
   const segments = computeSegments(sorted, injectionData)
 
@@ -112,9 +111,9 @@ export const viewWeightTrend = <ParentMessage>({
     filter,
     formatDate,
     height,
-    isSelected: (drug, doseMg) =>
+    isSelected: (compound, doseMg) =>
       filter === null ||
-      (Option.exists(drug, (value) => value === filter.drug) &&
+      (Option.exists(compound, (value) => value === filter.compound) &&
         Option.exists(doseMg, (value) => value === filter.doseMg)),
     margin,
     unitLabel,
@@ -164,7 +163,7 @@ export const viewWeightTrend = <ParentMessage>({
               ),
               h.OnClick(ClearedChartFilter()),
             ],
-            [`Clear filter: ${filter.drug} ${filter.doseMg} mg`]
+            [`Clear filter: ${filter.compound} ${filter.doseMg} mg`]
           ),
       Option.isNone(zoomRange) && filter === null
         ? h.div([h.Class('absolute bottom-2 right-2 text-xs text-muted-foreground opacity-60')], ['Drag to zoom'])

@@ -1,17 +1,15 @@
+import { CalendarDate } from '@garage/subq-domain/Calendar'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import { Route } from 'foldkit'
 import { defineRouteUnion, literal, root, slash, string } from 'foldkit/route'
 
-import { CalendarDate } from '#shared'
-
 // ============================================
 // Route definitions
 // ============================================
 
 export const AppRoute = defineRouteUnion({
-  Login: {},
   Stats: {
     start: Schema.OptionFromOptional(CalendarDate),
     end: Schema.OptionFromOptional(CalendarDate),
@@ -29,8 +27,6 @@ export type AppRoute = typeof AppRoute.Type
 // ============================================
 // Bidirectional routers (parse URLs, generate hrefs)
 // ============================================
-
-export const loginRouter = Function.pipe(literal('login'), Route.mapTo(AppRoute.Login))
 
 export const statsRouter = Function.pipe(
   literal('stats'),
@@ -70,7 +66,6 @@ export const rootRouter = Function.pipe(
 )
 
 const routeParser = Route.oneOf(
-  loginRouter,
   statsRouter,
   weightRouter,
   injectionRouter,

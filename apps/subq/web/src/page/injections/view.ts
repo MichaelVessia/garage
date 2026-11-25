@@ -1,28 +1,27 @@
+import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import { ScheduleId } from '@garage/subq-domain/Journal/Journal.id'
+import type { InjectionEntry, Schedule } from '@garage/subq-domain/Journal/JournalRecords'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
-import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 import * as Str from 'effect/String'
-import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { IanaTimezone, InjectionLog, InjectionSchedule } from '#shared'
-
-import { formatDateTime } from '../../lib/datetime.js'
-import { headerButton } from '../../lib/view.js'
-import { button, card } from '../../ui.js'
-import { viewInjectionForm } from './form-view.js'
-import { scheduleById } from './form.js'
+import { formatDateTime } from '../../lib/datetime.ts'
+import { headerButton } from '../../lib/view.ts'
+import { button, card } from '../../ui.ts'
+import { viewInjectionForm } from './form-view.ts'
 import {
   CancelledDeleteInjection,
+  ChangedInjectionAssignment,
   ClickedAddInjection,
   ClickedEditInjection,
   ClickedInjectionPage,
   ClickedInjectionSort,
   ConfirmedDeleteInjection,
   RequestedDeleteInjection,
-} from './model.js'
-import type { InjectionsMessage, InjectionsModel } from './model.js'
+} from './model.ts'
+import type { InjectionsMessage, InjectionsPage } from './model.ts'
 
 const PAGE_SIZE = 10
 
@@ -30,36 +29,33 @@ const PAGE_SIZE = 10
 // View
 // ============================================
 
-type SortColumn = InjectionsModel['sortColumn']
+type SortColumn = InjectionsPage['sortColumn']
 
-const logOrder = (column: SortColumn): Order.Order<InjectionLog> => {
+const logOrder = (column: SortColumn): Order.Order<InjectionEntry> => {
   if (column === 'datetime') {
-    return Order.mapInput(Order.Number, (log: InjectionLog) => DateTime.toEpochMillis(log.datetime))
+    return Order.mapInput(Order.Number, (log: InjectionEntry) => DateTime.toEpochMillis(log.administeredAt))
   }
 
   if (column === 'doseMg') {
-    return Order.mapInput(Order.Number, (log: InjectionLog) => log.doseMg)
+    return Order.mapInput(Order.Number, (log: InjectionEntry) => log.doseMg)
   }
 
-  return Order.make((left: InjectionLog, right: InjectionLog) => Str.localeCompare(right.drug)(left.drug))
+  return Order.make((left: InjectionEntry, right: InjectionEntry) => Str.localeCompare(right.compound)(left.compound))
 }
 
-const sortLogs = (logs: ReadonlyArray<InjectionLog>, column: SortColumn, desc: boolean): ReadonlyArray<InjectionLog> =>
-  Arr.sort(logs, desc ? Order.flip(logOrder(column)) : logOrder(column))
+const sortLogs = (
+  logs: ReadonlyArray<InjectionEntry>,
+  column: SortColumn,
+  desc: boolean
+): ReadonlyArray<InjectionEntry> => Arr.sort(logs, desc ? Order.flip(logOrder(column)) : logOrder(column))
 
-const sortIndicator = (model: InjectionsModel, column: SortColumn): string => {
+const sortIndicator = (model: InjectionsPage, column: SortColumn): string => {
   if (model.sortColumn !== column) {
     return ''
   }
 
   return model.sortDesc ? ' ↓' : ' ↑'
 }
-
-const scheduleName = (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: Option.Option<string>): string =>
-  scheduleId.pipe(
-    Option.flatMap((id) => scheduleById(schedules, id)),
-    Option.match({ onNone: () => '-', onSome: (schedule) => schedule.name })
-  )
 
 const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | InjectionsMessage>) => {
   const viewDeleteConfirm = () =>
@@ -89,9 +85,9 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
     )
 
   const viewTable = (
-    model: InjectionsModel,
-    logs: ReadonlyArray<InjectionLog>,
-    schedules: ReadonlyArray<InjectionSchedule>,
+    model: InjectionsPage,
+    logs: ReadonlyArray<InjectionEntry>,
+    schedules: ReadonlyArray<Schedule>,
     timezone: IanaTimezone
   ) => {
     const sorted = sortLogs(logs, model.sortColumn, model.sortDesc)
@@ -129,8 +125,8 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
                           [
                             headerButton({
                               h,
-                              label: `Compound${sortIndicator(model, 'drug')}`,
-                              message: ClickedInjectionSort({ column: 'drug' }),
+                              label: `Compound${sortIndicator(model, 'compound')}`,
+                              message: ClickedInjectionSort({ column: 'compound' }),
                             }),
                           ]
                         ),
@@ -160,12 +156,39 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
                       log.id,
                       [h.Class('border-b transition-colors hover:bg-muted/50')],
                       [
-                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.datetime, timezone)]),
-                        h.td([h.Class('p-3 font-medium')], [log.drug]),
+                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.administeredAt, timezone)]),
+                        h.td([h.Class('p-3 font-medium')], [log.compound]),
                         h.td([h.Class('p-3 font-mono')], [`${log.doseMg} mg`]),
                         h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.supplier ?? '-']),
-                        h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.injectionSite ?? '-']),
-                        h.td([h.Class('p-3 text-sm')], [scheduleName(schedules, Option.fromNullOr(log.scheduleId))]),
+                        h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.site ?? '-']),
+                        h.td(
+                          [h.Class('p-3 text-sm')],
+                          [
+                            h.select(
+                              [
+                                h.Class('max-w-32 rounded border bg-background p-1'),
+                                h.AriaLabel('Assign injection to schedule'),
+                                h.Value(log.scheduleId ?? ''),
+                                h.OnChange((value) =>
+                                  ChangedInjectionAssignment({
+                                    injectionId: log.id,
+                                    scheduleId: value === '' ? null : ScheduleId.make(value),
+                                  })
+                                ),
+                              ],
+                              [
+                                h.option([h.Value('')], ['Unassigned']),
+                                ...Arr.map(
+                                  Arr.filter(
+                                    schedules,
+                                    (schedule) => schedule.compound === log.compound || schedule.id === log.scheduleId
+                                  ),
+                                  (schedule) => h.keyed('option')(schedule.id, [h.Value(schedule.id)], [schedule.name])
+                                ),
+                              ]
+                            ),
+                          ]
+                        ),
                         h.td(
                           [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
                           [log.notes ?? '-']
@@ -227,7 +250,7 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
     )
   }
 
-  return (model: InjectionsModel, timezone: IanaTimezone) =>
+  return (model: InjectionsPage, timezone: IanaTimezone) =>
     h.div(
       [],
       [
@@ -240,38 +263,12 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
         ),
         model.form === null ? h.empty : viewInjectionForm({ form: model.form, h, model }),
         model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
-        AsyncData.match(model.logs, {
-          onFailure: () =>
-            h.div([h.Class('text-center py-12 text-destructive')], ["We couldn't load the data. Please try again."]),
-          onIdle: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onLoading: () => h.div([h.Class('text-center py-12 text-muted-foreground')], ['Loading...']),
-          onRefreshing: (data) =>
-            viewTable(
-              model,
-              data,
-              AsyncData.getOrElse(model.schedules, () => []),
-              timezone
+        Arr.isReadonlyArrayNonEmpty(model.logs)
+          ? viewTable(model, model.logs, model.schedules, timezone)
+          : h.div(
+              [h.Class('text-center py-12 text-muted-foreground')],
+              ['No entries yet. Add your first injection log.']
             ),
-          onStale: ({ data }) =>
-            viewTable(
-              model,
-              data,
-              AsyncData.getOrElse(model.schedules, () => []),
-              timezone
-            ),
-          onSuccess: (data) =>
-            Arr.isReadonlyArrayNonEmpty(data)
-              ? viewTable(
-                  model,
-                  data,
-                  AsyncData.getOrElse(model.schedules, () => []),
-                  timezone
-                )
-              : h.div(
-                  [h.Class('text-center py-12 text-muted-foreground')],
-                  ['No entries yet. Add your first injection log.']
-                ),
-        }),
       ]
     )
 }
@@ -281,7 +278,7 @@ export const viewInjections = <ParentMessage>({
   timezone,
   h,
 }: {
-  readonly model: InjectionsModel
+  readonly model: InjectionsPage
   readonly timezone: IanaTimezone
   readonly h: HtmlBuilder<ParentMessage | InjectionsMessage>
 }): Html => makeViewInjections(h)(model, timezone)

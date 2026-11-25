@@ -1,32 +1,19 @@
+import { JournalSnapshot } from '@garage/subq-domain/ExportFormat'
 import * as Schema from 'effect/Schema'
 import { File } from 'foldkit'
 import { taggedStruct } from 'foldkit/schema'
-
-import { DataExport, DataImportResult } from '#shared'
 
 // ============================================
 // Model
 // ============================================
 
-export const PasswordForm = Schema.Struct({
-  currentPassword: Schema.String,
-  newPassword: Schema.String,
-  confirmPassword: Schema.String,
-  submitting: Schema.Boolean,
-  error: Schema.NullOr(Schema.String),
-  success: Schema.Boolean,
-})
-
-export type PasswordForm = typeof PasswordForm.Type
-
 export const SettingsModel = Schema.Struct({
   preferenceSubmitting: Schema.Boolean,
   preferenceError: Schema.NullOr(Schema.String),
   timezoneInput: Schema.String,
-  password: PasswordForm,
   exportStatus: Schema.Literals(['idle', 'exporting']),
-  importStatus: Schema.Literals(['idle', 'reading', 'importing']),
-  importConfirm: Schema.NullOr(DataExport),
+  importStatus: Schema.Literals(['idle', 'reading', 'confirming', 'importing']),
+  importConfirm: Schema.NullOr(JournalSnapshot),
   dataError: Schema.NullOr(Schema.String),
   dataSuccess: Schema.NullOr(Schema.String),
 })
@@ -39,14 +26,6 @@ export const initialSettingsModel: SettingsModel = {
   exportStatus: 'idle',
   importConfirm: null,
   importStatus: 'idle',
-  password: {
-    confirmPassword: '',
-    currentPassword: '',
-    error: null,
-    newPassword: '',
-    submitting: false,
-    success: false,
-  },
   preferenceError: null,
   preferenceSubmitting: false,
   timezoneInput: '',
@@ -70,18 +49,6 @@ export const FailedUpdateSettingsPreference = taggedStruct('FailedUpdateSettings
   message: Schema.String,
 })
 
-export const ChangedSettingsCurrentPassword = taggedStruct('ChangedSettingsCurrentPassword', {
-  value: Schema.String,
-})
-
-export const ChangedSettingsNewPassword = taggedStruct('ChangedSettingsNewPassword', { value: Schema.String })
-
-export const ChangedSettingsConfirmPassword = taggedStruct('ChangedSettingsConfirmPassword', {
-  value: Schema.String,
-})
-
-export const SubmittedSettingsPassword = taggedStruct('SubmittedSettingsPassword')
-
 export const ClickedExportData = taggedStruct('ClickedExportData')
 
 export const SucceededExportData = taggedStruct('SucceededExportData')
@@ -94,13 +61,13 @@ export const SelectedImportFile = taggedStruct('SelectedImportFile', { file: Fil
 
 export const CancelledSelectImportFile = taggedStruct('CancelledSelectImportFile')
 
-export const PreparedImportData = taggedStruct('PreparedImportData', { data: DataExport })
+export const PreparedImportData = taggedStruct('PreparedImportData', { data: JournalSnapshot })
 
 export const ConfirmedImportData = taggedStruct('ConfirmedImportData')
 
 export const CancelledImportData = taggedStruct('CancelledImportData')
 
-export const SucceededImportData = taggedStruct('SucceededImportData', { result: DataImportResult })
+export const SucceededImportData = taggedStruct('SucceededImportData', { summary: Schema.String })
 
 export const FailedImportData = taggedStruct('FailedImportData', { message: Schema.String })
 
@@ -110,10 +77,6 @@ export const SettingsPageMessage = Schema.Union([
   SubmittedSettingsTimezone,
   SucceededUpdateSettingsPreference,
   FailedUpdateSettingsPreference,
-  ChangedSettingsCurrentPassword,
-  ChangedSettingsNewPassword,
-  ChangedSettingsConfirmPassword,
-  SubmittedSettingsPassword,
   ClickedExportData,
   SucceededExportData,
   FailedExportData,

@@ -1,34 +1,22 @@
+import { InjectionId, ScheduleId } from '@garage/subq-domain/Journal/Journal.id'
+import { InjectionEntry } from '@garage/subq-domain/Journal/JournalRecords'
+import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
 import * as Schema from 'effect/Schema'
-import { AsyncData } from 'foldkit'
 import { taggedStruct } from 'foldkit/schema'
-
-import { InjectionLog, InjectionLogId, InjectionSchedule } from '#shared'
 
 // ============================================
 // Model
 // ============================================
 
-export const InjectionLogsData = AsyncData.Schema(Schema.Array(InjectionLog), Schema.String).schema
-
-export type InjectionLogsData = AsyncData.AsyncData<ReadonlyArray<InjectionLog>, string>
-
-export const InjectionLookupData = AsyncData.Schema(Schema.Array(Schema.String), Schema.String).schema
-
-export type InjectionLookupData = AsyncData.AsyncData<ReadonlyArray<string>, string>
-
-export const InjectionSchedulesData = AsyncData.Schema(Schema.Array(InjectionSchedule), Schema.String).schema
-
-export type InjectionSchedulesData = AsyncData.AsyncData<ReadonlyArray<InjectionSchedule>, string>
-
 export const InjectionForm = Schema.Struct({
-  editingId: Schema.NullOr(InjectionLogId),
+  editingId: Schema.NullOr(InjectionId),
   datetime: Schema.String,
   maxDatetime: Schema.String,
   originalDatetime: Schema.NullOr(Schema.DateTimeUtc),
-  drug: Schema.String,
+  compound: Schema.String,
   supplier: Schema.String,
   doseMg: Schema.String,
-  injectionSite: Schema.String,
+  site: Schema.String,
   notes: Schema.String,
   scheduleId: Schema.String,
   confirmedOffSchedule: Schema.Boolean,
@@ -39,12 +27,9 @@ export const InjectionForm = Schema.Struct({
 export type InjectionForm = typeof InjectionForm.Type
 
 export const InjectionsModel = Schema.Struct({
-  logs: InjectionLogsData,
-  sites: InjectionLookupData,
-  schedules: InjectionSchedulesData,
   form: Schema.NullOr(InjectionForm),
-  pendingDeleteId: Schema.NullOr(InjectionLogId),
-  sortColumn: Schema.Literals(['datetime', 'drug', 'doseMg']),
+  pendingDeleteId: Schema.NullOr(InjectionId),
+  sortColumn: Schema.Literals(['datetime', 'compound', 'doseMg']),
   sortDesc: Schema.Boolean,
   page: Schema.Int,
 })
@@ -53,11 +38,8 @@ export type InjectionsModel = typeof InjectionsModel.Type
 
 export const initialInjectionsModel: InjectionsModel = {
   form: null,
-  logs: AsyncData.Idle(),
   page: 0,
   pendingDeleteId: null,
-  schedules: AsyncData.Idle(),
-  sites: AsyncData.Idle(),
   sortColumn: 'datetime',
   sortDesc: true,
 }
@@ -66,44 +48,20 @@ export const initialInjectionsModel: InjectionsModel = {
 // Messages
 // ============================================
 
-export const SucceededFetchInjectionLogs = taggedStruct('SucceededFetchInjectionLogs', {
-  logs: Schema.Array(InjectionLog),
-})
-
-export const FailedFetchInjectionLogs = taggedStruct('FailedFetchInjectionLogs', {
-  message: Schema.String,
-})
-
-export const SucceededFetchInjectionSites = taggedStruct('SucceededFetchInjectionSites', {
-  sites: Schema.Array(Schema.String),
-})
-
-export const FailedFetchInjectionSites = taggedStruct('FailedFetchInjectionSites', {
-  message: Schema.String,
-})
-
-export const SucceededFetchInjectionSchedules = taggedStruct('SucceededFetchInjectionSchedules', {
-  schedules: Schema.Array(InjectionSchedule),
-})
-
-export const FailedFetchInjectionSchedules = taggedStruct('FailedFetchInjectionSchedules', {
-  message: Schema.String,
-})
-
 export const CompletedOpenInjectionForm = taggedStruct('CompletedOpenInjectionForm', {
   nowLocal: Schema.String,
-  log: Schema.NullOr(InjectionLog),
+  log: Schema.NullOr(InjectionEntry),
 })
 
 export const ClickedAddInjection = taggedStruct('ClickedAddInjection')
 
-export const ClickedEditInjection = taggedStruct('ClickedEditInjection', { log: InjectionLog })
+export const ClickedEditInjection = taggedStruct('ClickedEditInjection', { log: InjectionEntry })
 
 export const ClickedCancelInjectionForm = taggedStruct('ClickedCancelInjectionForm')
 
 export const ChangedInjectionDatetime = taggedStruct('ChangedInjectionDatetime', { value: Schema.String })
 
-export const ChangedInjectionDrug = taggedStruct('ChangedInjectionDrug', { value: Schema.String })
+export const ChangedInjectionCompound = taggedStruct('ChangedInjectionCompound', { value: Schema.String })
 
 export const ChangedInjectionSupplier = taggedStruct('ChangedInjectionSupplier', { value: Schema.String })
 
@@ -123,7 +81,7 @@ export const SucceededSaveInjection = taggedStruct('SucceededSaveInjection')
 
 export const FailedSaveInjection = taggedStruct('FailedSaveInjection', { message: Schema.String })
 
-export const RequestedDeleteInjection = taggedStruct('RequestedDeleteInjection', { id: InjectionLogId })
+export const RequestedDeleteInjection = taggedStruct('RequestedDeleteInjection', { id: InjectionId })
 
 export const CancelledDeleteInjection = taggedStruct('CancelledDeleteInjection')
 
@@ -134,24 +92,25 @@ export const SucceededDeleteInjection = taggedStruct('SucceededDeleteInjection')
 export const FailedDeleteInjection = taggedStruct('FailedDeleteInjection', { message: Schema.String })
 
 export const ClickedInjectionSort = taggedStruct('ClickedInjectionSort', {
-  column: Schema.Literals(['datetime', 'drug', 'doseMg']),
+  column: Schema.Literals(['datetime', 'compound', 'doseMg']),
 })
 
 export const ClickedInjectionPage = taggedStruct('ClickedInjectionPage', { delta: Schema.Int })
 
+export const ChangedInjectionAssignment = taggedStruct('ChangedInjectionAssignment', {
+  injectionId: InjectionId,
+  scheduleId: Schema.NullOr(ScheduleId),
+})
+
+export const SucceededInjectionAssignment = taggedStruct('SucceededInjectionAssignment')
+
 export const InjectionsMessage = Schema.Union([
-  SucceededFetchInjectionLogs,
-  FailedFetchInjectionLogs,
-  SucceededFetchInjectionSites,
-  FailedFetchInjectionSites,
-  SucceededFetchInjectionSchedules,
-  FailedFetchInjectionSchedules,
   CompletedOpenInjectionForm,
   ClickedAddInjection,
   ClickedEditInjection,
   ClickedCancelInjectionForm,
   ChangedInjectionDatetime,
-  ChangedInjectionDrug,
+  ChangedInjectionCompound,
   ChangedInjectionSupplier,
   ChangedInjectionDoseMg,
   ChangedInjectionSite,
@@ -166,8 +125,16 @@ export const InjectionsMessage = Schema.Union([
   ConfirmedDeleteInjection,
   SucceededDeleteInjection,
   FailedDeleteInjection,
+  ChangedInjectionAssignment,
+  SucceededInjectionAssignment,
   ClickedInjectionSort,
   ClickedInjectionPage,
 ])
 
 export type InjectionsMessage = typeof InjectionsMessage.Type
+
+export type InjectionsPage = InjectionsModel & {
+  readonly logs: ReadonlyArray<InjectionEntry>
+  readonly sites: ReadonlyArray<string>
+  readonly schedules: ReadonlyArray<Schedule>
+}

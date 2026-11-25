@@ -1,25 +1,23 @@
+import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import {
+  listDefaultInjectionSites,
+  listMedicationCompounds,
+  suggestedDoseMgForCompound,
+} from '@garage/subq-domain/MedicationVocabulary'
+import { MedicationCompound } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
-import { AsyncData } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import {
-  MedicationCompound,
-  listDefaultInjectionSites,
-  listMedicationCompounds,
-  suggestedDoseMgForCompound,
-} from '#shared'
-import type { InjectionSchedule } from '#shared'
-
-import { viewDatalist } from '../../lib/view.js'
-import { button, card, input, select } from '../../ui.js'
-import { isOffScheduleDose, scheduleById, scheduleDoseMgs } from './form.js'
+import { viewDatalist } from '../../lib/view.ts'
+import { button, card, input, select } from '../../ui.ts'
+import { isOffScheduleDose, scheduleById, scheduleDoseMgs } from './form.ts'
 import {
   ChangedInjectionDatetime,
   ChangedInjectionDoseMg,
-  ChangedInjectionDrug,
+  ChangedInjectionCompound,
   ChangedInjectionNotes,
   ChangedInjectionSchedule,
   ChangedInjectionSite,
@@ -27,8 +25,8 @@ import {
   ClickedCancelInjectionForm,
   ConfirmedInjectionOffSchedule,
   SubmittedInjectionForm,
-} from './model.js'
-import type { InjectionForm, InjectionLookupData, InjectionsMessage, InjectionsModel } from './model.js'
+} from './model.ts'
+import type { InjectionForm, InjectionsMessage, InjectionsPage } from './model.ts'
 
 const injectionSubmitLabel = (form: InjectionForm): string => {
   if (form.submitting) {
@@ -38,22 +36,11 @@ const injectionSubmitLabel = (form: InjectionForm): string => {
   return form.editingId === null ? 'Save' : 'Update'
 }
 
-const uniqueStrings = (primary: ReadonlyArray<string>, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
-  Arr.dedupe([...primary, ...fallback])
-
-const lookupValues = (data: InjectionLookupData, fallback: ReadonlyArray<string>): ReadonlyArray<string> =>
-  uniqueStrings(
-    AsyncData.getOrElse(data, () => []),
-    fallback
-  )
-
-const selectedSchedule = (
-  schedules: ReadonlyArray<InjectionSchedule>,
-  form: InjectionForm
-): Option.Option<InjectionSchedule> => scheduleById(schedules, form.scheduleId)
+const selectedSchedule = (schedules: ReadonlyArray<Schedule>, form: InjectionForm): Option.Option<Schedule> =>
+  scheduleById(schedules, form.scheduleId)
 
 const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | InjectionsMessage>) => {
-  const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>) => {
+  const viewOffScheduleWarning = (form: InjectionForm, schedules: ReadonlyArray<Schedule>) => {
     if (!isOffScheduleDose(form, schedules)) {
       return h.empty
     }
@@ -97,10 +84,10 @@ const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inj
     )
   }
 
-  const viewForm = (model: InjectionsModel, form: InjectionForm) => {
-    const schedules = AsyncData.getOrElse(model.schedules, () => [])
-    const siteSuggestions = lookupValues(model.sites, listDefaultInjectionSites())
-    const selectedCompound = Schema.is(MedicationCompound)(form.drug) ? Option.some(form.drug) : Option.none()
+  const viewForm = (model: InjectionsPage, form: InjectionForm) => {
+    const schedules = model.schedules
+    const siteSuggestions = Arr.dedupe([...model.sites, ...listDefaultInjectionSites()])
+    const selectedCompound = Schema.is(MedicationCompound)(form.compound) ? Option.some(form.compound) : Option.none()
 
     const doseMgSuggestions = Arr.map(
       Arr.dedupe([
@@ -143,15 +130,15 @@ const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inj
               [h.Class('mb-4')],
               [
                 h.label(
-                  [h.For('injection-drug'), h.Class('mb-2 block text-sm font-medium')],
+                  [h.For('injection-compound'), h.Class('mb-2 block text-sm font-medium')],
                   ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
                 ),
                 h.select(
                   [
                     h.Class(select()),
-                    h.Id('injection-drug'),
-                    h.Value(form.drug),
-                    h.OnChange((value) => ChangedInjectionDrug({ value })),
+                    h.Id('injection-compound'),
+                    h.Value(form.compound),
+                    h.OnChange((value) => ChangedInjectionCompound({ value })),
                   ],
                   [
                     h.option([h.Value('')], ['Select medication']),
@@ -176,7 +163,11 @@ const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inj
                   [
                     h.option([h.Value('')], ['No schedule']),
                     ...Arr.map(schedules, (schedule) =>
-                      h.keyed('option')(schedule.id, [h.Value(schedule.id)], [`${schedule.name} (${schedule.drug})`])
+                      h.keyed('option')(
+                        schedule.id,
+                        [h.Value(schedule.id)],
+                        [`${schedule.name} (${schedule.compound})`]
+                      )
                     ),
                   ]
                 ),
@@ -233,7 +224,7 @@ const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inj
                   h.Id('injection-site'),
                   h.List('injection-site-suggestions'),
                   h.Placeholder('Select site (optional)'),
-                  h.Value(form.injectionSite),
+                  h.Value(form.site),
                   h.OnInput((value) => ChangedInjectionSite({ value })),
                 ]),
                 viewDatalist({ h, id: 'injection-site-suggestions', values: siteSuggestions }),
@@ -271,7 +262,7 @@ const makeViewInjectionForm = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inj
                     h.Type('submit'),
                     h.Disabled(
                       form.submitting ||
-                        Str.isEmpty(Str.trim(form.drug)) ||
+                        Str.isEmpty(Str.trim(form.compound)) ||
                         Str.isEmpty(Str.trim(form.doseMg)) ||
                         needsOffScheduleConfirmation
                     ),
@@ -294,7 +285,7 @@ export const viewInjectionForm = <ParentMessage>({
   h,
   model,
 }: {
-  readonly model: InjectionsModel
+  readonly model: InjectionsPage
   readonly form: InjectionForm
   readonly h: HtmlBuilder<ParentMessage | InjectionsMessage>
 }): Html => makeViewInjectionForm(h)(model, form)

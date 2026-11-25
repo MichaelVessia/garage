@@ -1,85 +1,32 @@
+import { decodeLegacyV3Export, JournalSnapshot, JournalSnapshotJson } from '@garage/subq-domain/ExportFormat'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
-import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import * as Str from 'effect/String'
 import { Command, File } from 'foldkit'
 
-import { DataExport, DataExportTemporalMigrationRequired, IanaTimezone, UserSettingsUpdate } from '#shared'
-
-import { downloadTextFile } from '../../adapter/browser-download.js'
-import { Api } from '../../api.js'
-import { ImportFileReadError } from '../../errors.js'
-import { toCommandResult } from '../../lib/command.js'
+import { downloadTextFile } from '../../adapter/browser-download.ts'
+import { ImportFileReadError } from '../../errors.ts'
+import { toCommandResult } from '../../lib/command.ts'
 import {
   CancelledSelectImportFile,
   FailedExportData,
   FailedImportData,
-  FailedUpdateSettingsPreference,
   PreparedImportData,
   SelectedImportFile,
   SucceededExportData,
-  SucceededImportData,
-  SucceededUpdateSettingsPreference,
-} from './model.js'
-
-// ============================================
-// Commands
-// ============================================
-
-const DataExportJson = Schema.fromJsonString(DataExport)
-
-export const UpdateWeightUnit = Command.define('UpdateSettingsWeightUnit', {
-  args: { unit: Schema.Literals(['lbs', 'kg']) },
-  messages: [SucceededUpdateSettingsPreference, FailedUpdateSettingsPreference],
-  execute: ({ unit }) =>
-    Effect.gen(function* () {
-      const api = yield* Api
-      yield* api.UserSettingsUpdate(UserSettingsUpdate.make({ weightUnit: unit }))
-
-      return SucceededUpdateSettingsPreference()
-    }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update display preferences')),
-})
-
-export const UpdateTimezone = Command.define('UpdateSettingsTimezone', {
-  args: { timezone: IanaTimezone },
-  messages: [SucceededUpdateSettingsPreference, FailedUpdateSettingsPreference],
-  execute: ({ timezone }) =>
-    Effect.gen(function* () {
-      const api = yield* Api
-      yield* api.UserSettingsUpdate(UserSettingsUpdate.make({ timezone }))
-
-      return SucceededUpdateSettingsPreference()
-    }).pipe(toCommandResult(FailedUpdateSettingsPreference, 'Failed to update timezone')),
-})
+} from './model.ts'
 
 export const ExportData = Command.define('ExportData', {
+  args: { data: JournalSnapshot.fields.data, today: Schema.String },
   messages: [SucceededExportData, FailedExportData],
-  execute: Effect.gen(function* () {
-    const result = yield* Effect.gen(function* () {
-      const api = yield* Api
-      const data = yield* api.UserDataExport()
-      const json = yield* Schema.encodeEffect(DataExportJson)(data)
-      const now = yield* DateTime.now
-      const filename = `subq-export-${now.pipe(DateTime.formatIso, Str.slice(0, 10))}.json`
-      yield* downloadTextFile({ contents: json, filename, mediaType: 'application/json' })
-
+  execute: ({ data, today }) =>
+    Effect.gen(function* () {
+      const exportedAt = yield* DateTime.now
+      const contents = yield* Schema.encodeEffect(JournalSnapshotJson)({ version: '4.0.0', exportedAt, data })
+      yield* downloadTextFile({ contents, filename: `subq-export-${today}.json`, mediaType: 'application/json' })
       return SucceededExportData()
-    }).pipe(Effect.result)
-
-    return Match.value(result).pipe(
-      Match.tagsExhaustive({
-        Failure: ({ failure }) =>
-          FailedExportData({
-            message: Schema.is(DataExportTemporalMigrationRequired)(failure)
-              ? failure.message
-              : 'Failed to export data. Please try again.',
-          }),
-        Success: ({ success }) => success,
-      })
-    )
-  }),
+    }).pipe(toCommandResult(FailedExportData, 'Could not export the journal.')),
 })
 
 export const SelectImportFile = Command.define('SelectImportFile', {
@@ -106,20 +53,10 @@ export const ReadImportFile = Command.define('ReadImportFile', {
       try: () => file.text(),
       catch: () => ImportFileReadError.make({ message: 'Import file could not be read' }),
     }).pipe(
-      Effect.flatMap(Schema.decodeUnknownEffect(DataExportJson)),
+      Effect.flatMap((json) =>
+        Schema.decodeEffect(JournalSnapshotJson)(json).pipe(Effect.catch(() => decodeLegacyV3Export(json)))
+      ),
       Effect.map((data) => PreparedImportData({ data })),
-      toCommandResult(FailedImportData, 'Invalid export file. Only Subq 3.0.0-alpha.2 exports are supported.')
+      toCommandResult(FailedImportData, 'Select a valid SubQ 4.0.0 or 3.0.0-alpha.2 export.')
     ),
-})
-
-export const ImportData = Command.define('ImportData', {
-  args: { data: DataExport },
-  messages: [SucceededImportData, FailedImportData],
-  execute: ({ data }) =>
-    Effect.gen(function* () {
-      const api = yield* Api
-      const result = yield* api.UserDataImport(data)
-
-      return SucceededImportData({ result })
-    }).pipe(toCommandResult(FailedImportData, 'Failed to import data. Please try again.')),
 })

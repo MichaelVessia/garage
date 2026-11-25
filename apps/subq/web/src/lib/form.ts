@@ -1,4 +1,6 @@
 import * as Function from 'effect/Function'
+import * as Option from 'effect/Option'
+import * as Str from 'effect/String'
 
 // Forms are objects; the intersection keeps an open form from widening to `{}`.
 type OpenForm<M extends { readonly form: unknown }> = NonNullable<M['form']> & object
@@ -20,3 +22,8 @@ export const withForm: {
     return { ...model, form: { ...model.form, ...patch(model.form) } }
   }
 )
+
+export const optionalText = (input: string): Option.Option<string> => {
+  const value = Str.trim(input)
+  return value === '' ? Option.none() : Option.some(value)
+}

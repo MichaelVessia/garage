@@ -18,6 +18,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
     entry: [
       'apps/subq/alchemy.run.ts',
       'apps/subq/web/index.html',
+      'apps/subq/web/src/worker.ts',
       'apps/logbook/alchemy.run.ts',
       'apps/logbook/web/index.html',
       'apps/logbook/web/src/worker.ts',
@@ -27,7 +28,6 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
     ignoreDependencies: ['@enfect/oxlint', '@oxlint/plugins', 'oxlint-plugin-effect'],
     ignoreExports: [
       { file: '**/*.config.{js,mjs,ts}', exports: ['default'] },
-      { file: 'apps/subq/src/db/schema.ts', exports: ['*'] },
       { file: 'apps/subq/alchemy.run.ts', exports: ['default'] },
       { file: 'apps/logbook/alchemy.run.ts', exports: ['default'] },
       { file: 'tools/oxlint/anti-slop/effect/index.ts', exports: ['default'] },

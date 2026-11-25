@@ -1,12 +1,11 @@
+import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import { DoseMg, MedicationCompound } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 
-import { DoseMg, MedicationCompound } from '#shared'
-import type { InjectionSchedule } from '#shared'
-
-import type { InjectionForm } from './model.js'
+import type { InjectionForm } from './model.ts'
 
 // Form validation and schedule-dose matching shared by update and view.
 
@@ -21,7 +20,7 @@ export const validateForm = (form: InjectionForm): Option.Option<string> => {
     return Option.some('Date & time is required')
   }
 
-  if (!Schema.is(MedicationCompound)(form.drug)) {
+  if (!Schema.is(MedicationCompound)(form.compound)) {
     return Option.some('Select a supported medication')
   }
 
@@ -33,24 +32,22 @@ export const validateForm = (form: InjectionForm): Option.Option<string> => {
 }
 
 export const scheduleById: {
-  (scheduleId: string): (schedules: ReadonlyArray<InjectionSchedule>) => Option.Option<InjectionSchedule>
-  (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: string): Option.Option<InjectionSchedule>
-} = Function.dual(
-  2,
-  (schedules: ReadonlyArray<InjectionSchedule>, scheduleId: string): Option.Option<InjectionSchedule> =>
-    Arr.findFirst(schedules, (schedule) => schedule.id === scheduleId)
+  (scheduleId: string): (schedules: ReadonlyArray<Schedule>) => Option.Option<Schedule>
+  (schedules: ReadonlyArray<Schedule>, scheduleId: string): Option.Option<Schedule>
+} = Function.dual(2, (schedules: ReadonlyArray<Schedule>, scheduleId: string): Option.Option<Schedule> =>
+  Arr.findFirst(schedules, (schedule) => schedule.id === scheduleId)
 )
 
-export const scheduleDoseMgs = (schedule: Option.Option<InjectionSchedule>): ReadonlyArray<DoseMg> =>
+export const scheduleDoseMgs = (schedule: Option.Option<Schedule>): ReadonlyArray<DoseMg> =>
   Option.match(schedule, {
     onNone: () => [],
     onSome: (found) => Arr.dedupe(Arr.map(found.phases, (phase) => phase.doseMg)),
   })
 
 export const isOffScheduleDose: {
-  (schedules: ReadonlyArray<InjectionSchedule>): (form: InjectionForm) => boolean
-  (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>): boolean
-} = Function.dual(2, (form: InjectionForm, schedules: ReadonlyArray<InjectionSchedule>): boolean => {
+  (schedules: ReadonlyArray<Schedule>): (form: InjectionForm) => boolean
+  (form: InjectionForm, schedules: ReadonlyArray<Schedule>): boolean
+} = Function.dual(2, (form: InjectionForm, schedules: ReadonlyArray<Schedule>): boolean => {
   if (form.scheduleId === '') {
     return false
   }
