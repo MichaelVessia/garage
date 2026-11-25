@@ -8,6 +8,7 @@ import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import * as Str from 'effect/String'
 
 import { FrameApi } from './FrameApi.ts'
+import { LogbookHttp } from './LogbookHttp.ts'
 import { LogbookMcp } from './LogbookMcp.ts'
 import { SessionAuthentication } from './Session.ts'
 
@@ -15,6 +16,7 @@ export const LogbookRouter = Effect.gen(function* () {
   const { fetch: rpc } = yield* LogbookApi
   const frame = yield* HttpRouter.toHttpEffect(FrameApi)
   const mcp = yield* HttpRouter.toHttpEffect(LogbookMcp).pipe(Effect.orDie)
+  const http = yield* HttpRouter.toHttpEffect(LogbookHttp)
   const { authenticate } = yield* SessionAuthentication
 
   const redactedHeaders = yield* Headers.CurrentRedactedNames
@@ -36,11 +38,17 @@ export const LogbookRouter = Effect.gen(function* () {
     ) {
       return yield* rpc
     }
-    if (isRpcPath || path === '/mcp') {
+    const isHttpPath = path === '/v1' || Str.startsWith('/v1/')(path)
+    if (isRpcPath || path === '/mcp' || isHttpPath) {
       return yield* authenticate(request.headers).pipe(
         Effect.matchEffect({
           onFailure: (error: Unauthorized) => Effect.succeed(HttpServerResponse.jsonUnsafe(error, { status: 401 })),
-          onSuccess: () => (path === '/mcp' ? mcp : rpc),
+          onSuccess: () => {
+            if (isHttpPath) {
+              return http
+            }
+            return path === '/mcp' ? mcp : rpc
+          },
         })
       )
     }

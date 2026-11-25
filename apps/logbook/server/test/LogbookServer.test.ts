@@ -47,7 +47,7 @@ const JsonBody = Schema.fromJsonString(Schema.Json)
 const json = (response: Response) =>
   Effect.promise(() => response.text()).pipe(Effect.flatMap(Schema.decodeEffect(JsonBody)))
 
-it.effect('serves health without credentials and requires credentials on all three APIs', () =>
+it.effect('serves health without credentials and requires credentials on API routes', () =>
   Effect.gen(function* () {
     const health = yield* handle('/health')
     assert.strictEqual(health.status, 200)
@@ -186,6 +186,41 @@ it.live('returns only due maintenance and expiring warranties for active assets'
     assert.deepStrictEqual(filteredReport, { generatedOn: today, overdue, dueSoon: [], warrantiesExpiring: [] })
     const invalid = yield* handle('/frame/due?withinDays=-1', session)
     assert.strictEqual(invalid.status, 400)
+  }).pipe(Effect.provide(server))
+)
+
+// The HTTP read waits for the live projection worker after the write.
+// ast-grep-ignore: no-it-live
+it.live('protects the OpenAPI document and serves HTTP commands and reads', () =>
+  Effect.gen(function* () {
+    const root = yield* handle('/v1')
+    assert.strictEqual(root.status, 401)
+    const denied = yield* handle('/v1/openapi.json')
+    assert.strictEqual(denied.status, 401)
+
+    const openapi = yield* handle('/v1/openapi.json', session)
+    assert.strictEqual(openapi.status, 200)
+    const document = yield* json(openapi)
+    assert.propertyVal(document, 'openapi', '3.1.0')
+    assert.nestedProperty(document, 'paths./v1/RegisterAsset.post')
+    assert.nestedProperty(document, 'paths./v1/HomeCatalog/{key}.get')
+
+    const registered = yield* handle('/v1/RegisterAsset', {
+      method: 'POST',
+      headers: { ...authHeaders, 'content-type': 'application/json' },
+      body: '{"target":"washer","input":{"name":"Washer","category":"appliance"}}',
+    })
+    assert.strictEqual(registered.status, 200)
+    const receipt = yield* json(registered)
+    const { stream, version } = yield* Schema.decodeUnknownEffect(
+      Schema.Struct({ stream: Schema.String, version: Schema.Int })
+    )(receipt)
+
+    const query = new URLSearchParams({ stream, version: String(version) })
+    const catalog = yield* handle(`/v1/HomeCatalog/home?${query}`, session)
+    assert.strictEqual(catalog.status, 200)
+    const catalogBody = yield* json(catalog)
+    assert.nestedPropertyVal(catalogBody, 'assets.washer.name', 'Washer')
   }).pipe(Effect.provide(server))
 )
 

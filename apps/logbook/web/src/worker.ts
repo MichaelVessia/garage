@@ -9,6 +9,8 @@ export default {
     if (
       path === '/api' ||
       Str.startsWith('/api/')(path) ||
+      path === '/v1' ||
+      Str.startsWith('/v1/')(path) ||
       path === '/mcp' ||
       path === '/frame/due' ||
       path === '/health'
