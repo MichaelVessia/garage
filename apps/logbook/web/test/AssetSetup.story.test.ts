@@ -14,7 +14,7 @@ const today = IsoDate.make('2026-11-24')
 const commandId = 'test-session:0'
 const receipt = { stream: 'Asset/truck', version: 4 }
 const unknown = Schema.TaggedStruct('Unknown', {}).make({})
-const initial = init({ session: 'test-session', today }).model
+const initial = init({ session: 'test-session', today }, { pathname: '/assets/truck' }).model
 const asset: AssetDetails = {
   id: truck,
   name: 'Truck',
@@ -36,8 +36,6 @@ const saved = Scene.expect(text('Saved.')).toExist()
 const assetPage = [
   Scene.given(initial),
   Scene.Subscription.emit(Message.ReceivedCatalog({ catalog: { assets: { [truck]: asset }, spendByYear: {} } })),
-  press('Assets'),
-  press(/Truck/u),
 ] as const
 const app = { update, view }
 

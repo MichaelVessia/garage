@@ -7,6 +7,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { forms, secondaryButton } from './Forms.ts'
 import { Editor, Message } from './Model.ts'
 import type { CatalogAsset, Model } from './Model.ts'
+import { assetPath } from './Route.ts'
 
 type WorkAsset = Pick<CatalogAsset, 'id' | 'name' | 'status' | 'meter' | 'pendingWork'>
 type WorkItem = { readonly asset: WorkAsset; readonly work: typeof PendingWork.Type }
@@ -67,7 +68,12 @@ export const pendingWorkView =
                           [h.Class('min-w-0 break-words')],
                           [
                             h.p([h.Class('font-semibold')], [work.title]),
-                            selected === undefined ? h.p([h.Class('text-sm text-stone-600')], [asset.name]) : null,
+                            selected === undefined
+                              ? h.a(
+                                  [h.Href(assetPath(asset.id)), h.Class('text-sm text-stone-600 underline')],
+                                  [asset.name]
+                                )
+                              : null,
                             work.dueOn === undefined
                               ? null
                               : h.p([h.Class('text-sm text-stone-600')], [`Due ${work.dueOn}`]),

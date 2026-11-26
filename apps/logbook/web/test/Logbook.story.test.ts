@@ -27,7 +27,7 @@ const rotation = ScheduleId.make('rotate')
 const inspection = ScheduleId.make('inspection')
 const warranty = WarrantyId.make('powertrain')
 const today = IsoDate.make('2026-11-24')
-const initial = init({ session: 'test-session', today }).model
+const initial = init({ session: 'test-session', today }, { pathname: '/' }).model
 const Failure = Schema.TaggedUnion({
   Denied: { error: Unauthorized },
   Unknown: {},
@@ -80,6 +80,7 @@ const completion = client.CompleteTask({
 
 const { click, label, role, text, within } = Scene
 const press = (name: string) => click(role('button', { name }))
+const navigate = (pathname: string) => Scene.Subscription.emit(Message.ChangedPath({ pathname }))
 const shows = (content: string) => Scene.expect(text(content)).toExist()
 const catalogLoaded = Scene.Subscription.emit(catalogReceived)
 const app = { update, view }
@@ -130,12 +131,12 @@ it('finds spec keys and values and opens live asset detail and activity', () => 
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Assets'),
+    navigate('/assets'),
     Scene.type(label('Search assets'), 'filter'),
-    Scene.expect(role('button', { name: /Furnace/u })).toBeAbsent(),
-    Scene.expect(role('button', { name: /Truck/u })).toExist(),
+    Scene.expect(role('link', { name: /Furnace/u })).toBeAbsent(),
+    Scene.expect(role('link', { name: /Truck/u })).toHaveAttr('href', '/assets/truck'),
     Scene.type(label('Search assets'), 'FL-500S'),
-    click(role('button', { name: /Truck/u })),
+    navigate('/assets/truck'),
     shows('Loading asset…'),
     Scene.Subscription.emit(
       Message.ReceivedDetail({
@@ -160,14 +161,14 @@ it('finds spec keys and values and opens live asset detail and activity', () => 
 })
 
 it('finds assets by make, model, and serial number', () => {
-  const truckResult = role('button', { name: /Truck/u })
-  const furnaceResult = role('button', { name: /Furnace/u })
+  const truckResult = role('link', { name: /Truck/u })
+  const furnaceResult = role('link', { name: /Furnace/u })
   const search = label('Search assets')
   Scene.scene(
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Assets'),
+    navigate('/assets'),
     Scene.expect(furnaceResult).toExist(),
     Scene.type(search, 'FORD'),
     Scene.expect(truckResult).toExist(),
@@ -178,6 +179,31 @@ it('finds assets by make, model, and serial number', () => {
     Scene.expect(truckResult).toExist(),
     Scene.type(search, 'trk-999'),
     Scene.expect(truckResult).toBeAbsent()
+  )
+})
+
+it('opens an encoded asset URL on load and when the browser changes location', () => {
+  const assetId = AssetId.make('shop/door?part#50% é')
+  const pathname = '/assets/shop%2Fdoor%3Fpart%2350%25%20%C3%A9'
+  const asset = { ...truckAsset, id: assetId, name: 'Shop door' }
+  const detail = { ...asset, links: {}, totalSpendCents: 0, schedules: {}, warranties: {} }
+  const loaded = Scene.Subscription.emit(Message.ReceivedDetail({ detail }))
+  Scene.scene(
+    app,
+    Scene.given(init({ session: 'test-session', today }, { pathname }).model),
+    Scene.Subscription.emit(Message.ReceivedCatalog({ catalog: { ...catalog, assets: { [assetId]: asset } } })),
+    Scene.expect(role('link', { name: /Shop door/u })).toHaveAttr('href', pathname),
+    loaded,
+    Scene.expect(role('heading', { name: 'Shop door' })).toExist(),
+    navigate('/assets/missing'),
+    shows('Asset not found.'),
+    Scene.expect(role('heading', { name: 'Shop door' })).toBeAbsent(),
+    navigate(pathname),
+    loaded,
+    Scene.expect(role('heading', { name: 'Shop door' })).toExist(),
+    navigate('/assets/%ZZ'),
+    Scene.expect(role('heading', { name: 'Assets' })).toExist(),
+    Scene.expect(text('Loading asset…')).toBeAbsent()
   )
 })
 
@@ -219,8 +245,8 @@ it('shows past service and task details in performed date order as they arrive',
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Assets'),
-    click(role('button', { name: /Truck/u })),
+    navigate('/assets'),
+    navigate('/assets/truck'),
     Scene.Subscription.emit(
       Message.ReceivedDetail({
         detail: { ...truckAsset, schedules: {}, warranties: {}, links: {}, totalSpendCents: 0 },
@@ -268,8 +294,8 @@ it('shows asset metadata and saves only the fields changed in the edit form', ()
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Assets'),
-    click(role('button', { name: /Truck/u })),
+    navigate('/assets'),
+    navigate('/assets/truck'),
     Scene.Subscription.emit(Message.ReceivedDetail({ detail })),
     shows('Ford'),
     shows('Ranger'),
@@ -406,8 +432,8 @@ it('adds undated work in asset detail and completes it from the household due sc
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Assets'),
-    click(role('button', { name: /Truck/u })),
+    navigate('/assets'),
+    navigate('/assets/truck'),
     Scene.Subscription.emit(Message.ReceivedDetail({ detail })),
     press('Add pending work'),
     Scene.type(label('Work title'), work.title),
@@ -421,9 +447,10 @@ it('adds undated work in asset detail and completes it from the household due sc
     Scene.Subscription.emit(Message.ReceivedDetail({ detail: { ...detail, pendingWork } })),
     Scene.expect(within(pending, text(work.title))).toExist(),
     Scene.expect(within(pending, text(work.notes))).toExist(),
-    press('Due'),
+    navigate('/'),
     Scene.Subscription.emit(updatedCatalog),
     Scene.expect(within(pending, text(work.title))).toExist(),
+    Scene.expect(within(pending, role('link', { name: 'Truck' }))).toHaveAttr('href', '/assets/truck'),
     click(within(pending, role('button', { name: 'Mark done' }))),
     Scene.type(label('Performed date (optional, YYYY-MM-DD)'), today),
     Scene.type(label('Cost in USD (optional)'), '45.99'),
@@ -446,7 +473,7 @@ it('adds undated work in asset detail and completes it from the household due sc
       client.Message.SucceededCompletePendingWork({ commandId: 'test-session:1', reply: undefined, receipt })
     ),
     shows('No pending work.'),
-    press('Assets'),
+    navigate('/assets/truck'),
     Scene.Subscription.emit(Message.ReceivedDetail({ detail: { ...detail, totalSpendCents: 4599 } })),
     Scene.Subscription.emit(activity),
     Scene.expect(within(pending, text(work.title))).toBeAbsent(),
@@ -495,7 +522,7 @@ it('shows both readings on rollback and permits an explicit correction', () => {
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Quick Log'),
+    navigate('/quick-log'),
     Scene.change(label('Asset'), truck),
     Scene.type(label('Meter reading (miles)'), '39900'),
     press('Save reading'),
@@ -570,7 +597,7 @@ it('logs unscheduled service and registers a new asset', () => {
     app,
     Scene.given(initial),
     catalogLoaded,
-    press('Quick Log'),
+    navigate('/quick-log'),
     press('Log service'),
     Scene.change(label('Asset'), furnace),
     Scene.type(label('Service title'), 'Replace igniter'),

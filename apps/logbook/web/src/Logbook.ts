@@ -7,34 +7,55 @@ import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Record from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
 import * as Struct from 'effect/Struct'
-import { Subscription } from 'foldkit'
+import { Command, Subscription } from 'foldkit'
 import type { Update } from 'foldkit'
+import { load, pushUrl } from 'foldkit/navigation'
+import { toString as urlToString } from 'foldkit/url'
 
 import { AssetSetupAction, client, dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, Client, Model } from './Model.ts'
+import { isAppPath, routeFromPath } from './Route.ts'
 import { receiveResult, submit } from './Submission.ts'
 
 const noCommands = (model: Model) => ({ model })
 
+const Navigate = Command.define('Navigate', {
+  args: { url: Schema.String },
+  messages: [Message.NavigationDone],
+  execute: ({ url }) => pushUrl(url).pipe(Effect.as(Message.NavigationDone())),
+})
+const LoadUrl = Command.define('LoadUrl', {
+  args: { url: Schema.String },
+  messages: [Message.NavigationDone],
+  execute: ({ url }) => load(url).pipe(Effect.as(Message.NavigationDone())),
+})
+
 // @effect-diagnostics-next-line missingPipeableSignature:off -- Foldkit calls update with the model and message.
 export const update = (model: Model, message: Message): Update.Return<Model, Message, Client> =>
   Message.match(message, {
-    ChoseScreen: ({ screen }) => {
-      if (screen === model.screen || model.attempt !== null) {
-        return noCommands(model)
-      }
-
-      return noCommands(
-        edit({ ...model, screen, notice: null }, screen === 'Quick Log' ? Editor.cases.RecordMeter.make({}) : null)
-      )
-    },
+    ClickedLink: ({ request }) =>
+      Match.valueTags(request, {
+        Internal: ({ url }) => {
+          const href = urlToString(url)
+          if (!isAppPath(url.pathname)) {
+            return { model, commands: [LoadUrl({ url: href })] }
+          }
+          const { screen, selected } = routeFromPath(url.pathname)
+          return model.attempt !== null || (screen === model.screen && Option.getOrNull(selected) === model.selected)
+            ? noCommands(model)
+            : { model, commands: [Navigate({ url: href })] }
+        },
+        External: ({ href }) => ({ model, commands: [LoadUrl({ url: href })] }),
+      }),
+    ChangedPath: ({ pathname }) => noCommands(changeRoute(model, pathname)),
+    NavigationDone: () => noCommands(model),
     SearchedAssets: ({ query }) => noCommands({ ...model, query }),
-    SelectedAsset: ({ assetId }) => noCommands(model.attempt === null ? selectAsset(model, assetId) : model),
     OpenedCompletion: ({ assetId, scheduleId }) =>
       noCommands(model.attempt === null ? edit(model, Editor.cases.CompleteTask.make({ assetId, scheduleId })) : model),
     OpenedPendingWork: () => {
@@ -216,21 +237,27 @@ const openAssetEdit = (model: Model): Model => {
   }
 }
 
-const selectAsset = (model: Model, selected: Model['selected']): Model =>
-  selected === model.selected
-    ? model
-    : edit(
-        {
-          ...model,
-          selected,
-          detail: null,
-          activity: [],
-          activityCursor: Option.none(),
-          activityCaughtUp: false,
-          readFailures: { ...model.readFailures, detail: false, activity: false },
-        },
-        null
-      )
+const changeRoute = (model: Model, pathname: string): Model => {
+  const route = routeFromPath(pathname)
+  const selected = Option.getOrNull(route.selected)
+  if (route.screen === model.screen && selected === model.selected) {
+    return model
+  }
+  return edit(
+    {
+      ...model,
+      screen: route.screen,
+      selected,
+      detail: null,
+      activity: [],
+      activityCursor: Option.none(),
+      activityCaughtUp: false,
+      readFailures: { ...model.readFailures, detail: false, activity: false },
+      attempt: null,
+    },
+    route.screen === 'Quick Log' ? Editor.cases.RecordMeter.make({}) : null
+  )
+}
 
 const readFailure =
   (read: 'catalog' | 'detail' | 'activity') =>
@@ -240,7 +267,10 @@ const readFailure =
 // Disabled subscriptions still require a valid key in their dependency schema.
 const inactiveKey = AssetId.make('inactive')
 const selectedKey = (model: Model) => model.selected ?? inactiveKey
-const hasSelection = (model: Model) => !model.sessionExpired && model.screen === 'Assets' && model.selected !== null
+const hasSelection = (model: Model) =>
+  !model.sessionExpired &&
+  model.selected !== null &&
+  (model.catalog === null || Record.has(model.catalog.assets, model.selected))
 
 export const subscriptions = Subscription.make<Model, Message, Client>()((entry) => ({
   catalog: client.HomeCatalog.watch({

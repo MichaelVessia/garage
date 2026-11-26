@@ -11,7 +11,7 @@ import * as Socket from 'effect/socket/Socket'
 import { Runtime } from 'foldkit'
 
 import { subscriptions, update } from './Logbook.ts'
-import { Flags, init, Model } from './Model.ts'
+import { Flags, init, Message, Model } from './Model.ts'
 import { view } from './View.ts'
 
 const protocol = Domain.protocolWebSocket(`${location.origin}/api`).pipe(
@@ -27,6 +27,10 @@ Runtime.run(
     update,
     view,
     subscriptions,
+    routing: {
+      onUrlChange: ({ pathname }) => Message.ChangedPath({ pathname }),
+      onUrlRequest: (request) => Message.ClickedLink({ request }),
+    },
     resources: connection,
     container: document.getElementById('root'),
   }),

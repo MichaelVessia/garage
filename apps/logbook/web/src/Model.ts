@@ -9,6 +9,10 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import type { Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
+import { UrlRequest } from 'foldkit/navigation'
+import type { Url } from 'foldkit/url'
+
+import { routeFromPath } from './Route.ts'
 
 export const client = DomainFoldkit.make(LogbookApi)
 export type Client = typeof LogbookApi.Client.Identifier
@@ -115,9 +119,10 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  ChoseScreen: { screen: Screen },
+  ClickedLink: { request: UrlRequest },
+  ChangedPath: { pathname: Schema.String },
+  NavigationDone: {},
   SearchedAssets: { query: Schema.String },
-  SelectedAsset: { assetId: Schema.NullOr(AssetId) },
   OpenedCompletion: { assetId: AssetId, scheduleId: ScheduleId },
   OpenedPendingWork: {},
   OpenedPendingWorkCompletion: { assetId: AssetId, workId: PendingWorkId },
@@ -138,25 +143,32 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-export const init = ({ session, today }: typeof Flags.Type): Update.Return<Model, Message, Client> => ({
-  model: {
-    screen: 'Due',
-    today,
-    catalog: null,
-    query: '',
-    selected: null,
-    detail: null,
-    activity: [],
-    activityCursor: Option.none(),
-    activityCaughtUp: false,
-    readFailures: { catalog: false, detail: false, activity: false },
-    editor: null,
-    fields: {},
-    attempt: null,
-    problem: null,
-    correctionOffered: false,
-    notice: null,
-    sessionExpired: false,
-    commandIds: { session, sent: 0 },
-  },
-})
+// @effect-diagnostics-next-line missingPipeableSignature:off -- Foldkit calls init with the flags and URL.
+export const init = (
+  { session, today }: typeof Flags.Type,
+  { pathname }: Pick<Url, 'pathname'>
+): Update.Return<Model, Message, Client> => {
+  const { screen, selected } = routeFromPath(pathname)
+  return {
+    model: {
+      screen,
+      selected: Option.getOrNull(selected),
+      today,
+      catalog: null,
+      query: '',
+      detail: null,
+      activity: [],
+      activityCursor: Option.none(),
+      activityCaughtUp: false,
+      readFailures: { catalog: false, detail: false, activity: false },
+      editor: screen === 'Quick Log' ? Editor.cases.RecordMeter.make({}) : null,
+      fields: {},
+      attempt: null,
+      problem: null,
+      correctionOffered: false,
+      notice: null,
+      sessionExpired: false,
+      commandIds: { session, sent: 0 },
+    },
+  }
+}

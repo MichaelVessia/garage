@@ -11,6 +11,7 @@ import { forms, secondaryButton } from './Forms.ts'
 import { Editor, Message } from './Model.ts'
 import type { CatalogAsset, Model } from './Model.ts'
 import { pendingWorkView } from './PendingWorkView.ts'
+import { assetPath } from './Route.ts'
 
 type Task = DueThresholds & {
   readonly assetId: AssetId
@@ -119,7 +120,14 @@ export const dueView =
                             [],
                             [
                               h.p([h.Class('font-semibold')], [task.title]),
-                              h.p([h.Class('text-sm text-stone-600')], [task.assetName, ' · ', thresholdText(task)]),
+                              h.p(
+                                [h.Class('text-sm text-stone-600')],
+                                [
+                                  h.a([h.Href(assetPath(task.assetId)), h.Class('underline')], [task.assetName]),
+                                  ' · ',
+                                  thresholdText(task),
+                                ]
+                              ),
                             ]
                           ),
                           isOpen(task)
@@ -172,7 +180,10 @@ export const dueView =
                         h.p([h.Class('font-semibold')], [warranty.label]),
                         h.p(
                           [h.Class('text-sm text-stone-600')],
-                          [`${warranty.assetName} · Expires ${warranty.expiresOn}`]
+                          [
+                            h.a([h.Href(assetPath(warranty.assetId)), h.Class('underline')], [warranty.assetName]),
+                            ` · Expires ${warranty.expiresOn}`,
+                          ]
                         ),
                       ]
                     )

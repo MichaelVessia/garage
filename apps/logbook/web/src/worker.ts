@@ -17,6 +17,9 @@ export default {
     ) {
       return LOGBOOK.fetch(request)
     }
+    if (Str.startsWith('/assets/')(path)) {
+      return ASSETS.fetch(new URL('/', request.url), request)
+    }
     return ASSETS.fetch(request)
   },
 }

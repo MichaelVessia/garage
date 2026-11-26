@@ -6,6 +6,8 @@ Open **Quick Log** and select **New asset**. You can enter the make, model, seri
 
 Open **Assets** to find the record by name, category, location, make, model, serial number, or specification. Select an active asset to edit its details, add a maintenance schedule, record a warranty, set a specification, or attach a link to a manual.
 
+To share an asset, copy its link from **Assets** or **Due**. You can also open the asset and copy the address from the browser. The link opens the asset after sign-in if the recipient has access to Logbook.
+
 ## Track a repair
 
 Open the asset and select **Add pending work**. Enter a title. Use the notes field for parts and their storage location. The due date is optional. Open the **Due** screen to see pending work across all assets. Select **Mark done** to record the work once.
@@ -49,5 +51,9 @@ Use the app Worker URL for the web app and its APIs. The browser uses the Access
 
 - In Executor v2, configure an HTTP MCP server at `https://<logbook-host>/mcp`.
 - For Frame (`apps/frame`), use `GET https://<logbook-host>/frame/due`. The report looks ahead 30 days for maintenance and 60 days for warranties. The default meter threshold is 500 miles or 25 hours, according to the asset's meter unit. Use the optional `withinMeter` query parameter to set the same numeric threshold for all metered assets, in each asset's meter unit. Use `withinDays` and `warrantyDays` to change the date limits.
+
+The Frame report includes a `pendingRepairs` array with all open pending work on active assets. Each entry has `assetId`, `assetName`, `category`, `workId`, and `title`. The entry also has `notes` and `dueOn` when the work record contains those fields. The date and meter limits do not filter this array.
+
+To link from Frame to an asset, resolve `/assets/${encodeURIComponent(assetId)}` against the configured Logbook base URL. Use the Logbook app host protected by Cloudflare Access.
 
 For both clients, set `CF-Access-Client-Id` and `CF-Access-Client-Secret` to the service token credentials when Access protects the host. For a host that accepts the optional Logbook API token, send `Authorization: Bearer <token>`.

@@ -10,6 +10,7 @@ import { forms, secondaryButton } from './Forms.ts'
 import { AssetSetupAction, dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, CatalogAsset, Model } from './Model.ts'
 import { pendingWorkView } from './PendingWorkView.ts'
+import { assetPath } from './Route.ts'
 import { webLink } from './WebLink.ts'
 
 const byName = Order.mapInput(Order.String, (asset: CatalogAsset) => Str.toLowerCase(asset.name))
@@ -277,6 +278,8 @@ export const assetsView =
       return Arr.every(terms, (term) => Str.includes(term)(text))
     })
     const detail = model.detail?.status === 'unregistered' ? null : model.detail
+    const missing =
+      model.selected !== null && model.catalog !== null && !Record.has(model.catalog.assets, model.selected)
     return h.section(
       [h.Class('space-y-4')],
       [
@@ -314,15 +317,14 @@ export const assetsView =
                     h.li(
                       [h.Key(asset.id)],
                       [
-                        h.button(
+                        h.a(
                           [
-                            h.Type('button'),
+                            h.Href(assetPath(asset.id)),
                             h.Class(
-                              'w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:border-teal-700 aria-pressed:border-teal-700 aria-pressed:bg-teal-50 disabled:opacity-50'
+                              'block rounded-xl border border-stone-200 bg-white p-3 hover:border-teal-700 aria-current:border-teal-700 aria-current:bg-teal-50 aria-disabled:opacity-50'
                             ),
-                            h.AriaPressed(model.selected === asset.id ? 'true' : 'false'),
-                            h.Disabled(model.attempt !== null),
-                            h.OnClick(Message.SelectedAsset({ assetId: asset.id })),
+                            h.AriaCurrent(model.selected === asset.id ? 'page' : 'false'),
+                            h.AriaDisabled(model.attempt !== null),
                           ],
                           [
                             h.span([h.Class('block break-words font-semibold')], [asset.name]),
@@ -349,9 +351,9 @@ export const assetsView =
                   )
                 ),
             detail === null
-              ? model.selected === null || model.readFailures.detail
+              ? model.selected === null || model.readFailures.detail || model.sessionExpired
                 ? null
-                : h.p([h.Role('status')], ['Loading asset…'])
+                : h.p([h.Role('status')], [missing ? 'Asset not found.' : 'Loading asset…'])
               : detailView(h)(model, detail),
           ]
         ),

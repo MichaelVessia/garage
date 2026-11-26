@@ -25,7 +25,7 @@ export default Stack(
       env: { LOGBOOK: logbook },
       domain: domain ?? null,
       assets: {
-        runWorkerFirst: ['/api', '/api/*', '/v1', '/v1/*', '/mcp', '/frame/due', '/health'],
+        runWorkerFirst: ['/api', '/api/*', '/v1', '/v1/*', '/mcp', '/frame/due', '/health', '/assets/*'],
         notFoundHandling: 'single-page-application',
       },
     })

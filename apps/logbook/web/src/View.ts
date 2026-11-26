@@ -5,8 +5,9 @@ import type { Document, HtmlBuilder } from 'foldkit/html'
 import { assetsView } from './AssetsView.ts'
 import { dueView } from './DueView.ts'
 import { forms, secondaryButton } from './Forms.ts'
-import { Message, Screen } from './Model.ts'
-import type { Model } from './Model.ts'
+import { Screen } from './Model.ts'
+import type { Message, Model } from './Model.ts'
+import { screenPaths } from './Route.ts'
 
 // @effect-diagnostics-next-line missingPipeableSignature:off -- Foldkit calls view with the model and builder.
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
@@ -24,13 +25,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
               h.nav(
                 [h.AriaLabel('Logbook screens'), h.Class('flex flex-wrap gap-2')],
                 Arr.map(Screen.literals, (screen) =>
-                  h.button(
+                  h.a(
                     [
-                      h.Type('button'),
-                      h.Class(`${secondaryButton} aria-current:bg-teal-50 aria-current:border-teal-700`),
+                      h.Href(screenPaths[screen]),
+                      h.Class(
+                        `${secondaryButton} aria-current:bg-teal-50 aria-current:border-teal-700 aria-disabled:opacity-50`
+                      ),
                       h.AriaCurrent(screen === model.screen ? 'page' : 'false'),
-                      h.Disabled(model.attempt !== null),
-                      h.OnClick(Message.ChoseScreen({ screen })),
+                      h.AriaDisabled(model.attempt !== null),
                     ],
                     [screen]
                   )
