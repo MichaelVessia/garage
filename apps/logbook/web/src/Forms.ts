@@ -117,7 +117,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
                     h.Type('button'),
                     h.Class(secondaryButton),
                     h.Disabled(model.attempt !== null),
-                    h.OnClick(Message.ClosedCompletion()),
+                    h.OnClick(Message.ClosedEditor()),
                   ],
                   ['Cancel']
                 )
@@ -150,24 +150,32 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     ['LogService', 'Log service'],
     ['RegisterAsset', 'New asset'],
   ] satisfies ReadonlyArray<readonly [typeof QuickMode.Type, string]>
+  const assetMetadata = (): ReadonlyArray<Html> => [
+    text('name', 'Asset name', { required: true }),
+    select(
+      'category',
+      'Category',
+      Arr.map(AssetCategory.literals, (category) => [category, category]),
+      'other'
+    ),
+    text('make', 'Make (optional)'),
+    text('model', 'Model (optional)'),
+    text('serialNumber', 'Serial number (optional)'),
+    text('purchasedOn', 'Purchase date (optional, YYYY-MM-DD)'),
+    text('purchasePrice', 'Purchase price in USD (optional)', { numeric: true }),
+    text('location', 'Location (optional)'),
+    notes,
+  ]
 
   const quick = (): Html => {
     const content = Editor.guards.RegisterAsset(model.editor)
       ? form('Register asset', [
-          text('name', 'Asset name', { required: true }),
-          select(
-            'category',
-            'Category',
-            Arr.map(AssetCategory.literals, (category) => [category, category]),
-            'other'
-          ),
-          text('location', 'Location (optional)'),
+          ...assetMetadata(),
           select('unit', 'Meter unit (optional)', [
             ['', 'No meter'],
             ...Arr.map(MeterUnit.literals, (unit): readonly [string, string] => [unit, unit]),
           ]),
           text('reading', 'Initial meter reading (optional)', { numeric: true }),
-          notes,
         ])
       : Editor.guards.LogService(model.editor)
         ? form('Save service', [
@@ -283,5 +291,10 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     }
   }
 
-  return { quick, completion: (meterEnabled: boolean) => form('Save completion', work(meterEnabled), true), assetSetup }
+  return {
+    quick,
+    completion: (meterEnabled: boolean) => form('Save completion', work(meterEnabled), true),
+    assetSetup,
+    assetEdit: () => form('Save asset', assetMetadata(), true),
+  }
 }

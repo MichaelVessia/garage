@@ -1,16 +1,18 @@
 import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
 import { AssetId } from '@garage/logbook-domain/Asset/Asset.id'
+import type { AssetMetadata } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { AssetNotActive } from '@garage/logbook-domain/Asset/AssetNotActive.rejection'
 import { MeterRollback } from '@garage/logbook-domain/Asset/MeterRollback.rejection'
 import { NoMeterConfigured } from '@garage/logbook-domain/Asset/NoMeterConfigured.rejection'
 import { AssetAlreadyRegistered } from '@garage/logbook-domain/Asset/RegisterAsset.command'
 import { ScheduleNotFound } from '@garage/logbook-domain/Asset/ScheduleNotFound.rejection'
 import { Unauthorized } from '@garage/logbook-domain/Session.middleware'
-import { AssetCategory, Cents, MeterReading, MeterUnit } from '@garage/logbook-domain/Values'
+import { AssetCategory, Cents, IsoDate, MeterReading, MeterUnit } from '@garage/logbook-domain/Values'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
+import * as Struct from 'effect/Struct'
 import type * as Types from 'effect/Types'
 import { Command } from 'foldkit'
 import type { Update } from 'foldkit'
@@ -26,6 +28,55 @@ const parseAssetId = Schema.decodeUnknownOption(AssetId)
 
 type Work = Omit<Parameters<typeof client.LogService>[0]['input'], 'title'>
 type Registration = Parameters<typeof client.RegisterAsset>[0]['input']
+type AssetUpdate = Parameters<typeof client.UpdateAsset>[0]['input']
+
+const assetTextFields = ['make', 'model', 'serialNumber', 'location', 'notes'] as const
+
+const parsePurchasePrice = (value: string): Option.Option<number> => {
+  if (!/^\d+(?:\.\d{1,2})?$/u.test(value)) {
+    return Option.none()
+  }
+  const [whole, fraction = ''] = Str.split('.')(value)
+  const cents = Number(whole + Str.padEnd(2, '0')(fraction))
+  return Schema.is(Cents)(cents) ? Option.some(cents) : Option.none()
+}
+
+const assetMetadata = (
+  fields: Model['fields'],
+  original?: typeof AssetMetadata.Type
+): typeof AssetMetadata.Type | string => {
+  const name = original !== undefined && fields.name === original.name ? original.name : Str.trim(fields.name ?? '')
+  const category = Str.trim(fields.category ?? '') || 'other'
+  if (name === '' || !Schema.is(AssetCategory)(category)) {
+    return 'Enter the asset name and select a category.'
+  }
+
+  const metadata: Types.Mutable<typeof AssetMetadata.Type> = { name, category }
+  for (const field of assetTextFields) {
+    const raw = fields[field]
+    const normalized = Str.trim(raw ?? '')
+    const value = raw === original?.[field] ? raw : normalized === '' ? undefined : normalized
+    if (value !== undefined) {
+      metadata[field] = value
+    }
+  }
+  const purchasedOn = Str.trim(fields.purchasedOn ?? '')
+  if (purchasedOn !== '') {
+    if (!Schema.is(IsoDate)(purchasedOn)) {
+      return 'Enter a purchase date in YYYY-MM-DD format.'
+    }
+    metadata.purchasedOn = purchasedOn
+  }
+  const purchasePrice = Str.trim(fields.purchasePrice ?? '')
+  if (purchasePrice !== '') {
+    const cents = parsePurchasePrice(purchasePrice)
+    if (Option.isNone(cents)) {
+      return 'Enter a purchase price in dollars with up to two decimal places.'
+    }
+    metadata.purchasePriceCents = cents.value
+  }
+  return metadata
+}
 
 const commandFor = (
   model: Model,
@@ -96,30 +147,50 @@ const commandFor = (
       return client.LogService({ target: target.value, commandId, input: { ...work, title } })
     }
     case 'RegisterAsset': {
-      const name = text('name')
-      const category = text('category') || 'other'
-      const unit = text('unit')
-      const location = text('location')
-      if (name === '' || !Schema.is(AssetCategory)(category)) {
-        return 'Enter the asset name and select a category.'
+      const metadata = assetMetadata(model.fields)
+      if (typeof metadata === 'string') {
+        return metadata
       }
+      const unit = text('unit')
       if (reading !== undefined && !Schema.is(MeterUnit)(unit)) {
         return 'Select a meter unit for the initial reading.'
       }
-      const input: Types.Mutable<Registration> = { name, category }
-      if (location !== '') {
-        input.location = location
-      }
+      const input: Types.Mutable<Registration> = { ...metadata }
       if (Schema.is(MeterUnit)(unit)) {
         input.meterUnit = unit
       }
       if (reading !== undefined) {
         input.initialMeter = reading
       }
-      if (notes !== '') {
-        input.notes = notes
-      }
       return client.RegisterAsset({ target: AssetId.make(commandId), commandId, input })
+    }
+    case 'UpdateAsset': {
+      const { assetId, original } = model.editor
+      const metadata = assetMetadata(model.fields, original)
+      if (typeof metadata === 'string') {
+        return metadata
+      }
+      const input: Types.Mutable<AssetUpdate> = {}
+      if (metadata.name !== original.name) {
+        input.name = metadata.name
+      }
+      if (metadata.category !== original.category) {
+        input.category = metadata.category
+      }
+      for (const field of assetTextFields) {
+        if (metadata[field] !== original[field]) {
+          input[field] = metadata[field] ?? null
+        }
+      }
+      if (metadata.purchasedOn !== original.purchasedOn) {
+        input.purchasedOn = metadata.purchasedOn ?? null
+      }
+      if (metadata.purchasePriceCents !== original.purchasePriceCents) {
+        input.purchasePriceCents = metadata.purchasePriceCents ?? null
+      }
+      return Struct.keys(input).length === 0
+        ? 'No changes to save.'
+        : client.UpdateAsset({ target: assetId, commandId, input })
     }
     case undefined:
       return 'Open a form to save a log entry.'
