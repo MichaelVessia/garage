@@ -2,8 +2,9 @@ import * as Domain from '@alchemy.run/domain'
 import * as Schema from 'effect/Schema'
 
 import { Session } from '../Session.middleware.ts'
-import { AssetCategory, Cents, IsoDate, MeterReading, MeterUnit } from '../Values.ts'
+import { MeterReading, MeterUnit } from '../Values.ts'
 import { AssetId } from './Asset.id.ts'
+import { AssetMetadata } from './AssetMetadata.ts'
 
 export class AssetAlreadyRegistered extends Schema.TaggedError<
   AssetAlreadyRegistered,
@@ -12,38 +13,20 @@ export class AssetAlreadyRegistered extends Schema.TaggedError<
   assetId: AssetId,
 }) {}
 
-export class AssetRegistered extends Domain.Event('AssetRegistered', {
-  name: Schema.NonEmptyString,
-  category: AssetCategory,
-  make: Schema.optionalKey(Schema.String),
-  model: Schema.optionalKey(Schema.String),
-  serialNumber: Schema.optionalKey(Schema.String),
-  purchasedOn: Schema.optionalKey(IsoDate),
-  purchasePriceCents: Schema.optionalKey(Cents),
-  location: Schema.optionalKey(Schema.String),
-  notes: Schema.optionalKey(Schema.String),
+const registrationFields = {
+  ...AssetMetadata.fields,
   meterUnit: Schema.optionalKey(MeterUnit),
   initialMeter: Schema.optionalKey(MeterReading),
-}) {}
+}
+
+export class AssetRegistered extends Domain.Event('AssetRegistered', registrationFields) {}
 
 export class RegisterAsset extends Domain.Command(
   'RegisterAsset',
   {
     target: AssetId,
     middleware: [Session],
-    input: {
-      name: Schema.NonEmptyString,
-      category: AssetCategory,
-      make: Schema.optionalKey(Schema.String),
-      model: Schema.optionalKey(Schema.String),
-      serialNumber: Schema.optionalKey(Schema.String),
-      purchasedOn: Schema.optionalKey(IsoDate),
-      purchasePriceCents: Schema.optionalKey(Cents),
-      location: Schema.optionalKey(Schema.String),
-      notes: Schema.optionalKey(Schema.String),
-      meterUnit: Schema.optionalKey(MeterUnit),
-      initialMeter: Schema.optionalKey(MeterReading),
-    },
+    input: registrationFields,
     events: [AssetRegistered],
     rejects: [AssetAlreadyRegistered],
   },

@@ -260,15 +260,22 @@ it.live('protects the OpenAPI document and serves HTTP commands and reads', () =
     const document = yield* json(openapi)
     assert.propertyVal(document, 'openapi', '3.1.0')
     assert.nestedProperty(document, 'paths./v1/RegisterAsset.post')
+    assert.nestedProperty(document, 'paths./v1/UpdateAsset.post')
     assert.nestedProperty(document, 'paths./v1/HomeCatalog/{key}.get')
 
     const registered = yield* handle('/v1/RegisterAsset', {
       method: 'POST',
       headers: { ...authHeaders, 'content-type': 'application/json' },
-      body: '{"target":"washer","input":{"name":"Washer","category":"appliance"}}',
+      body: '{"target":"washer","input":{"name":"Washer","category":"appliance","make":"Example","serialNumber":"1234"}}',
     })
     assert.strictEqual(registered.status, 200)
-    const receipt = yield* json(registered)
+    const updated = yield* handle('/v1/UpdateAsset', {
+      method: 'POST',
+      headers: { ...authHeaders, 'content-type': 'application/json' },
+      body: '{"target":"washer","input":{"model":"Wash 1000","serialNumber":null}}',
+    })
+    assert.strictEqual(updated.status, 200)
+    const receipt = yield* json(updated)
     const { stream, version } = yield* Schema.decodeUnknownEffect(
       Schema.Struct({ stream: Schema.String, version: Schema.Int })
     )(receipt)
@@ -278,6 +285,9 @@ it.live('protects the OpenAPI document and serves HTTP commands and reads', () =
     assert.strictEqual(catalog.status, 200)
     const catalogBody = yield* json(catalog)
     assert.nestedPropertyVal(catalogBody, 'assets.washer.name', 'Washer')
+    assert.nestedPropertyVal(catalogBody, 'assets.washer.make', 'Example')
+    assert.nestedPropertyVal(catalogBody, 'assets.washer.model', 'Wash 1000')
+    assert.notNestedProperty(catalogBody, 'assets.washer.serialNumber')
   }).pipe(Effect.provide(server))
 )
 
@@ -347,6 +357,7 @@ it.live('discovers, lists, and calls Logbook MCP tools over HTTP', () =>
       Arr.map(result.tools, (tool) => tool.name),
       [
         'LogbookApi_RegisterAsset_send',
+        'LogbookApi_UpdateAsset_send',
         'LogbookApi_RetireAsset_send',
         'LogbookApi_RecordMeter_send',
         'LogbookApi_AddSchedule_send',
@@ -378,12 +389,25 @@ it.live('discovers, lists, and calls Logbook MCP tools over HTTP', () =>
       register
     )
     assert.strictEqual(registered.status, 200)
-    const registeredPayload = yield* json(registered)
+    const update = 'LogbookApi_UpdateAsset_send'
+    const updated = yield* mcp(
+      'tools/call',
+      {
+        name: update,
+        arguments: {
+          target: 'furnace',
+          input: { serialNumber: 'F123' },
+        },
+      },
+      update
+    )
+    assert.strictEqual(updated.status, 200)
+    const updatedPayload = yield* json(updated)
     const receipt = yield* Schema.decodeUnknownEffect(
       Schema.Struct({
         result: Schema.Struct({ structuredContent: Schema.Struct({ stream: Schema.String, version: Schema.Int }) }),
       })
-    )(registeredPayload)
+    )(updatedPayload)
 
     const catalog = 'LogbookApi_HomeCatalog_get'
     const view = yield* mcp(
@@ -400,6 +424,7 @@ it.live('discovers, lists, and calls Logbook MCP tools over HTTP', () =>
     assert.strictEqual(view.status, 200)
     const viewResult = yield* json(view)
     assert.nestedPropertyVal(viewResult, 'result.structuredContent.value.assets.furnace.name', 'Furnace')
+    assert.nestedPropertyVal(viewResult, 'result.structuredContent.value.assets.furnace.serialNumber', 'F123')
   }).pipe(Effect.provide(server))
 )
 

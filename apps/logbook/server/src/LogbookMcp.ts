@@ -7,6 +7,7 @@ import * as Layer from 'effect/Layer'
 export const LogbookMcp = DomainAi.toMcp(LogbookApi, {
   expose: [
     'RegisterAsset',
+    'UpdateAsset',
     'RetireAsset',
     'RecordMeter',
     'AddSchedule',

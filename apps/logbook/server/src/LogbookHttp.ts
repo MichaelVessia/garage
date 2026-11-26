@@ -8,6 +8,7 @@ import * as Layer from 'effect/Layer'
 const LogbookHttpSpec = DomainHttp.toHttpApi(LogbookApi, {
   expose: [
     'RegisterAsset',
+    'UpdateAsset',
     'RetireAsset',
     'RecordMeter',
     'AddSchedule',

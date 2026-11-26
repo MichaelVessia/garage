@@ -8,18 +8,17 @@ import * as Struct from 'effect/Struct'
 
 import { Asset } from '../Asset/Asset.aggregate.ts'
 import { AssetId, ScheduleId, WarrantyId } from '../Asset/Asset.id.ts'
+import { applyAssetMetadataPatch, AssetMetadata, assetMetadataKeys } from '../Asset/AssetMetadata.ts'
 import { registeredMeter, updateMeter } from '../Asset/AssetMeter.ts'
 import { CurrentActor } from '../CurrentActor.context.ts'
 import { HOME_HOUSEHOLD_ID, HouseholdId } from '../Household.id.ts'
 import { Session } from '../Session.middleware.ts'
-import { AssetCategory, Cents, DueThresholds, IsoDate, Meter, SpecEntry } from '../Values.ts'
+import { Cents, DueThresholds, IsoDate, Meter, SpecEntry } from '../Values.ts'
 
 const CatalogAsset = Schema.Struct({
   id: AssetId,
-  name: Schema.NonEmptyString,
-  category: AssetCategory,
+  ...AssetMetadata.fields,
   status: Schema.Literals(['active', 'retired']),
-  location: Schema.optionalKey(Schema.String),
   meter: Schema.optionalKey(Meter),
   specs: Schema.Record(Schema.String, SpecEntry),
   schedules: Schema.Record(ScheduleId, Schema.Struct({ title: Schema.NonEmptyString, ...DueThresholds.fields })),
@@ -53,6 +52,7 @@ export class HomeCatalog extends Domain.View(
     from: [Asset],
     key: HouseholdId,
     keyOf: { Asset: () => HOME_HOUSEHOLD_ID },
+    version: 1,
     middleware: [Session],
     state: Catalog,
     initial: { assets: {}, spendByYear: {} },
@@ -62,7 +62,7 @@ export class HomeCatalog extends Domain.View(
         assets: {
           ...state.assets,
           [source.id]: {
-            ...Struct.pick(event, ['name', 'category', 'location']),
+            ...Struct.pick(event, assetMetadataKeys),
             id: source.id,
             status: 'active',
             ...registeredMeter(event),
@@ -72,6 +72,8 @@ export class HomeCatalog extends Domain.View(
           },
         },
       }),
+      AssetUpdated: (state, patch, { source }) =>
+        update(state, source.id, (asset) => applyAssetMetadataPatch({ asset, patch })),
       AssetRetired: (state, _, { source }) => update(state, source.id, (asset) => ({ ...asset, status: 'retired' })),
       MeterRecorded: (state, { reading }, { source }) =>
         update(state, source.id, (asset) => updateMeter({ asset, reading: Option.some(reading) })),

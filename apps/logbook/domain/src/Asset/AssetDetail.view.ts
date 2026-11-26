@@ -11,12 +11,12 @@ import { Cents, Meter, NamedLink, RetirementReason, SpecEntry, Warranty } from '
 import { ScheduleAdded } from './AddSchedule.command.ts'
 import { Asset } from './Asset.aggregate.ts'
 import { AssetId, LinkId, ScheduleId, WarrantyId } from './Asset.id.ts'
+import { applyAssetMetadataPatch, AssetMetadata, assetMetadataKeys } from './AssetMetadata.ts'
 import { registeredMeter, updateMeter } from './AssetMeter.ts'
-import { AssetRegistered } from './RegisterAsset.command.ts'
 
 const Schedule = Schema.Struct(Struct.omit(ScheduleAdded.fields, ['_tag']))
 const AssetDetails = Schema.Struct({
-  ...Struct.omit(AssetRegistered.fields, ['_tag', 'meterUnit', 'initialMeter']),
+  ...AssetMetadata.fields,
   id: AssetId,
   status: Schema.Literals(['active', 'retired']),
   retirementReason: Schema.optionalKey(RetirementReason),
@@ -45,12 +45,13 @@ export class AssetDetail extends Domain.View(
   {
     from: [Asset],
     key: Asset,
+    version: 1,
     middleware: [Session],
     state: State,
     initial: { status: 'unregistered' },
     evolve: {
       AssetRegistered: (_, event, { key }): AssetDetails => ({
-        ...Struct.omit(event, ['_tag', 'meterUnit', 'initialMeter']),
+        ...Struct.pick(event, assetMetadataKeys),
         id: key.id,
         status: 'active',
         ...registeredMeter(event),
@@ -60,6 +61,7 @@ export class AssetDetail extends Domain.View(
         links: {},
         totalSpendCents: 0,
       }),
+      AssetUpdated: (state, patch) => update(state, (asset) => applyAssetMetadataPatch({ asset, patch })),
       AssetRetired: (state, { reason, notes }) =>
         update(state, (asset) => {
           const retired: AssetDetails = { ...asset, status: 'retired', retirementReason: reason }
