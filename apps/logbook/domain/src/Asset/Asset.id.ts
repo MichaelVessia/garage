@@ -6,6 +6,9 @@ export type AssetId = typeof AssetId.Type
 export const ScheduleId = Schema.NonEmptyString.pipe(Schema.brand('ScheduleId'))
 export type ScheduleId = typeof ScheduleId.Type
 
+export const PendingWorkId = Schema.NonEmptyString.pipe(Schema.brand('PendingWorkId'))
+export type PendingWorkId = typeof PendingWorkId.Type
+
 export const WarrantyId = Schema.NonEmptyString.pipe(Schema.brand('WarrantyId'))
 export type WarrantyId = typeof WarrantyId.Type
 

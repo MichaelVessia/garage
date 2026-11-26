@@ -1,6 +1,7 @@
 import { it } from '@effect/vitest'
-import { AssetId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
+import { AssetId, PendingWorkId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { ActivityEntry } from '@garage/logbook-domain/Asset/AssetActivity.view'
+import { PendingWorkCompleted } from '@garage/logbook-domain/Asset/CompletePendingWork.command'
 import { MeterRollback } from '@garage/logbook-domain/Asset/MeterRollback.rejection'
 import { MeterRecorded } from '@garage/logbook-domain/Asset/RecordMeter.command'
 import { ScheduleNotFound } from '@garage/logbook-domain/Asset/ScheduleNotFound.rejection'
@@ -297,6 +298,85 @@ it('keeps the inline form open and explains a rejected completion', () => {
     ),
     Scene.expect(role('alert')).toHaveText('This schedule is no longer active.'),
     Scene.expect(role('button', { name: 'Save completion' })).toBeEnabled()
+  )
+})
+
+it('adds undated work in asset detail and completes it from the household due screen', () => {
+  const workId = PendingWorkId.make('test-session:0')
+  const work = { workId, title: 'Replace door seal', notes: 'Spare seal in garage cabinet.' }
+  const detail = { ...truckAsset, schedules: {}, warranties: {}, links: {}, totalSpendCents: 0 }
+  const pendingWork = { [workId]: work }
+  const updatedCatalog = Message.ReceivedCatalog({
+    catalog: { ...catalog, assets: { [truck]: { ...truckAsset, pendingWork } } },
+  })
+  const added = client.AddPendingWork({ target: truck, commandId: 'test-session:0', input: work })
+  const details = {
+    workId,
+    performedBy: 'diy',
+    completedOn: today,
+    costCents: 4599,
+    parts: ['Door seal', 'Clips'],
+  } as const
+  const completed = client.CompletePendingWork({ target: truck, commandId: 'test-session:1', input: details })
+  const pending = role('region', { name: 'Pending Work' })
+  const activity = Message.ReceivedActivity({
+    cursor: 5,
+    entry: ActivityEntry.make({
+      assetId: truck,
+      at: DateTime.makeUnsafe(today),
+      event: PendingWorkCompleted.make({ ...details, title: work.title }),
+    }),
+  })
+
+  Scene.scene(
+    app,
+    Scene.given(initial),
+    catalogLoaded,
+    press('Assets'),
+    click(role('button', { name: /Truck/u })),
+    Scene.Subscription.emit(Message.ReceivedDetail({ detail })),
+    press('Add pending work'),
+    Scene.type(label('Work title'), work.title),
+    Scene.type(label('Notes for parts or location (optional)'), work.notes),
+    press('Save pending work'),
+    Scene.Command.expectExact(added),
+    Scene.Command.resolve(
+      added,
+      client.Message.SucceededAddPendingWork({ commandId: 'test-session:0', reply: undefined, receipt })
+    ),
+    Scene.Subscription.emit(Message.ReceivedDetail({ detail: { ...detail, pendingWork } })),
+    Scene.expect(within(pending, text(work.title))).toExist(),
+    Scene.expect(within(pending, text(work.notes))).toExist(),
+    press('Due'),
+    Scene.Subscription.emit(updatedCatalog),
+    Scene.expect(within(pending, text(work.title))).toExist(),
+    click(within(pending, role('button', { name: 'Mark done' }))),
+    Scene.type(label('Completion date (optional)'), today),
+    Scene.type(label('Cost in USD (optional)'), '45.99'),
+    Scene.type(label('Parts used (optional, one per line)'), 'Door seal\nClips'),
+    press('Save completion'),
+    Scene.Command.expectExact(completed),
+    Scene.Command.resolve(
+      completed,
+      client.Message.FailedCompletePendingWork({
+        commandId: 'test-session:1',
+        failure: Failure.cases.Unknown.make({}),
+      })
+    ),
+    catalogLoaded,
+    Scene.expect(within(pending, text(work.title))).toBeAbsent(),
+    press('Retry save'),
+    Scene.Command.expectExact(completed),
+    Scene.Command.resolve(
+      completed,
+      client.Message.SucceededCompletePendingWork({ commandId: 'test-session:1', reply: undefined, receipt })
+    ),
+    shows('No pending work.'),
+    press('Assets'),
+    Scene.Subscription.emit(Message.ReceivedDetail({ detail: { ...detail, totalSpendCents: 4599 } })),
+    Scene.Subscription.emit(activity),
+    Scene.expect(within(pending, text(work.title))).toBeAbsent(),
+    shows('Completed Replace door seal')
   )
 })
 

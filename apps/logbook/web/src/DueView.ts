@@ -10,6 +10,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { forms, secondaryButton } from './Forms.ts'
 import { Editor, Message } from './Model.ts'
 import type { CatalogAsset, Model } from './Model.ts'
+import { pendingWorkView } from './PendingWorkView.ts'
 
 type Task = DueThresholds & {
   readonly assetId: AssetId
@@ -152,6 +153,7 @@ export const dueView =
           : null,
         group('Overdue', 'No overdue tasks.', overdue, 'text-red-800'),
         group('Due Soon', 'No tasks due soon.', dueSoon, 'text-amber-800'),
+        pendingWorkView(h)(model, { assets: Record.values(model.catalog.assets) }),
         h.section(
           [h.Class('space-y-3'), h.AriaLabel('Expiring Warranties')],
           [

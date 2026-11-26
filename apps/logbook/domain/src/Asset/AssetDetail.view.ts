@@ -8,9 +8,10 @@ import * as Struct from 'effect/Struct'
 import { CurrentActor } from '../CurrentActor.context.ts'
 import { Session } from '../Session.middleware.ts'
 import { Cents, Meter, NamedLink, RetirementReason, SpecEntry, Warranty } from '../Values.ts'
+import { PendingWork } from './AddPendingWork.command.ts'
 import { ScheduleAdded } from './AddSchedule.command.ts'
 import { Asset } from './Asset.aggregate.ts'
-import { AssetId, LinkId, ScheduleId, WarrantyId } from './Asset.id.ts'
+import { AssetId, LinkId, PendingWorkId, ScheduleId, WarrantyId } from './Asset.id.ts'
 import { applyAssetMetadataPatch, AssetMetadata, assetMetadataKeys } from './AssetMetadata.ts'
 import { registeredMeter, updateMeter } from './AssetMeter.ts'
 
@@ -24,6 +25,7 @@ const AssetDetails = Schema.Struct({
   meter: Schema.optionalKey(Meter),
   specs: Schema.Record(Schema.String, SpecEntry),
   schedules: Schema.Record(ScheduleId, Schedule),
+  pendingWork: Schema.optionalKey(Schema.Record(PendingWorkId, PendingWork)),
   warranties: Schema.Record(WarrantyId, Warranty),
   links: Schema.Record(LinkId, NamedLink),
   totalSpendCents: Cents,
@@ -45,7 +47,7 @@ export class AssetDetail extends Domain.View(
   {
     from: [Asset],
     key: Asset,
-    version: 1,
+    version: 2,
     middleware: [Session],
     state: State,
     initial: { status: 'unregistered' },
@@ -94,6 +96,16 @@ export class AssetDetail extends Domain.View(
             }).pipe(Option.getOrElse(() => asset.schedules)),
           }
         }),
+      PendingWorkAdded: (state, event) =>
+        update(state, (asset) => ({
+          ...asset,
+          pendingWork: { ...asset.pendingWork, [event.workId]: Struct.omit(event, ['_tag']) },
+        })),
+      PendingWorkCompleted: (state, { workId, meterAdvancedTo, costCents }) =>
+        update(state, (asset) => ({
+          ...spend(updateMeter({ asset, reading: Option.fromUndefinedOr(meterAdvancedTo) }), costCents),
+          pendingWork: Record.remove(asset.pendingWork ?? {}, workId),
+        })),
       ServiceLogged: (state, { meterAdvancedTo, costCents }) =>
         update(state, (asset) =>
           spend(updateMeter({ asset, reading: Option.fromUndefinedOr(meterAdvancedTo) }), costCents)
@@ -129,7 +141,10 @@ export class AssetDetail extends Domain.View(
         })),
     },
   },
-  { description: 'Read one asset with its meter, schedules, specifications, warranties, links, and maintenance spend.' }
+  {
+    description:
+      'Read one asset with its meter, schedules, pending work, specifications, warranties, links, and spend.',
+  }
 ) {}
 
 export const AssetDetailLive = AssetDetail.toLayer(Effect.succeed(() => Effect.asVoid(CurrentActor)))

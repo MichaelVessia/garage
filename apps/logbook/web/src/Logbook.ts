@@ -36,6 +36,27 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     SelectedAsset: ({ assetId }) => noCommands(model.attempt === null ? selectAsset(model, assetId) : model),
     OpenedCompletion: ({ assetId, scheduleId }) =>
       noCommands(model.attempt === null ? edit(model, Editor.cases.CompleteTask.make({ assetId, scheduleId })) : model),
+    OpenedPendingWork: () => {
+      const asset = model.detail
+      if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
+        return noCommands(model)
+      }
+      return noCommands(edit(model, Editor.cases.AddPendingWork.make({ assetId: asset.id })))
+    },
+    OpenedPendingWorkCompletion: ({ assetId, workId }) => {
+      const asset = model.screen === 'Assets' ? model.detail : model.catalog?.assets[assetId]
+      if (
+        model.attempt !== null ||
+        model.sessionExpired ||
+        model.screen === 'Quick Log' ||
+        asset?.status !== 'active' ||
+        asset.id !== assetId ||
+        asset.pendingWork?.[workId] === undefined
+      ) {
+        return noCommands(model)
+      }
+      return noCommands(edit(model, Editor.cases.CompletePendingWork.make({ assetId, workId })))
+    },
     OpenedAssetSetup: ({ mode }) => {
       const asset = model.detail
       if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {

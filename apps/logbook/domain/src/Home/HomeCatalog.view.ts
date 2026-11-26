@@ -6,8 +6,9 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import * as Struct from 'effect/Struct'
 
+import { PendingWork } from '../Asset/AddPendingWork.command.ts'
 import { Asset } from '../Asset/Asset.aggregate.ts'
-import { AssetId, ScheduleId, WarrantyId } from '../Asset/Asset.id.ts'
+import { AssetId, PendingWorkId, ScheduleId, WarrantyId } from '../Asset/Asset.id.ts'
 import { applyAssetMetadataPatch, AssetMetadata, assetMetadataKeys } from '../Asset/AssetMetadata.ts'
 import { registeredMeter, updateMeter } from '../Asset/AssetMeter.ts'
 import { CurrentActor } from '../CurrentActor.context.ts'
@@ -22,6 +23,7 @@ const CatalogAsset = Schema.Struct({
   meter: Schema.optionalKey(Meter),
   specs: Schema.Record(Schema.String, SpecEntry),
   schedules: Schema.Record(ScheduleId, Schema.Struct({ title: Schema.NonEmptyString, ...DueThresholds.fields })),
+  pendingWork: Schema.optionalKey(Schema.Record(PendingWorkId, PendingWork)),
   warranties: Schema.Record(WarrantyId, Schema.Struct({ label: Schema.String, expiresOn: IsoDate })),
 })
 type CatalogAsset = typeof CatalogAsset.Type
@@ -52,7 +54,7 @@ export class HomeCatalog extends Domain.View(
     from: [Asset],
     key: HouseholdId,
     keyOf: { Asset: () => HOME_HOUSEHOLD_ID },
-    version: 1,
+    version: 2,
     middleware: [Session],
     state: Catalog,
     initial: { assets: {}, spendByYear: {} },
@@ -100,6 +102,20 @@ export class HomeCatalog extends Domain.View(
         }))
         return spend(updated, event.completedOn, event.costCents)
       },
+      PendingWorkAdded: (state, event, { source }) =>
+        update(state, source.id, (asset) => ({
+          ...asset,
+          pendingWork: { ...asset.pendingWork, [event.workId]: Struct.omit(event, ['_tag']) },
+        })),
+      PendingWorkCompleted: (state, { workId, meterAdvancedTo, completedOn, costCents }, { source }) =>
+        spend(
+          update(state, source.id, (asset) => ({
+            ...updateMeter({ asset, reading: Option.fromUndefinedOr(meterAdvancedTo) }),
+            pendingWork: Record.remove(asset.pendingWork ?? {}, workId),
+          })),
+          completedOn,
+          costCents
+        ),
       ServiceLogged: (state, event, { source }) =>
         spend(
           update(state, source.id, (asset) =>
@@ -127,7 +143,10 @@ export class HomeCatalog extends Domain.View(
         update(state, source.id, (asset) => ({ ...asset, specs: Record.remove(asset.specs, key) })),
     },
   },
-  { description: 'Read the household’s assets, maintenance due thresholds, warranty expirations, and annual spend.' }
+  {
+    description:
+      'Read the household’s assets, maintenance due thresholds, pending work, warranty expirations, and annual spend.',
+  }
 ) {}
 
 export const HomeCatalogLive = HomeCatalog.toLayer(Effect.succeed(() => Effect.asVoid(CurrentActor)))

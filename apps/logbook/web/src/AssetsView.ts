@@ -11,6 +11,7 @@ import { forms, secondaryButton } from './Forms.ts'
 import type { AssetSetupMode } from './Model.ts'
 import { dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, CatalogAsset, Model } from './Model.ts'
+import { pendingWorkView } from './PendingWorkView.ts'
 
 const byName = Order.mapInput(Order.String, (asset: CatalogAsset) => Str.toLowerCase(asset.name))
 const searchableText = (asset: CatalogAsset): string =>
@@ -34,6 +35,7 @@ const activityLabel = (event: Model['activity'][number]['event']): string =>
     AssetRegistered: ({ name }) => `Registered ${name}`,
     AssetRetired: ({ reason }) => `Retired asset (${reason})`,
     TaskCompleted: ({ scheduleId }) => `Completed task ${scheduleId}`,
+    PendingWorkCompleted: ({ title }) => `Completed ${title}`,
     ServiceLogged: ({ title }) => title,
     MeterRecorded: ({ reading, correction }) => `Meter ${correction ? 'corrected to' : 'recorded at'} ${reading}`,
     WarrantyRecorded: ({ label }) => `Recorded warranty for ${label}`,
@@ -189,6 +191,7 @@ const detailView =
           'No active schedules.',
           setup('AddSchedule', 'Add schedule')
         ),
+        pendingWorkView(h)(model, { asset }),
         section(
           'Warranties',
           Arr.map(Record.values(asset.warranties), (warranty) =>

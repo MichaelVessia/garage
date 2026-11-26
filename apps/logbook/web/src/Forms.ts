@@ -53,10 +53,12 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
         ),
       ]
     )
-  const notes = h.label(
-    [h.Class('block text-sm font-medium')],
-    ['Notes (optional)', h.textarea([h.Class(control), h.Rows(2), h.Value(value('notes')), h.OnInput(change('notes'))])]
-  )
+  const textarea = (field: Field, label: string): Html =>
+    h.label(
+      [h.Class('block text-sm font-medium')],
+      [label, h.textarea([h.Class(control), h.Rows(2), h.Value(value(field)), h.OnInput(change(field))])]
+    )
+  const notes = textarea('notes', 'Notes (optional)')
   const work = (meterEnabled: boolean): ReadonlyArray<Html> => [
     select(
       'performedBy',
@@ -294,6 +296,26 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
   return {
     quick,
     completion: (meterEnabled: boolean) => form('Save completion', work(meterEnabled), true),
+    addPendingWork: () =>
+      form(
+        'Save pending work',
+        [
+          text('title', 'Work title', { required: true }),
+          text('dueOn', 'Due date (optional)', { type: 'date' }),
+          textarea('notes', 'Notes for parts or location (optional)'),
+        ],
+        true
+      ),
+    pendingWorkCompletion: (meterEnabled: boolean) =>
+      form(
+        'Save completion',
+        [
+          text('completedOn', 'Completion date (optional)', { type: 'date' }),
+          ...work(meterEnabled),
+          textarea('parts', 'Parts used (optional, one per line)'),
+        ],
+        true
+      ),
     assetSetup,
     assetEdit: () => form('Save asset', assetMetadata(), true),
   }

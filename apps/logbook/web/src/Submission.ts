@@ -1,13 +1,16 @@
 import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
-import { AssetId } from '@garage/logbook-domain/Asset/Asset.id'
+import { PendingWorkAlreadyExists } from '@garage/logbook-domain/Asset/AddPendingWork.command'
+import { AssetId, PendingWorkId } from '@garage/logbook-domain/Asset/Asset.id'
 import type { AssetMetadata } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { AssetNotActive } from '@garage/logbook-domain/Asset/AssetNotActive.rejection'
+import { PendingWorkNotOpen } from '@garage/logbook-domain/Asset/CompletePendingWork.command'
 import { MeterRollback } from '@garage/logbook-domain/Asset/MeterRollback.rejection'
 import { NoMeterConfigured } from '@garage/logbook-domain/Asset/NoMeterConfigured.rejection'
 import { AssetAlreadyRegistered } from '@garage/logbook-domain/Asset/RegisterAsset.command'
 import { ScheduleNotFound } from '@garage/logbook-domain/Asset/ScheduleNotFound.rejection'
 import { Unauthorized } from '@garage/logbook-domain/Session.middleware'
 import { AssetCategory, Cents, IsoDate, MeterReading, MeterUnit } from '@garage/logbook-domain/Values'
+import * as Arr from 'effect/Array'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
@@ -131,6 +134,45 @@ const commandFor = (
         commandId,
         input: { ...work, scheduleId: model.editor.scheduleId },
       })
+    case 'AddPendingWork': {
+      const title = text('title')
+      const dueOn = text('dueOn')
+      if (title === '') {
+        return 'Enter the work title.'
+      }
+      if (dueOn !== '' && !Schema.is(IsoDate)(dueOn)) {
+        return 'Enter a due date in YYYY-MM-DD format.'
+      }
+      const input: Types.Mutable<Parameters<typeof client.AddPendingWork>[0]['input']> = {
+        workId: PendingWorkId.make(commandId),
+        title,
+      }
+      if (notes !== '') {
+        input.notes = notes
+      }
+      if (dueOn !== '') {
+        input.dueOn = dueOn
+      }
+      return client.AddPendingWork({ target: model.editor.assetId, commandId, input })
+    }
+    case 'CompletePendingWork': {
+      const completedOn = text('completedOn')
+      if (completedOn !== '' && !Schema.is(IsoDate)(completedOn)) {
+        return 'Enter a completion date in YYYY-MM-DD format.'
+      }
+      const parts = Arr.filter(Arr.map(Str.split(/\r?\n/u)(text('parts')), Str.trim), (part) => part !== '')
+      const input: Types.Mutable<Parameters<typeof client.CompletePendingWork>[0]['input']> = {
+        ...work,
+        workId: model.editor.workId,
+      }
+      if (completedOn !== '') {
+        input.completedOn = completedOn
+      }
+      if (parts.length > 0) {
+        input.parts = parts
+      }
+      return client.CompletePendingWork({ target: model.editor.assetId, commandId, input })
+    }
     case 'RecordMeter': {
       const target = parseAssetId(model.fields.asset ?? '')
       if (Option.isNone(target) || reading === undefined) {
@@ -227,6 +269,12 @@ const rejectionMessage = (rejection: unknown): string => {
   }
   if (Schema.is(ScheduleNotFound)(rejection)) {
     return 'This schedule is no longer active.'
+  }
+  if (Schema.is(PendingWorkNotOpen)(rejection)) {
+    return 'This work is no longer pending.'
+  }
+  if (Schema.is(PendingWorkAlreadyExists)(rejection)) {
+    return 'This work is already recorded.'
   }
   if (Schema.is(NoMeterConfigured)(rejection)) {
     return 'This asset has no meter.'

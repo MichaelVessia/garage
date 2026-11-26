@@ -261,6 +261,8 @@ it.live('protects the OpenAPI document and serves HTTP commands and reads', () =
     assert.propertyVal(document, 'openapi', '3.1.0')
     assert.nestedProperty(document, 'paths./v1/RegisterAsset.post')
     assert.nestedProperty(document, 'paths./v1/UpdateAsset.post')
+    assert.nestedProperty(document, 'paths./v1/AddPendingWork.post')
+    assert.nestedProperty(document, 'paths./v1/CompletePendingWork.post')
     assert.nestedProperty(document, 'paths./v1/HomeCatalog/{key}.get')
 
     const registered = yield* handle('/v1/RegisterAsset', {
@@ -363,6 +365,8 @@ it.live('discovers, lists, and calls Logbook MCP tools over HTTP', () =>
         'LogbookApi_AddSchedule_send',
         'LogbookApi_ArchiveSchedule_send',
         'LogbookApi_CompleteTask_send',
+        'LogbookApi_AddPendingWork_send',
+        'LogbookApi_CompletePendingWork_send',
         'LogbookApi_LogService_send',
         'LogbookApi_RecordWarranty_send',
         'LogbookApi_RemoveWarranty_send',
@@ -425,6 +429,68 @@ it.live('discovers, lists, and calls Logbook MCP tools over HTTP', () =>
     const viewResult = yield* json(view)
     assert.nestedPropertyVal(viewResult, 'result.structuredContent.value.assets.furnace.name', 'Furnace')
     assert.nestedPropertyVal(viewResult, 'result.structuredContent.value.assets.furnace.serialNumber', 'F123')
+  }).pipe(Effect.provide(server))
+)
+
+// The HTTP reads wait for the live projection workers after the writes.
+// ast-grep-ignore: no-it-live
+it.live('retries pending work commands through HTTP and MCP without duplicating spend or history', () =>
+  Effect.gen(function* () {
+    const client = yield* LogbookApi.clientInProcess
+    const target = AssetId.make('washer')
+    yield* client.RegisterAsset(target, { name: 'Washer', category: 'appliance' }, session)
+    const work = { workId: 'hose', title: 'Replace hose', notes: 'Spare hose under sink.' }
+    const body = yield* Schema.encodeEffect(JsonBody)({ target, commandId: 'add-hose', input: work })
+    const add = () =>
+      handle('/v1/AddPendingWork', {
+        method: 'POST',
+        headers: { ...authHeaders, 'content-type': 'application/json' },
+        body,
+      })
+    const created = yield* add()
+    const retried = yield* add()
+    assert.strictEqual(created.status, 200)
+    assert.strictEqual(retried.status, 200)
+    const createdReceipt = yield* json(created)
+    const retriedReceipt = yield* json(retried)
+    assert.deepStrictEqual(retriedReceipt, createdReceipt)
+    const Receipt = Schema.Struct({ stream: Schema.String, version: Schema.Int })
+    const atLeast = yield* Schema.decodeUnknownEffect(Receipt)(createdReceipt)
+    const detail = yield* client.AssetDetail.get(target, { ...session, atLeast })
+    assert.deepPropertyVal(detail, 'pendingWork', { [work.workId]: work })
+
+    const name = 'LogbookApi_CompletePendingWork_send'
+    const complete = () =>
+      mcp(
+        'tools/call',
+        {
+          name,
+          arguments: {
+            target,
+            commandId: 'complete-hose',
+            input: { workId: work.workId, performedBy: 'diy', costCents: 1575, completedOn: '2025-12-31' },
+          },
+        },
+        name
+      )
+    const completed = yield* complete()
+    const repeated = yield* complete()
+    assert.strictEqual(completed.status, 200)
+    assert.strictEqual(repeated.status, 200)
+    const completedBody = yield* json(completed)
+    const repeatedBody = yield* json(repeated)
+    const Result = Schema.Struct({ result: Schema.Struct({ structuredContent: Receipt }) })
+    const { result } = yield* Schema.decodeUnknownEffect(Result)(completedBody)
+    assert.nestedPropertyVal(repeatedBody, 'result.structuredContent.version', result.structuredContent.version)
+    const read = { ...session, atLeast: result.structuredContent }
+    const catalog = yield* client.HomeCatalog.get(HOME_HOUSEHOLD_ID, read)
+    const activity = yield* client.AssetActivity.list(target, { ...read, order: 'desc' })
+    assert.deepNestedPropertyVal(catalog, 'assets.washer.pendingWork', {})
+    assert.deepPropertyVal(catalog, 'spendByYear', { '2025': 1575 })
+    assert.lengthOf(activity.entries, 2)
+    assert.nestedPropertyVal(activity.entries[0], 'event.event.title', work.title)
+    assert.nestedPropertyVal(activity.entries[0], 'event.event.costCents', 1575)
+    assert.nestedPropertyVal(activity.entries[0], 'event.event.completedOn', '2025-12-31')
   }).pipe(Effect.provide(server))
 )
 

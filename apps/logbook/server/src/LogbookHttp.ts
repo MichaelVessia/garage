@@ -14,6 +14,8 @@ const LogbookHttpSpec = DomainHttp.toHttpApi(LogbookApi, {
     'AddSchedule',
     'ArchiveSchedule',
     'CompleteTask',
+    'AddPendingWork',
+    'CompletePendingWork',
     'LogService',
     'RecordWarranty',
     'RemoveWarranty',

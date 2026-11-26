@@ -1,5 +1,5 @@
 import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
-import { AssetId, ScheduleId } from '@garage/logbook-domain/Asset/Asset.id'
+import { AssetId, PendingWorkId, ScheduleId } from '@garage/logbook-domain/Asset/Asset.id'
 import { ActivityEntry } from '@garage/logbook-domain/Asset/AssetActivity.view'
 import { AssetMetadata } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
@@ -34,6 +34,9 @@ const Field = Schema.Literals([
   'purchasePrice',
   'location',
   'title',
+  'dueOn',
+  'completedOn',
+  'parts',
   'reading',
   'cost',
   'performedBy',
@@ -58,6 +61,8 @@ const Field = Schema.Literals([
 export type Field = typeof Field.Type
 export const Editor = Schema.TaggedUnion({
   CompleteTask: { assetId: AssetId, scheduleId: ScheduleId },
+  AddPendingWork: { assetId: AssetId },
+  CompletePendingWork: { assetId: AssetId, workId: PendingWorkId },
   RecordMeter: {},
   LogService: {},
   RegisterAsset: {},
@@ -98,6 +103,8 @@ export const Message = defineMessageUnion({
   SearchedAssets: { query: Schema.String },
   SelectedAsset: { assetId: Schema.NullOr(AssetId) },
   OpenedCompletion: { assetId: AssetId, scheduleId: ScheduleId },
+  OpenedPendingWork: {},
+  OpenedPendingWorkCompletion: { assetId: AssetId, workId: PendingWorkId },
   OpenedAssetSetup: { mode: AssetSetupMode },
   OpenedAssetEdit: {},
   ChoseQuickMode: { mode: QuickMode },

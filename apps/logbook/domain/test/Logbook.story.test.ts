@@ -8,14 +8,20 @@ import * as Stream from 'effect/Stream'
 import * as Struct from 'effect/Struct'
 
 import { owner, system } from '../src/Actor.ts'
+import { AddPendingWork, PendingWorkAdded, PendingWorkAlreadyExists } from '../src/Asset/AddPendingWork.command.ts'
 import { AddSchedule, ScheduleAdded, ScheduleAlreadyExists } from '../src/Asset/AddSchedule.command.ts'
 import { ArchiveSchedule, ScheduleArchived } from '../src/Asset/ArchiveSchedule.command.ts'
 import { Asset } from '../src/Asset/Asset.aggregate.ts'
-import { LinkId, ScheduleId, WarrantyId } from '../src/Asset/Asset.id.ts'
+import { LinkId, PendingWorkId, ScheduleId, WarrantyId } from '../src/Asset/Asset.id.ts'
 import { ActivityEntry, AssetActivity } from '../src/Asset/AssetActivity.view.ts'
 import { AssetDetail } from '../src/Asset/AssetDetail.view.ts'
 import { AssetNotActive } from '../src/Asset/AssetNotActive.rejection.ts'
 import { AttachLink, LinkAlreadyExists, LinkAttached } from '../src/Asset/AttachLink.command.ts'
+import {
+  CompletePendingWork,
+  PendingWorkCompleted,
+  PendingWorkNotOpen,
+} from '../src/Asset/CompletePendingWork.command.ts'
 import { CompleteTask, TaskCompleted } from '../src/Asset/CompleteTask.command.ts'
 import { LogService, ServiceLogged } from '../src/Asset/LogService.command.ts'
 import { MeterRollback } from '../src/Asset/MeterRollback.rejection.ts'
@@ -176,6 +182,72 @@ it.effect('registers two assets, retires one, and refuses all commands after ret
       ActivityEntry.make({ assetId: truck.id, at: DateTime.makeUnsafe(jan1), event: truckRegistered }),
       ActivityEntry.make({ assetId: truck.id, at: DateTime.makeUnsafe(jan1), event: retired }),
     ])
+  )
+})
+
+it.effect('completes one-time work from existing asset history and records the work and spend once', () => {
+  const workId = PendingWorkId.make('door-seal')
+  const work = { workId, title: 'Replace door seal', notes: 'Spare seal in garage cabinet.' }
+  const dated = { workId: PendingWorkId.make('latch'), title: 'Adjust latch', dueOn: IsoDate.make('2025-01-03') }
+  const details = {
+    workId,
+    completedOn: IsoDate.make('2024-12-31'),
+    meterReading: 105,
+    performedBy: 'shop',
+    vendor: 'Local shop',
+    costCents: 4525,
+    parts: ['Door seal'],
+    notes: 'Checked for leaks.',
+    links: [{ id: LinkId.make('invoice'), label: 'Invoice', url: 'https://example.com/invoice' }],
+  } satisfies Parameters<typeof CompletePendingWork.make>[0]
+  const completed = PendingWorkCompleted.make({ ...details, title: work.title, meterAdvancedTo: 105 })
+  const notOpen = PendingWorkNotOpen.make({ workId })
+  const alreadyExists = PendingWorkAlreadyExists.make({ workId })
+  return story(
+    Story.clock(jan1),
+    signedIn,
+    Story.when(truck, AddPendingWork.make(work)),
+    Story.rejected(AssetNotActive.make({ status: 'unregistered' })),
+    Story.given(truck, truckRegistered),
+    Story.when(truck, CompletePendingWork.make(details)),
+    Story.rejected(notOpen),
+    Story.when(truck, AddPendingWork.make(work)),
+    Story.then(truck, PendingWorkAdded.make(work)),
+    Story.when(truck, AddPendingWork.make(dated)),
+    Story.then(truck, PendingWorkAdded.make(dated)),
+    Story.when(truck, AddPendingWork.make(work)),
+    Story.rejected(alreadyExists),
+    Story.view(AssetDetail, truck, { pendingWork: { [workId]: work, [dated.workId]: dated }, totalSpendCents: 0 }),
+    Story.view(HomeCatalog, HOME_HOUSEHOLD_ID, ({ assets, spendByYear }) => {
+      assert.deepStrictEqual(assets[truck.id]?.pendingWork, { [workId]: work, [dated.workId]: dated })
+      assert.deepStrictEqual(spendByYear, {})
+    }),
+    Story.when(truck, CompletePendingWork.make({ ...details, meterReading: 95 })),
+    Story.rejected(MeterRollback.make({ current: 100, submitted: 95 })),
+    Story.when(truck, CompletePendingWork.make(details)),
+    Story.then(truck, completed),
+    Story.when(truck, CompletePendingWork.make(details)),
+    Story.rejected(notOpen),
+    Story.when(truck, AddPendingWork.make(work)),
+    Story.rejected(alreadyExists),
+    Story.view(AssetDetail, truck, (asset) => {
+      assert.deepInclude(asset, { totalSpendCents: 4525, meter: { unit: 'miles', reading: 105 }, schedules: {} })
+      assert.deepPropertyVal(asset, 'pendingWork', { [dated.workId]: dated })
+    }),
+    Story.view(HomeCatalog, HOME_HOUSEHOLD_ID, ({ assets, spendByYear }) => {
+      assert.deepStrictEqual(assets[truck.id]?.pendingWork, { [dated.workId]: dated })
+      assert.deepStrictEqual(spendByYear, { '2024': 4525 })
+    }),
+    Story.emitted(AssetActivity, truck, [
+      ActivityEntry.make({ assetId: truck.id, at: DateTime.makeUnsafe(jan1), event: truckRegistered }),
+      ActivityEntry.make({ assetId: truck.id, at: DateTime.makeUnsafe(jan1), event: completed }),
+    ]),
+    Story.when(truck, RetireAsset.make({ reason: 'sold' })),
+    Story.then(truck, AssetRetired.make({ reason: 'sold' })),
+    Story.when(truck, AddPendingWork.make({ ...work, workId: PendingWorkId.make('new') })),
+    Story.rejected(AssetNotActive.make({ status: 'retired' })),
+    Story.when(truck, CompletePendingWork.make({ ...details, workId: dated.workId })),
+    Story.rejected(AssetNotActive.make({ status: 'retired' }))
   )
 })
 

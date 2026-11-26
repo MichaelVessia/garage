@@ -7,12 +7,14 @@ import * as Struct from 'effect/Struct'
 
 import { computeNextDue, isoDateFromUtc } from '../ScheduleMath.ts'
 import { Cadence, DueThresholds, Meter, RetirementReason } from '../Values.ts'
+import { AddPendingWork, PendingWorkAdded, PendingWorkAlreadyExists } from './AddPendingWork.command.ts'
 import { AddSchedule, ScheduleAdded, ScheduleAlreadyExists } from './AddSchedule.command.ts'
 import { ArchiveSchedule, ScheduleArchived } from './ArchiveSchedule.command.ts'
-import { AssetId, LinkId, ScheduleId, WarrantyId } from './Asset.id.ts'
+import { AssetId, LinkId, PendingWorkId, ScheduleId, WarrantyId } from './Asset.id.ts'
 import { registeredMeter, updateMeter } from './AssetMeter.ts'
 import { AssetNotActive } from './AssetNotActive.rejection.ts'
 import { AttachLink, LinkAlreadyExists, LinkAttached } from './AttachLink.command.ts'
+import { CompletePendingWork, PendingWorkCompleted, PendingWorkNotOpen } from './CompletePendingWork.command.ts'
 import { CompleteTask, TaskCompleted } from './CompleteTask.command.ts'
 import { LogService, ServiceLogged } from './LogService.command.ts'
 import { MeterRollback } from './MeterRollback.rejection.ts'
@@ -29,11 +31,14 @@ import { ScheduleNotFound } from './ScheduleNotFound.rejection.ts'
 import { SetSpec, SpecSet } from './SetSpec.command.ts'
 import { AssetUpdated, UpdateAsset } from './UpdateAsset.command.ts'
 
+const WorkStatus = Schema.TaggedUnion({ Pending: { title: Schema.NonEmptyString }, Completed: {} })
+
 const AssetState = Schema.TaggedUnion({
   Unregistered: {},
   Active: {
     meter: Schema.optionalKey(Meter),
     schedules: Schema.Record(ScheduleId, Schema.Struct({ cadence: Cadence, ...DueThresholds.fields })),
+    oneTimeWork: Schema.optionalKey(Schema.Record(PendingWorkId, WorkStatus)),
     warrantyIds: Schema.Array(WarrantyId),
     specKeys: Schema.Array(Schema.String),
     linkIds: Schema.Array(LinkId),
@@ -82,6 +87,8 @@ export class Asset extends Domain.Aggregate('Asset', {
     AddSchedule,
     ArchiveSchedule,
     CompleteTask,
+    AddPendingWork,
+    CompletePendingWork,
     LogService,
     RecordWarranty,
     RemoveWarranty,
@@ -171,6 +178,33 @@ export class Asset extends Domain.Aggregate('Asset', {
         }),
       ]
     },
+    AddPendingWork: (state, cmd) => {
+      if (!AssetState.guards.Active(state)) {
+        return notActive(state)
+      }
+      return Record.has(state.oneTimeWork ?? {}, cmd.workId)
+        ? PendingWorkAlreadyExists.make({ workId: cmd.workId })
+        : [PendingWorkAdded.make(Struct.omit(cmd, ['_tag']))]
+    },
+    CompletePendingWork: (state, cmd, { id, now }) => {
+      if (!AssetState.guards.Active(state)) {
+        return notActive(state)
+      }
+      const work = Record.get(state.oneTimeWork ?? {}, cmd.workId)
+      if (Option.isNone(work) || !WorkStatus.guards.Pending(work.value)) {
+        return PendingWorkNotOpen.make({ workId: cmd.workId })
+      }
+      const { title } = work.value
+      const rejection = checkReading(id, state, Option.fromUndefinedOr(cmd.meterReading), cmd.correction ?? false)
+      return Option.getOrElse(rejection, () => [
+        PendingWorkCompleted.make({
+          ...Struct.omit(cmd, ['_tag', 'correction']),
+          title,
+          completedOn: cmd.completedOn ?? isoDateFromUtc(now),
+          ...meterChange(state, cmd.meterReading),
+        }),
+      ])
+    },
     LogService: (state, cmd, { id, now }) => {
       if (!AssetState.guards.Active(state)) {
         return notActive(state)
@@ -259,6 +293,16 @@ export class Asset extends Domain.Aggregate('Asset', {
           cadence,
           ...Struct.pick(event, ['nextDueOn', 'nextDueMeter']),
         })).pipe(Option.getOrElse(() => active.schedules)),
+      })),
+    PendingWorkAdded: (state, { workId, title }) =>
+      updateActive(state, (active) => ({
+        ...active,
+        oneTimeWork: { ...active.oneTimeWork, [workId]: WorkStatus.cases.Pending.make({ title }) },
+      })),
+    PendingWorkCompleted: (state, { workId, meterAdvancedTo }) =>
+      updateActive(state, (active) => ({
+        ...updateMeter({ asset: active, reading: Option.fromUndefinedOr(meterAdvancedTo) }),
+        oneTimeWork: { ...active.oneTimeWork, [workId]: WorkStatus.cases.Completed.make({}) },
       })),
     ServiceLogged: (state, { meterAdvancedTo }) =>
       updateActive(state, (active) => updateMeter({ asset: active, reading: Option.fromUndefinedOr(meterAdvancedTo) })),

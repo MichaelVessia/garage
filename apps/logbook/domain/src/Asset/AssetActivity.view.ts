@@ -6,6 +6,7 @@ import { CurrentActor } from '../CurrentActor.context.ts'
 import { Session } from '../Session.middleware.ts'
 import { Asset } from './Asset.aggregate.ts'
 import { AssetId } from './Asset.id.ts'
+import { PendingWorkCompleted } from './CompletePendingWork.command.ts'
 import { TaskCompleted } from './CompleteTask.command.ts'
 import { ServiceLogged } from './LogService.command.ts'
 import { MeterRecorded } from './RecordMeter.command.ts'
@@ -17,6 +18,7 @@ const ActivityEvent = Schema.Union([
   AssetRegistered,
   AssetRetired,
   TaskCompleted,
+  PendingWorkCompleted,
   ServiceLogged,
   MeterRecorded,
   WarrantyRecorded,
@@ -38,6 +40,7 @@ export class AssetActivity extends Domain.View(
   {
     from: [Asset],
     key: Asset,
+    version: 1,
     middleware: [Session],
     state: Schema.Struct({}),
     initial: {},
@@ -46,6 +49,7 @@ export class AssetActivity extends Domain.View(
       AssetRegistered: entry,
       AssetRetired: entry,
       TaskCompleted: entry,
+      PendingWorkCompleted: entry,
       ServiceLogged: entry,
       MeterRecorded: entry,
       WarrantyRecorded: entry,
