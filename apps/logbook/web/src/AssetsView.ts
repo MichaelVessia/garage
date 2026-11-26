@@ -1,16 +1,16 @@
 import * as Arr from 'effect/Array'
-import * as DateTime from 'effect/DateTime'
-import * as Match from 'effect/Match'
 import * as Order from 'effect/Order'
 import * as Record from 'effect/Record'
 import * as Str from 'effect/String'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
+import { activityRows } from './ActivityView.ts'
 import { thresholdText } from './DueView.ts'
 import { forms, secondaryButton } from './Forms.ts'
 import { AssetSetupAction, dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, CatalogAsset, Model } from './Model.ts'
 import { pendingWorkView } from './PendingWorkView.ts'
+import { webLink } from './WebLink.ts'
 
 const byName = Order.mapInput(Order.String, (asset: CatalogAsset) => Str.toLowerCase(asset.name))
 const searchableText = (asset: CatalogAsset): string =>
@@ -29,23 +29,12 @@ const searchableText = (asset: CatalogAsset): string =>
     )
   )
 
-const activityLabel = (event: Model['activity'][number]['event']): string =>
-  Match.valueTags(event, {
-    AssetRegistered: ({ name }) => `Registered ${name}`,
-    AssetRetired: ({ reason }) => `Retired asset (${reason})`,
-    TaskCompleted: ({ scheduleId }) => `Completed task ${scheduleId}`,
-    PendingWorkCompleted: ({ title }) => `Completed ${title}`,
-    ServiceLogged: ({ title }) => title,
-    MeterRecorded: ({ reading, correction }) => `Meter ${correction ? 'corrected to' : 'recorded at'} ${reading}`,
-    WarrantyRecorded: ({ label }) => `Recorded warranty for ${label}`,
-  })
-
 const detailView =
   (h: HtmlBuilder<Message>) =>
   (model: Model, asset: AssetDetails): Html => {
     const section = (title: string, items: ReadonlyArray<Html>, empty: string, action: Html = null) =>
       h.section(
-        [h.Class('space-y-2 border-t border-stone-200 pt-4')],
+        [h.AriaLabel(title), h.Class('space-y-2 border-t border-stone-200 pt-4')],
         [
           h.h3([h.Class('text-base font-semibold')], [title]),
           items.length === 0
@@ -55,15 +44,8 @@ const detailView =
         ]
       )
 
-    const webLink = (label: string, url?: string) => {
-      if (url === undefined || !URL.canParse(url)) {
-        return null
-      }
-      const target = new URL(url)
-      return target.protocol === 'https:' || target.protocol === 'http:'
-        ? h.a([h.Href(target.href), h.Class('font-medium text-teal-800 underline underline-offset-2')], [label])
-        : null
-    }
+    const renderLink = webLink(h)
+    const activity = activityRows(h)(model.activity, asset.meter)
     const opened = Editor.guards.CompleteTask(model.editor) ? model.editor : null
     const { completion, assetSetup, assetEdit } = forms(h)(model)
     const setupButton = (action: AssetSetupAction, label: string, subject?: string): Html =>
@@ -145,7 +127,7 @@ const detailView =
                 h.div(
                   [h.Class('flex flex-wrap items-center gap-2')],
                   [
-                    webLink(`Reorder ${spec.key}`, spec.url),
+                    renderLink(`Reorder ${spec.key}`, spec.url),
                     setupButton(AssetSetupAction.cases.SetSpec.make({ previousKey: spec.key }), 'Edit spec', spec.key),
                     setupButton(AssetSetupAction.cases.RemoveSpec.make({ key: spec.key }), 'Remove spec', spec.key),
                   ]
@@ -233,7 +215,7 @@ const detailView =
                 h.div(
                   [h.Class('flex flex-wrap items-center gap-2')],
                   [
-                    webLink(`Open ${warranty.label}`, warranty.url),
+                    renderLink(`Open ${warranty.label}`, warranty.url),
                     setupButton(
                       AssetSetupAction.cases.RecordWarranty.make({ replacesWarrantyId: warranty.id }),
                       'Edit warranty',
@@ -258,7 +240,7 @@ const detailView =
             h.li(
               [h.Key(link.id), h.Class('flex flex-wrap items-center gap-2')],
               [
-                webLink(link.label, link.url) ?? link.label,
+                renderLink(link.label, link.url) ?? link.label,
                 setupButton(
                   AssetSetupAction.cases.AttachLink.make({ replacesLinkId: link.id }),
                   'Replace link',
@@ -272,21 +254,15 @@ const detailView =
           setup(AssetSetupAction.cases.AttachLink.make({}), 'Attach link', 'RemoveLink')
         ),
         section(
-          'Activity',
-          Arr.map(model.activity, ({ event, at }, index) =>
-            h.li(
-              [h.Key(String(model.activity.length - index)), h.Class('border-l-2 border-teal-200 pl-3')],
-              [
-                h.time(
-                  [h.Datetime(DateTime.formatIso(at)), h.Class('text-stone-600')],
-                  [DateTime.formatIsoDateUtc(at)]
-                ),
-                h.p([h.Class('font-medium')], [activityLabel(event)]),
-              ]
-            )
-          ),
-          'No activity recorded.'
+          'Service history',
+          activity.history,
+          model.readFailures.activity
+            ? 'Service history unavailable.'
+            : model.activityCaughtUp
+              ? 'No service recorded.'
+              : 'Loading service history…'
         ),
+        section('Activity', activity.activity, model.activityCaughtUp ? 'No activity recorded.' : ''),
       ]
     )
   }

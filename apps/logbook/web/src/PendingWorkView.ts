@@ -17,7 +17,7 @@ export const pendingWorkView =
   (model: Model, source: { readonly asset: WorkAsset } | { readonly assets: ReadonlyArray<WorkAsset> }): Html => {
     const selected = 'asset' in source ? source.asset : undefined
     const assets = 'asset' in source ? [source.asset] : source.assets
-    const { addPendingWork, pendingWorkCompletion } = forms(h)(model)
+    const { addPendingWork, completion } = forms(h)(model)
     const adding = Editor.guards.AddPendingWork(model.editor)
     const opened = Editor.guards.CompletePendingWork(model.editor) ? model.editor : null
     const disabled = model.attempt !== null || model.sessionExpired
@@ -49,7 +49,7 @@ export const pendingWorkView =
                 )
               : null,
         opened !== null && !Arr.some(items, isOpen)
-          ? pendingWorkCompletion(Arr.some(assets, (asset) => asset.id === opened.assetId && asset.meter !== undefined))
+          ? completion(Arr.some(assets, (asset) => asset.id === opened.assetId && asset.meter !== undefined))
           : null,
         items.length === 0
           ? h.p([h.Class('text-sm text-stone-600')], ['No pending work.'])
@@ -91,7 +91,7 @@ export const pendingWorkView =
                             ),
                       ]
                     ),
-                    completing ? h.div([h.Class('mt-3')], [pendingWorkCompletion(asset.meter !== undefined)]) : null,
+                    completing ? h.div([h.Class('mt-3')], [completion(asset.meter !== undefined)]) : null,
                   ]
                 )
               })

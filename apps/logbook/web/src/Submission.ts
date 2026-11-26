@@ -33,7 +33,7 @@ const parseReading = Schema.decodeUnknownOption(
 )
 const parseAssetId = Schema.decodeUnknownOption(AssetId)
 
-type Work = Omit<Parameters<typeof client.LogService>[0]['input'], 'title'>
+type Work = Omit<Parameters<typeof client.LogService>[0]['input'], 'title' | 'performedOn'>
 type Registration = Parameters<typeof client.RegisterAsset>[0]['input']
 type AssetUpdate = Parameters<typeof client.UpdateAsset>[0]['input']
 
@@ -96,6 +96,8 @@ const commandFor = (
   const cents = Math.round(Number(costText) * 100)
   const vendor = text('vendor')
   const notes = text('notes')
+  const performedOn = text('performedOn')
+  const parts = Arr.filter(Arr.map(Str.split(/\r?\n/u)(text('parts')), Str.trim), Str.isNonEmpty)
   const correction = text('correction') === 'true'
 
   if (readingText !== '' && reading === undefined) {
@@ -103,6 +105,9 @@ const commandFor = (
   }
   if (costText !== '' && (!/^\d+(?:\.\d{1,2})?$/u.test(costText) || !Schema.is(Cents)(cents))) {
     return 'Enter a cost in dollars with up to two decimal places.'
+  }
+  if (performedOn !== '' && !Schema.is(IsoDate)(performedOn)) {
+    return 'Enter a valid performed date.'
   }
 
   const work: Types.Mutable<Work> = {
@@ -120,6 +125,9 @@ const commandFor = (
   if (notes !== '') {
     work.notes = notes
   }
+  if (parts.length > 0) {
+    work.parts = parts
+  }
   if (correction) {
     work.correction = true
   }
@@ -132,12 +140,20 @@ const commandFor = (
         fields: model.fields,
         costCents: costText === '' ? Option.none() : Option.some(cents),
       })
-    case 'CompleteTask':
+    case 'CompleteTask': {
+      const input: Types.Mutable<Parameters<typeof client.CompleteTask>[0]['input']> = {
+        ...work,
+        scheduleId: model.editor.scheduleId,
+      }
+      if (performedOn !== '') {
+        input.completedOn = performedOn
+      }
       return client.CompleteTask({
         target: model.editor.assetId,
         commandId,
-        input: { ...work, scheduleId: model.editor.scheduleId },
+        input,
       })
+    }
     case 'AddPendingWork': {
       const title = text('title')
       const dueOn = text('dueOn')
@@ -160,20 +176,12 @@ const commandFor = (
       return client.AddPendingWork({ target: model.editor.assetId, commandId, input })
     }
     case 'CompletePendingWork': {
-      const completedOn = text('completedOn')
-      if (completedOn !== '' && !Schema.is(IsoDate)(completedOn)) {
-        return 'Enter a completion date in YYYY-MM-DD format.'
-      }
-      const parts = Arr.filter(Arr.map(Str.split(/\r?\n/u)(text('parts')), Str.trim), (part) => part !== '')
       const input: Types.Mutable<Parameters<typeof client.CompletePendingWork>[0]['input']> = {
         ...work,
         workId: model.editor.workId,
       }
-      if (completedOn !== '') {
-        input.completedOn = completedOn
-      }
-      if (parts.length > 0) {
-        input.parts = parts
+      if (performedOn !== '') {
+        input.completedOn = performedOn
       }
       return client.CompletePendingWork({ target: model.editor.assetId, commandId, input })
     }
@@ -190,7 +198,11 @@ const commandFor = (
       if (Option.isNone(target) || title === '') {
         return 'Select an asset and enter the service title.'
       }
-      return client.LogService({ target: target.value, commandId, input: { ...work, title } })
+      const input: Types.Mutable<Parameters<typeof client.LogService>[0]['input']> = { ...work, title }
+      if (performedOn !== '') {
+        input.performedOn = performedOn
+      }
+      return client.LogService({ target: target.value, commandId, input })
     }
     case 'RegisterAsset': {
       const metadata = assetMetadata(model.fields)

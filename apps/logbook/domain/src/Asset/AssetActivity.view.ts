@@ -1,11 +1,13 @@
 import * as Domain from '@alchemy.run/domain'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
+import * as Record from 'effect/Record'
 import * as Schema from 'effect/Schema'
 
 import { CurrentActor } from '../CurrentActor.context.ts'
 import { Session } from '../Session.middleware.ts'
 import { Asset } from './Asset.aggregate.ts'
-import { AssetId } from './Asset.id.ts'
+import { AssetId, ScheduleId } from './Asset.id.ts'
 import { PendingWorkCompleted } from './CompletePendingWork.command.ts'
 import { TaskCompleted } from './CompleteTask.command.ts'
 import { ServiceLogged } from './LogService.command.ts'
@@ -28,6 +30,7 @@ export class ActivityEntry extends Domain.Event('ActivityEntry', {
   assetId: AssetId,
   at: Schema.DateTimeUtcFromString,
   event: ActivityEvent,
+  scheduleTitle: Schema.optionalKey(Schema.NonEmptyString),
 }) {}
 
 const entry = (
@@ -42,14 +45,22 @@ export class AssetActivity extends Domain.View(
     key: Asset,
     version: 1,
     middleware: [Session],
-    state: Schema.Struct({}),
+    state: Schema.Record(ScheduleId, Schema.NonEmptyString),
     initial: {},
+    evolve: {
+      ScheduleAdded: (titles, { scheduleId, title }) => ({ ...titles, [scheduleId]: title }),
+      ScheduleArchived: (titles, { scheduleId }) => Record.remove(titles, scheduleId),
+    },
     events: [ActivityEntry],
     emit: {
       AssetRegistered: entry,
       AssetRetired: entry,
-      TaskCompleted: entry,
       PendingWorkCompleted: entry,
+      TaskCompleted: (event, { key, at, before }) => {
+        const activity = { assetId: key.id, at, event }
+        const title = Record.get(before, event.scheduleId)
+        return ActivityEntry.make(Option.isSome(title) ? { ...activity, scheduleTitle: title.value } : activity)
+      },
       ServiceLogged: entry,
       MeterRecorded: entry,
       WarrantyRecorded: entry,

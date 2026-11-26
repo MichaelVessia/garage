@@ -60,6 +60,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     )
   const notes = textarea('notes', 'Notes (optional)')
   const work = (meterEnabled: boolean): ReadonlyArray<Html> => [
+    text('performedOn', 'Performed date (optional, YYYY-MM-DD)'),
     select(
       'performedBy',
       'Performed by',
@@ -72,6 +73,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     text('cost', 'Cost in USD (optional)', { numeric: true }),
     ...(meterEnabled ? [text('reading', 'Meter reading (optional)', { numeric: true })] : []),
     text('vendor', 'Vendor (optional)'),
+    textarea('parts', 'Parts (optional, one per line)'),
     notes,
   ]
 
@@ -319,16 +321,6 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
           text('title', 'Work title', { required: true }),
           text('dueOn', 'Due date (optional)', { type: 'date' }),
           textarea('notes', 'Notes for parts or location (optional)'),
-        ],
-        true
-      ),
-    pendingWorkCompletion: (meterEnabled: boolean) =>
-      form(
-        'Save completion',
-        [
-          text('completedOn', 'Completion date (optional)', { type: 'date' }),
-          ...work(meterEnabled),
-          textarea('parts', 'Parts used (optional, one per line)'),
         ],
         true
       ),

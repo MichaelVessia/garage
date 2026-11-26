@@ -366,6 +366,10 @@ it.effect('records precomputed thresholds for every cadence and updates them on 
     nextDueOn: IsoDate.make('2025-02-03'),
     nextDueMeter: 480,
   })
+  const replacement = { ...oil, title: 'New oil service' }
+  const thresholds = Struct.pick(completed, ['nextDueOn', 'nextDueMeter'])
+  const laterWork = { ...work, parts: ['Filter'] }
+  const laterCompletion = TaskCompleted.make({ ...laterWork, completedOn: completed.completedOn, ...thresholds })
   return story(
     Story.clock(jan1),
     signedIn,
@@ -439,7 +443,15 @@ it.effect('records precomputed thresholds for every cadence and updates them on 
     Story.view(HomeCatalog, HOME_HOUSEHOLD_ID, ({ assets }) => {
       assert.isUndefined(assets[truck.id]?.schedules[oil.scheduleId])
     }),
-    Story.emitted(AssetActivity, truck, [{ event: truckRegistered }, { event: completed }])
+    Story.when(truck, AddSchedule.make(replacement)),
+    Story.then(truck, ScheduleAdded.make({ ...replacement, ...thresholds })),
+    Story.when(truck, CompleteTask.make(laterWork)),
+    Story.then(truck, laterCompletion),
+    Story.emitted(AssetActivity, truck, [
+      { event: truckRegistered },
+      { event: completed, scheduleTitle: oil.title },
+      { event: laterCompletion, scheduleTitle: replacement.title },
+    ])
   )
 })
 

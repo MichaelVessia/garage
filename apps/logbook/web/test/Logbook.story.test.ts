@@ -1,7 +1,9 @@
 import { it } from '@effect/vitest'
-import { AssetId, PendingWorkId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
+import { AssetId, LinkId, PendingWorkId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { ActivityEntry } from '@garage/logbook-domain/Asset/AssetActivity.view'
 import { PendingWorkCompleted } from '@garage/logbook-domain/Asset/CompletePendingWork.command'
+import { TaskCompleted } from '@garage/logbook-domain/Asset/CompleteTask.command'
+import { ServiceLogged } from '@garage/logbook-domain/Asset/LogService.command'
 import { MeterRollback } from '@garage/logbook-domain/Asset/MeterRollback.rejection'
 import { MeterRecorded } from '@garage/logbook-domain/Asset/RecordMeter.command'
 import { ScheduleNotFound } from '@garage/logbook-domain/Asset/ScheduleNotFound.rejection'
@@ -179,6 +181,74 @@ it('finds assets by make, model, and serial number', () => {
   )
 })
 
+it('shows past service and task details in performed date order as they arrive', () => {
+  const history = role('region', { name: 'Service history' })
+  const latest = within(history, role('listitem'))
+  const received = (cursor: number, event: ActivityEntry['event'], scheduleTitle?: string) => {
+    const entry = { assetId: truck, at: DateTime.makeUnsafe(today), event }
+    return Scene.Subscription.emit(
+      Message.ReceivedActivity({
+        cursor,
+        entry: ActivityEntry.make(scheduleTitle === undefined ? entry : { ...entry, scheduleTitle }),
+      })
+    )
+  }
+  const completion = TaskCompleted.make({
+    scheduleId: oil,
+    performedBy: 'shop',
+    completedOn: IsoDate.make('2026-11-12'),
+    vendor: 'Local garage',
+    parts: ['FL-500S'],
+    costCents: 0,
+    meterReading: 40_000,
+    notes: 'Used the spare filter.',
+    links: [
+      { id: LinkId.make('receipt'), label: 'Oil change receipt', url: 'https://parts.example/receipt' },
+      { id: LinkId.make('unsafe'), label: 'Unsafe link', url: 'javascript:void(0)' },
+    ],
+  })
+  const service = ServiceLogged.make({
+    title: 'Replace battery',
+    performedBy: 'diy',
+    performedOn: IsoDate.make('2026-10-02'),
+    parts: ['Group 65 battery'],
+    links: [{ id: LinkId.make('manual'), label: 'Battery manual', url: 'http://parts.example/manual' }],
+  })
+
+  Scene.scene(
+    app,
+    Scene.given(initial),
+    catalogLoaded,
+    press('Assets'),
+    click(role('button', { name: /Truck/u })),
+    Scene.Subscription.emit(
+      Message.ReceivedDetail({
+        detail: { ...truckAsset, schedules: {}, warranties: {}, links: {}, totalSpendCents: 0 },
+      })
+    ),
+    shows('Loading service history…'),
+    received(2, completion, 'Archived oil change'),
+    Scene.Subscription.emit(Message.ActivityCaughtUp()),
+    Scene.expect(latest).toContainText('Archived oil change'),
+    Scene.expect(within(latest, Scene.selector('time'))).toHaveText('2026-11-12'),
+    Scene.expect(within(history, text(today))).toBeAbsent(),
+    shows('Local garage'),
+    shows('Shop'),
+    shows('FL-500S'),
+    shows('$0.00'),
+    shows('Used the spare filter.'),
+    shows('40000 miles'),
+    Scene.expect(role('link', { name: 'Oil change receipt' })).toHaveAttr('href', 'https://parts.example/receipt'),
+    Scene.expect(role('link', { name: 'Unsafe link' })).toBeAbsent(),
+    received(3, service),
+    Scene.expect(latest).toContainText('FL-500S'),
+    shows('Replace battery'),
+    shows('Group 65 battery'),
+    shows('DIY'),
+    Scene.expect(role('link', { name: 'Battery manual' })).toHaveAttr('href', 'http://parts.example/manual')
+  )
+})
+
 it('shows asset metadata and saves only the fields changed in the edit form', () => {
   const detail = {
     ...truckAsset,
@@ -254,10 +324,12 @@ it('saves a due task and closes the inline form on success', () => {
     input: {
       scheduleId: oil,
       performedBy: 'shop',
+      completedOn: IsoDate.make('2026-11-06'),
       costCents: 4525,
       meterReading: 40_100,
       vendor: 'Local shop',
       notes: 'New filter',
+      parts: ['FL-500S', '5W-30 oil'],
     },
   })
   Scene.scene(
@@ -265,11 +337,13 @@ it('saves a due task and closes the inline form on success', () => {
     Scene.given(initial),
     catalogLoaded,
     click(Scene.first(Scene.all.role('button', { name: 'Mark done' }))),
+    Scene.type(label('Performed date (optional, YYYY-MM-DD)'), '2026-11-06'),
     Scene.change(label('Performed by'), 'shop'),
     Scene.type(label('Cost in USD (optional)'), '45.25'),
     Scene.type(label('Meter reading (optional)'), '40100'),
     Scene.type(label('Vendor (optional)'), 'Local shop'),
     Scene.type(label('Notes (optional)'), 'New filter'),
+    Scene.type(label('Parts (optional, one per line)'), '  FL-500S  \n\n 5W-30 oil'),
     press('Save completion'),
     Scene.Command.expectExact(command),
     Scene.Command.resolve(
@@ -351,9 +425,9 @@ it('adds undated work in asset detail and completes it from the household due sc
     Scene.Subscription.emit(updatedCatalog),
     Scene.expect(within(pending, text(work.title))).toExist(),
     click(within(pending, role('button', { name: 'Mark done' }))),
-    Scene.type(label('Completion date (optional)'), today),
+    Scene.type(label('Performed date (optional, YYYY-MM-DD)'), today),
     Scene.type(label('Cost in USD (optional)'), '45.99'),
-    Scene.type(label('Parts used (optional, one per line)'), 'Door seal\nClips'),
+    Scene.type(label('Parts (optional, one per line)'), 'Door seal\nClips'),
     press('Save completion'),
     Scene.Command.expectExact(completed),
     Scene.Command.resolve(
@@ -376,7 +450,8 @@ it('adds undated work in asset detail and completes it from the household due sc
     Scene.Subscription.emit(Message.ReceivedDetail({ detail: { ...detail, totalSpendCents: 4599 } })),
     Scene.Subscription.emit(activity),
     Scene.expect(within(pending, text(work.title))).toBeAbsent(),
-    shows('Completed Replace door seal')
+    shows('Replace door seal'),
+    shows('$45.99')
   )
 })
 
@@ -467,7 +542,12 @@ it('logs unscheduled service and registers a new asset', () => {
   const service = client.LogService({
     target: furnace,
     commandId: 'test-session:0',
-    input: { title: 'Replace igniter', performedBy: 'diy' },
+    input: {
+      title: 'Replace igniter',
+      performedBy: 'diy',
+      performedOn: IsoDate.make('2026-11-10'),
+      parts: ['Hot surface igniter'],
+    },
   })
   const registration = client.RegisterAsset({
     target: AssetId.make('test-session:1'),
@@ -494,6 +574,11 @@ it('logs unscheduled service and registers a new asset', () => {
     press('Log service'),
     Scene.change(label('Asset'), furnace),
     Scene.type(label('Service title'), 'Replace igniter'),
+    Scene.type(label('Performed date (optional, YYYY-MM-DD)'), '2026-11-31'),
+    press('Save service'),
+    Scene.expect(role('alert')).toHaveText('Enter a valid performed date.'),
+    Scene.type(label('Performed date (optional, YYYY-MM-DD)'), '2026-11-10'),
+    Scene.type(label('Parts (optional, one per line)'), 'Hot surface igniter'),
     press('Save service'),
     Scene.Command.expectExact(service),
     Scene.Command.resolve(

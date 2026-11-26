@@ -6,6 +6,12 @@ Open **Quick Log** and select **New asset**. You can enter the make, model, seri
 
 Open **Assets** to find the record by name, category, location, make, model, serial number, or specification. Select an active asset to edit its details, add a maintenance schedule, record a warranty, set a specification, or attach a link to a manual.
 
+## Track a repair
+
+Open the asset and select **Add pending work**. Enter a title. Use the notes field for parts and their storage location. The due date is optional. Open the **Due** screen to see pending work across all assets. Select **Mark done** to record the work once.
+
+On an active asset, use the controls beside a schedule, warranty, specification, or link to correct it. You can stop a schedule and keep its completed work. Open **Service history** on the asset to see work by performed date, including recorded parts, costs, and notes.
+
 ## Develop locally
 
 From the repository root, run:

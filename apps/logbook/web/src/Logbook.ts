@@ -116,7 +116,8 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
               readFailures: { ...model.readFailures, activity: false },
             }
       ),
-    ActivityCaughtUp: () => noCommands(model),
+    ActivityCaughtUp: () =>
+      noCommands({ ...model, activityCaughtUp: true, readFailures: { ...model.readFailures, activity: false } }),
     ReadFailed: ({ read }) => noCommands({ ...model, readFailures: { ...model.readFailures, [read]: true } }),
     SessionExpired: () => noCommands({ ...model, sessionExpired: true }),
     ChangedDate: ({ today }) => noCommands(today === model.today ? model : { ...model, today }),
@@ -225,6 +226,7 @@ const selectAsset = (model: Model, selected: Model['selected']): Model =>
           detail: null,
           activity: [],
           activityCursor: Option.none(),
+          activityCaughtUp: false,
           readFailures: { ...model.readFailures, detail: false, activity: false },
         },
         null
