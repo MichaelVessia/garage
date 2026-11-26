@@ -1,3 +1,4 @@
+import { PendingWork } from '@garage/logbook-domain/Asset/AddPendingWork.command'
 import { AssetId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { HOME_HOUSEHOLD_ID } from '@garage/logbook-domain/Household.id'
 import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
@@ -38,6 +39,14 @@ const DueItem = Schema.Struct({
 })
 type DueItem = typeof DueItem.Type
 
+const PendingRepair = Schema.Struct({
+  assetId: AssetId,
+  assetName: Schema.NonEmptyString,
+  category: AssetCategory,
+  ...PendingWork.fields,
+})
+type PendingRepair = typeof PendingRepair.Type
+
 const WarrantyExpiry = Schema.Struct({
   assetId: AssetId,
   assetName: Schema.NonEmptyString,
@@ -52,6 +61,7 @@ const DueReport = Schema.Struct({
   generatedOn: IsoDate,
   overdue: Schema.Array(DueItem),
   dueSoon: Schema.Array(DueItem),
+  pendingRepairs: Schema.Array(PendingRepair),
   warrantiesExpiring: Schema.Array(WarrantyExpiry),
 })
 
@@ -76,6 +86,12 @@ const byWarrantyDate = Order.combineAll<WarrantyExpiry>([
   Order.mapInput(Order.String, (item: WarrantyExpiry) => item.assetId),
   Order.mapInput(Order.String, (item: WarrantyExpiry) => item.warrantyId),
 ])
+const byRepairDate = Order.combineAll<PendingRepair>([
+  Order.mapInput(Order.String, (item: PendingRepair) => item.dueOn ?? '\uffff'),
+  Order.mapInput(Order.String, (item: PendingRepair) => item.assetName),
+  Order.mapInput(Order.String, (item: PendingRepair) => item.assetId),
+  Order.mapInput(Order.String, (item: PendingRepair) => item.workId),
+])
 
 const handlers = HttpApiBuilder.group(api, 'frame', (group) =>
   group.handle(
@@ -93,6 +109,7 @@ const handlers = HttpApiBuilder.group(api, 'frame', (group) =>
       const today = DateTime.makeUnsafe(generatedOn)
       const overdue: Array<DueItem> = []
       const dueSoon: Array<DueItem> = []
+      const pendingRepairs: Array<PendingRepair> = []
       const warrantiesExpiring: Array<WarrantyExpiry> = []
 
       for (const asset of Record.values(catalog?.assets ?? {})) {
@@ -100,6 +117,9 @@ const handlers = HttpApiBuilder.group(api, 'frame', (group) =>
           continue
         }
         const identity = { assetId: asset.id, assetName: asset.name }
+        for (const work of Record.values(asset.pendingWork ?? {})) {
+          pendingRepairs.push({ ...identity, category: asset.category, ...work })
+        }
         const meter =
           asset.meter === undefined ? {} : { currentMeter: asset.meter.reading, meterUnit: asset.meter.unit }
         const withinMeter = query.withinMeter ?? defaultWithinMeter(asset.meter?.unit)
@@ -130,6 +150,7 @@ const handlers = HttpApiBuilder.group(api, 'frame', (group) =>
         generatedOn,
         overdue: Arr.sort(overdue, byDueDate),
         dueSoon: Arr.sort(dueSoon, byDueDate),
+        pendingRepairs: Arr.sort(pendingRepairs, byRepairDate),
         warrantiesExpiring: Arr.sort(warrantiesExpiring, byWarrantyDate),
       }
     }, Effect.scoped)

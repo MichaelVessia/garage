@@ -11,6 +11,8 @@ import { forms, secondaryButton } from './Forms.ts'
 import { Editor, Message } from './Model.ts'
 import type { CatalogAsset, Model } from './Model.ts'
 import { pendingWorkView } from './PendingWorkView.ts'
+import { assetPath } from './Route.ts'
+import { appLink } from './WebLink.ts'
 
 type Task = DueThresholds & {
   readonly assetId: AssetId
@@ -111,7 +113,13 @@ export const dueView = (h: Html.H<Message>) => (model: Model) => {
                     h.div.class('flex flex-wrap items-center justify-between gap-3').children(
                       h.div.children(
                         h.p.class('font-semibold').children(task.title),
-                        h.p.class('text-sm text-stone-600').children(task.assetName, ' · ', thresholdText(task))
+                        h.p
+                          .class('text-sm text-stone-600')
+                          .children(
+                            appLink(h)(model, assetPath(task.assetId)).class('underline').children(task.assetName),
+                            ' · ',
+                            thresholdText(task)
+                          )
                       ),
                       isOpen(task)
                         ? undefined
@@ -154,7 +162,10 @@ export const dueView = (h: Html.H<Message>) => (model: Model) => {
                     h.p.class('font-semibold').children(warranty.label),
                     h.p
                       .class('text-sm text-stone-600')
-                      .children(`${warranty.assetName} · Expires ${warranty.expiresOn}`)
+                      .children(
+                        appLink(h)(model, assetPath(warranty.assetId)).class('underline').children(warranty.assetName),
+                        ` · Expires ${warranty.expiresOn}`
+                      )
                   )
               )
             )

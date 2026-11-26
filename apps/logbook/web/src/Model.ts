@@ -12,6 +12,8 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
+import { LogbookRoutes } from './Route.ts'
+
 export const SaveFailure = Schema.TaggedUnion({
   Rejected: {
     rejection: Schema.toType(Schema.Union(Arr.map(LogbookApi.commands, (command) => command.rpc.errorSchema))),
@@ -103,13 +105,12 @@ const Catalog = (HomeCatalog.definition.state ?? Schema.Never).pipe(Schema.toTyp
 const Detail = (AssetDetail.definition.state ?? Schema.Never).pipe(Schema.toType, Schema.NullOr)
 const Activity = Schema.toType(ActivityEntry)
 const Read = Schema.Literals(['catalog', 'detail', 'activity'])
-export const Props = Schema.Struct({ session: Schema.String, today: IsoDate })
+export const Props = Schema.Struct({ session: Schema.String, today: IsoDate, route: LogbookRoutes })
 export const Model = Schema.Struct({
-  screen: Screen,
+  route: LogbookRoutes,
   today: IsoDate,
   catalog: Catalog,
   query: Schema.String,
-  selected: Schema.NullOr(AssetId),
   detail: Detail,
   activity: Schema.Array(Activity),
   activityCursor: Schema.Option(Schema.Int),
@@ -127,9 +128,8 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = UiSchema.TaggedEnum({
-  ChoseScreen: { screen: Screen },
+  ChangedRoute: { route: LogbookRoutes },
   SearchedAssets: { query: Schema.String },
-  SelectedAsset: { assetId: Schema.NullOr(AssetId) },
   OpenedCompletion: { assetId: AssetId, scheduleId: ScheduleId },
   OpenedPendingWork: {},
   OpenedPendingWorkCompletion: { assetId: AssetId, workId: PendingWorkId },
@@ -150,18 +150,17 @@ export const Message = UiSchema.TaggedEnum({
 })
 export type Message = typeof Message.Type
 
-export const init = ({ session, today }: typeof Props.Type): Model => ({
-  screen: 'Due',
+export const init = ({ session, today, route }: typeof Props.Type): Model => ({
+  route,
   today,
   catalog: null,
   query: '',
-  selected: null,
   detail: null,
   activity: [],
   activityCursor: Option.none(),
   activityCaughtUp: false,
   readFailures: { catalog: false, detail: false, activity: false },
-  editor: null,
+  editor: LogbookRoutes.guards['Quick Log'](route) ? Editor.cases.RecordMeter.make({}) : null,
   fields: {},
   attempt: null,
   problem: null,

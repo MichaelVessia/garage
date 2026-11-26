@@ -1,5 +1,5 @@
 import { Read } from '@alchemy.run/domain'
-import { Component, Subscription } from '@effect/ui'
+import { Component, Router, Subscription } from '@effect/ui'
 import { Html } from '@effect/ui/html'
 import { assetMetadataKeys } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { HOME_HOUSEHOLD_ID } from '@garage/logbook-domain/Household.id'
@@ -18,39 +18,41 @@ import * as Struct from 'effect/Struct'
 
 import { AssetSetupAction, dollarsFromCents, Editor, init, Message, Model, Props } from './Model.ts'
 import type { AssetDetails } from './Model.ts'
+import { LogbookRoutes, screenOf, selectedAsset } from './Route.ts'
 import { SaveAsset } from './SaveAsset.ts'
 import { receiveResult, submit } from './Submission.ts'
 import { view } from './View.ts'
 
-const LogbookDefinition = Html.component({ name: 'Logbook', props: Props, model: Model, message: Message })
+const LogbookDefinition = Html.component({
+  name: 'Logbook',
+  props: Props,
+  model: Model,
+  message: Message,
+  restore: false,
+})
 
 const update = LogbookDefinition.update(($, message) => {
   const { model } = $
+  const screen = screenOf(model.route)
+  const selected = selectedAsset(model.route)
   return Message.match(message, {
-    ChoseScreen: ({ screen }) => {
-      if (screen === model.screen || model.attempt !== null) {
-        return model
-      }
-
-      return edit({ ...model, screen, notice: null }, screen === 'Quick Log' ? Editor.cases.RecordMeter.make({}) : null)
-    },
+    ChangedRoute: ({ route }) => changeRoute(model, route),
     SearchedAssets: ({ query }) => ({ ...model, query }),
-    SelectedAsset: ({ assetId }) => (model.attempt === null ? selectAsset(model, assetId) : model),
     OpenedCompletion: ({ assetId, scheduleId }) =>
       model.attempt === null ? edit(model, Editor.cases.CompleteTask.make({ assetId, scheduleId })) : model,
     OpenedPendingWork: () => {
       const asset = model.detail
-      if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
+      if (model.attempt !== null || model.sessionExpired || screen !== 'Assets' || asset?.status !== 'active') {
         return model
       }
       return edit(model, Editor.cases.AddPendingWork.make({ assetId: asset.id }))
     },
     OpenedPendingWorkCompletion: ({ assetId, workId }) => {
-      const asset = model.screen === 'Assets' ? model.detail : model.catalog?.assets[assetId]
+      const asset = screen === 'Assets' ? model.detail : model.catalog?.assets[assetId]
       if (
         model.attempt !== null ||
         model.sessionExpired ||
-        model.screen === 'Quick Log' ||
+        screen === 'Quick Log' ||
         asset?.status !== 'active' ||
         asset.id !== assetId ||
         asset.pendingWork?.[workId] === undefined
@@ -61,7 +63,7 @@ const update = LogbookDefinition.update(($, message) => {
     },
     OpenedAssetSetup: ({ action }) => {
       const asset = model.detail
-      if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
+      if (model.attempt !== null || model.sessionExpired || screen !== 'Assets' || asset?.status !== 'active') {
         return model
       }
       const draft = setupDraft(asset, action)
@@ -103,11 +105,11 @@ const update = LogbookDefinition.update(($, message) => {
       readFailures: { ...model.readFailures, catalog: false },
     }),
     ReceivedDetail: ({ detail }) =>
-      detail === null || detail.status === 'unregistered' || detail.id !== model.selected
+      detail === null || detail.status === 'unregistered' || detail.id !== selected
         ? model
         : { ...model, detail, readFailures: { ...model.readFailures, detail: false } },
     ReceivedActivity: ({ entry, cursor }) =>
-      entry.assetId !== model.selected || Option.exists(model.activityCursor, (previous) => cursor <= previous)
+      entry.assetId !== selected || Option.exists(model.activityCursor, (previous) => cursor <= previous)
         ? model
         : {
             ...model,
@@ -198,7 +200,12 @@ const setupDraft = (
 
 const openAssetEdit = (model: Model): Model => {
   const asset = model.detail
-  if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
+  if (
+    model.attempt !== null ||
+    model.sessionExpired ||
+    screenOf(model.route) !== 'Assets' ||
+    asset?.status !== 'active'
+  ) {
     return model
   }
 
@@ -219,21 +226,24 @@ const openAssetEdit = (model: Model): Model => {
   }
 }
 
-const selectAsset = (model: Model, selected: Model['selected']): Model =>
-  selected === model.selected
-    ? model
-    : edit(
-        {
-          ...model,
-          selected,
-          detail: null,
-          activity: [],
-          activityCursor: Option.none(),
-          activityCaughtUp: false,
-          readFailures: { ...model.readFailures, detail: false, activity: false },
-        },
-        null
-      )
+const changeRoute = (model: Model, route: typeof LogbookRoutes.Type): Model => {
+  if (LogbookRoutes.print(model.route) === LogbookRoutes.print(route)) {
+    return model
+  }
+  return edit(
+    {
+      ...model,
+      route,
+      detail: null,
+      activity: [],
+      activityCursor: Option.none(),
+      activityCaughtUp: false,
+      readFailures: { ...model.readFailures, detail: false, activity: false },
+      attempt: null,
+    },
+    LogbookRoutes.guards['Quick Log'](route) ? Editor.cases.RecordMeter.make({}) : null
+  )
+}
 
 const recoverRead =
   (read: keyof Model['readFailures']) =>
@@ -246,10 +256,15 @@ const recoverRead =
     )
 
 const subscriptions = LogbookDefinition.subscriptions(({ model }) => {
-  const assetId = model.screen === 'Assets' && !model.sessionExpired ? model.selected : null
+  const selected = selectedAsset(model.route)
+  const assetId =
+    !model.sessionExpired && selected !== null && (model.catalog === null || Record.has(model.catalog.assets, selected))
+      ? selected
+      : null
   const after = Option.getOrUndefined(model.activityCursor)
 
   return [
+    Router.subscription(LogbookRoutes, model.route, (route) => Message.ChangedRoute({ route })),
     !model.sessionExpired &&
       Subscription.make(
         'catalog',
