@@ -1,14 +1,16 @@
 import { IanaTimezone } from '@garage/subq-domain/Calendar'
 import type { CalendarDate } from '@garage/subq-domain/Calendar'
 import type { JournalSnapshot } from '@garage/subq-domain/ExportFormat'
+import { ImportJournal } from '@garage/subq-domain/Journal/ImportJournal.command'
 import type { Preferences } from '@garage/subq-domain/Journal/JournalRecords'
+import { UpdatePreferences } from '@garage/subq-domain/Journal/UpdatePreferences.command'
 import * as Match from 'effect/Match'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 
-import { client, mutate } from '../../client.ts'
+import { mutate } from '../../client.ts'
 import type { PageUpdate } from '../../client.ts'
-import { ExportData, ReadImportFile, SelectImportFile } from './command.ts'
+import { ExportData, ReadImportFile, selectImportFile } from './command.ts'
 import {
   FailedImportData,
   FailedUpdateSettingsPreference,
@@ -26,7 +28,7 @@ export const importSummary = ({ weights, injections, schedules, goals }: Snapsho
 const updatePreferences = (model: SettingsModel, input: Preferences): UpdateReturn => ({
   model: { ...model, preferenceSubmitting: true, preferenceError: null },
   mutation: mutate(
-    (request) => client.UpdatePreferences({ ...request, input }),
+    () => UpdatePreferences.make(input),
     SucceededUpdateSettingsPreference(),
     (message) => FailedUpdateSettingsPreference({ message })
   ),
@@ -63,7 +65,7 @@ export const updateSettingsPage = (
       }),
       ClickedExportData: () => ({
         model: { ...model, exportStatus: 'exporting', dataError: null, dataSuccess: null },
-        commands: [ExportData({ data, today })],
+        commands: [ExportData.make({ data, today })],
       }),
       SucceededExportData: () => ({
         model: { ...model, exportStatus: 'idle', dataSuccess: 'Data exported.' },
@@ -73,9 +75,9 @@ export const updateSettingsPage = (
       }),
       ClickedSelectImportFile: () => ({
         model: { ...model, importStatus: 'reading', dataError: null, dataSuccess: null },
-        commands: [SelectImportFile()],
+        commands: [selectImportFile()],
       }),
-      SelectedImportFile: ({ file }) => ({ model, commands: [ReadImportFile({ file })] }),
+      SelectedImportFile: ({ file }) => ({ model, commands: [ReadImportFile.make({ file })] }),
       CancelledSelectImportFile: () => ({ model: { ...model, importStatus: 'idle' } }),
       PreparedImportData: ({ data }) => ({
         model: { ...model, importConfirm: data, importStatus: 'confirming' },
@@ -98,7 +100,7 @@ export const updateSettingsPage = (
         return {
           model: { ...model, importConfirm: null, importStatus: 'importing' },
           mutation: mutate(
-            (request) => client.ImportJournal({ ...request, input: { snapshot } }),
+            () => ImportJournal.make({ snapshot }),
             SucceededImportData({ summary: importSummary(snapshot.data) }),
             (message) => FailedImportData({ message })
           ),

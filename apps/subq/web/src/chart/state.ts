@@ -1,9 +1,9 @@
+import { UiSchema } from '@effect/ui'
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { taggedStruct } from 'foldkit/schema'
-import { modifyFields } from 'foldkit/struct'
+import * as Struct from 'effect/Struct'
 
 // ============================================
 // Chart state (lives inside the stats page model)
@@ -34,28 +34,23 @@ export const initialChartState: ChartState = { filter: null, tooltip: null, zoom
 // Chart messages
 // ============================================
 
-export const HoveredChartTooltip = taggedStruct('HoveredChartTooltip', {
-  x: Schema.Finite,
-  y: Schema.Finite,
-  title: Schema.String,
-  lines: Schema.Array(Schema.String),
+export const ChartMessage = UiSchema.TaggedEnum({
+  HoveredChartTooltip: {
+    x: Schema.Finite,
+    y: Schema.Finite,
+    title: Schema.String,
+    lines: Schema.Array(Schema.String),
+  },
+  ClearedChartTooltip: {},
+  ClickedChartPill: { compound: Schema.String, doseMg: Schema.Finite },
+  ClearedChartFilter: {},
+  StartedChartZoom: { ms: Schema.Finite },
+  HoveredChartZoom: { ms: Schema.Finite },
+  EndedChartZoom: {},
+  CancelledChartZoom: {},
 })
 
-export const ClearedChartTooltip = taggedStruct('ClearedChartTooltip')
-
-export const ClickedChartPill = taggedStruct('ClickedChartPill', { compound: Schema.String, doseMg: Schema.Finite })
-
-export const ClearedChartFilter = taggedStruct('ClearedChartFilter')
-
-export const StartedChartZoom = taggedStruct('StartedChartZoom', { ms: Schema.Finite })
-
-export const HoveredChartZoom = taggedStruct('HoveredChartZoom', { ms: Schema.Finite })
-
-export const EndedChartZoom = taggedStruct('EndedChartZoom')
-
-export const CancelledChartZoom = taggedStruct('CancelledChartZoom')
-
-export const ChartMessage = Schema.Union([
+export const {
   HoveredChartTooltip,
   ClearedChartTooltip,
   ClickedChartPill,
@@ -64,7 +59,7 @@ export const ChartMessage = Schema.Union([
   HoveredChartZoom,
   EndedChartZoom,
   CancelledChartZoom,
-])
+} = ChartMessage
 
 export type ChartMessage = typeof ChartMessage.Type
 
@@ -78,11 +73,11 @@ export const updateChart: {
   Match.value(message).pipe(
     Match.withReturnType<ChartUpdate>(),
     Match.tagsExhaustive({
-      CancelledChartZoom: () => [modifyFields(state, { zoomDrag: () => null }), Option.none()],
-      ClearedChartFilter: () => [modifyFields(state, { filter: () => null }), Option.none()],
-      ClearedChartTooltip: () => [modifyFields(state, { tooltip: () => null }), Option.none()],
+      CancelledChartZoom: () => [Struct.evolve(state, { zoomDrag: () => null }), Option.none()],
+      ClearedChartFilter: () => [Struct.evolve(state, { filter: () => null }), Option.none()],
+      ClearedChartTooltip: () => [Struct.evolve(state, { tooltip: () => null }), Option.none()],
       ClickedChartPill: ({ doseMg, compound }) => [
-        modifyFields(state, {
+        Struct.evolve(state, {
           filter: (filter) =>
             filter !== null && filter.compound === compound && filter.doseMg === doseMg ? null : { doseMg, compound },
           tooltip: () => null,
@@ -95,7 +90,7 @@ export const updateChart: {
         }
 
         const { hoverMs, startMs } = state.zoomDrag
-        const next = modifyFields(state, { zoomDrag: () => null })
+        const next = Struct.evolve(state, { zoomDrag: () => null })
 
         if (Math.abs(hoverMs - startMs) < 1000 * 60 * 60 * 24) {
           return [next, Option.none()]
@@ -104,17 +99,17 @@ export const updateChart: {
         return [next, Option.some({ endMs: Math.max(startMs, hoverMs), startMs: Math.min(startMs, hoverMs) })]
       },
       HoveredChartTooltip: ({ lines, title, x, y }) => [
-        modifyFields(state, { tooltip: () => ({ lines, title, x, y }) }),
+        Struct.evolve(state, { tooltip: () => ({ lines, title, x, y }) }),
         Option.none(),
       ],
       HoveredChartZoom: ({ ms }) => [
-        modifyFields(state, {
-          zoomDrag: (drag) => (drag === null ? null : modifyFields(drag, { hoverMs: () => ms })),
+        Struct.evolve(state, {
+          zoomDrag: (drag) => (drag === null ? null : Struct.evolve(drag, { hoverMs: () => ms })),
         }),
         Option.none(),
       ],
       StartedChartZoom: ({ ms }) => [
-        modifyFields(state, { zoomDrag: () => ({ hoverMs: ms, startMs: ms }) }),
+        Struct.evolve(state, { zoomDrag: () => ({ hoverMs: ms, startMs: ms }) }),
         Option.none(),
       ],
     })

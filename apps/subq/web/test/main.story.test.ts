@@ -1,81 +1,87 @@
-import { it } from '@effect/vitest'
+import { HtmlLocator, HtmlScene } from '@effect/ui/html/testing'
+import { Locator, Story } from '@effect/ui/testing'
+import { assert, it } from '@effect/vitest'
 import { IanaTimezone } from '@garage/subq-domain/Calendar'
-import { PERSONAL_JOURNAL_ID as target } from '@garage/subq-domain/Journal/Journal.id'
-import { Unauthorized } from '@garage/subq-domain/Session.middleware'
-import * as Schema from 'effect/Schema'
-import { Scene } from 'foldkit'
-import { Command, given, message, story } from 'foldkit/story'
+import { UpdatePreferences } from '@garage/subq-domain/Journal/UpdatePreferences.command'
+import * as Effect from 'effect/Effect'
 
-import { client } from '../src/client.ts'
-import { update } from '../src/main.ts'
+import { SubmitJournalCommand } from '../src/client.ts'
+import { Subq } from '../src/main.ts'
 import { Shell } from '../src/model.ts'
 import { ClickedSettingsWeightUnit } from '../src/page/settings/model.ts'
-import { app, initial, loaded, profile, receipt, shows, timezone } from './journal-fixtures.ts'
+import { flags, loaded, profile, timezone } from './journal-fixtures.ts'
 
-it('initializes an absent timezone once when the first profile arrives', () => {
-  const receive = Shell.ReceivedProfile({ profile: null })
-  const bootstrap = client.UpdatePreferences({ target, commandId: 'test-session:0', input: { timezone } })
-  story(
-    update,
-    given(initial()),
-    message(receive),
-    Command.expectExact(bootstrap),
-    Command.resolve(
-      bootstrap,
-      client.Message.SucceededUpdatePreferences({ commandId: 'test-session:0', receipt, reply: undefined })
-    ),
-    message(receive),
-    Command.expectNone(),
-    message(Shell.ReceivedProfile({ profile })),
-    Command.expectNone()
-  )
-})
+it.effect('initializes an absent timezone once when the first profile arrives', () =>
+  Effect.gen(function* () {
+    const receive = Shell.ReceivedProfile({ profile: null })
+    const bootstrap = SubmitJournalCommand.make({
+      commandId: 'test-session:0',
+      command: UpdatePreferences.make({ timezone }),
+    })
+    const story = yield* Story.make(Subq, flags())
+    story
+      .subscription('profile', receive)
+      .expectExact(bootstrap)
+      .resolve(bootstrap, 'saved')
+      .subscription('profile', receive)
+      .expectExact()
+      .subscription('profile', Shell.ReceivedProfile({ profile }))
+      .expectExact()
+  })
+)
 
-it('keeps the stored timezone and opens Stats after the three live views arrive', () => {
-  Scene.scene(
-    app,
-    Scene.given(initial()),
-    shows('Loading journal...'),
-    Scene.Subscription.emit(
-      Shell.ReceivedProfile({
-        profile: { ...profile, preferences: { timezone: IanaTimezone.make('Pacific/Auckland') } },
-      })
-    ),
-    Scene.Subscription.emit(Shell.ReceivedWeights({ weights: {} })),
-    Scene.Subscription.emit(Shell.ReceivedInjections({ injections: {} })),
-    Scene.Command.expectNone(),
-    shows('Weight Statistics'),
-    shows('Goal Progress')
-  )
-})
+it.effect('keeps the stored timezone and opens Stats after the three live views arrive', () =>
+  Effect.gen(function* () {
+    const scene = yield* HtmlScene.make(Subq, flags())
+    scene
+      .expect(Locator.text('Loading journal...'))
+      .toExist()
+      .subscription(
+        'profile',
+        Shell.ReceivedProfile({
+          profile: { ...profile, preferences: { timezone: IanaTimezone.make('Pacific/Auckland') } },
+        })
+      )
+      .subscription('weights', Shell.ReceivedWeights({ weights: {} }))
+      .subscription('injectionHistory', Shell.ReceivedInjections({ injections: {} }))
+      .expectExact()
+      .expect(Locator.text('Weight Statistics'))
+      .toExist()
+      .expect(Locator.text('Goal Progress'))
+      .toExist()
+  })
+)
 
-it('asks the user to reload when a live read reports an expired session', () => {
-  Scene.scene(
-    app,
-    Scene.given(initial('/weight')),
-    Scene.Subscription.emit(Shell.SessionExpired()),
-    shows('Session expired. Reload to sign in.'),
-    Scene.expect(Scene.role('button', { name: 'Reload' })).toExist(),
-    Scene.Command.expectNone()
-  )
-})
+it.effect('asks the user to reload when a live read reports an expired session', () =>
+  Effect.gen(function* () {
+    const scene = yield* HtmlScene.make(Subq, flags('/weight'))
+    scene
+      .subscription('profile', Shell.SessionExpired())
+      .expect(Locator.text('Session expired. Reload to sign in.'))
+      .toExist()
+      .expect(HtmlLocator.role('button', { name: 'Reload' }))
+      .toExist()
+      .expectExact()
+  })
+)
 
-it('asks the user to reload when the server denies a command', () => {
-  const denied = Schema.TaggedStruct('Denied', { error: Unauthorized })
-  const request = client.UpdatePreferences({ target, commandId: 'test-session:0', input: { weightUnit: 'kg' } })
-  story(
-    update,
-    given(loaded('/settings')),
-    message(ClickedSettingsWeightUnit({ unit: 'kg' })),
-    Command.expectExact(request),
-    Command.resolve(
-      request,
-      client.Message.FailedUpdatePreferences({
-        commandId: 'test-session:0',
-        failure: denied.make({ error: Unauthorized.make({}) }),
-      })
-    ),
-    message(ClickedSettingsWeightUnit({ unit: 'kg' })),
-    Command.expectNone()
-  )
-})
+it.effect('asks the user to reload when the server denies a command', () =>
+  Effect.gen(function* () {
+    const data = loaded('/settings')
+    const request = SubmitJournalCommand.make({
+      commandId: 'test-session:0',
+      command: UpdatePreferences.make({ weightUnit: 'kg' }),
+    })
+    const story = yield* Story.make(Subq, data.flags)
+    story
+      .subscription('profile', Shell.ReceivedProfile({ profile: data.profile }))
+      .subscription('weights', Shell.ReceivedWeights({ weights: data.weights }))
+      .subscription('injectionHistory', Shell.ReceivedInjections({ injections: data.injectionHistory }))
+      .send(ClickedSettingsWeightUnit({ unit: 'kg' }))
+      .expectExact(request)
+      .resolve(request, 'expired')
+      .send(ClickedSettingsWeightUnit({ unit: 'kg' }))
+      .expectExact()
+    assert.isTrue(story.model.sessionExpired)
+  })
+)

@@ -1,13 +1,14 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
 import type { NextScheduledDose } from '@garage/subq-domain/ScheduleMath'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import * as Str from 'effect/String'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { formatDate, formatShortDate } from '../../lib/datetime.ts'
 import { frequencyLabel } from '../../lib/frequency.ts'
-import { scheduleViewRouter } from '../../route.ts'
+import { AppRoute } from '../../route.ts'
 import { button, card } from '../../ui.ts'
 import { viewScheduleForm } from './form-view.ts'
 import {
@@ -71,231 +72,169 @@ const totalScheduleDays = (schedule: Schedule): Option.Option<number> =>
     ? Option.none()
     : Option.some(Arr.reduce(schedule.phases, 0, (sum, phase) => sum + (phase.durationDays ?? 0)))
 
-const makeViewSchedule = <ParentMessage>(h: HtmlBuilder<ParentMessage | ScheduleMessage>) => {
+const makeViewSchedule = <ParentMessage>(h: Html.H<ParentMessage | ScheduleMessage>) => {
   const viewNextDoseValue = (nextDose: NextScheduledDose) =>
-    h.div(
-      [h.Class(`rounded-lg p-4 mb-6 border ${bannerClassFor(nextDose)}`)],
-      [
-        h.div(
-          [h.Class('flex items-start justify-between gap-4')],
-          [
-            h.div(
-              [h.Class('flex-1')],
-              [
-                h.div(
-                  [h.Class('flex items-center gap-2 mb-2')],
-                  [
-                    h.h3([h.Class('font-semibold')], ['Next Scheduled Dose']),
-                    h.span(
-                      [h.Class('text-xs bg-muted px-2 py-0.5 rounded')],
-                      [`Phase ${nextDose.currentPhase}/${nextDose.totalPhases}`]
-                    ),
-                  ]
-                ),
-                h.div(
-                  [h.Class('flex flex-wrap items-center gap-4 text-sm')],
-                  [
-                    h.div(
-                      [h.Class('flex items-center gap-1.5')],
-                      [
-                        h.span([h.Class('font-medium')], [nextDose.compound]),
-                        h.span([h.Class('text-muted-foreground')], ['-']),
-                        h.span([h.Class('font-mono text-primary')], [`${nextDose.doseMg} mg`]),
-                      ]
-                    ),
-                    h.div(
-                      [h.Class('flex items-center gap-1.5 text-muted-foreground')],
-                      [h.span([], [formatShortDate(nextDose.suggestedDate)])]
-                    ),
-                    h.div(
-                      [h.Class(`flex items-center gap-1.5 ${dueClassFor(nextDose)}`)],
-                      [h.span([h.Class('font-medium')], [dueTextFor(nextDose.daysUntilDue)])]
-                    ),
-                  ]
-                ),
-              ]
-            ),
-          ]
-        ),
-      ]
-    )
+    h.div
+      .class(`rounded-lg p-4 mb-6 border ${bannerClassFor(nextDose)}`)
+      .children(
+        h.div
+          .class('flex items-start justify-between gap-4')
+          .children(
+            h.div
+              .class('flex-1')
+              .children(
+                h.div
+                  .class('flex items-center gap-2 mb-2')
+                  .children(
+                    h.h3.class('font-semibold').children('Next Scheduled Dose'),
+                    h.span
+                      .class('text-xs bg-muted px-2 py-0.5 rounded')
+                      .children(`Phase ${nextDose.currentPhase}/${nextDose.totalPhases}`)
+                  ),
+                h.div
+                  .class('flex flex-wrap items-center gap-4 text-sm')
+                  .children(
+                    h.div
+                      .class('flex items-center gap-1.5')
+                      .children(
+                        h.span.class('font-medium').children(nextDose.compound),
+                        h.span.class('text-muted-foreground').children('-'),
+                        h.span.class('font-mono text-primary').children(`${nextDose.doseMg} mg`)
+                      ),
+                    h.div
+                      .class('flex items-center gap-1.5 text-muted-foreground')
+                      .children(h.span.children(formatShortDate(nextDose.suggestedDate))),
+                    h.div
+                      .class(`flex items-center gap-1.5 ${dueClassFor(nextDose)}`)
+                      .children(h.span.class('font-medium').children(dueTextFor(nextDose.daysUntilDue)))
+                  )
+              )
+          )
+      )
 
   const viewScheduleCard = (schedule: Schedule) => {
     const totalDays = totalScheduleDays(schedule)
 
-    return h.div(
-      [h.Class(card({ class: `p-4 ${schedule.isActive ? 'ring-2 ring-primary' : ''}` }))],
-      [
-        h.div(
-          [h.Class('flex items-start justify-between mb-3 gap-3')],
-          [
-            h.div(
-              [],
-              [
-                h.div(
-                  [h.Class('flex items-center gap-2')],
-                  [
-                    h.h3([h.Class('font-semibold')], [schedule.name]),
-                    schedule.isActive
-                      ? h.span([h.Class('text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded')], ['Active'])
-                      : h.empty,
-                  ]
-                ),
-                h.p([h.Class('text-sm text-muted-foreground')], [schedule.compound]),
-                schedule.supplier === null
-                  ? h.empty
-                  : h.p([h.Class('text-xs text-muted-foreground')], [`Supplier: ${schedule.supplier}`]),
-              ]
+    return h.div.class(card({ class: `p-4 ${schedule.isActive ? 'ring-2 ring-primary' : ''}` })).children(
+      h.div.class('flex items-start justify-between mb-3 gap-3').children(
+        h.div.children(
+          h.div
+            .class('flex items-center gap-2')
+            .children(
+              h.h3.class('font-semibold').children(schedule.name),
+              schedule.isActive
+                ? h.span.class('text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded').children('Active')
+                : null
             ),
-            h.div(
-              [h.Class('flex items-center gap-1')],
-              [
-                h.button(
-                  [
-                    h.Class(button({ size: 'sm', variant: 'outline' })),
-                    h.OnClick(ClickedToggleScheduleActivity({ schedule })),
-                  ],
-                  [schedule.isActive ? 'Deactivate' : 'Activate']
-                ),
-                h.a(
-                  [h.Href(scheduleViewRouter({ scheduleId: schedule.id }))],
-                  [h.button([h.Class(button({ class: 'h-8 w-8', size: 'icon', variant: 'ghost' }))], ['View'])]
-                ),
-                h.button(
-                  [
-                    h.Class(button({ class: 'h-8 w-8', size: 'icon', variant: 'ghost' })),
-                    h.OnClick(ClickedEditSchedule({ schedule })),
-                  ],
-                  ['Edit']
-                ),
-                h.button(
-                  [
-                    h.Class(
-                      button({
-                        class: 'h-8 w-8 text-destructive hover:text-destructive',
-                        size: 'icon',
-                        variant: 'ghost',
-                      })
-                    ),
-                    h.OnClick(RequestedDeleteSchedule({ id: schedule.id })),
-                  ],
-                  ['Del']
-                ),
-              ]
-            ),
-          ]
+          h.p.class('text-sm text-muted-foreground').children(schedule.compound),
+          schedule.supplier === null
+            ? null
+            : h.p.class('text-xs text-muted-foreground').children(`Supplier: ${schedule.supplier}`)
         ),
-        h.div(
-          [h.Class('flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-3')],
-          [
-            h.span([], [`Started ${formatDate(schedule.startDate)}`]),
-            h.span([], [frequencyLabel(schedule.frequency)]),
-            h.span(
-              [],
-              [Option.match(totalDays, { onNone: () => 'Indefinite', onSome: (days) => `${days} days total` })]
-            ),
-          ]
-        ),
-        h.div(
-          [h.Class('space-y-1')],
-          Arr.map(schedule.phases, (phase) =>
-            h.keyed('div')(
-              phase.id,
-              [h.Class('flex items-center gap-2 text-sm p-2 rounded border bg-muted/50 border-muted-foreground/20')],
-              [
-                h.div(
-                  [
-                    h.Class(
-                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-muted text-muted-foreground'
-                    ),
-                  ],
-                  [String(phase.order)]
-                ),
-                h.span([h.Class('font-mono')], [`${phase.doseMg} mg`]),
-                h.span(
-                  [h.Class('text-muted-foreground')],
-                  [phase.durationDays === null ? '(ongoing)' : `for ${phase.durationDays} days`]
-                ),
-              ]
+        h.div.class('flex items-center gap-1').children(
+          h.button
+            .class(button({ size: 'sm', variant: 'outline' }))
+            .on('click', ClickedToggleScheduleActivity({ schedule }))
+            .children(schedule.isActive ? 'Deactivate' : 'Activate'),
+          h.a
+            .attr('href', AppRoute.print(AppRoute.ScheduleView({ params: { scheduleId: schedule.id } })))
+            .children(h.button.class(button({ class: 'h-8 w-8', size: 'icon', variant: 'ghost' })).children('View')),
+          h.button
+            .class(button({ class: 'h-8 w-8', size: 'icon', variant: 'ghost' }))
+            .on('click', ClickedEditSchedule({ schedule }))
+            .children('Edit'),
+          h.button
+            .class(
+              button({
+                class: 'h-8 w-8 text-destructive hover:text-destructive',
+                size: 'icon',
+                variant: 'ghost',
+              })
             )
+            .on('click', RequestedDeleteSchedule({ id: schedule.id }))
+            .children('Del')
+        )
+      ),
+      h.div
+        .class('flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-3')
+        .children(
+          h.span.children(`Started ${formatDate(schedule.startDate)}`),
+          h.span.children(frequencyLabel(schedule.frequency)),
+          h.span.children(
+            Option.match(totalDays, { onNone: () => 'Indefinite', onSome: (days) => `${days} days total` })
           )
         ),
-        schedule.notes !== null && Str.isNonEmpty(schedule.notes)
-          ? h.p([h.Class('text-sm text-muted-foreground mt-3 italic')], [schedule.notes])
-          : h.empty,
-      ]
+      h.div.class('space-y-1').children(
+        Arr.map(schedule.phases, (phase) =>
+          h.div
+            .key(phase.id)
+            .class('flex items-center gap-2 text-sm p-2 rounded border bg-muted/50 border-muted-foreground/20')
+            .children(
+              h.div
+                .class(
+                  'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium bg-muted text-muted-foreground'
+                )
+                .children(String(phase.order)),
+              h.span.class('font-mono').children(`${phase.doseMg} mg`),
+              h.span
+                .class('text-muted-foreground')
+                .children(phase.durationDays === null ? '(ongoing)' : `for ${phase.durationDays} days`)
+            )
+        )
+      ),
+      schedule.notes !== null && Str.isNonEmpty(schedule.notes)
+        ? h.p.class('text-sm text-muted-foreground mt-3 italic').children(schedule.notes)
+        : null
     )
   }
 
   const viewDeleteConfirm = () =>
-    h.div(
-      [h.Class(card({ class: 'mt-4 p-4 border-destructive/40' }))],
-      [
-        h.div(
-          [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
-          [
-            h.p([h.Class('text-sm')], ['Delete this schedule?']),
-            h.div(
-              [h.Class('flex gap-2')],
-              [
-                h.button(
-                  [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(CancelledDeleteSchedule())],
-                  ['Cancel']
-                ),
-                h.button(
-                  [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(ConfirmedDeleteSchedule())],
-                  ['Delete']
-                ),
-              ]
-            ),
-          ]
-        ),
-      ]
+    h.div.class(card({ class: 'mt-4 p-4 border-destructive/40' })).children(
+      h.div.class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between').children(
+        h.p.class('text-sm').children('Delete this schedule?'),
+        h.div.class('flex gap-2').children(
+          h.button
+            .class(button({ size: 'sm', variant: 'outline' }))
+            .on('click', CancelledDeleteSchedule())
+            .children('Cancel'),
+          h.button
+            .class(button({ size: 'sm', variant: 'destructive' }))
+            .on('click', ConfirmedDeleteSchedule())
+            .children('Delete')
+        )
+      )
     )
 
   const viewSchedules = (schedules: ReadonlyArray<Schedule>) =>
     Arr.isReadonlyArrayNonEmpty(schedules)
-      ? h.div(
-          [h.Class('space-y-4')],
-          Arr.map(schedules, (schedule) => h.keyed('div')(schedule.id, [], [viewScheduleCard(schedule)]))
-        )
-      : h.div(
-          [h.Class(card({ class: 'p-12 text-center' }))],
-          [
-            h.h3([h.Class('text-lg font-medium mb-2')], ['No schedules yet']),
-            h.p(
-              [h.Class('text-muted-foreground mb-4')],
-              ['Create your first injection schedule to track your titration phases and upcoming doses.']
-            ),
-            h.button([h.Class(button()), h.OnClick(ClickedAddSchedule())], ['Create Schedule']),
-          ]
-        )
+      ? h.div
+          .class('space-y-4')
+          .children(Arr.map(schedules, (schedule) => h.div.key(schedule.id).children(viewScheduleCard(schedule))))
+      : h.div
+          .class(card({ class: 'p-12 text-center' }))
+          .children(
+            h.h3.class('text-lg font-medium mb-2').children('No schedules yet'),
+            h.p
+              .class('text-muted-foreground mb-4')
+              .children('Create your first injection schedule to track your titration phases and upcoming doses.'),
+            h.button.class(button()).on('click', ClickedAddSchedule()).children('Create Schedule')
+          )
 
   return (model: SchedulePage) =>
-    h.div(
-      [],
-      [
-        Option.match(model.nextDose, { onNone: () => h.empty, onSome: viewNextDoseValue }),
-        h.div(
-          [h.Class('flex justify-between items-center mb-6 gap-4')],
-          [
-            h.div(
-              [],
-              [
-                h.h2([h.Class('text-xl font-semibold tracking-tight')], ['Injection Schedule']),
-                h.p(
-                  [h.Class('text-sm text-muted-foreground')],
-                  ['Manage your injection schedule and titration phases']
-                ),
-              ]
-            ),
-            h.button([h.Class(button()), h.OnClick(ClickedAddSchedule())], ['New Schedule']),
-          ]
+    h.div.children(
+      Option.match(model.nextDose, { onNone: () => null, onSome: viewNextDoseValue }),
+      h.div
+        .class('flex justify-between items-center mb-6 gap-4')
+        .children(
+          h.div.children(
+            h.h2.class('text-xl font-semibold tracking-tight').children('Injection Schedule'),
+            h.p.class('text-sm text-muted-foreground').children('Manage your injection schedule and titration phases')
+          ),
+          h.button.class(button()).on('click', ClickedAddSchedule()).children('New Schedule')
         ),
-        model.form === null ? h.empty : viewScheduleForm({ form: model.form, h }),
-        viewSchedules(model.schedules),
-        model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
-      ]
+      model.form === null ? null : viewScheduleForm({ form: model.form, h }),
+      viewSchedules(model.schedules),
+      model.pendingDeleteId === null ? null : viewDeleteConfirm()
     )
 }
 
@@ -304,5 +243,5 @@ export const viewSchedule = <ParentMessage>({
   model,
 }: {
   readonly model: SchedulePage
-  readonly h: HtmlBuilder<ParentMessage | ScheduleMessage>
-}): Html => makeViewSchedule(h)(model)
+  readonly h: Html.H<ParentMessage | ScheduleMessage>
+}): View.Content<ParentMessage | ScheduleMessage> => makeViewSchedule(h)(model)

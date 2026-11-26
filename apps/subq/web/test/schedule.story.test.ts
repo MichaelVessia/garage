@@ -1,28 +1,36 @@
+import { HtmlLocator } from '@effect/ui/html/testing'
+import { Locator } from '@effect/ui/testing'
 import { it } from '@effect/vitest'
-import { PERSONAL_JOURNAL_ID as target } from '@garage/subq-domain/Journal/Journal.id'
-import { Scene } from 'foldkit'
+import { DeactivateSchedule } from '@garage/subq-domain/Journal/DeactivateSchedule.command'
+import * as Effect from 'effect/Effect'
 
-import { client } from '../src/client.ts'
+import { SubmitJournalCommand } from '../src/client.ts'
 import { Shell } from '../src/model.ts'
-import { app, loaded, press, profile, receipt, schedule, shows } from './journal-fixtures.ts'
+import { loadedScene, loaded, profile, schedule } from './journal-fixtures.ts'
 
-it('shows the next phase dose and deactivates the schedule through the journal', () => {
-  const request = client.DeactivateSchedule({ target, commandId: 'test-session:0', input: { scheduleId: schedule.id } })
-  Scene.scene(
-    app,
-    Scene.given(loaded('/schedule')),
-    shows('Phase 2/2'),
-    press('Deactivate'),
-    Scene.Command.expectExact(request),
-    Scene.Command.resolve(
-      request,
-      client.Message.SucceededDeactivateSchedule({ commandId: 'test-session:0', receipt, reply: undefined })
-    ),
-    Scene.Subscription.emit(
-      Shell.ReceivedProfile({ profile: { ...profile, schedules: { [schedule.id]: { ...schedule, isActive: false } } } })
-    ),
-    Scene.expect(Scene.text('Phase 2/2')).toBeAbsent(),
-    Scene.expect(Scene.role('button', { name: 'Activate' })).toExist(),
-    Scene.Command.expectNone()
-  )
-})
+it.effect('shows the next phase dose and deactivates the schedule through the journal', () =>
+  Effect.gen(function* () {
+    const request = SubmitJournalCommand.make({
+      commandId: 'test-session:0',
+      command: DeactivateSchedule.make({ scheduleId: schedule.id }),
+    })
+    const scene = yield* loadedScene(loaded('/schedule'))
+    scene
+      .expect(Locator.text('Phase 2/2'))
+      .toExist()
+      .click(HtmlLocator.role('button', { name: 'Deactivate' }))
+      .expectExact(request)
+      .resolve(request, 'saved')
+      .subscription(
+        'profile',
+        Shell.ReceivedProfile({
+          profile: { ...profile, schedules: { [schedule.id]: { ...schedule, isActive: false } } },
+        })
+      )
+      .expect(Locator.text('Phase 2/2'))
+      .toBeAbsent()
+      .expect(HtmlLocator.role('button', { name: 'Activate' }))
+      .toExist()
+      .expectExact()
+  })
+)

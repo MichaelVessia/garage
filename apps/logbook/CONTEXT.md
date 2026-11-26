@@ -14,5 +14,5 @@ The domain uses an actor supplied by request middleware. Session authentication 
 
 - `domain/` defines commands, events, and read views.
 - `server/` verifies sessions and serves the domain API, MCP tools, and the Frame due report.
-- `web/` contains the Foldkit app and a Worker that forwards API requests over a service binding.
+- `web/` contains the Effect UI app and a Worker that forwards API requests over a service binding.
 - `alchemy.run.ts` configures the two Workers and their binding.

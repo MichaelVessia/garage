@@ -1,148 +1,132 @@
-import { AssetId } from '@garage/logbook-domain/Asset/Asset.id'
+import { Read } from '@alchemy.run/domain'
+import { Component, Router, Subscription } from '@effect/ui'
+import { Html } from '@effect/ui/html'
 import { assetMetadataKeys } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { HOME_HOUSEHOLD_ID } from '@garage/logbook-domain/Household.id'
+import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
 import { isoDateFromUtc } from '@garage/logbook-domain/ScheduleMath'
 import { Unauthorized } from '@garage/logbook-domain/Session.middleware'
 import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
-import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Record from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
 import * as Struct from 'effect/Struct'
-import { Command, Subscription } from 'foldkit'
-import type { Update } from 'foldkit'
-import { load, pushUrl } from 'foldkit/navigation'
-import { toString as urlToString } from 'foldkit/url'
 
-import { AssetSetupAction, client, dollarsFromCents, Editor, Message } from './Model.ts'
-import type { AssetDetails, Client, Model } from './Model.ts'
-import { isAppPath, routeFromPath } from './Route.ts'
+import { AssetSetupAction, dollarsFromCents, Editor, init, Message, Model, Props } from './Model.ts'
+import type { AssetDetails } from './Model.ts'
+import { LogbookRoutes, screenOf, selectedAsset } from './Route.ts'
+import { SaveAsset } from './SaveAsset.ts'
 import { receiveResult, submit } from './Submission.ts'
+import { view } from './View.ts'
 
-const noCommands = (model: Model) => ({ model })
-
-const Navigate = Command.define('Navigate', {
-  args: { url: Schema.String },
-  messages: [Message.NavigationDone],
-  execute: ({ url }) => pushUrl(url).pipe(Effect.as(Message.NavigationDone())),
-})
-const LoadUrl = Command.define('LoadUrl', {
-  args: { url: Schema.String },
-  messages: [Message.NavigationDone],
-  execute: ({ url }) => load(url).pipe(Effect.as(Message.NavigationDone())),
+const LogbookDefinition = Html.component({
+  name: 'Logbook',
+  props: Props,
+  model: Model,
+  message: Message,
+  restore: false,
 })
 
-// @effect-diagnostics-next-line missingPipeableSignature:off -- Foldkit calls update with the model and message.
-export const update = (model: Model, message: Message): Update.Return<Model, Message, Client> =>
-  Message.match(message, {
-    ClickedLink: ({ request }) =>
-      Match.valueTags(request, {
-        Internal: ({ url }) => {
-          const href = urlToString(url)
-          if (!isAppPath(url.pathname)) {
-            return { model, commands: [LoadUrl({ url: href })] }
-          }
-          const { screen, selected } = routeFromPath(url.pathname)
-          return model.attempt !== null || (screen === model.screen && Option.getOrNull(selected) === model.selected)
-            ? noCommands(model)
-            : { model, commands: [Navigate({ url: href })] }
-        },
-        External: ({ href }) => ({ model, commands: [LoadUrl({ url: href })] }),
-      }),
-    ChangedPath: ({ pathname }) => noCommands(changeRoute(model, pathname)),
-    NavigationDone: () => noCommands(model),
-    SearchedAssets: ({ query }) => noCommands({ ...model, query }),
+const update = LogbookDefinition.update(($, message) => {
+  const { model } = $
+  const screen = screenOf(model.route)
+  const selected = selectedAsset(model.route)
+  return Message.match(message, {
+    ChangedRoute: ({ route }) => changeRoute(model, route),
+    SearchedAssets: ({ query }) => ({ ...model, query }),
     OpenedCompletion: ({ assetId, scheduleId }) =>
-      noCommands(model.attempt === null ? edit(model, Editor.cases.CompleteTask.make({ assetId, scheduleId })) : model),
+      model.attempt === null ? edit(model, Editor.cases.CompleteTask.make({ assetId, scheduleId })) : model,
     OpenedPendingWork: () => {
       const asset = model.detail
-      if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
-        return noCommands(model)
+      if (model.attempt !== null || model.sessionExpired || screen !== 'Assets' || asset?.status !== 'active') {
+        return model
       }
-      return noCommands(edit(model, Editor.cases.AddPendingWork.make({ assetId: asset.id })))
+      return edit(model, Editor.cases.AddPendingWork.make({ assetId: asset.id }))
     },
     OpenedPendingWorkCompletion: ({ assetId, workId }) => {
-      const asset = model.screen === 'Assets' ? model.detail : model.catalog?.assets[assetId]
+      const asset = screen === 'Assets' ? model.detail : model.catalog?.assets[assetId]
       if (
         model.attempt !== null ||
         model.sessionExpired ||
-        model.screen === 'Quick Log' ||
+        screen === 'Quick Log' ||
         asset?.status !== 'active' ||
         asset.id !== assetId ||
         asset.pendingWork?.[workId] === undefined
       ) {
-        return noCommands(model)
+        return model
       }
-      return noCommands(edit(model, Editor.cases.CompletePendingWork.make({ assetId, workId })))
+      return edit(model, Editor.cases.CompletePendingWork.make({ assetId, workId }))
     },
     OpenedAssetSetup: ({ action }) => {
       const asset = model.detail
-      if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
-        return noCommands(model)
+      if (model.attempt !== null || model.sessionExpired || screen !== 'Assets' || asset?.status !== 'active') {
+        return model
       }
       const draft = setupDraft(asset, action)
       if (Option.isNone(draft)) {
-        return noCommands(model)
+        return model
       }
       const setup = { assetId: asset.id, action, ...Struct.pick(draft.value, ['subject']) }
       const editor = Editor.cases.AssetSetup.make(
         asset.meter === undefined ? setup : { ...setup, meterUnit: asset.meter.unit }
       )
-      return noCommands({ ...edit(model, editor), fields: draft.value.fields })
+      return { ...edit(model, editor), fields: draft.value.fields }
     },
-    OpenedAssetEdit: () => noCommands(openAssetEdit(model)),
-    ChoseQuickMode: ({ mode }) => noCommands(model.attempt === null ? edit(model, Editor.cases[mode].make({})) : model),
-    ClosedEditor: () => noCommands(model.attempt === null ? edit(model, null) : model),
+    OpenedAssetEdit: () => openAssetEdit(model),
+    ChoseQuickMode: ({ mode }) => (model.attempt === null ? edit(model, Editor.cases[mode].make({})) : model),
+    ClosedEditor: () => (model.attempt === null ? edit(model, null) : model),
     EditedField: ({ field, value }) => {
       if (model.attempt !== null) {
-        return noCommands(model)
+        return model
       }
       if (field === 'asset') {
-        return noCommands({
+        return {
           ...model,
           fields: { ...Struct.omit(model.fields, ['reading', 'correction']), asset: value },
           problem: null,
           correctionOffered: false,
           notice: null,
-        })
+        }
       }
-      return noCommands({ ...model, fields: { ...model.fields, [field]: value }, notice: null })
+      return { ...model, fields: { ...model.fields, [field]: value }, notice: null }
     },
-    Submitted: () => submit(model),
-    ReceivedResult: ({ result }) => noCommands(receiveResult(result)(model)),
-    ReceivedCatalog: ({ catalog }) =>
-      noCommands({
-        ...model,
-        catalog: catalog ?? { assets: {}, spendByYear: {} },
-        readFailures: { ...model.readFailures, catalog: false },
-      }),
+    Submitted: () => {
+      const next = submit(model)
+      return next.command === undefined ? next.model : $.set(next.model).run(next.command)
+    },
+    ReceivedResult: ({ result }) => receiveResult(result)(model),
+    ReceivedCatalog: ({ catalog }) => ({
+      ...model,
+      catalog: catalog ?? { assets: {}, spendByYear: {} },
+      readFailures: { ...model.readFailures, catalog: false },
+    }),
     ReceivedDetail: ({ detail }) =>
-      noCommands(
-        detail === null || detail.status === 'unregistered' || detail.id !== model.selected
-          ? model
-          : { ...model, detail, readFailures: { ...model.readFailures, detail: false } }
-      ),
+      detail === null || detail.status === 'unregistered' || detail.id !== selected
+        ? model
+        : { ...model, detail, readFailures: { ...model.readFailures, detail: false } },
     ReceivedActivity: ({ entry, cursor }) =>
-      noCommands(
-        entry.assetId !== model.selected || Option.exists(model.activityCursor, (previous) => cursor <= previous)
-          ? model
-          : {
-              ...model,
-              activity: Arr.prepend(model.activity, entry),
-              activityCursor: Option.some(cursor),
-              readFailures: { ...model.readFailures, activity: false },
-            }
-      ),
-    ActivityCaughtUp: () =>
-      noCommands({ ...model, activityCaughtUp: true, readFailures: { ...model.readFailures, activity: false } }),
-    ReadFailed: ({ read }) => noCommands({ ...model, readFailures: { ...model.readFailures, [read]: true } }),
-    SessionExpired: () => noCommands({ ...model, sessionExpired: true }),
-    ChangedDate: ({ today }) => noCommands(today === model.today ? model : { ...model, today }),
+      entry.assetId !== selected || Option.exists(model.activityCursor, (previous) => cursor <= previous)
+        ? model
+        : {
+            ...model,
+            activity: Arr.prepend(model.activity, entry),
+            activityCursor: Option.some(cursor),
+            readFailures: { ...model.readFailures, activity: false },
+          },
+    ActivityCaughtUp: () => ({
+      ...model,
+      activityCaughtUp: true,
+      readFailures: { ...model.readFailures, activity: false },
+    }),
+    ReadFailed: ({ read }) => ({ ...model, readFailures: { ...model.readFailures, [read]: true } }),
+    SessionExpired: () => ({ ...model, sessionExpired: true }),
+    ChangedDate: ({ today }) => (today === model.today ? model : { ...model, today }),
   })
+})
 
 const edit = (model: Model, editor: Model['editor']): Model => ({
   ...model,
@@ -216,7 +200,12 @@ const setupDraft = (
 
 const openAssetEdit = (model: Model): Model => {
   const asset = model.detail
-  if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
+  if (
+    model.attempt !== null ||
+    model.sessionExpired ||
+    screenOf(model.route) !== 'Assets' ||
+    asset?.status !== 'active'
+  ) {
     return model
   }
 
@@ -237,17 +226,14 @@ const openAssetEdit = (model: Model): Model => {
   }
 }
 
-const changeRoute = (model: Model, pathname: string): Model => {
-  const route = routeFromPath(pathname)
-  const selected = Option.getOrNull(route.selected)
-  if (route.screen === model.screen && selected === model.selected) {
+const changeRoute = (model: Model, route: typeof LogbookRoutes.Type): Model => {
+  if (LogbookRoutes.print(model.route) === LogbookRoutes.print(route)) {
     return model
   }
   return edit(
     {
       ...model,
-      screen: route.screen,
-      selected,
+      route,
       detail: null,
       activity: [],
       activityCursor: Option.none(),
@@ -255,55 +241,73 @@ const changeRoute = (model: Model, pathname: string): Model => {
       readFailures: { ...model.readFailures, detail: false, activity: false },
       attempt: null,
     },
-    route.screen === 'Quick Log' ? Editor.cases.RecordMeter.make({}) : null
+    LogbookRoutes.guards['Quick Log'](route) ? Editor.cases.RecordMeter.make({}) : null
   )
 }
 
-const readFailure =
-  (read: 'catalog' | 'detail' | 'activity') =>
-  (error: unknown): Message =>
-    Schema.is(Unauthorized)(error) ? Message.SessionExpired() : Message.ReadFailed({ read })
+const recoverRead =
+  (read: keyof Model['readFailures']) =>
+  <E, R>(stream: Stream.Stream<Message, E, R>): Stream.Stream<Message, never, R> =>
+    stream.pipe(
+      Stream.catch((error) =>
+        Stream.succeed(Schema.is(Unauthorized)(error) ? Message.SessionExpired() : Message.ReadFailed({ read }))
+      ),
+      Stream.catchDefect(() => Stream.succeed(Message.ReadFailed({ read })))
+    )
 
-// Disabled subscriptions still require a valid key in their dependency schema.
-const inactiveKey = AssetId.make('inactive')
-const selectedKey = (model: Model) => model.selected ?? inactiveKey
-const hasSelection = (model: Model) =>
-  !model.sessionExpired &&
-  model.selected !== null &&
-  (model.catalog === null || Record.has(model.catalog.assets, model.selected))
+const subscriptions = LogbookDefinition.subscriptions(({ model }) => {
+  const selected = selectedAsset(model.route)
+  const assetId =
+    !model.sessionExpired && selected !== null && (model.catalog === null || Record.has(model.catalog.assets, selected))
+      ? selected
+      : null
+  const after = Option.getOrUndefined(model.activityCursor)
 
-export const subscriptions = Subscription.make<Model, Message, Client>()((entry) => ({
-  catalog: client.HomeCatalog.watch({
-    key: () => HOME_HOUSEHOLD_ID,
-    isEnabled: (model: Model) => !model.sessionExpired,
-    toMessage: ({ state }) => Message.ReceivedCatalog({ catalog: Option.getOrNull(state) }),
-    onFailure: readFailure('catalog'),
-    onDefect: () => Message.ReadFailed({ read: 'catalog' }),
-  }),
-  detail: client.AssetDetail.watch({
-    key: selectedKey,
-    isEnabled: hasSelection,
-    toMessage: ({ state }) => Message.ReceivedDetail({ detail: Option.getOrNull(state) }),
-    onFailure: readFailure('detail'),
-    onDefect: () => Message.ReadFailed({ read: 'detail' }),
-  }),
-  activity: client.AssetActivity.events({
-    key: selectedKey,
-    isEnabled: hasSelection,
-    cursor: (model) => model.activityCursor,
-    onEntry: ({ event, envelope }) => Message.ReceivedActivity({ entry: event, cursor: envelope.seq }),
-    onCaughtUp: () => Message.ActivityCaughtUp(),
-    onFailure: readFailure('activity'),
-    onDefect: () => Message.ReadFailed({ read: 'activity' }),
-  }),
-  clock: entry(
-    {},
-    {
-      modelToDependencies: () => ({}),
-      dependenciesToStream: () =>
-        Stream.tick(Duration.minutes(1)).pipe(
-          Stream.mapEffect(() => Effect.map(DateTime.now, (now) => Message.ChangedDate({ today: isoDateFromUtc(now) })))
-        ),
-    }
-  ),
-}))
+  return [
+    Router.subscription(LogbookRoutes, model.route, (route) => Message.ChangedRoute({ route })),
+    !model.sessionExpired &&
+      Subscription.make(
+        'catalog',
+        Stream.unwrap(LogbookApi.Client.pipe(Effect.map((api) => api.HomeCatalog.watch(HOME_HOUSEHOLD_ID)))).pipe(
+          Stream.map(({ state }) => Message.ReceivedCatalog({ catalog: state })),
+          recoverRead('catalog')
+        )
+      ),
+    assetId !== null &&
+      Subscription.make('detail', assetId, (id) =>
+        Stream.unwrap(LogbookApi.Client.pipe(Effect.map((api) => api.AssetDetail.watch(id)))).pipe(
+          Stream.map(({ state }) => Message.ReceivedDetail({ detail: state })),
+          recoverRead('detail')
+        )
+      ),
+    assetId !== null &&
+      Subscription.make('activity', assetId, (id) =>
+        Stream.unwrap(
+          LogbookApi.Client.pipe(
+            Effect.map((api) => api.AssetActivity.events(id, after === undefined ? undefined : { after }))
+          )
+        ).pipe(
+          Stream.map((frame) =>
+            Read.isCaughtUp(frame)
+              ? Message.ActivityCaughtUp()
+              : Message.ReceivedActivity({ entry: frame.event, cursor: frame.envelope.seq })
+          ),
+          recoverRead('activity')
+        )
+      ),
+    Subscription.make(
+      'clock',
+      Stream.tick(Duration.minutes(1)).pipe(
+        Stream.mapEffect(() => Effect.map(DateTime.now, (now) => Message.ChangedDate({ today: isoDateFromUtc(now) })))
+      )
+    ),
+  ]
+})
+
+// @effect-diagnostics-next-line missingPipeableSignature:off -- Effect UI defines the component call signature.
+export const Logbook = LogbookDefinition.make({
+  init: ({ props }) => init(props),
+  update,
+  subscriptions,
+  view: (h, model) => view(h)(model),
+}).pipe(Component.provide(SaveAsset.layer))

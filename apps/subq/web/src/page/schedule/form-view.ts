@@ -1,9 +1,10 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import { listMedicationCompounds, suggestedDoseMgForCompound } from '@garage/subq-domain/MedicationVocabulary'
 import { MedicationCompound } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { FREQUENCIES, frequencyFromString } from '../../lib/frequency.ts'
 import { viewDatalist } from '../../lib/view.ts'
@@ -38,106 +39,80 @@ const scheduleSubmitLabel = (form: ScheduleForm): string => {
 }
 
 const makeViewScheduleForm = <ParentMessage>(
-  h: HtmlBuilder<ParentMessage | ScheduleMessage>
-): ((form: ScheduleForm) => Html) => {
+  h: Html.H<ParentMessage | ScheduleMessage>
+): ((form: ScheduleForm) => View.Content<ParentMessage | ScheduleMessage>) => {
   const viewPhaseEditor = (form: ScheduleForm) =>
-    h.div(
-      [h.Class('mb-4')],
-      [
-        h.div(
-          [h.Class('flex items-center justify-between mb-2')],
-          [
-            h.label(
-              [h.Class('block text-sm font-medium')],
-              ['Titration Phases ', h.span([h.Class('text-destructive')], ['*'])]
-            ),
-            h.button(
-              [h.Class(button({ size: 'sm', variant: 'outline' })), h.Type('button'), h.OnClick(AddedSchedulePhase())],
-              ['Add Phase']
-            ),
-          ]
-        ),
-        h.p(
-          [h.Class('text-xs text-muted-foreground mb-3')],
-          ['Define each phase of your titration schedule. Duration is in days (28 = ~1 month).']
-        ),
-        h.div(
-          [h.Class('space-y-3')],
-          Arr.map(form.phases, (phase, index) =>
-            h.keyed('div')(
-              String(phase.order),
-              [h.Class('flex flex-col gap-3 p-3 bg-muted/50 rounded-lg sm:flex-row sm:items-center')],
-              [
-                h.span([h.Class('text-sm font-medium text-muted-foreground w-16')], [`Phase ${index + 1}`]),
-                h.div(
-                  [h.Class('flex-1')],
-                  [
-                    h.input([
-                      h.Class(input()),
-                      h.Type('number'),
-                      h.List('schedule-dose-mg-suggestions'),
-                      h.Min('0'),
-                      h.Step('any'),
-                      h.Placeholder('Dose in mg (e.g., 2.5)'),
-                      h.Value(phase.doseMg),
-                      h.OnInput((value) => ChangedSchedulePhaseDoseMg({ index, value })),
-                    ]),
-                  ]
-                ),
-                h.div(
-                  [h.Class('w-full sm:w-24')],
-                  [
-                    h.input([
-                      h.Class(input()),
-                      h.Type('number'),
-                      h.Placeholder('Days'),
-                      h.Min('1'),
-                      h.Disabled(phase.isIndefinite),
-                      h.Value(phase.durationDays),
-                      h.OnInput((value) => ChangedSchedulePhaseDuration({ index, value })),
-                    ]),
-                  ]
-                ),
-                index === form.phases.length - 1
-                  ? h.label(
-                      [
-                        h.Class(
-                          'flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer whitespace-nowrap'
-                        ),
-                        h.Title('Mark as ongoing maintenance phase with no end date'),
-                      ],
-                      [
-                        h.input([
-                          h.Class('rounded border-muted-foreground/50'),
-                          h.Type('checkbox'),
-                          h.Checked(phase.isIndefinite),
-                          h.OnClick(ToggledSchedulePhaseIndefinite({ checked: !phase.isIndefinite, index })),
-                        ]),
-                        'Indefinite',
-                      ]
+    h.div.class('mb-4').children(
+      h.div.class('flex items-center justify-between mb-2').children(
+        h.label
+          .class('block text-sm font-medium')
+          .children('Titration Phases ', h.span.class('text-destructive').children('*')),
+        h.button
+          .class(button({ size: 'sm', variant: 'outline' }))
+          .attr('type', 'button')
+          .on('click', AddedSchedulePhase())
+          .children('Add Phase')
+      ),
+      h.p
+        .class('text-xs text-muted-foreground mb-3')
+        .children('Define each phase of your titration schedule. Duration is in days (28 = ~1 month).'),
+      h.div.class('space-y-3').children(
+        Arr.map(form.phases, (phase, index) =>
+          h.div
+            .key(String(phase.order))
+            .class('flex flex-col gap-3 p-3 bg-muted/50 rounded-lg sm:flex-row sm:items-center')
+            .children(
+              h.span.class('text-sm font-medium text-muted-foreground w-16').children(`Phase ${index + 1}`),
+              h.div.class('flex-1').children(
+                h.input
+                  .class(input())
+                  .attr('type', 'number')
+                  .attr('list', 'schedule-dose-mg-suggestions')
+                  .attr('min', '0')
+                  .attr('step', 'any')
+                  .attr('placeholder', 'Dose in mg (e.g., 2.5)')
+                  .value(phase.doseMg)
+                  .on('input', ({ value }) => ChangedSchedulePhaseDoseMg({ index, value }))
+              ),
+              h.div.class('w-full sm:w-24').children(
+                h.input
+                  .class(input())
+                  .attr('type', 'number')
+                  .attr('placeholder', 'Days')
+                  .attr('min', '1')
+                  .disabled(phase.isIndefinite)
+                  .value(phase.durationDays)
+                  .on('input', ({ value }) => ChangedSchedulePhaseDuration({ index, value }))
+              ),
+              index === form.phases.length - 1
+                ? h.label
+                    .class('flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer whitespace-nowrap')
+                    .attr('title', 'Mark as ongoing maintenance phase with no end date')
+                    .children(
+                      h.input
+                        .class('rounded border-muted-foreground/50')
+                        .attr('type', 'checkbox')
+                        .checked(phase.isIndefinite)
+                        .on('click', ToggledSchedulePhaseIndefinite({ checked: !phase.isIndefinite, index })),
+                      'Indefinite'
                     )
-                  : h.empty,
-                form.phases.length > 1
-                  ? h.button(
-                      [
-                        h.Class(
-                          button({
-                            class: 'h-8 w-8 text-destructive hover:text-destructive',
-                            size: 'icon',
-                            variant: 'ghost',
-                          })
-                        ),
-                        h.Type('button'),
-                        h.OnClick(RemovedSchedulePhase({ index })),
-                      ],
-                      ['Del']
+                : null,
+              form.phases.length > 1
+                ? h.button
+                    .class(
+                      button({
+                        class: 'h-8 w-8 text-destructive hover:text-destructive',
+                        size: 'icon',
+                        variant: 'ghost',
+                      })
                     )
-                  : h.empty,
-              ]
+                    .attr('type', 'button')
+                    .on('click', RemovedSchedulePhase({ index }))
+                    .children('Del')
+                : null
             )
-          )
-        ),
-      ]
+        )
+      )
     )
 
   const viewForm = (form: ScheduleForm) => {
@@ -157,135 +132,102 @@ const makeViewScheduleForm = <ParentMessage>(
         (phase) => Str.trim(phase.doseMg) !== '' && (phase.isIndefinite || Str.trim(phase.durationDays) !== '')
       )
 
-    return h.div(
-      [h.Class(card({ class: 'mb-6 p-6' }))],
-      [
-        h.form(
-          [h.OnSubmit(SubmittedScheduleForm())],
-          [
-            h.div(
-              [h.Class('mb-4')],
-              [
-                h.label(
-                  [h.For('schedule-name'), h.Class('mb-2 block text-sm font-medium')],
-                  ['Schedule Name ', h.span([h.Class('text-destructive')], ['*'])]
-                ),
-                h.input([
-                  h.Class(input()),
-                  h.Type('text'),
-                  h.Id('schedule-name'),
-                  h.Placeholder('e.g., Semaglutide Titration'),
-                  h.Value(form.name),
-                  h.OnInput((value) => ChangedScheduleName({ value })),
-                ]),
-              ]
-            ),
-            h.div(
-              [h.Class('mb-4')],
-              [
-                h.label(
-                  [h.For('schedule-compound'), h.Class('mb-2 block text-sm font-medium')],
-                  ['Medication ', h.span([h.Class('text-destructive')], ['*'])]
-                ),
-                h.select(
-                  [
-                    h.Class(select()),
-                    h.Id('schedule-compound'),
-                    h.Value(form.compound),
-                    h.OnChange((value) => ChangedScheduleCompound({ value })),
-                  ],
-                  [
-                    h.option([h.Value('')], ['Select medication']),
-                    ...Arr.map(listMedicationCompounds(), (compound) =>
-                      h.keyed('option')(compound, [h.Value(compound)], [compound])
-                    ),
-                  ]
-                ),
-              ]
-            ),
-            h.div(
-              [h.Class('mb-4')],
-              [
-                h.label([h.For('schedule-supplier'), h.Class('mb-2 block text-sm font-medium')], ['Supplier']),
-                h.input([
-                  h.Class(input()),
-                  h.Type('text'),
-                  h.Id('schedule-supplier'),
-                  h.Placeholder('e.g., CVS, clinic, direct vendor'),
-                  h.Value(form.supplier),
-                  h.OnInput((value) => ChangedScheduleSupplier({ value })),
-                ]),
-              ]
-            ),
-            h.div(
-              [h.Class('grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2')],
-              [
-                h.div(
-                  [],
-                  [
-                    h.label(
-                      [h.For('schedule-frequency'), h.Class('mb-2 block text-sm font-medium')],
-                      ['Frequency ', h.span([h.Class('text-destructive')], ['*'])]
-                    ),
-                    h.select(
-                      [
-                        h.Class(select()),
-                        h.Id('schedule-frequency'),
-                        h.Value(form.frequency),
-                        h.OnChange((value) => ChangedScheduleFrequency({ value: frequencyFromString(value) })),
-                      ],
-                      Arr.map(FREQUENCIES, ([value, label]) => h.keyed('option')(value, [h.Value(value)], [label]))
-                    ),
-                  ]
-                ),
-                h.div(
-                  [],
-                  [
-                    h.label(
-                      [h.For('schedule-start-date'), h.Class('mb-2 block text-sm font-medium')],
-                      ['Start Date ', h.span([h.Class('text-destructive')], ['*'])]
-                    ),
-                    h.input([
-                      h.Class(input()),
-                      h.Type('date'),
-                      h.Id('schedule-start-date'),
-                      h.Value(form.startDate),
-                      h.OnInput((value) => ChangedScheduleStartDate({ value })),
-                    ]),
-                  ]
-                ),
-              ]
-            ),
-            viewPhaseEditor(form),
-            viewDatalist({ h, id: 'schedule-dose-mg-suggestions', values: doseMgSuggestions }),
-            h.div(
-              [h.Class('mb-4')],
-              [
-                h.label([h.For('schedule-notes'), h.Class('mb-2 block text-sm font-medium')], ['Notes']),
-                h.textarea([
-                  h.Class(input({ class: 'h-auto' })),
-                  h.Id('schedule-notes'),
-                  h.Rows(2),
-                  h.Placeholder('Any additional instructions or notes...'),
-                  h.Value(form.notes),
-                  h.OnInput((value) => ChangedScheduleNotes({ value })),
-                ]),
-              ]
-            ),
-            form.error === null ? h.empty : h.p([h.Class('mb-3 text-sm text-destructive')], [form.error]),
-            h.div(
-              [h.Class('flex justify-end gap-3')],
-              [
-                h.button(
-                  [h.Class(button({ variant: 'outline' })), h.Type('button'), h.OnClick(ClickedCancelScheduleForm())],
-                  ['Cancel']
-                ),
-                h.button([h.Class(button()), h.Type('submit'), h.Disabled(form.submitting || !isValid)], [submitLabel]),
-              ]
-            ),
-          ]
+    return h.div.class(card({ class: 'mb-6 p-6' })).children(
+      h.form.on('submit', SubmittedScheduleForm()).children(
+        h.div.class('mb-4').children(
+          h.label
+            .attr('for', 'schedule-name')
+            .class('mb-2 block text-sm font-medium')
+            .children('Schedule Name ', h.span.class('text-destructive').children('*')),
+          h.input
+            .class(input())
+            .attr('type', 'text')
+            .attr('id', 'schedule-name')
+            .attr('placeholder', 'e.g., Semaglutide Titration')
+            .value(form.name)
+            .on('input', ({ value }) => ChangedScheduleName({ value }))
         ),
-      ]
+        h.div.class('mb-4').children(
+          h.label
+            .attr('for', 'schedule-compound')
+            .class('mb-2 block text-sm font-medium')
+            .children('Medication ', h.span.class('text-destructive').children('*')),
+          h.select
+            .class(select())
+            .attr('id', 'schedule-compound')
+            .value(form.compound)
+            .on('change', ({ value }) => ChangedScheduleCompound({ value }))
+            .children(
+              h.option.attr('value', '').children('Select medication'),
+              ...Arr.map(listMedicationCompounds(), (compound) =>
+                h.option.key(compound).attr('value', compound).children(compound)
+              )
+            )
+        ),
+        h.div.class('mb-4').children(
+          h.label.attr('for', 'schedule-supplier').class('mb-2 block text-sm font-medium').children('Supplier'),
+          h.input
+            .class(input())
+            .attr('type', 'text')
+            .attr('id', 'schedule-supplier')
+            .attr('placeholder', 'e.g., CVS, clinic, direct vendor')
+            .value(form.supplier)
+            .on('input', ({ value }) => ChangedScheduleSupplier({ value }))
+        ),
+        h.div.class('grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2').children(
+          h.div.children(
+            h.label
+              .attr('for', 'schedule-frequency')
+              .class('mb-2 block text-sm font-medium')
+              .children('Frequency ', h.span.class('text-destructive').children('*')),
+            h.select
+              .class(select())
+              .attr('id', 'schedule-frequency')
+              .value(form.frequency)
+              .on('change', ({ value }) => ChangedScheduleFrequency({ value: frequencyFromString(value) }))
+              .children(
+                Arr.map(FREQUENCIES, ([value, label]) => h.option.key(value).attr('value', value).children(label))
+              )
+          ),
+          h.div.children(
+            h.label
+              .attr('for', 'schedule-start-date')
+              .class('mb-2 block text-sm font-medium')
+              .children('Start Date ', h.span.class('text-destructive').children('*')),
+            h.input
+              .class(input())
+              .attr('type', 'date')
+              .attr('id', 'schedule-start-date')
+              .value(form.startDate)
+              .on('input', ({ value }) => ChangedScheduleStartDate({ value }))
+          )
+        ),
+        viewPhaseEditor(form),
+        viewDatalist({ h, id: 'schedule-dose-mg-suggestions', values: doseMgSuggestions }),
+        h.div.class('mb-4').children(
+          h.label.attr('for', 'schedule-notes').class('mb-2 block text-sm font-medium').children('Notes'),
+          h.textarea
+            .class(input({ class: 'h-auto' }))
+            .attr('id', 'schedule-notes')
+            .attr('rows', String(2))
+            .attr('placeholder', 'Any additional instructions or notes...')
+            .value(form.notes)
+            .on('input', ({ value }) => ChangedScheduleNotes({ value }))
+        ),
+        form.error === null ? null : h.p.class('mb-3 text-sm text-destructive').children(form.error),
+        h.div.class('flex justify-end gap-3').children(
+          h.button
+            .class(button({ variant: 'outline' }))
+            .attr('type', 'button')
+            .on('click', ClickedCancelScheduleForm())
+            .children('Cancel'),
+          h.button
+            .class(button())
+            .attr('type', 'submit')
+            .disabled(form.submitting || !isValid)
+            .children(submitLabel)
+        )
+      )
     )
   }
 
@@ -297,5 +239,5 @@ export const viewScheduleForm = <ParentMessage>({
   h,
 }: {
   readonly form: ScheduleForm
-  readonly h: HtmlBuilder<ParentMessage | ScheduleMessage>
-}): Html => makeViewScheduleForm(h)(form)
+  readonly h: Html.H<ParentMessage | ScheduleMessage>
+}): View.Content<ParentMessage | ScheduleMessage> => makeViewScheduleForm(h)(form)

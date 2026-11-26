@@ -1,7 +1,12 @@
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import { ActivateSchedule } from '@garage/subq-domain/Journal/ActivateSchedule.command'
+import { CreateSchedule } from '@garage/subq-domain/Journal/CreateSchedule.command'
+import { DeactivateSchedule } from '@garage/subq-domain/Journal/DeactivateSchedule.command'
 import { ScheduleId, SchedulePhaseId } from '@garage/subq-domain/Journal/Journal.id'
 import { NewSchedule } from '@garage/subq-domain/Journal/JournalRecords'
 import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import { RemoveSchedule } from '@garage/subq-domain/Journal/RemoveSchedule.command'
+import { ReviseSchedule } from '@garage/subq-domain/Journal/ReviseSchedule.command'
 import { DoseMg, MedicationCompound, PhaseDurationDays, PhaseOrder } from '@garage/subq-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Function from 'effect/Function'
@@ -10,9 +15,8 @@ import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import * as Struct from 'effect/Struct'
-import { modifyFields } from 'foldkit/struct'
 
-import { client, mutate } from '../../client.ts'
+import { mutate } from '../../client.ts'
 import type { PageUpdate } from '../../client.ts'
 import { optionalText, withForm } from '../../lib/form.ts'
 import { OpenScheduleForm } from './command.ts'
@@ -32,17 +36,14 @@ const decodeSchedule = Schema.decodeUnknownOption(Schema.Struct(Struct.omit(NewS
 
 const changeScheduleActivity = ({ id: scheduleId, isActive }: Schedule) =>
   mutate(
-    (request) =>
-      isActive
-        ? client.DeactivateSchedule({ ...request, input: { scheduleId } })
-        : client.ActivateSchedule({ ...request, input: { scheduleId } }),
+    () => (isActive ? DeactivateSchedule.make({ scheduleId }) : ActivateSchedule.make({ scheduleId })),
     SucceededActivateSchedule(),
     (message) => FailedActivateSchedule({ message })
   )
 
 const removeSchedule = (scheduleId: ScheduleId) =>
   mutate(
-    (request) => client.RemoveSchedule({ ...request, input: { scheduleId } }),
+    () => RemoveSchedule.make({ scheduleId }),
     SucceededDeleteSchedule(),
     (message) => FailedDeleteSchedule({ message })
   )
@@ -53,20 +54,18 @@ const saveSchedule = (
   phases: ReadonlyArray<SchedulePhaseForm>
 ) =>
   mutate(
-    (request) => {
+    (commandId) => {
       const input = {
         ...fields,
-        scheduleId: Option.getOrElse(id, () => ScheduleId.make(request.commandId)),
+        scheduleId: Option.getOrElse(id, () => ScheduleId.make(commandId)),
         phases: Arr.map(phases, (phase, index) => ({
-          id: phase.id ?? SchedulePhaseId.make(`${request.commandId}:phase:${index}`),
+          id: phase.id ?? SchedulePhaseId.make(`${commandId}:phase:${index}`),
           order: PhaseOrder.make(index + 1),
           doseMg: DoseMg.make(Number(phase.doseMg)),
           durationDays: phase.isIndefinite ? null : PhaseDurationDays.make(Math.trunc(Number(phase.durationDays))),
         })),
       }
-      return Option.isNone(id)
-        ? client.CreateSchedule({ ...request, input })
-        : client.ReviseSchedule({ ...request, input })
+      return Option.isNone(id) ? CreateSchedule.make(input) : ReviseSchedule.make(input)
     },
     SucceededSaveSchedule(),
     (message) => FailedSaveSchedule({ message })
@@ -81,7 +80,7 @@ const defaultPhase = (order: number): SchedulePhaseForm => ({
 })
 
 const reorderPhases = (phases: ReadonlyArray<SchedulePhaseForm>): ReadonlyArray<SchedulePhaseForm> =>
-  Arr.map(phases, (phase, index) => modifyFields(phase, { order: () => index + 1 }))
+  Arr.map(phases, (phase, index) => Struct.evolve(phase, { order: () => index + 1 }))
 
 const updatePhase = (
   phases: ReadonlyArray<SchedulePhaseForm>,
@@ -147,13 +146,13 @@ export const updateSchedule: {
         model: withForm(model, (form) => ({
           phases: [
             ...Arr.map(form.phases, (phase) =>
-              phase.isIndefinite ? modifyFields(phase, { durationDays: () => '28', isIndefinite: () => false }) : phase
+              phase.isIndefinite ? Struct.evolve(phase, { durationDays: () => '28', isIndefinite: () => false }) : phase
             ),
             defaultPhase(form.phases.length + 1),
           ],
         })),
       }),
-      CancelledDeleteSchedule: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+      CancelledDeleteSchedule: () => ({ model: Struct.evolve(model, { pendingDeleteId: () => null }) }),
       ChangedScheduleCompound: ({ value }) => ({ model: withForm(model, () => ({ compound: value })) }),
       ChangedScheduleSupplier: ({ value }) => ({ model: withForm(model, () => ({ supplier: value })) }),
       ChangedScheduleFrequency: ({ value }) => ({ model: withForm(model, () => ({ frequency: value })) }),
@@ -161,26 +160,26 @@ export const updateSchedule: {
       ChangedScheduleNotes: ({ value }) => ({ model: withForm(model, () => ({ notes: value })) }),
       ChangedSchedulePhaseDoseMg: ({ index, value }) => ({
         model: withForm(model, (form) => ({
-          phases: updatePhase(form.phases, index, (phase) => modifyFields(phase, { doseMg: () => value })),
+          phases: updatePhase(form.phases, index, (phase) => Struct.evolve(phase, { doseMg: () => value })),
         })),
       }),
       ChangedSchedulePhaseDuration: ({ index, value }) => ({
         model: withForm(model, (form) => ({
-          phases: updatePhase(form.phases, index, (phase) => modifyFields(phase, { durationDays: () => value })),
+          phases: updatePhase(form.phases, index, (phase) => Struct.evolve(phase, { durationDays: () => value })),
         })),
       }),
       ChangedScheduleStartDate: ({ value }) => ({ model: withForm(model, () => ({ startDate: value })) }),
       ClickedToggleScheduleActivity: ({ schedule }) => ({ model, mutation: changeScheduleActivity(schedule) }),
-      ClickedAddSchedule: () => ({ model, commands: [OpenScheduleForm({ schedule: null, timezone })] }),
-      ClickedCancelScheduleForm: () => ({ model: modifyFields(model, { form: () => null }) }),
-      ClickedEditSchedule: ({ schedule }) => ({ model, commands: [OpenScheduleForm({ schedule, timezone })] }),
+      ClickedAddSchedule: () => ({ model, commands: [OpenScheduleForm.make({ schedule: null, timezone })] }),
+      ClickedCancelScheduleForm: () => ({ model: Struct.evolve(model, { form: () => null }) }),
+      ClickedEditSchedule: ({ schedule }) => ({ model, commands: [OpenScheduleForm.make({ schedule, timezone })] }),
       ConfirmedDeleteSchedule: () =>
         model.pendingDeleteId === null ? { model } : { model, mutation: removeSchedule(model.pendingDeleteId) },
       FailedActivateSchedule: () => ({ model }),
-      FailedDeleteSchedule: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+      FailedDeleteSchedule: () => ({ model: Struct.evolve(model, { pendingDeleteId: () => null }) }),
       FailedSaveSchedule: ({ message: error }) => ({ model: withForm(model, () => ({ error, submitting: false })) }),
       CompletedOpenScheduleForm: ({ schedule, todayLocal }) => ({
-        model: modifyFields(model, {
+        model: Struct.evolve(model, {
           form: () =>
             schedule === null
               ? {
@@ -188,7 +187,7 @@ export const updateSchedule: {
                   supplier: '',
                   editingId: null,
                   error: null,
-                  frequency: 'weekly',
+                  frequency: 'weekly' as const,
                   name: '',
                   notes: '',
                   phases: [defaultPhase(1)],
@@ -226,7 +225,7 @@ export const updateSchedule: {
         ),
       }),
       RequestedDeleteSchedule: ({ id }) => ({
-        model: modifyFields(model, { form: () => null, pendingDeleteId: () => id }),
+        model: Struct.evolve(model, { form: () => null, pendingDeleteId: () => id }),
       }),
       SubmittedScheduleForm: () => {
         if (model.form === null || model.form.submitting) {
@@ -263,7 +262,7 @@ export const updateSchedule: {
       ToggledSchedulePhaseIndefinite: ({ checked, index }) => ({
         model: withForm(model, (form) => ({
           phases: updatePhase(form.phases, index, (phase) =>
-            modifyFields(phase, {
+            Struct.evolve(phase, {
               durationDays: () => (checked ? '' : '28'),
               isIndefinite: () => checked,
             })

@@ -33,7 +33,7 @@ Cloudflare Durable Objects.
 
 `domain/` defines the journal aggregate, commands, live views, snapshot format,
 and calculations. `server/` authenticates requests and hosts the domain.
-`web/` serves the Foldkit application and forwards API requests to the server
+`web/` serves the Effect UI application and forwards API requests to the server
 Worker. The browser watches `JournalProfile`, `WeightHistory`, and
 `InjectionHistory` over WebSockets. The browser calculates statistics,
 charts, goal progress, and schedule progress from these views.

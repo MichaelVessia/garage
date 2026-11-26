@@ -1,43 +1,46 @@
+import { Command } from '@effect/ui'
+import type { Router } from '@effect/ui'
 import { CalendarDate } from '@garage/subq-domain/Calendar'
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import { CompleteGoal } from '@garage/subq-domain/Journal/CompleteGoal.command'
 import { GoalId } from '@garage/subq-domain/Journal/Journal.id'
 import type { Goal, NewGoal } from '@garage/subq-domain/Journal/JournalRecords'
+import { RemoveGoal } from '@garage/subq-domain/Journal/RemoveGoal.command'
+import { ReviseGoal } from '@garage/subq-domain/Journal/ReviseGoal.command'
+import { SetGoal } from '@garage/subq-domain/Journal/SetGoal.command'
 import { Notes, WeightLbs } from '@garage/subq-domain/Values'
 import type { WeightUnit } from '@garage/subq-domain/Values'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as Struct from 'effect/Struct'
 import type * as Types from 'effect/Types'
-import { modifyFields } from 'foldkit/struct'
 
 import { ChartMessage, updateChart } from '../../chart/state.ts'
-import { client, mutate } from '../../client.ts'
+import { mutate } from '../../client.ts'
 import type { PageUpdate } from '../../client.ts'
 import { dateToCalendarDate, epochToDate } from '../../lib/datetime.ts'
 import { optionalText } from '../../lib/form.ts'
 import { toStorageLbs, weightInputValue } from '../../lib/weight-unit.ts'
-import { ApplyPreset, NavigateStatsRange, OpenGoalForm } from './command.ts'
+import { ApplyPreset, navigateStatsRange, OpenGoalForm } from './command.ts'
 import { FailedSaveGoal, SucceededChangeGoalStatus, SucceededSaveGoal } from './model.ts'
 import type { StatsMessage, StatsModel } from './model.ts'
 
-type UpdateReturn = PageUpdate<StatsModel, StatsMessage>
+type UpdateReturn = PageUpdate<StatsModel, StatsMessage, ApplyPreset | Router.Push>
 
 const saveGoal = (id: Option.Option<GoalId>, fields: typeof NewGoal.Type) =>
   mutate(
-    (request) =>
+    (commandId) =>
       Option.isNone(id)
-        ? client.SetGoal({ ...request, input: { ...fields, goalId: GoalId.make(request.commandId) } })
-        : client.ReviseGoal({ ...request, input: { ...fields, goalId: id.value } }),
+        ? SetGoal.make({ ...fields, goalId: GoalId.make(commandId) })
+        : ReviseGoal.make({ ...fields, goalId: id.value }),
     SucceededSaveGoal(),
     (message) => FailedSaveGoal({ message })
   )
 
 const changeGoalStatus = (goalId: GoalId, complete: boolean) =>
   mutate(
-    (request) =>
-      complete
-        ? client.CompleteGoal({ ...request, input: { goalId } })
-        : client.RemoveGoal({ ...request, input: { goalId } }),
+    () => (complete ? CompleteGoal.make({ goalId }) : RemoveGoal.make({ goalId })),
     SucceededChangeGoalStatus(),
     (message) => FailedSaveGoal({ message })
   )
@@ -62,8 +65,8 @@ const submitGoalForm = (model: StatsModel, unit: WeightUnit): UpdateReturn => {
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return {
-      model: modifyFields(model, {
-        goalForm: (form) => (form === null ? null : modifyFields(form, { error: () => 'Enter a valid goal weight' })),
+      model: Struct.evolve(model, {
+        goalForm: (form) => (form === null ? null : Struct.evolve(form, { error: () => 'Enter a valid goal weight' })),
       }),
     }
   }
@@ -73,8 +76,8 @@ const submitGoalForm = (model: StatsModel, unit: WeightUnit): UpdateReturn => {
 
   if (Option.isNone(startDate) || Option.isNone(targetDate)) {
     return {
-      model: modifyFields(model, {
-        goalForm: (form) => (form === null ? null : modifyFields(form, { error: () => 'Enter valid goal dates' })),
+      model: Struct.evolve(model, {
+        goalForm: (form) => (form === null ? null : Struct.evolve(form, { error: () => 'Enter valid goal dates' })),
       }),
     }
   }
@@ -89,15 +92,15 @@ const submitGoalForm = (model: StatsModel, unit: WeightUnit): UpdateReturn => {
   }
 
   return {
-    model: modifyFields(model, {
-      goalForm: (form) => (form === null ? null : modifyFields(form, { error: () => null, submitting: () => true })),
+    model: Struct.evolve(model, {
+      goalForm: (form) => (form === null ? null : Struct.evolve(form, { error: () => null, submitting: () => true })),
     }),
     mutation: saveGoal(Option.fromNullOr(model.goalForm.editingId), input),
   }
 }
 
 const editGoal = (model: StatsModel, goal: Goal, unit: WeightUnit): UpdateReturn => ({
-  model: modifyFields(model, {
+  model: Struct.evolve(model, {
     goalForm: () => ({
       editingId: goal.id,
       error: null,
@@ -120,13 +123,13 @@ const commitCustomRange = (model: StatsModel): UpdateReturn => {
   const end = decodeCalendarDate(model.customEnd)
 
   return Option.isSome(start) && Option.isSome(end)
-    ? { model, commands: [NavigateStatsRange({ end: end.value, start: start.value })] }
+    ? { model, commands: [navigateStatsRange({ end: end.value, start: start.value })] }
     : { model }
 }
 
 const updateChartMessage = (model: StatsModel, message: ChartMessage, timezone: IanaTimezone): UpdateReturn => {
   const [chart, zoom] = updateChart(model.chart, message)
-  const next = modifyFields(model, { chart: () => chart })
+  const next = Struct.evolve(model, { chart: () => chart })
 
   return Option.match(zoom, {
     onNone: (): UpdateReturn => ({ model: next }),
@@ -134,7 +137,7 @@ const updateChartMessage = (model: StatsModel, message: ChartMessage, timezone: 
       const start = dateToCalendarDate(epochToDate(committed.startMs), timezone)
       const end = dateToCalendarDate(epochToDate(committed.endMs), timezone)
 
-      return { model: next, commands: [NavigateStatsRange({ end, start })] }
+      return { model: next, commands: [navigateStatsRange({ end, start })] }
     },
   })
 }
@@ -153,48 +156,50 @@ export const updateStats = (
   return Match.value(message).pipe(
     Match.withReturnType<UpdateReturn>(),
     Match.tagsExhaustive({
-      CancelledDeleteGoal: () => ({ model: modifyFields(model, { goalDeleteConfirm: () => false }) }),
-      ChangedCustomEnd: ({ value }) => ({ model: modifyFields(model, { customEnd: () => value }) }),
-      ChangedCustomStart: ({ value }) => ({ model: modifyFields(model, { customStart: () => value }) }),
+      CancelledDeleteGoal: () => ({ model: Struct.evolve(model, { goalDeleteConfirm: () => false }) }),
+      ChangedCustomEnd: ({ value }) => ({ model: Struct.evolve(model, { customEnd: () => value }) }),
+      ChangedCustomStart: ({ value }) => ({ model: Struct.evolve(model, { customStart: () => value }) }),
       ChangedGoalNotes: ({ value }) => ({
-        model: modifyFields(model, {
-          goalForm: (form) => (form === null ? null : modifyFields(form, { notes: () => value })),
+        model: Struct.evolve(model, {
+          goalForm: (form) => (form === null ? null : Struct.evolve(form, { notes: () => value })),
         }),
       }),
       ChangedGoalStartDate: ({ value }) => ({
-        model: modifyFields(model, {
-          goalForm: (form) => (form === null ? null : modifyFields(form, { startDate: () => value })),
+        model: Struct.evolve(model, {
+          goalForm: (form) => (form === null ? null : Struct.evolve(form, { startDate: () => value })),
         }),
       }),
       ChangedGoalTargetDate: ({ value }) => ({
-        model: modifyFields(model, {
-          goalForm: (form) => (form === null ? null : modifyFields(form, { targetDate: () => value })),
+        model: Struct.evolve(model, {
+          goalForm: (form) => (form === null ? null : Struct.evolve(form, { targetDate: () => value })),
         }),
       }),
       ChangedGoalWeight: ({ value }) => ({
-        model: modifyFields(model, {
-          goalForm: (form) => (form === null ? null : modifyFields(form, { goalWeight: () => value })),
+        model: Struct.evolve(model, {
+          goalForm: (form) => (form === null ? null : Struct.evolve(form, { goalWeight: () => value })),
         }),
       }),
-      ClickedCancelGoalForm: () => ({ model: modifyFields(model, { goalForm: () => null }) }),
+      ClickedCancelGoalForm: () => ({ model: Struct.evolve(model, { goalForm: () => null }) }),
       ClickedEditGoal: ({ goal }) => editGoal(model, goal, unit),
       ClickedCompleteGoal: ({ goalId }) => ({ model, mutation: changeGoalStatus(goalId, true) }),
-      ClickedSetGoal: () => ({ model, commands: [OpenGoalForm({ timezone })] }),
-      ClickedStatsPreset: ({ preset }) => ({ model, commands: [ApplyPreset({ preset, timezone })] }),
+      ClickedSetGoal: () => ({ model, commands: [OpenGoalForm.make({ timezone })] }),
+      ClickedStatsPreset: ({ preset }) => ({
+        model,
+        commands: [ApplyPreset.make({ preset, timezone }).pipe(Command.asNoop)],
+      }),
       CommittedCustomRange: () => commitCustomRange(model),
       ConfirmedDeleteGoal: ({ goalId }) => ({
-        model: modifyFields(model, { goalDeleteConfirm: () => false }),
+        model: Struct.evolve(model, { goalDeleteConfirm: () => false }),
         mutation: changeGoalStatus(goalId, false),
       }),
-      NavigatedStats: () => ({ model }),
       FailedSaveGoal: ({ message: error }) => ({
-        model: modifyFields(model, {
+        model: Struct.evolve(model, {
           goalForm: (form) =>
-            form === null ? null : modifyFields(form, { error: () => error, submitting: () => false }),
+            form === null ? null : Struct.evolve(form, { error: () => error, submitting: () => false }),
         }),
       }),
       CompletedOpenGoalForm: ({ todayLocal }) => ({
-        model: modifyFields(model, {
+        model: Struct.evolve(model, {
           goalForm: () => ({
             editingId: null,
             error: null,
@@ -207,7 +212,7 @@ export const updateStats = (
           }),
         }),
       }),
-      RequestedDeleteGoal: () => ({ model: modifyFields(model, { goalDeleteConfirm: () => true }) }),
+      RequestedDeleteGoal: () => ({ model: Struct.evolve(model, { goalDeleteConfirm: () => true }) }),
       SubmittedGoalForm: () => submitGoalForm(model, unit),
       SucceededChangeGoalStatus: () => ({ model }),
       SucceededSaveGoal: () => ({ model: { ...model, goalForm: null } }),

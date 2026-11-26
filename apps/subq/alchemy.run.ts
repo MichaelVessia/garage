@@ -19,7 +19,7 @@ export default Stack(
     const domain = dev
       ? undefined
       : yield* Config.String('SUBQ_DOMAIN').pipe(Config.option, Config.map(Option.getOrUndefined))
-    const app = yield* Cloudflare.Website.Foldkit('SubqApp', {
+    const app = yield* Cloudflare.Website.Vite('SubqApp', {
       rootDir: 'web',
       main: 'src/worker.ts',
       env: { SUBQ: subq },

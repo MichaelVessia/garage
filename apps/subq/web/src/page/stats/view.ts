@@ -1,3 +1,5 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import { addCalendarDays, calendarDateStartUtc } from '@garage/subq-domain/Calendar'
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
 import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
@@ -7,7 +9,6 @@ import * as DateTime from 'effect/DateTime'
 import * as Function from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import type { InjectionPoint, SchedulePeriod, WeightPoint } from '../../chart/layout.ts'
 import { viewWeightTrend } from '../../chart/weight-trend.ts'
@@ -69,87 +70,68 @@ const PRESETS: ReadonlyArray<readonly [StatsPreset, string]> = [
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessage>) => {
-  const viewCard = (title: string, content: Html) =>
-    h.div(
-      [h.Class(card())],
-      [
-        h.div(
-          [h.Class('flex flex-col space-y-1.5 p-4 sm:p-6')],
-          [h.h3([h.Class('text-sm font-semibold uppercase tracking-wider text-muted-foreground')], [title])]
-        ),
-        h.div([h.Class('p-4 pt-0 sm:p-6 sm:pt-0')], [content]),
-      ]
-    )
+const makeViewStats = <ParentMessage>(h: Html.H<ParentMessage | StatsMessage>) => {
+  const viewCard = (title: string, content: View.Input<ParentMessage | StatsMessage>) =>
+    h.div
+      .class(card())
+      .children(
+        h.div
+          .class('flex flex-col space-y-1.5 p-4 sm:p-6')
+          .children(h.h3.class('text-sm font-semibold uppercase tracking-wider text-muted-foreground').children(title)),
+        h.div.class('p-4 pt-0 sm:p-6 sm:pt-0').children(content)
+      )
 
   const viewStatGrid = (items: ReadonlyArray<readonly [string, string]>, columns: string) =>
-    h.div(
-      [h.Class(`grid grid-cols-2 gap-3 ${columns}`)],
-      Arr.map(items, ([label, value]) =>
-        h.div(
-          [],
-          [
-            h.div([h.Class('text-xs text-muted-foreground')], [label]),
-            h.div([h.Class('text-lg font-semibold font-mono')], [value]),
-          ]
+    h.div
+      .class(`grid grid-cols-2 gap-3 ${columns}`)
+      .children(
+        Arr.map(items, ([label, value]) =>
+          h.div.children(
+            h.div.class('text-xs text-muted-foreground').children(label),
+            h.div.class('text-lg font-semibold font-mono').children(value)
+          )
         )
       )
-    )
 
   const viewRangeSelector = (model: StatsPage, range: StatsRange) => {
     const active = activePresetOf(range)
 
-    return h.div(
-      [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap sm:gap-4')],
-      [
-        h.div(
-          [h.Class('flex gap-2 flex-wrap')],
-          Arr.map(PRESETS, ([key, label]) =>
-            h.button(
-              [
-                h.Class(
-                  button({
-                    size: 'sm',
-                    variant: Option.exists(active, (preset) => preset === key) ? 'default' : 'outline',
-                  })
-                ),
-                h.OnClick(ClickedStatsPreset({ preset: key })),
-              ],
-              [label]
+    return h.div.class('flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap sm:gap-4').children(
+      h.div.class('flex gap-2 flex-wrap').children(
+        Arr.map(PRESETS, ([key, label]) =>
+          h.button
+            .class(
+              button({
+                size: 'sm',
+                variant: Option.exists(active, (preset) => preset === key) ? 'default' : 'outline',
+              })
             )
+            .on('click', ClickedStatsPreset({ preset: key }))
+            .children(label)
+        )
+      ),
+      Option.isNone(active)
+        ? h.div.class('flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3').children(
+            h.span.class('text-sm text-muted-foreground').children('From'),
+            h.input
+              .class(input({ class: 'w-auto font-mono h-8 px-2' }))
+              .attr('type', 'date')
+              .value(model.customStart)
+              .on('input', ({ value }) => ChangedCustomStart({ value }))
+              .on('blur', CommittedCustomRange()),
+            h.span.class('text-sm text-muted-foreground').children('to'),
+            h.input
+              .class(input({ class: 'w-auto font-mono h-8 px-2' }))
+              .attr('type', 'date')
+              .value(model.customEnd)
+              .on('input', ({ value }) => ChangedCustomEnd({ value }))
+              .on('blur', CommittedCustomRange()),
+            h.button
+              .class(button({ size: 'sm', variant: 'outline' }))
+              .on('click', ClickedStatsPreset({ preset: 'all' }))
+              .children('Reset')
           )
-        ),
-        Option.isNone(active)
-          ? h.div(
-              [h.Class('flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3')],
-              [
-                h.span([h.Class('text-sm text-muted-foreground')], ['From']),
-                h.input([
-                  h.Class(input({ class: 'w-auto font-mono h-8 px-2' })),
-                  h.Type('date'),
-                  h.Value(model.customStart),
-                  h.OnInput((value) => ChangedCustomStart({ value })),
-                  h.OnBlur(CommittedCustomRange()),
-                ]),
-                h.span([h.Class('text-sm text-muted-foreground')], ['to']),
-                h.input([
-                  h.Class(input({ class: 'w-auto font-mono h-8 px-2' })),
-                  h.Type('date'),
-                  h.Value(model.customEnd),
-                  h.OnInput((value) => ChangedCustomEnd({ value })),
-                  h.OnBlur(CommittedCustomRange()),
-                ]),
-                h.button(
-                  [
-                    h.Class(button({ size: 'sm', variant: 'outline' })),
-                    h.OnClick(ClickedStatsPreset({ preset: 'all' })),
-                  ],
-                  ['Reset']
-                ),
-              ]
-            )
-          : h.empty,
-      ]
+        : null
     )
   }
 
@@ -223,76 +205,72 @@ const makeViewStats = <ParentMessage>(h: HtmlBuilder<ParentMessage | StatsMessag
       }))
     )
 
-    return h.div(
-      [h.Class('grid gap-5')],
-      [
-        viewCard('Goal Progress', viewGoalCardContent({ goal: Option.fromNullishOr(bundle.goal), h, model, unit })),
+    return h.div.class('grid gap-5').children(
+      viewCard('Goal Progress', viewGoalCardContent({ goal: Option.fromNullishOr(bundle.goal), h, model, unit })),
+      viewCard(
+        'Weight Statistics',
+        Arr.isReadonlyArrayEmpty(weightItems)
+          ? h.div.class('text-muted-foreground').children('No weight data available')
+          : viewStatGrid(weightItems, 'sm:grid-cols-3 lg:grid-cols-5')
+      ),
+      viewCard(
+        'Weight Trend',
+        Arr.isReadonlyArrayNonEmpty(weightData)
+          ? viewWeightTrend({
+              h,
+              props: {
+                displayWeight: show,
+                injectionData,
+                schedulePeriods,
+                state: model.chart,
+                timezone,
+                trendLine: Option.fromNullishOr(bundle.weightTrend.trendLine),
+                unitLabel: unit,
+                weightData,
+                zoomRange,
+              },
+            })
+          : h.div.class('text-muted-foreground h-[200px]').children('No weight data available')
+      ),
+      viewCard(
+        'Injection Frequency',
+        Arr.isReadonlyArrayEmpty(frequencyItems)
+          ? h.div.class('text-muted-foreground').children('No injection data available')
+          : viewStatGrid(frequencyItems, 'sm:grid-cols-4')
+      ),
+      h.div.class('grid gap-5 md:grid-cols-2 xl:grid-cols-3').children(
         viewCard(
-          'Weight Statistics',
-          Arr.isReadonlyArrayEmpty(weightItems)
-            ? h.div([h.Class('text-muted-foreground')], ['No weight data available'])
-            : viewStatGrid(weightItems, 'sm:grid-cols-3 lg:grid-cols-5')
+          'Injection Sites',
+          viewPieChart({ data: Arr.map(bundle.siteStats.sites, (site) => [site.site, site.count]), h })
         ),
         viewCard(
-          'Weight Trend',
-          Arr.isReadonlyArrayNonEmpty(weightData)
-            ? viewWeightTrend({
-                h,
-                props: {
-                  displayWeight: show,
-                  injectionData,
-                  schedulePeriods,
-                  state: model.chart,
-                  timezone,
-                  trendLine: Option.fromNullishOr(bundle.weightTrend.trendLine),
-                  unitLabel: unit,
-                  weightData,
-                  zoomRange,
-                },
-              })
-            : h.div([h.Class('text-muted-foreground h-[200px]')], ['No weight data available'])
+          'Injections by Day of Week',
+          viewPieChart({
+            data: Arr.map(bundle.dayOfWeek.days, (day) => [DAY_NAMES[day.dayOfWeek] ?? 'Unknown', day.count]),
+            h,
+          })
         ),
         viewCard(
-          'Injection Frequency',
-          Arr.isReadonlyArrayEmpty(frequencyItems)
-            ? h.div([h.Class('text-muted-foreground')], ['No injection data available'])
-            : viewStatGrid(frequencyItems, 'sm:grid-cols-4')
-        ),
-        h.div(
-          [h.Class('grid gap-5 md:grid-cols-2 xl:grid-cols-3')],
-          [
-            viewCard(
-              'Injection Sites',
-              viewPieChart({ data: Arr.map(bundle.siteStats.sites, (site) => [site.site, site.count]), h })
-            ),
-            viewCard(
-              'Injections by Day of Week',
-              viewPieChart({
-                data: Arr.map(bundle.dayOfWeek.days, (day) => [DAY_NAMES[day.dayOfWeek] ?? 'Unknown', day.count]),
-                h,
-              })
-            ),
-            viewCard(
-              'Medications Used',
-              viewBarChart({
-                data: Arr.map(bundle.compoundBreakdown.compounds, (compound) => [compound.compound, compound.count]),
-                h,
-              })
-            ),
-          ]
-        ),
-        viewCard('Dose History', viewDoseHistory({ data: bundle.doseHistory, h, timezone })),
-      ]
+          'Medications Used',
+          viewBarChart({
+            data: Arr.map(bundle.compoundBreakdown.compounds, (compound) => [compound.compound, compound.count]),
+            h,
+          })
+        )
+      ),
+      viewCard('Dose History', viewDoseHistory({ data: bundle.doseHistory, h, timezone }))
     )
   }
 
-  return (model: StatsPage, unit: WeightUnit, range: StatsRange, timezone: IanaTimezone): Html =>
-    h.div(
-      [],
-      [
-        h.div([h.Class('mb-6')], [viewRangeSelector(model, range)]),
-        viewBundle(model, model.data, unit, range, timezone),
-      ]
+  return (
+    model: StatsPage,
+    unit: WeightUnit,
+    range: StatsRange,
+    timezone: IanaTimezone
+  ): View.Content<ParentMessage | StatsMessage> =>
+    h.div.children(
+      h.div.class('mb-6').children(viewRangeSelector(model, range)),
+      viewBundle(model, model.data, unit, range, timezone)
     )
 }
 
@@ -307,5 +285,5 @@ export const viewStats = <ParentMessage>({
   readonly unit: WeightUnit
   readonly range: StatsRange
   readonly timezone: IanaTimezone
-  readonly h: HtmlBuilder<ParentMessage | StatsMessage>
-}): Html => makeViewStats(h)(model, unit, range, timezone)
+  readonly h: Html.H<ParentMessage | StatsMessage>
+}): View.Content<ParentMessage | StatsMessage> => makeViewStats(h)(model, unit, range, timezone)

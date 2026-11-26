@@ -1,6 +1,6 @@
 # Subq instructions
 
-This context owns the journal domain, Cloudflare Worker, Foldkit application,
+This context owns the journal domain, Cloudflare Worker, Effect UI application,
 and Alchemy stack in `apps/subq`.
 
 ## Read first

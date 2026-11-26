@@ -1,5 +1,7 @@
 import * as Domain from '@alchemy.run/domain'
 import { layerSecureRandom } from '@effect/platform-browser/BrowserCrypto'
+import { Router } from '@effect/ui'
+import { BrowserHost, BrowserRouter } from '@effect/ui/html'
 import { IanaTimezone, projectInstantToCalendarDate } from '@garage/subq-domain/Calendar'
 import { SubqApi } from '@garage/subq-domain/SubqApi.api'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
@@ -10,12 +12,12 @@ import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
 import * as Socket from 'effect/socket/Socket'
-import { Runtime } from 'foldkit'
 
+import { SubmitJournalCommand } from './client.ts'
 import { MissingRoot } from './errors.ts'
-import { init, subscriptions, update } from './main.ts'
-import { Flags, Model, Shell } from './model.ts'
-import { view } from './view.ts'
+import { Subq } from './main.ts'
+import { ApplyPreset } from './page/stats/command.ts'
+import { AppRoute } from './route.ts'
 
 const container = document.querySelector<HTMLElement>('#root')
 
@@ -28,31 +30,23 @@ const protocol = Domain.protocolWebSocket(`${location.origin}/api`).pipe(
 )
 const connection = SubqApi.layerClient.pipe(Layer.provide(protocol))
 
-Runtime.run(
-  Runtime.makeApplication({
-    Flags,
-    Model,
-    init,
-    update,
-    view,
-    container,
-    subscriptions,
-    resources: connection,
-    routing: {
-      onUrlChange: (url) => Shell.ChangedUrl({ url }),
-      onUrlRequest: (request) => Shell.ClickedLink({ request }),
-    },
-  }),
-  {
-    flags: Effect.gen(function* () {
-      const random = yield* SecureRandom.SecureRandom
-      const session = yield* random.uuidV4()
-      const now = yield* DateTime.now
-      const timezone = Schema.decodeOption(IanaTimezone)(Intl.DateTimeFormat().resolvedOptions().timeZone).pipe(
-        Option.getOrElse(() => IanaTimezone.make('UTC'))
-      )
-      return { session, timezone, today: projectInstantToCalendarDate(now, timezone) }
-      // @effect-diagnostics-next-line strictEffectProvide:off -- The browser entry point supplies the flags' resource.
-    }).pipe(Effect.provide(layerSecureRandom)),
-  }
+const flags = Effect.gen(function* () {
+  const route = yield* Router.currentRoute(AppRoute)
+  const random = yield* SecureRandom.SecureRandom
+  const session = yield* random.uuidV4()
+  const now = yield* DateTime.now
+  const timezone = Schema.decodeOption(IanaTimezone)(Intl.DateTimeFormat().resolvedOptions().timeZone).pipe(
+    Option.getOrElse(() => IanaTimezone.make('UTC'))
+  )
+  return { route, session, timezone, today: projectInstantToCalendarDate(now, timezone) }
+})
+
+const app = BrowserHost.mount(Subq, flags, container).pipe(
+  Layer.provide([ApplyPreset.layer, SubmitJournalCommand.layer])
 )
+const main = app.pipe(
+  Layer.provide([BrowserHost.layer(), BrowserRouter.layer({ routes: AppRoute }), layerSecureRandom, connection])
+)
+
+// oxlint-disable-next-line enfect/effect-run-in-body -- This module is the browser entry point.
+Layer.launch(main).pipe(Effect.runFork)

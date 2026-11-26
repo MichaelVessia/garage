@@ -1,14 +1,18 @@
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import { AssignInjectionsToSchedule } from '@garage/subq-domain/Journal/AssignInjectionsToSchedule.command'
+import { CorrectInjection } from '@garage/subq-domain/Journal/CorrectInjection.command'
 import { InjectionId } from '@garage/subq-domain/Journal/Journal.id'
 import { NewInjection } from '@garage/subq-domain/Journal/JournalRecords'
 import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
+import { LogInjection } from '@garage/subq-domain/Journal/LogInjection.command'
+import { RemoveInjection } from '@garage/subq-domain/Journal/RemoveInjection.command'
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { modifyFields } from 'foldkit/struct'
+import * as Struct from 'effect/Struct'
 
-import { client, mutate } from '../../client.ts'
+import { mutate } from '../../client.ts'
 import type { PageUpdate } from '../../client.ts'
 import { fromLocalDatetimeString, utcToLocalDatetimeString } from '../../lib/datetime.ts'
 import { optionalText, withForm } from '../../lib/form.ts'
@@ -29,17 +33,17 @@ const decodeInjection = Schema.decodeUnknownOption(Schema.toType(NewInjection))
 
 const removeInjection = (injectionId: InjectionId) =>
   mutate(
-    (request) => client.RemoveInjection({ ...request, input: { injectionId } }),
+    () => RemoveInjection.make({ injectionId }),
     SucceededDeleteInjection(),
     (message) => FailedDeleteInjection({ message })
   )
 
 const saveInjection = (id: Option.Option<InjectionId>, input: typeof NewInjection.Type) =>
   mutate(
-    (request) =>
+    (commandId) =>
       Option.isNone(id)
-        ? client.LogInjection({ ...request, input: { ...input, injectionId: InjectionId.make(request.commandId) } })
-        : client.CorrectInjection({ ...request, input: { ...input, injectionId: id.value } }),
+        ? LogInjection.make({ ...input, injectionId: InjectionId.make(commandId) })
+        : CorrectInjection.make({ ...input, injectionId: id.value }),
     SucceededSaveInjection(),
     (message) => FailedSaveInjection({ message })
   )
@@ -67,7 +71,7 @@ export const updateInjections: {
     Match.value(message).pipe(
       Match.withReturnType<UpdateReturn>(),
       Match.tagsExhaustive({
-        CancelledDeleteInjection: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+        CancelledDeleteInjection: () => ({ model: Struct.evolve(model, { pendingDeleteId: () => null }) }),
         ChangedInjectionDatetime: ({ value }) => ({ model: withForm(model, () => ({ datetime: value })) }),
         ChangedInjectionDoseMg: ({ value }) => ({
           model: withForm(model, () => ({ confirmedOffSchedule: false, doseMg: value })),
@@ -81,12 +85,12 @@ export const updateInjections: {
         }),
         ChangedInjectionSite: ({ value }) => ({ model: withForm(model, () => ({ site: value })) }),
         ChangedInjectionSupplier: ({ value }) => ({ model: withForm(model, () => ({ supplier: value })) }),
-        ClickedAddInjection: () => ({ model, commands: [OpenInjectionForm({ log: null, timezone })] }),
-        ClickedCancelInjectionForm: () => ({ model: modifyFields(model, { form: () => null }) }),
-        ClickedEditInjection: ({ log }) => ({ model, commands: [OpenInjectionForm({ log, timezone })] }),
-        ClickedInjectionPage: ({ delta }) => ({ model: modifyFields(model, { page: (page) => page + delta }) }),
+        ClickedAddInjection: () => ({ model, commands: [OpenInjectionForm.make({ log: null, timezone })] }),
+        ClickedCancelInjectionForm: () => ({ model: Struct.evolve(model, { form: () => null }) }),
+        ClickedEditInjection: ({ log }) => ({ model, commands: [OpenInjectionForm.make({ log, timezone })] }),
+        ClickedInjectionPage: ({ delta }) => ({ model: Struct.evolve(model, { page: (page) => page + delta }) }),
         ClickedInjectionSort: ({ column }) => ({
-          model: modifyFields(model, {
+          model: Struct.evolve(model, {
             page: () => 0,
             sortColumn: () => column,
             sortDesc: (desc) => (model.sortColumn === column ? !desc : true),
@@ -95,10 +99,10 @@ export const updateInjections: {
         ConfirmedDeleteInjection: () =>
           model.pendingDeleteId === null ? { model } : { model, mutation: removeInjection(model.pendingDeleteId) },
         ConfirmedInjectionOffSchedule: () => ({ model: withForm(model, () => ({ confirmedOffSchedule: true })) }),
-        FailedDeleteInjection: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+        FailedDeleteInjection: () => ({ model: Struct.evolve(model, { pendingDeleteId: () => null }) }),
         FailedSaveInjection: ({ message: error }) => ({ model: withForm(model, () => ({ error, submitting: false })) }),
         CompletedOpenInjectionForm: ({ log, nowLocal }) => ({
-          model: modifyFields(model, {
+          model: Struct.evolve(model, {
             form: () =>
               log === null
                 ? {
@@ -135,7 +139,7 @@ export const updateInjections: {
           }),
         }),
         RequestedDeleteInjection: ({ id }) => ({
-          model: modifyFields(model, { form: () => null, pendingDeleteId: () => id }),
+          model: Struct.evolve(model, { form: () => null, pendingDeleteId: () => id }),
         }),
         SubmittedInjectionForm: () => {
           if (model.form === null || model.form.submitting) {
@@ -194,8 +198,7 @@ export const updateInjections: {
         ChangedInjectionAssignment: ({ injectionId, scheduleId }) => ({
           model,
           mutation: mutate(
-            (request) =>
-              client.AssignInjectionsToSchedule({ ...request, input: { injectionIds: [injectionId], scheduleId } }),
+            () => AssignInjectionsToSchedule.make({ injectionIds: [injectionId], scheduleId }),
             SucceededInjectionAssignment(),
             (message) => FailedSaveInjection({ message })
           ),

@@ -1,3 +1,4 @@
+import { HtmlScene } from '@effect/ui/html/testing'
 import { CalendarDate, IanaTimezone } from '@garage/subq-domain/Calendar'
 import { GoalId, InjectionId, ScheduleId, SchedulePhaseId, WeightId } from '@garage/subq-domain/Journal/Journal.id'
 import { Goal, InjectionEntry, Schedule, WeightEntry } from '@garage/subq-domain/Journal/JournalRecords'
@@ -12,23 +13,20 @@ import {
   WeightLbs,
 } from '@garage/subq-domain/Values'
 import * as DateTime from 'effect/DateTime'
+import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
-import { Scene } from 'foldkit'
-import { fromString } from 'foldkit/url'
 
-import { init, update } from '../src/main.ts'
+import { Subq } from '../src/main.ts'
 import { Shell } from '../src/model.ts'
 import type { Model } from '../src/model.ts'
-import { view } from '../src/view.ts'
+import { AppRoute } from '../src/route.ts'
 
-export const app = { update, view }
 export const today = CalendarDate.make('2026-11-25')
 export const timezone = IanaTimezone.make('America/New_York')
 export const session = 'test-session'
-export const url = (path: string) => Option.getOrThrow(fromString(`https://subq.example${path}`))
-export const initial = (path = '/') => init({ session, today, timezone }, url(path)).model
-export const route = (path: string) => Scene.Subscription.emit(Shell.ChangedUrl({ url: url(path) }))
-export const receipt = { stream: 'Journal/personal', version: 4 }
+const parseRoute = (path: string) => AppRoute.parse(path).pipe(Option.getOrThrow)
+export const flags = (path = '/') => ({ session, today, timezone, route: parseRoute(path) })
+export const routeChanged = (path: string) => Shell.ChangedRoute({ route: parseRoute(path) })
 
 const recordedAt = DateTime.makeUnsafe('2026-11-01T05:30:45.123Z')
 const audit = { createdAt: recordedAt, updatedAt: recordedAt }
@@ -97,12 +95,19 @@ export const profile: NonNullable<Model['profile']> = {
   lastInjection: injection,
   knownSites: [InjectionSite.make('Left thigh')],
 }
-export const loaded = (path = '/'): Model => ({
-  ...initial(path),
+export const loaded = (path = '/') => ({
+  flags: flags(path),
   profile,
   weights: { [weight.id]: weight },
   injectionHistory: { [injection.id]: injection },
 })
 
-export const press = (name: string) => Scene.click(Scene.role('button', { name }))
-export const shows = (content: string) => Scene.expect(Scene.text(content)).toExist()
+export const loadedScene = (data: ReturnType<typeof loaded>) =>
+  HtmlScene.make(Subq, data.flags).pipe(
+    Effect.map((scene) =>
+      scene
+        .subscription('profile', Shell.ReceivedProfile({ profile: data.profile }))
+        .subscription('weights', Shell.ReceivedWeights({ weights: data.weights }))
+        .subscription('injectionHistory', Shell.ReceivedInjections({ injections: data.injectionHistory }))
+    )
+  )
