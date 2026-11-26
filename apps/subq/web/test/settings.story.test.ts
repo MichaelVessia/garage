@@ -1,15 +1,17 @@
+import { HtmlFiles } from '@effect/ui/html'
+import { HtmlLocator } from '@effect/ui/html/testing'
+import { Locator } from '@effect/ui/testing'
 import { assert, it } from '@effect/vitest'
 import { JournalSnapshotJson } from '@garage/subq-domain/ExportFormat'
-import { PERSONAL_JOURNAL_ID as target } from '@garage/subq-domain/Journal/Journal.id'
+import { ImportJournal } from '@garage/subq-domain/Journal/ImportJournal.command'
 import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
-import { Scene } from 'foldkit'
 
-import { client } from '../src/client.ts'
-import { ExportData, ReadImportFile, SelectImportFile } from '../src/page/settings/command.ts'
-import { SelectedImportFile, SucceededExportData } from '../src/page/settings/model.ts'
-import { app, loaded, press, receipt, shows, today, timezone, weight } from './journal-fixtures.ts'
+import { SubmitJournalCommand } from '../src/client.ts'
+import { ExportData, ReadImportFile } from '../src/page/settings/command.ts'
+import { SucceededExportData } from '../src/page/settings/model.ts'
+import { loadedScene, loaded, today, timezone, weight } from './journal-fixtures.ts'
 
 const exportedAt = DateTime.makeUnsafe('2026-11-25T17:00:00Z')
 const data = { preferences: { timezone }, weights: [weight], injections: [], schedules: [], goals: [] }
@@ -41,25 +43,25 @@ const importFile = (contents: string) => new File([contents], 'journal.json', { 
 const importsSnapshot = (contents: string) =>
   Effect.gen(function* () {
     const file = importFile(contents)
-    const read = ReadImportFile({ file })
+    const read = ReadImportFile.make({ file })
     const prepared = yield* read.effect
-    const request = client.ImportJournal({ target, commandId: 'test-session:0', input: { snapshot } })
-    Scene.scene(
-      app,
-      Scene.given(loaded('/settings')),
-      press('Import Data'),
-      Scene.Command.resolve(SelectImportFile, SelectedImportFile({ file })),
-      Scene.Command.resolve(ReadImportFile, prepared),
-      shows('1 weight logs, 0 injection logs, 0 schedules, 0 goals'),
-      press('Replace All Data'),
-      Scene.Command.expectExact(request),
-      Scene.Command.resolve(
-        request,
-        client.Message.SucceededImportJournal({ commandId: 'test-session:0', receipt, reply: undefined })
-      ),
-      shows('Imported 1 weight logs, 0 injection logs, 0 schedules, 0 goals.'),
-      Scene.Command.expectNone()
-    )
+    const request = SubmitJournalCommand.make({
+      commandId: 'test-session:0',
+      command: ImportJournal.make({ snapshot }),
+    })
+    const scene = yield* loadedScene(loaded('/settings'))
+    scene
+      .click(HtmlLocator.role('button', { name: 'Import Data' }))
+      .resolve(HtmlFiles.Pick, { opened: true, files: [file] })
+      .resolve(ReadImportFile, prepared)
+      .expect(Locator.text('1 weight logs, 0 injection logs, 0 schedules, 0 goals'))
+      .toExist()
+      .click(HtmlLocator.role('button', { name: 'Replace All Data' }))
+      .expectExact(request)
+      .resolve(request, 'saved')
+      .expect(Locator.text('Imported 1 weight logs, 0 injection logs, 0 schedules, 0 goals.'))
+      .toExist()
+      .expectExact()
   })
 
 it.effect('imports version 4 through the file decoder and confirmation screen', () =>
@@ -73,24 +75,22 @@ it.effect('converts and imports version 3 with the current timezone if the backu
 it.effect('rejects an invalid backup before sending a command', () =>
   Effect.gen(function* () {
     const file = importFile('{"version":"2.0.0"}')
-    const result = yield* ReadImportFile({ file }).effect
+    const result = yield* ReadImportFile.make({ file }).effect
     assert.strictEqual(result._tag, 'FailedImportData')
-    Scene.scene(
-      app,
-      Scene.given(loaded('/settings')),
-      press('Import Data'),
-      Scene.Command.resolve(SelectImportFile, SelectedImportFile({ file })),
-      Scene.Command.resolve(ReadImportFile, result),
-      shows('Select a valid SubQ 4.0.0 or 3.0.0-alpha.2 export.'),
-      Scene.Command.expectNone()
-    )
+    const scene = yield* loadedScene(loaded('/settings'))
+    scene
+      .click(HtmlLocator.role('button', { name: 'Import Data' }))
+      .resolve(HtmlFiles.Pick, { opened: true, files: [file] })
+      .resolve(ReadImportFile, result)
+      .expect(Locator.text('Select a valid SubQ 4.0.0 or 3.0.0-alpha.2 export.'))
+      .toExist()
+      .expectExact()
   })
 )
 
-it('exports the current live snapshot and validates the timezone input', () => {
-  Scene.scene(
-    app,
-    Scene.given({
+it.effect('exports the current live snapshot and validates the timezone input', () =>
+  Effect.gen(function* () {
+    const scene = yield* loadedScene({
       ...loaded('/settings'),
       injectionHistory: {},
       profile: {
@@ -102,14 +102,17 @@ it('exports the current live snapshot and validates the timezone input', () => {
         lastInjection: null,
         knownSites: [],
       },
-    }),
-    press('Export Data'),
-    Scene.Command.expectExact(ExportData({ data, today })),
-    Scene.Command.resolve(ExportData, SucceededExportData()),
-    shows('Data exported.'),
-    Scene.type(Scene.label('Timezone'), 'Invalid/Zone'),
-    Scene.submit('form'),
-    shows('Enter a valid IANA timezone, such as America/New_York.'),
-    Scene.Command.expectNone()
-  )
-})
+    })
+    scene
+      .click(HtmlLocator.role('button', { name: 'Export Data' }))
+      .expectExact(ExportData.make({ data, today }))
+      .resolve(ExportData, SucceededExportData())
+      .expect(Locator.text('Data exported.'))
+      .toExist()
+      .type(HtmlLocator.label('Timezone'), 'Invalid/Zone')
+      .submit(Locator.tag('form'))
+      .expect(Locator.text('Enter a valid IANA timezone, such as America/New_York.'))
+      .toExist()
+      .expectExact()
+  })
+)

@@ -1,9 +1,10 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
 import type { WeightTrajectoryTrendLine } from '@garage/subq-domain/WeightMath'
 import { extent } from 'd3'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import {
   viewGridLines,
@@ -49,8 +50,8 @@ export const viewWeightTrend = <ParentMessage>({
   props,
 }: {
   readonly props: WeightTrendProps
-  readonly h: HtmlBuilder<ParentMessage | ChartMessage>
-}): Html => {
+  readonly h: Html.H<ParentMessage | ChartMessage>
+}): View.Content<ParentMessage | ChartMessage> | false => {
   const {
     displayWeight,
     injectionData,
@@ -77,7 +78,7 @@ export const viewWeightTrend = <ParentMessage>({
   })
 
   if (Arr.isReadonlyArrayEmpty(sorted)) {
-    return h.div([h.Class('text-muted-foreground h-[320px] flex items-center justify-center')], ['No weight data'])
+    return h.div.class('text-muted-foreground h-[320px] flex items-center justify-center').children('No weight data')
   }
 
   const margin = { bottom: 40, left: 60, right: 30, top: 20 }
@@ -88,7 +89,7 @@ export const viewWeightTrend = <ParentMessage>({
   const [minWeight, maxWeight] = extent(sorted, (point) => point.weight)
 
   if (minDate === undefined || maxDate === undefined || minWeight === undefined || maxWeight === undefined) {
-    return h.empty
+    return false
   }
 
   const xScale = utcScale({ start: minDate, end: maxDate, width })
@@ -122,52 +123,42 @@ export const viewWeightTrend = <ParentMessage>({
     yScale,
   }
 
-  return h.div(
-    [h.Class('relative w-full')],
-    [
-      h.svg(
-        [
-          h.ViewBox(`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`),
-          h.Class('block w-full h-auto'),
-          h.AriaLabel('Weight trend chart'),
-          h.OnMouseUp(EndedChartZoom()),
-          h.OnMouseLeave(CancelledChartZoom()),
-        ],
-        [
-          h.g(
-            [h.Transform(`translate(${margin.left},${margin.top})`)],
-            [
-              ...viewGridLines({ frame, h }),
-              ...viewScheduleBands({ frame, h, schedulePeriods }),
-              ...viewZoomStrips({ frame, h }),
-              viewZoomSelection({ frame, h, zoomDrag: state.zoomDrag }),
-              ...viewWeightPaths({ frame, h, segments }),
-              ...viewTrendLine({ frame, h, trendLine }),
-              ...viewWeightDots({ frame, h, segments }),
-              ...viewDosePills({ frame, h, pills }),
-              viewXAxis({ formatTick, frame, h }),
-              viewYAxis({ frame, h }),
-              viewYLabel({ frame, h }),
-            ]
-          ),
-        ]
+  return h.div.class('relative w-full').children(
+    h
+      .el('svg')
+      .attr('viewBox', `0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`)
+      .attr('class', 'block w-full h-auto')
+      .attr('aria-label', 'Weight trend chart')
+      .on('mouseup', EndedChartZoom())
+      .on('mouseleave', CancelledChartZoom())
+      .children(
+        h
+          .el('g')
+          .attr('transform', `translate(${margin.left},${margin.top})`)
+          .children(
+            ...viewGridLines({ frame, h }),
+            ...viewScheduleBands({ frame, h, schedulePeriods }),
+            ...viewZoomStrips({ frame, h }),
+            viewZoomSelection({ frame, h, zoomDrag: state.zoomDrag }),
+            ...viewWeightPaths({ frame, h, segments }),
+            ...viewTrendLine({ frame, h, trendLine }),
+            ...viewWeightDots({ frame, h, segments }),
+            ...viewDosePills({ frame, h, pills }),
+            viewXAxis({ formatTick, frame, h }),
+            viewYAxis({ frame, h }),
+            viewYLabel({ frame, h })
+          )
       ),
-      viewTooltip({ h, tooltip: state.tooltip }),
-      filter === null
-        ? h.empty
-        : h.button(
-            [
-              h.Type('button'),
-              h.Class(
-                'absolute top-2 right-2 text-xs bg-muted/80 hover:bg-muted px-2 py-1 rounded-md text-muted-foreground'
-              ),
-              h.OnClick(ClearedChartFilter()),
-            ],
-            [`Clear filter: ${filter.compound} ${filter.doseMg} mg`]
-          ),
-      Option.isNone(zoomRange) && filter === null
-        ? h.div([h.Class('absolute bottom-2 right-2 text-xs text-muted-foreground opacity-60')], ['Drag to zoom'])
-        : h.empty,
-    ]
+    viewTooltip({ h, tooltip: state.tooltip }),
+    filter === null
+      ? null
+      : h.button
+          .attr('type', 'button')
+          .class('absolute top-2 right-2 text-xs bg-muted/80 hover:bg-muted px-2 py-1 rounded-md text-muted-foreground')
+          .on('click', ClearedChartFilter())
+          .children(`Clear filter: ${filter.compound} ${filter.doseMg} mg`),
+    Option.isNone(zoomRange) && filter === null
+      ? h.div.class('absolute bottom-2 right-2 text-xs text-muted-foreground opacity-60').children('Drag to zoom')
+      : null
   )
 }

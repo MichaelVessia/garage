@@ -1,10 +1,10 @@
+import { UiSchema } from '@effect/ui'
 import { ScheduleId, SchedulePhaseId } from '@garage/subq-domain/Journal/Journal.id'
 import { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
 import type { NextScheduledDose } from '@garage/subq-domain/ScheduleMath'
 import { Frequency } from '@garage/subq-domain/Values'
 import type * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { taggedStruct } from 'foldkit/schema'
 
 // ============================================
 // Model
@@ -51,71 +51,48 @@ export const initialScheduleModel: ScheduleModel = {
 // Messages
 // ============================================
 
-export const CompletedOpenScheduleForm = taggedStruct('CompletedOpenScheduleForm', {
-  todayLocal: Schema.String,
-  schedule: Schema.NullOr(Schedule),
+export const ScheduleMessage = UiSchema.TaggedEnum({
+  CompletedOpenScheduleForm: {
+    todayLocal: Schema.String,
+    schedule: Schema.NullOr(Schedule),
+  },
+  ClickedAddSchedule: {},
+  ClickedEditSchedule: { schedule: Schedule },
+  ClickedCancelScheduleForm: {},
+  ChangedScheduleName: { value: Schema.String },
+  ChangedScheduleCompound: { value: Schema.String },
+  ChangedScheduleSupplier: { value: Schema.String },
+  ChangedScheduleFrequency: { value: Frequency },
+  ChangedScheduleStartDate: { value: Schema.String },
+  ChangedScheduleNotes: { value: Schema.String },
+  AddedSchedulePhase: {},
+  RemovedSchedulePhase: { index: Schema.Int },
+  ChangedSchedulePhaseDoseMg: {
+    index: Schema.Int,
+    value: Schema.String,
+  },
+  ChangedSchedulePhaseDuration: {
+    index: Schema.Int,
+    value: Schema.String,
+  },
+  ToggledSchedulePhaseIndefinite: {
+    index: Schema.Int,
+    checked: Schema.Boolean,
+  },
+  SubmittedScheduleForm: {},
+  SucceededSaveSchedule: {},
+  FailedSaveSchedule: { message: Schema.String },
+  RequestedDeleteSchedule: { id: ScheduleId },
+  CancelledDeleteSchedule: {},
+  ConfirmedDeleteSchedule: {},
+  SucceededDeleteSchedule: {},
+  FailedDeleteSchedule: { message: Schema.String },
+  ClickedToggleScheduleActivity: { schedule: Schedule },
+  SucceededActivateSchedule: {},
+  FailedActivateSchedule: { message: Schema.String },
 })
 
-export const ClickedAddSchedule = taggedStruct('ClickedAddSchedule')
-
-export const ClickedEditSchedule = taggedStruct('ClickedEditSchedule', { schedule: Schedule })
-
-export const ClickedCancelScheduleForm = taggedStruct('ClickedCancelScheduleForm')
-
-export const ChangedScheduleName = taggedStruct('ChangedScheduleName', { value: Schema.String })
-
-export const ChangedScheduleCompound = taggedStruct('ChangedScheduleCompound', { value: Schema.String })
-
-export const ChangedScheduleSupplier = taggedStruct('ChangedScheduleSupplier', { value: Schema.String })
-
-export const ChangedScheduleFrequency = taggedStruct('ChangedScheduleFrequency', { value: Frequency })
-
-export const ChangedScheduleStartDate = taggedStruct('ChangedScheduleStartDate', { value: Schema.String })
-
-export const ChangedScheduleNotes = taggedStruct('ChangedScheduleNotes', { value: Schema.String })
-
-export const AddedSchedulePhase = taggedStruct('AddedSchedulePhase')
-
-export const RemovedSchedulePhase = taggedStruct('RemovedSchedulePhase', { index: Schema.Int })
-
-export const ChangedSchedulePhaseDoseMg = taggedStruct('ChangedSchedulePhaseDoseMg', {
-  index: Schema.Int,
-  value: Schema.String,
-})
-
-export const ChangedSchedulePhaseDuration = taggedStruct('ChangedSchedulePhaseDuration', {
-  index: Schema.Int,
-  value: Schema.String,
-})
-
-export const ToggledSchedulePhaseIndefinite = taggedStruct('ToggledSchedulePhaseIndefinite', {
-  index: Schema.Int,
-  checked: Schema.Boolean,
-})
-
-export const SubmittedScheduleForm = taggedStruct('SubmittedScheduleForm')
-
-export const SucceededSaveSchedule = taggedStruct('SucceededSaveSchedule')
-
-export const FailedSaveSchedule = taggedStruct('FailedSaveSchedule', { message: Schema.String })
-
-export const RequestedDeleteSchedule = taggedStruct('RequestedDeleteSchedule', { id: ScheduleId })
-
-export const CancelledDeleteSchedule = taggedStruct('CancelledDeleteSchedule')
-
-export const ConfirmedDeleteSchedule = taggedStruct('ConfirmedDeleteSchedule')
-
-export const SucceededDeleteSchedule = taggedStruct('SucceededDeleteSchedule')
-
-export const FailedDeleteSchedule = taggedStruct('FailedDeleteSchedule', { message: Schema.String })
-
-export const ClickedToggleScheduleActivity = taggedStruct('ClickedToggleScheduleActivity', { schedule: Schedule })
-
-export const SucceededActivateSchedule = taggedStruct('SucceededActivateSchedule')
-
-export const FailedActivateSchedule = taggedStruct('FailedActivateSchedule', { message: Schema.String })
-
-export const ScheduleMessage = Schema.Union([
+export const {
   CompletedOpenScheduleForm,
   ClickedAddSchedule,
   ClickedEditSchedule,
@@ -142,7 +119,7 @@ export const ScheduleMessage = Schema.Union([
   ClickedToggleScheduleActivity,
   SucceededActivateSchedule,
   FailedActivateSchedule,
-])
+} = ScheduleMessage
 
 export type ScheduleMessage = typeof ScheduleMessage.Type
 

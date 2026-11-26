@@ -1,18 +1,14 @@
-import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
+import { UiSchema } from '@effect/ui'
 import { CalendarDate, IanaTimezone, projectInstantToCalendarDate } from '@garage/subq-domain/Calendar'
 import type { JournalSnapshot } from '@garage/subq-domain/ExportFormat'
 import { JournalProfile } from '@garage/subq-domain/Journal/JournalProfile.view'
 import { Injections, Weights } from '@garage/subq-domain/Journal/JournalState'
+import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import * as P from 'effect/Predicate'
 import * as Record from 'effect/Record'
 import * as Schema from 'effect/Schema'
-import type { Update } from 'foldkit'
-import { defineMessageUnion } from 'foldkit/message'
-import { UrlRequest } from 'foldkit/navigation'
-import { Url } from 'foldkit/url'
 
-import type { Client } from './client.ts'
 import { InjectionsMessage, InjectionsModel } from './page/injections/model.ts'
 import { ScheduleMessage, ScheduleModel } from './page/schedule/model.ts'
 import { SettingsModel, SettingsPageMessage } from './page/settings/model.ts'
@@ -21,7 +17,12 @@ import type { StatsRange } from './page/stats/model.ts'
 import { WeightMessage, WeightModel } from './page/weight/model.ts'
 import { AppRoute } from './route.ts'
 
-export const Flags = Schema.Struct({ session: Schema.String, today: CalendarDate, timezone: IanaTimezone })
+export const Flags = Schema.Struct({
+  route: AppRoute,
+  session: Schema.String,
+  today: CalendarDate,
+  timezone: IanaTimezone,
+})
 export type Flags = typeof Flags.Type
 
 const Profile = Schema.toType(JournalProfile.State)
@@ -36,7 +37,7 @@ export const Model = Schema.Struct({
   weights: Schema.NullOr(Weights),
   injectionHistory: Schema.NullOr(Injections),
   readErrors: Schema.Record(Read, Schema.Boolean),
-  commandIds: DomainFoldkit.CommandIds,
+  commandIds: Schema.Struct({ session: Schema.String, sent: Schema.Int }),
   timezoneBootstrapSent: Schema.Boolean,
   saving: Schema.Boolean,
   mutationError: Schema.NullOr(Schema.String),
@@ -52,11 +53,8 @@ export type Model = typeof Model.Type
 const PageMessage = Schema.Union([SettingsPageMessage, WeightMessage, InjectionsMessage, ScheduleMessage, StatsMessage])
 type PageMessage = typeof PageMessage.Type
 
-export const Shell = defineMessageUnion({
-  ClickedLink: { request: UrlRequest },
-  ChangedUrl: { url: Url },
-  NavigationDone: {},
-  Reloaded: {},
+export const Shell = UiSchema.TaggedEnum({
+  ChangedRoute: { route: AppRoute },
   ClickedReload: {},
   ReceivedProfile: { profile: Schema.NullOr(Profile) },
   ReceivedWeights: { weights: Schema.NullOr(Weights) },
@@ -73,12 +71,18 @@ export const Shell = defineMessageUnion({
 export type ReadName = typeof Read.Type
 export const Message = Schema.Union([Shell, PageMessage])
 export type Message = typeof Message.Type
-export type UpdateReturn = Update.Return<Model, Message, Client>
 
-export const statsRangeOf = (model: Model): StatsRange =>
-  P.isTagged(model.route, 'Stats')
-    ? { end: model.route.end, start: model.route.start }
-    : { end: Option.none(), start: Option.none() }
+const decodeRange = Schema.decodeOption(
+  Schema.Struct({ start: Schema.OptionFromOptional(CalendarDate), end: Schema.OptionFromOptional(CalendarDate) })
+)
+
+const lastDateParameter = (value?: string | readonly [string, ...ReadonlyArray<string>]) =>
+  P.isString(value) || P.isUndefined(value) ? value : Arr.lastNonEmpty(value)
+
+export const statsRangeOf = (route: AppRoute): Option.Option<StatsRange> =>
+  P.isTagged(route, 'Stats') || P.isTagged(route, 'Index')
+    ? decodeRange({ start: lastDateParameter(route.search.start), end: lastDateParameter(route.search.end) })
+    : Option.none()
 
 export const timezoneOf = (model: Model): IanaTimezone => model.profile?.preferences.timezone ?? model.detectedTimezone
 export const todayOf = (model: Model): CalendarDate =>

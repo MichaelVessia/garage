@@ -1,14 +1,17 @@
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
+import { CorrectWeight } from '@garage/subq-domain/Journal/CorrectWeight.command'
 import { WeightId } from '@garage/subq-domain/Journal/Journal.id'
 import type { NewWeight } from '@garage/subq-domain/Journal/JournalRecords'
+import { RecordWeight } from '@garage/subq-domain/Journal/RecordWeight.command'
+import { RemoveWeight } from '@garage/subq-domain/Journal/RemoveWeight.command'
 import { Notes, WeightLbs } from '@garage/subq-domain/Values'
 import type { WeightUnit } from '@garage/subq-domain/Values'
 import * as Function from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
-import { modifyFields } from 'foldkit/struct'
+import * as Struct from 'effect/Struct'
 
-import { client, mutate } from '../../client.ts'
+import { mutate } from '../../client.ts'
 import type { PageUpdate } from '../../client.ts'
 import { fromLocalDatetimeString, utcToLocalDatetimeString } from '../../lib/datetime.ts'
 import { withForm } from '../../lib/form.ts'
@@ -21,17 +24,17 @@ type UpdateReturn = PageUpdate<WeightModel, WeightMessage>
 
 const removeWeight = (weightId: WeightId) =>
   mutate(
-    (request) => client.RemoveWeight({ ...request, input: { weightId } }),
+    () => RemoveWeight.make({ weightId }),
     SucceededDeleteWeight(),
     (message) => FailedDeleteWeight({ message })
   )
 
 const saveWeight = (id: Option.Option<WeightId>, input: typeof NewWeight.Type) =>
   mutate(
-    (request) =>
+    (commandId) =>
       Option.isNone(id)
-        ? client.RecordWeight({ ...request, input: { ...input, weightId: WeightId.make(request.commandId) } })
-        : client.CorrectWeight({ ...request, input: { ...input, weightId: id.value } }),
+        ? RecordWeight.make({ ...input, weightId: WeightId.make(commandId) })
+        : CorrectWeight.make({ ...input, weightId: id.value }),
     SucceededSaveWeight(),
     (message) => FailedSaveWeight({ message })
   )
@@ -45,16 +48,16 @@ export const updateWeight: {
     Match.value(message).pipe(
       Match.withReturnType<UpdateReturn>(),
       Match.tagsExhaustive({
-        CancelledDeleteWeight: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+        CancelledDeleteWeight: () => ({ model: Struct.evolve(model, { pendingDeleteId: () => null }) }),
         ChangedWeightDatetime: ({ value }) => ({ model: withForm(model, () => ({ datetime: value })) }),
         ChangedWeightNotes: ({ value }) => ({ model: withForm(model, () => ({ notes: value })) }),
         ChangedWeightValue: ({ value }) => ({ model: withForm(model, () => ({ weight: value })) }),
-        ClickedAddWeight: () => ({ model, commands: [OpenWeightForm({ log: null, timezone })] }),
-        ClickedCancelWeightForm: () => ({ model: modifyFields(model, { form: () => null }) }),
-        ClickedEditWeight: ({ log }) => ({ model, commands: [OpenWeightForm({ log, timezone })] }),
-        ClickedWeightPage: ({ delta }) => ({ model: modifyFields(model, { page: (page) => page + delta }) }),
+        ClickedAddWeight: () => ({ model, commands: [OpenWeightForm.make({ log: null, timezone })] }),
+        ClickedCancelWeightForm: () => ({ model: Struct.evolve(model, { form: () => null }) }),
+        ClickedEditWeight: ({ log }) => ({ model, commands: [OpenWeightForm.make({ log, timezone })] }),
+        ClickedWeightPage: ({ delta }) => ({ model: Struct.evolve(model, { page: (page) => page + delta }) }),
         ClickedWeightSort: ({ column }) => ({
-          model: modifyFields(model, {
+          model: Struct.evolve(model, {
             page: () => 0,
             sortColumn: () => column,
             sortDesc: (desc) => (model.sortColumn === column ? !desc : true),
@@ -62,10 +65,10 @@ export const updateWeight: {
         }),
         ConfirmedDeleteWeight: () =>
           model.pendingDeleteId === null ? { model } : { model, mutation: removeWeight(model.pendingDeleteId) },
-        FailedDeleteWeight: () => ({ model: modifyFields(model, { pendingDeleteId: () => null }) }),
+        FailedDeleteWeight: () => ({ model: Struct.evolve(model, { pendingDeleteId: () => null }) }),
         FailedSaveWeight: ({ message: error }) => ({ model: withForm(model, () => ({ error, submitting: false })) }),
         CompletedOpenWeightForm: ({ log, nowLocal }) => ({
-          model: modifyFields(model, {
+          model: Struct.evolve(model, {
             form: () =>
               log === null
                 ? {
@@ -94,7 +97,7 @@ export const updateWeight: {
           }),
         }),
         RequestedDeleteWeight: ({ id }) => ({
-          model: modifyFields(model, { form: () => null, pendingDeleteId: () => id }),
+          model: Struct.evolve(model, { form: () => null, pendingDeleteId: () => id }),
         }),
         SubmittedWeightForm: () => {
           if (model.form === null || model.form.submitting) {

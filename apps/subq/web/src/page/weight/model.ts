@@ -1,8 +1,8 @@
+import { UiSchema } from '@effect/ui'
 import { WeightId } from '@garage/subq-domain/Journal/Journal.id'
 import { WeightEntry } from '@garage/subq-domain/Journal/JournalRecords'
 import { WeightLbs } from '@garage/subq-domain/Values'
 import * as Schema from 'effect/Schema'
-import { taggedStruct } from 'foldkit/schema'
 
 // ============================================
 // Model
@@ -44,46 +44,32 @@ export const initialWeightModel: WeightModel = {
 // Messages
 // ============================================
 
-export const CompletedOpenWeightForm = taggedStruct('CompletedOpenWeightForm', {
-  nowLocal: Schema.String,
-  log: Schema.NullOr(WeightEntry),
+export const WeightMessage = UiSchema.TaggedEnum({
+  CompletedOpenWeightForm: {
+    nowLocal: Schema.String,
+    log: Schema.NullOr(WeightEntry),
+  },
+  ClickedAddWeight: {},
+  ClickedEditWeight: { log: WeightEntry },
+  ClickedCancelWeightForm: {},
+  ChangedWeightDatetime: { value: Schema.String },
+  ChangedWeightValue: { value: Schema.String },
+  ChangedWeightNotes: { value: Schema.String },
+  SubmittedWeightForm: {},
+  SucceededSaveWeight: {},
+  FailedSaveWeight: { message: Schema.String },
+  RequestedDeleteWeight: { id: WeightId },
+  CancelledDeleteWeight: {},
+  ConfirmedDeleteWeight: {},
+  SucceededDeleteWeight: {},
+  FailedDeleteWeight: { message: Schema.String },
+  ClickedWeightSort: {
+    column: Schema.Literals(['datetime', 'weight']),
+  },
+  ClickedWeightPage: { delta: Schema.Int },
 })
 
-export const ClickedAddWeight = taggedStruct('ClickedAddWeight')
-
-export const ClickedEditWeight = taggedStruct('ClickedEditWeight', { log: WeightEntry })
-
-export const ClickedCancelWeightForm = taggedStruct('ClickedCancelWeightForm')
-
-export const ChangedWeightDatetime = taggedStruct('ChangedWeightDatetime', { value: Schema.String })
-
-export const ChangedWeightValue = taggedStruct('ChangedWeightValue', { value: Schema.String })
-
-export const ChangedWeightNotes = taggedStruct('ChangedWeightNotes', { value: Schema.String })
-
-export const SubmittedWeightForm = taggedStruct('SubmittedWeightForm')
-
-export const SucceededSaveWeight = taggedStruct('SucceededSaveWeight')
-
-export const FailedSaveWeight = taggedStruct('FailedSaveWeight', { message: Schema.String })
-
-export const RequestedDeleteWeight = taggedStruct('RequestedDeleteWeight', { id: WeightId })
-
-export const CancelledDeleteWeight = taggedStruct('CancelledDeleteWeight')
-
-export const ConfirmedDeleteWeight = taggedStruct('ConfirmedDeleteWeight')
-
-export const SucceededDeleteWeight = taggedStruct('SucceededDeleteWeight')
-
-export const FailedDeleteWeight = taggedStruct('FailedDeleteWeight', { message: Schema.String })
-
-export const ClickedWeightSort = taggedStruct('ClickedWeightSort', {
-  column: Schema.Literals(['datetime', 'weight']),
-})
-
-export const ClickedWeightPage = taggedStruct('ClickedWeightPage', { delta: Schema.Int })
-
-export const WeightMessage = Schema.Union([
+export const {
   CompletedOpenWeightForm,
   ClickedAddWeight,
   ClickedEditWeight,
@@ -101,7 +87,7 @@ export const WeightMessage = Schema.Union([
   FailedDeleteWeight,
   ClickedWeightSort,
   ClickedWeightPage,
-])
+} = WeightMessage
 
 export type WeightMessage = typeof WeightMessage.Type
 

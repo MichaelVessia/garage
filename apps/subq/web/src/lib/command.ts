@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Function from 'effect/Function'
 
 /**
- * Turns an Effect into the Succeeded/Failed message pair a foldkit Command
+ * Turns an Effect into the Succeeded/Failed message pair an Effect UI Command
  * expects: on failure, emits `onFailure({ message })` with a fixed message,
  * discarding the actual cause; on success, forwards the value unchanged.
  */

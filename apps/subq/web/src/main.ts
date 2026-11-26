@@ -1,82 +1,77 @@
-import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
+import { Command, Head, Router, Subscription } from '@effect/ui'
+import type { Component } from '@effect/ui'
+import { Html } from '@effect/ui/html'
 import { PERSONAL_JOURNAL_ID } from '@garage/subq-domain/Journal/Journal.id'
+import { UpdatePreferences } from '@garage/subq-domain/Journal/UpdatePreferences.command'
 import { Unauthorized } from '@garage/subq-domain/Session.middleware'
+import { SubqApi } from '@garage/subq-domain/SubqApi.api'
+import * as Cause from 'effect/Cause'
 import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
-import * as Function from 'effect/Function'
-import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Record from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
-import { Command, Subscription } from 'foldkit'
-import type { Runtime } from 'foldkit'
-import { load, pushUrl } from 'foldkit/navigation'
-import { toString as urlToString } from 'foldkit/url'
-import type { Url } from 'foldkit/url'
 
-import { client, mutate } from './client.ts'
-import type { Client, PageUpdate } from './client.ts'
-import { journalData, Shell, statsRangeOf, timezoneOf, todayOf } from './model.ts'
-import type { Flags, Message, Model, ReadName, UpdateReturn } from './model.ts'
+import { mutate } from './client.ts'
+import type { SubmitJournalCommand } from './client.ts'
+import type { PageUpdate } from './client.ts'
+import { Flags, journalData, Message, Model, Shell, statsRangeOf, timezoneOf, todayOf } from './model.ts'
+import type { ReadName } from './model.ts'
 import { InjectionsMessage, initialInjectionsModel } from './page/injections/model.ts'
 import { updateInjections } from './page/injections/update.ts'
 import { ScheduleMessage, initialScheduleModel } from './page/schedule/model.ts'
 import { updateSchedule } from './page/schedule/update.ts'
 import { SettingsPageMessage, initialSettingsModel } from './page/settings/model.ts'
 import { updateSettingsPage } from './page/settings/update.ts'
+import type { ApplyPreset } from './page/stats/command.ts'
 import { StatsMessage, initialStatsModel } from './page/stats/model.ts'
 import { updateStats } from './page/stats/update.ts'
 import { WeightMessage, initialWeightModel } from './page/weight/model.ts'
 import { updateWeight } from './page/weight/update.ts'
-import { urlToAppRoute } from './route.ts'
+import { AppRoute } from './route.ts'
+import { view } from './view.ts'
 
-const Navigate = Command.define('Navigate', {
-  args: { url: Schema.String },
-  messages: [Shell.NavigationDone],
-  execute: ({ url }) => pushUrl(url).pipe(Effect.as(Shell.NavigationDone())),
-})
-const LoadUrl = Command.define('LoadUrl', {
-  args: { url: Schema.String },
-  messages: [Shell.NavigationDone],
-  execute: ({ url }) => load(url).pipe(Effect.as(Shell.NavigationDone())),
-})
-const Reload = Command.define('Reload', {
-  messages: [Shell.Reloaded],
-  execute: Effect.sync(() => location.reload()).pipe(Effect.as(Shell.Reloaded())),
-})
+type CommandRequirements = ApplyPreset | Router.Push | SubmitJournalCommand
+type UpdateReturn = {
+  readonly model: Model
+  readonly commands?: ReadonlyArray<Command.Command<Message | Component.Noop, CommandRequirements>>
+}
 
-const changeUrl = (model: Model, url: Url): Model => {
-  const next = { ...model, route: urlToAppRoute(url) }
-  const range = statsRangeOf(next)
+const Reload = Command.make('Reload', { args: {} }, () => Effect.sync(() => location.reload()))
+
+const changeRoute = (model: Model, route: AppRoute): Model => {
+  const next = { ...model, route }
+  const range = statsRangeOf(route)
   return {
     ...next,
     stats: {
       ...next.stats,
-      customStart: Option.getOrElse(range.start, () => ''),
-      customEnd: Option.getOrElse(range.end, () => ''),
+      customStart: range.pipe(
+        Option.flatMap(({ start }) => start),
+        Option.getOrElse(() => '')
+      ),
+      customEnd: range.pipe(
+        Option.flatMap(({ end }) => end),
+        Option.getOrElse(() => '')
+      ),
     },
   }
 }
 
-type InitReturn = ReturnType<Runtime.RoutingApplicationInit<Model, Message, Flags, Client>>
-
-export const init: {
-  (url: Url): (flags: Flags) => InitReturn
-  (flags: Flags, url: Url): InitReturn
-} = Function.dual(2, (flags: Flags, url: Url): InitReturn => ({
-  model: changeUrl(
+const init = ({ route, session, today, timezone }: Flags): Model =>
+  changeRoute(
     {
-      route: urlToAppRoute(url),
-      detectedTimezone: flags.timezone,
-      initialToday: flags.today,
+      route,
+      detectedTimezone: timezone,
+      initialToday: today,
       now: null,
       profile: null,
       weights: null,
       injectionHistory: null,
       readErrors: { profile: false, weights: false, injectionHistory: false },
-      commandIds: { session: flags.session, sent: 0 },
+      commandIds: { session, sent: 0 },
       timezoneBootstrapSent: false,
       saving: false,
       mutationError: null,
@@ -87,9 +82,13 @@ export const init: {
       schedule: initialScheduleModel,
       stats: initialStatsModel,
     },
-    url
-  ),
-}))
+    route
+  )
+
+const nextCommand = ({ session, sent }: Model['commandIds']) => ({
+  commandId: `${session}:${sent}`,
+  commandIds: { session, sent: sent + 1 },
+})
 
 const isWeightMessage = Schema.is(WeightMessage)
 const isInjectionsMessage = Schema.is(InjectionsMessage)
@@ -101,7 +100,7 @@ const isShell = Schema.is(Shell)
 const applyPage = <Key extends 'weight' | 'injections' | 'schedule' | 'settingsPage' | 'stats'>(
   model: Model,
   key: Key,
-  page: PageUpdate<Model[Key], Exclude<Message, typeof Shell.Type>>
+  page: PageUpdate<Model[Key], Exclude<Message, typeof Shell.Type>, CommandRequirements>
 ): UpdateReturn => {
   const next = { ...model, [key]: page.model }
   if (page.mutation === undefined) {
@@ -110,11 +109,11 @@ const applyPage = <Key extends 'weight' | 'injections' | 'schedule' | 'settingsP
       commands: page.commands ?? [],
     }
   }
-  const { commandIds, commandId } = DomainFoldkit.next(model.commandIds)
+  const { commandIds, commandId } = nextCommand(model.commandIds)
   return {
     model: { ...next, commandIds, saving: true, mutationError: null },
     commands: [
-      Command.mapMessage(page.mutation(commandId), (result) => {
+      Command.map(page.mutation(commandId), (result) => {
         switch (result.status) {
           case 'saved':
             return Shell.SucceededMutation({ message: result.message })
@@ -185,24 +184,23 @@ const receiveProfile = (model: Model, profile: Model['profile']): UpdateReturn =
     return { model: next }
   }
 
-  const { commandIds, commandId } = DomainFoldkit.next(model.commandIds)
+  const { commandIds, commandId } = nextCommand(model.commandIds)
   const command = mutate(
-    (request) => client.UpdatePreferences({ ...request, input: { timezone: model.detectedTimezone } }),
+    () => UpdatePreferences.make({ timezone: model.detectedTimezone }),
     Shell.InitializedTimezone(),
     (message) => Shell.FailedInitializeTimezone({ message })
   )
   return {
     model: { ...next, timezoneBootstrapSent: true, commandIds, saving: true },
     commands: [
-      Command.mapMessage(command(commandId), (result) =>
+      Command.map(command(commandId), (result) =>
         result.status === 'expired' ? Shell.SessionExpired() : result.message
       ),
     ],
   }
 }
 
-// @effect-diagnostics-next-line missingPipeableSignature:off -- Foldkit calls update with the model and message.
-export const update = (model: Model, message: Message): UpdateReturn => {
+const update = (model: Model, message: Message): UpdateReturn => {
   if (!isShell(message)) {
     return model.saving ||
       model.sessionExpired ||
@@ -214,15 +212,8 @@ export const update = (model: Model, message: Message): UpdateReturn => {
   }
 
   return Shell.match(message, {
-    ChangedUrl: ({ url }) => ({ model: changeUrl(model, url) }),
-    ClickedLink: ({ request }): UpdateReturn =>
-      Match.valueTags(request, {
-        Internal: ({ url }) => ({ model, commands: [Navigate({ url: urlToString(url) })] }),
-        External: ({ href }) => ({ model, commands: [LoadUrl({ url: href })] }),
-      }),
-    NavigationDone: () => ({ model }),
-    ClickedReload: () => ({ model, commands: [Reload()] }),
-    Reloaded: () => ({ model }),
+    ChangedRoute: ({ route }) => ({ model: changeRoute(model, route) }),
+    ClickedReload: () => ({ model, commands: [Reload.make().pipe(Command.asNoop)] }),
     ReceivedProfile: ({ profile }) => receiveProfile(model, profile),
     ReceivedWeights: ({ weights }) => ({
       model: { ...model, weights: weights ?? {}, readErrors: { ...model.readErrors, weights: false } },
@@ -246,44 +237,75 @@ export const update = (model: Model, message: Message): UpdateReturn => {
   })
 }
 
-const readFailure =
-  (read: ReadName) =>
-  (error: unknown): Message =>
-    Schema.is(Unauthorized)(error) ? Shell.SessionExpired() : Shell.ReadFailed({ read })
+const watch = <A, E>(
+  read: ReadName,
+  stream: Stream.Stream<A, E, typeof SubqApi.Client.Identifier>,
+  toMessage: (value: A) => Message
+) =>
+  Subscription.make(
+    read,
+    stream.pipe(
+      Stream.map(toMessage),
+      Stream.catchCause((cause) => {
+        if (Cause.hasDies(cause)) {
+          return Stream.succeed(Shell.ReadFailed({ read }))
+        }
+        const error = Cause.findErrorOption(cause)
+        if (Option.isNone(error)) {
+          return Stream.fromEffect(Effect.interrupt)
+        }
+        return Stream.succeed(
+          Schema.is(Unauthorized)(error.value) ? Shell.SessionExpired() : Shell.ReadFailed({ read })
+        )
+      })
+    )
+  )
 
-const isEnabled = (model: Model) => !model.sessionExpired
-const key = () => PERSONAL_JOURNAL_ID
-
-export const subscriptions = Subscription.make<Model, Message, Client>()((entry) => ({
-  profile: client.JournalProfile.watch({
-    key,
-    isEnabled,
-    toMessage: ({ state }) => Shell.ReceivedProfile({ profile: Option.getOrNull(state) }),
-    onFailure: readFailure('profile'),
-    onDefect: () => Shell.ReadFailed({ read: 'profile' }),
-  }),
-  weights: client.WeightHistory.watch({
-    key,
-    isEnabled,
-    toMessage: ({ state }) => Shell.ReceivedWeights({ weights: Option.getOrNull(state) }),
-    onFailure: readFailure('weights'),
-    onDefect: () => Shell.ReadFailed({ read: 'weights' }),
-  }),
-  injections: client.InjectionHistory.watch({
-    key,
-    isEnabled,
-    toMessage: ({ state }) => Shell.ReceivedInjections({ injections: Option.getOrNull(state) }),
-    onFailure: readFailure('injectionHistory'),
-    onDefect: () => Shell.ReadFailed({ read: 'injectionHistory' }),
-  }),
-  clock: entry(
-    {},
-    {
-      modelToDependencies: () => ({}),
-      dependenciesToStream: () =>
-        Stream.tick(Duration.minutes(1)).pipe(
-          Stream.mapEffect(() => Effect.map(DateTime.now, (now) => Shell.Tick({ now })))
-        ),
-    }
+const subscriptions = ({ model }: { readonly model: Model }) => [
+  Router.subscription(AppRoute, model.route, (route) => Shell.ChangedRoute({ route })),
+  !model.sessionExpired &&
+    watch(
+      'profile',
+      SubqApi.Client.pipe(
+        Effect.map((client) => client.JournalProfile.watch(PERSONAL_JOURNAL_ID)),
+        Stream.unwrap
+      ),
+      ({ state }) => Shell.ReceivedProfile({ profile: state ?? null })
+    ),
+  !model.sessionExpired &&
+    watch(
+      'weights',
+      SubqApi.Client.pipe(
+        Effect.map((client) => client.WeightHistory.watch(PERSONAL_JOURNAL_ID)),
+        Stream.unwrap
+      ),
+      ({ state }) => Shell.ReceivedWeights({ weights: state ?? null })
+    ),
+  !model.sessionExpired &&
+    watch(
+      'injectionHistory',
+      SubqApi.Client.pipe(
+        Effect.map((client) => client.InjectionHistory.watch(PERSONAL_JOURNAL_ID)),
+        Stream.unwrap
+      ),
+      ({ state }) => Shell.ReceivedInjections({ injections: state ?? null })
+    ),
+  Subscription.make(
+    'clock',
+    Stream.tick(Duration.minutes(1)).pipe(
+      Stream.mapEffect(() => Effect.map(DateTime.now, (now) => Shell.Tick({ now })))
+    )
   ),
-}))
+]
+
+// @effect-diagnostics-next-line missingPipeableSignature:off -- Effect UI defines the component signature.
+export const Subq = Html.component({ name: 'Subq', props: Flags, model: Model, message: Message }).make({
+  init: ({ props }) => init(props),
+  update: ($, message) => {
+    const next = update($.model, message)
+    return $.set(next.model).run(...(next.commands ?? []))
+  },
+  subscriptions,
+  head: () => [Head.title('SubQ')],
+  view,
+})

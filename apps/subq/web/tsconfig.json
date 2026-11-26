@@ -4,7 +4,8 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "module": "preserve",
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "plugins": [{ "name": "@effect/language-service", "allowedExperimentalApis": ["@effect/ui"] }]
   },
   "include": ["src", "test", "vite.config.ts", "vitest.config.ts"]
 }

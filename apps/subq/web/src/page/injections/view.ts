@@ -1,3 +1,5 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
 import { ScheduleId } from '@garage/subq-domain/Journal/Journal.id'
 import type { InjectionEntry, Schedule } from '@garage/subq-domain/Journal/JournalRecords'
@@ -5,7 +7,6 @@ import * as Arr from 'effect/Array'
 import * as DateTime from 'effect/DateTime'
 import * as Order from 'effect/Order'
 import * as Str from 'effect/String'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { formatDateTime } from '../../lib/datetime.ts'
 import { headerButton } from '../../lib/view.ts'
@@ -57,31 +58,22 @@ const sortIndicator = (model: InjectionsPage, column: SortColumn): string => {
   return model.sortDesc ? ' ↓' : ' ↑'
 }
 
-const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | InjectionsMessage>) => {
+const makeViewInjections = <ParentMessage>(h: Html.H<ParentMessage | InjectionsMessage>) => {
   const viewDeleteConfirm = () =>
-    h.div(
-      [h.Class(card({ class: 'mb-6 p-4 border-destructive/40' }))],
-      [
-        h.div(
-          [h.Class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between')],
-          [
-            h.p([h.Class('text-sm')], ['Delete this entry?']),
-            h.div(
-              [h.Class('flex gap-2')],
-              [
-                h.button(
-                  [h.Class(button({ size: 'sm', variant: 'outline' })), h.OnClick(CancelledDeleteInjection())],
-                  ['Cancel']
-                ),
-                h.button(
-                  [h.Class(button({ size: 'sm', variant: 'destructive' })), h.OnClick(ConfirmedDeleteInjection())],
-                  ['Delete']
-                ),
-              ]
-            ),
-          ]
-        ),
-      ]
+    h.div.class(card({ class: 'mb-6 p-4 border-destructive/40' })).children(
+      h.div.class('flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between').children(
+        h.p.class('text-sm').children('Delete this entry?'),
+        h.div.class('flex gap-2').children(
+          h.button
+            .class(button({ size: 'sm', variant: 'outline' }))
+            .on('click', CancelledDeleteInjection())
+            .children('Cancel'),
+          h.button
+            .class(button({ size: 'sm', variant: 'destructive' }))
+            .on('click', ConfirmedDeleteInjection())
+            .children('Delete')
+        )
+      )
     )
 
   const viewTable = (
@@ -95,181 +87,123 @@ const makeViewInjections = <ParentMessage>(h: HtmlBuilder<ParentMessage | Inject
     const page = Math.min(model.page, pageCount - 1)
     const rows = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
-    return h.div(
-      [],
-      [
-        h.div(
-          [h.Class('rounded-md border overflow-x-auto')],
-          [
-            h.table(
-              [h.Class('w-full caption-bottom text-sm')],
-              [
-                h.thead(
-                  [h.Class('border-b')],
-                  [
-                    h.tr(
-                      [h.Class('text-muted-foreground')],
-                      [
-                        h.th(
-                          [h.Class('h-10 px-3 text-left align-middle')],
-                          [
-                            headerButton({
-                              h,
-                              label: `Date${sortIndicator(model, 'datetime')}`,
-                              message: ClickedInjectionSort({ column: 'datetime' }),
-                            }),
-                          ]
-                        ),
-                        h.th(
-                          [h.Class('h-10 px-3 text-left align-middle')],
-                          [
-                            headerButton({
-                              h,
-                              label: `Compound${sortIndicator(model, 'compound')}`,
-                              message: ClickedInjectionSort({ column: 'compound' }),
-                            }),
-                          ]
-                        ),
-                        h.th(
-                          [h.Class('h-10 px-3 text-left align-middle')],
-                          [
-                            headerButton({
-                              h,
-                              label: `Dose (mg)${sortIndicator(model, 'doseMg')}`,
-                              message: ClickedInjectionSort({ column: 'doseMg' }),
-                            }),
-                          ]
-                        ),
-                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Supplier']),
-                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Site']),
-                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Schedule']),
-                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Notes']),
-                        h.th([h.Class('h-10 px-3 text-left align-middle font-medium')], ['Actions']),
-                      ]
-                    ),
-                  ]
-                ),
-                h.tbody(
-                  [],
-                  Arr.map(rows, (log) =>
-                    h.keyed('tr')(
-                      log.id,
-                      [h.Class('border-b transition-colors hover:bg-muted/50')],
-                      [
-                        h.td([h.Class('p-3 font-mono text-sm')], [formatDateTime(log.administeredAt, timezone)]),
-                        h.td([h.Class('p-3 font-medium')], [log.compound]),
-                        h.td([h.Class('p-3 font-mono')], [`${log.doseMg} mg`]),
-                        h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.supplier ?? '-']),
-                        h.td([h.Class('p-3 text-muted-foreground text-sm')], [log.site ?? '-']),
-                        h.td(
-                          [h.Class('p-3 text-sm')],
-                          [
-                            h.select(
-                              [
-                                h.Class('max-w-32 rounded border bg-background p-1'),
-                                h.AriaLabel('Assign injection to schedule'),
-                                h.Value(log.scheduleId ?? ''),
-                                h.OnChange((value) =>
-                                  ChangedInjectionAssignment({
-                                    injectionId: log.id,
-                                    scheduleId: value === '' ? null : ScheduleId.make(value),
-                                  })
-                                ),
-                              ],
-                              [
-                                h.option([h.Value('')], ['Unassigned']),
-                                ...Arr.map(
-                                  Arr.filter(
-                                    schedules,
-                                    (schedule) => schedule.compound === log.compound || schedule.id === log.scheduleId
-                                  ),
-                                  (schedule) => h.keyed('option')(schedule.id, [h.Value(schedule.id)], [schedule.name])
-                                ),
-                              ]
-                            ),
-                          ]
-                        ),
-                        h.td(
-                          [h.Class('p-3 text-muted-foreground text-sm truncate max-w-64'), h.Title(log.notes ?? '')],
-                          [log.notes ?? '-']
-                        ),
-                        h.td(
-                          [h.Class('p-3')],
-                          [
-                            h.div(
-                              [h.Class('flex gap-2')],
-                              [
-                                h.button(
-                                  [
-                                    h.Class(button({ size: 'sm', variant: 'ghost' })),
-                                    h.OnClick(ClickedEditInjection({ log })),
-                                  ],
-                                  ['Edit']
-                                ),
-                                h.button(
-                                  [
-                                    h.Class(button({ size: 'sm', variant: 'destructive' })),
-                                    h.OnClick(RequestedDeleteInjection({ id: log.id })),
-                                  ],
-                                  ['Delete']
-                                ),
-                              ]
-                            ),
-                          ]
-                        ),
-                      ]
+    return h.div.children(
+      h.div.class('rounded-md border overflow-x-auto').children(
+        h.table.class('w-full caption-bottom text-sm').children(
+          h.thead.class('border-b').children(
+            h.tr.class('text-muted-foreground').children(
+              h.th.class('h-10 px-3 text-left align-middle').children(
+                headerButton({
+                  h,
+                  label: `Date${sortIndicator(model, 'datetime')}`,
+                  message: ClickedInjectionSort({ column: 'datetime' }),
+                })
+              ),
+              h.th.class('h-10 px-3 text-left align-middle').children(
+                headerButton({
+                  h,
+                  label: `Compound${sortIndicator(model, 'compound')}`,
+                  message: ClickedInjectionSort({ column: 'compound' }),
+                })
+              ),
+              h.th.class('h-10 px-3 text-left align-middle').children(
+                headerButton({
+                  h,
+                  label: `Dose (mg)${sortIndicator(model, 'doseMg')}`,
+                  message: ClickedInjectionSort({ column: 'doseMg' }),
+                })
+              ),
+              h.th.class('h-10 px-3 text-left align-middle font-medium').children('Supplier'),
+              h.th.class('h-10 px-3 text-left align-middle font-medium').children('Site'),
+              h.th.class('h-10 px-3 text-left align-middle font-medium').children('Schedule'),
+              h.th.class('h-10 px-3 text-left align-middle font-medium').children('Notes'),
+              h.th.class('h-10 px-3 text-left align-middle font-medium').children('Actions')
+            )
+          ),
+          h.tbody.children(
+            Arr.map(rows, (log) =>
+              h.tr
+                .key(log.id)
+                .class('border-b transition-colors hover:bg-muted/50')
+                .children(
+                  h.td.class('p-3 font-mono text-sm').children(formatDateTime(log.administeredAt, timezone)),
+                  h.td.class('p-3 font-medium').children(log.compound),
+                  h.td.class('p-3 font-mono').children(`${log.doseMg} mg`),
+                  h.td.class('p-3 text-muted-foreground text-sm').children(log.supplier ?? '-'),
+                  h.td.class('p-3 text-muted-foreground text-sm').children(log.site ?? '-'),
+                  h.td.class('p-3 text-sm').children(
+                    h.select
+                      .class('max-w-32 rounded border bg-background p-1')
+                      .attr('aria-label', 'Assign injection to schedule')
+                      .value(log.scheduleId ?? '')
+                      .on('change', ({ value }) =>
+                        ChangedInjectionAssignment({
+                          injectionId: log.id,
+                          scheduleId: value === '' ? null : ScheduleId.make(value),
+                        })
+                      )
+                      .children(
+                        h.option.attr('value', '').children('Unassigned'),
+                        ...Arr.map(
+                          Arr.filter(
+                            schedules,
+                            (schedule) => schedule.compound === log.compound || schedule.id === log.scheduleId
+                          ),
+                          (schedule) => h.option.key(schedule.id).attr('value', schedule.id).children(schedule.name)
+                        )
+                      )
+                  ),
+                  h.td
+                    .class('p-3 text-muted-foreground text-sm truncate max-w-64')
+                    .attr('title', log.notes ?? '')
+                    .children(log.notes ?? '-'),
+                  h.td.class('p-3').children(
+                    h.div.class('flex gap-2').children(
+                      h.button
+                        .class(button({ size: 'sm', variant: 'ghost' }))
+                        .on('click', ClickedEditInjection({ log }))
+                        .children('Edit'),
+                      h.button
+                        .class(button({ size: 'sm', variant: 'destructive' }))
+                        .on('click', RequestedDeleteInjection({ id: log.id }))
+                        .children('Delete')
                     )
                   )
-                ),
-              ]
-            ),
-          ]
-        ),
-        h.div(
-          [h.Class('flex items-center justify-end gap-2 py-4')],
-          [
-            h.button(
-              [
-                h.Class(button({ size: 'sm', variant: 'outline' })),
-                h.Disabled(page === 0),
-                h.OnClick(ClickedInjectionPage({ delta: -1 })),
-              ],
-              ['Previous']
-            ),
-            h.button(
-              [
-                h.Class(button({ size: 'sm', variant: 'outline' })),
-                h.Disabled(page >= pageCount - 1),
-                h.OnClick(ClickedInjectionPage({ delta: 1 })),
-              ],
-              ['Next']
-            ),
-          ]
-        ),
-      ]
+                )
+            )
+          )
+        )
+      ),
+      h.div.class('flex items-center justify-end gap-2 py-4').children(
+        h.button
+          .class(button({ size: 'sm', variant: 'outline' }))
+          .disabled(page === 0)
+          .on('click', ClickedInjectionPage({ delta: -1 }))
+          .children('Previous'),
+        h.button
+          .class(button({ size: 'sm', variant: 'outline' }))
+          .disabled(page >= pageCount - 1)
+          .on('click', ClickedInjectionPage({ delta: 1 }))
+          .children('Next')
+      )
     )
   }
 
   return (model: InjectionsPage, timezone: IanaTimezone) =>
-    h.div(
-      [],
-      [
-        h.div(
-          [h.Class('flex justify-between items-center mb-6')],
-          [
-            h.h2([h.Class('text-xl font-semibold tracking-tight')], ['Injection Log']),
-            h.button([h.Class(button()), h.OnClick(ClickedAddInjection())], ['Add Entry']),
-          ]
+    h.div.children(
+      h.div
+        .class('flex justify-between items-center mb-6')
+        .children(
+          h.h2.class('text-xl font-semibold tracking-tight').children('Injection Log'),
+          h.button.class(button()).on('click', ClickedAddInjection()).children('Add Entry')
         ),
-        model.form === null ? h.empty : viewInjectionForm({ form: model.form, h, model }),
-        model.pendingDeleteId === null ? h.empty : viewDeleteConfirm(),
-        Arr.isReadonlyArrayNonEmpty(model.logs)
-          ? viewTable(model, model.logs, model.schedules, timezone)
-          : h.div(
-              [h.Class('text-center py-12 text-muted-foreground')],
-              ['No entries yet. Add your first injection log.']
-            ),
-      ]
+      model.form === null ? null : viewInjectionForm({ form: model.form, h, model }),
+      model.pendingDeleteId === null ? null : viewDeleteConfirm(),
+      Arr.isReadonlyArrayNonEmpty(model.logs)
+        ? viewTable(model, model.logs, model.schedules, timezone)
+        : h.div
+            .class('text-center py-12 text-muted-foreground')
+            .children('No entries yet. Add your first injection log.')
     )
 }
 
@@ -280,5 +214,5 @@ export const viewInjections = <ParentMessage>({
 }: {
   readonly model: InjectionsPage
   readonly timezone: IanaTimezone
-  readonly h: HtmlBuilder<ParentMessage | InjectionsMessage>
-}): Html => makeViewInjections(h)(model, timezone)
+  readonly h: Html.H<ParentMessage | InjectionsMessage>
+}): View.Content<ParentMessage | InjectionsMessage> => makeViewInjections(h)(model, timezone)
