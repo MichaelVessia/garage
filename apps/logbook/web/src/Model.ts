@@ -1,10 +1,12 @@
 import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
 import { AssetId, ScheduleId } from '@garage/logbook-domain/Asset/Asset.id'
 import { ActivityEntry } from '@garage/logbook-domain/Asset/AssetActivity.view'
+import { AssetMetadata } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
-import { IsoDate } from '@garage/logbook-domain/Values'
+import { IsoDate, MeterUnit } from '@garage/logbook-domain/Values'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import type { Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 
@@ -15,10 +17,21 @@ export type AssetDetails = Exclude<NonNullable<Model['detail']>, { readonly stat
 
 export const Screen = Schema.Literals(['Due', 'Assets', 'Quick Log'])
 export const QuickMode = Schema.Literals(['RecordMeter', 'LogService', 'RegisterAsset'])
+export const AssetSetupMode = Schema.Literals(['AddSchedule', 'RecordWarranty', 'SetSpec', 'AttachLink'])
+export const dollarsFromCents = (cents: number): string => {
+  const digits = Str.padStart(3, '0')(String(cents))
+  return `${Str.slice(0, -2)(digits)}.${Str.slice(-2)(digits)}`
+}
+
 const Field = Schema.Literals([
   'asset',
   'name',
   'category',
+  'make',
+  'model',
+  'serialNumber',
+  'purchasedOn',
+  'purchasePrice',
   'location',
   'title',
   'reading',
@@ -28,6 +41,19 @@ const Field = Schema.Literals([
   'notes',
   'unit',
   'correction',
+  'cadence',
+  'days',
+  'every',
+  'month',
+  'day',
+  'lastCompletedOn',
+  'lastCompletedMeter',
+  'label',
+  'expiresOn',
+  'coverage',
+  'key',
+  'value',
+  'url',
 ])
 export type Field = typeof Field.Type
 export const Editor = Schema.TaggedUnion({
@@ -35,8 +61,11 @@ export const Editor = Schema.TaggedUnion({
   RecordMeter: {},
   LogService: {},
   RegisterAsset: {},
+  AssetSetup: { assetId: AssetId, mode: AssetSetupMode, meterUnit: Schema.optionalKey(MeterUnit) },
+  UpdateAsset: { assetId: AssetId, original: AssetMetadata },
 })
 export type Editor = typeof Editor.Type
+export type AssetSetupEditor = typeof Editor.cases.AssetSetup.Type
 
 const Catalog = Schema.toType(client.HomeCatalog.SnapshotFlags.fields.state.from)
 const Detail = Schema.toType(client.AssetDetail.SnapshotFlags.fields.state.from)
@@ -69,8 +98,10 @@ export const Message = defineMessageUnion({
   SearchedAssets: { query: Schema.String },
   SelectedAsset: { assetId: Schema.NullOr(AssetId) },
   OpenedCompletion: { assetId: AssetId, scheduleId: ScheduleId },
+  OpenedAssetSetup: { mode: AssetSetupMode },
+  OpenedAssetEdit: {},
   ChoseQuickMode: { mode: QuickMode },
-  ClosedCompletion: {},
+  ClosedEditor: {},
   EditedField: { field: Field, value: Schema.String },
   Submitted: {},
   ReceivedResult: { result: client.Message },

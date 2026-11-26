@@ -8,7 +8,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { thresholdText } from './DueView.ts'
 import { forms, secondaryButton } from './Forms.ts'
-import { Editor, Message } from './Model.ts'
+import type { AssetSetupMode } from './Model.ts'
+import { dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, CatalogAsset, Model } from './Model.ts'
 
 const byName = Order.mapInput(Order.String, (asset: CatalogAsset) => Str.toLowerCase(asset.name))
@@ -18,6 +19,9 @@ const searchableText = (asset: CatalogAsset): string =>
       [
         asset.name,
         asset.category,
+        asset.make ?? '',
+        asset.model ?? '',
+        asset.serialNumber ?? '',
         asset.location ?? '',
         ...Arr.flatMap(Record.values(asset.specs), ({ key, value }) => [key, value]),
       ],
@@ -38,7 +42,7 @@ const activityLabel = (event: Model['activity'][number]['event']): string =>
 const detailView =
   (h: HtmlBuilder<Message>) =>
   (model: Model, asset: AssetDetails): Html => {
-    const section = (title: string, items: ReadonlyArray<Html>, empty: string) =>
+    const section = (title: string, items: ReadonlyArray<Html>, empty: string, action: Html = null) =>
       h.section(
         [h.Class('space-y-2 border-t border-stone-200 pt-4')],
         [
@@ -46,6 +50,7 @@ const detailView =
           items.length === 0
             ? h.p([h.Class('text-sm text-stone-600')], [empty])
             : h.ul([h.Class('space-y-2 text-sm')], items),
+          action,
         ]
       )
 
@@ -59,11 +64,73 @@ const detailView =
         : null
     }
     const opened = Editor.guards.CompleteTask(model.editor) ? model.editor : null
-    const { completion } = forms(h)(model)
+    const { completion, assetSetup, assetEdit } = forms(h)(model)
+    const setup = (mode: typeof AssetSetupMode.Type, label: string): Html => {
+      if (Editor.guards.AssetSetup(model.editor) && model.editor.mode === mode) {
+        return assetSetup(model.editor)
+      }
+      return asset.status !== 'active'
+        ? null
+        : h.button(
+            [
+              h.Type('button'),
+              h.Class(secondaryButton),
+              h.Disabled(model.attempt !== null || model.sessionExpired),
+              h.OnClick(Message.OpenedAssetSetup({ mode })),
+            ],
+            [label]
+          )
+    }
+    const editing = Editor.guards.UpdateAsset(model.editor)
+    const metadata = [
+      ['Category', asset.category],
+      ['Make', asset.make],
+      ['Model', asset.model],
+      ['Serial number', asset.serialNumber],
+      ['Purchase date', asset.purchasedOn],
+      [
+        'Purchase price',
+        asset.purchasePriceCents === undefined ? undefined : `$${dollarsFromCents(asset.purchasePriceCents)}`,
+      ],
+      ['Location', asset.location],
+      ['Notes', asset.notes],
+    ] as const
     return h.article(
       [h.Class('min-w-0 space-y-4 rounded-xl border border-stone-200 bg-white p-4 sm:p-5')],
       [
-        h.h2([h.Class('text-xl font-semibold break-words')], [asset.name]),
+        h.div(
+          [h.Class('flex flex-wrap items-center justify-between gap-2')],
+          [
+            h.h2([h.Class('text-xl font-semibold break-words')], [asset.name]),
+            editing || asset.status !== 'active'
+              ? null
+              : h.button(
+                  [
+                    h.Type('button'),
+                    h.Class(secondaryButton),
+                    h.Disabled(model.attempt !== null || model.sessionExpired),
+                    h.OnClick(Message.OpenedAssetEdit()),
+                  ],
+                  ['Edit asset']
+                ),
+          ]
+        ),
+        editing
+          ? assetEdit()
+          : h.dl(
+              [h.Class('grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2')],
+              Arr.map(metadata, ([label, value]) =>
+                value === undefined || value === ''
+                  ? null
+                  : h.div(
+                      [h.Key(label)],
+                      [
+                        h.dt([h.Class('font-medium')], [label]),
+                        h.dd([h.Class('whitespace-pre-wrap break-words text-stone-700')], [value]),
+                      ]
+                    )
+              )
+            ),
         section(
           'Specs & Consumables',
           Arr.map(Record.values(asset.specs), (spec) =>
@@ -72,7 +139,8 @@ const detailView =
               [h.span([], [h.strong([], [spec.key]), ' · ', spec.value]), webLink(`Reorder ${spec.key}`, spec.url)]
             )
           ),
-          'No specs or consumables recorded.'
+          'No specs or consumables recorded.',
+          setup('SetSpec', 'Set spec')
         ),
         h.p(
           [h.Class('text-sm')],
@@ -118,7 +186,8 @@ const detailView =
               ]
             )
           ),
-          'No active schedules.'
+          'No active schedules.',
+          setup('AddSchedule', 'Add schedule')
         ),
         section(
           'Warranties',
@@ -133,14 +202,16 @@ const detailView =
               ]
             )
           ),
-          'No warranties recorded.'
+          'No warranties recorded.',
+          setup('RecordWarranty', 'Record warranty')
         ),
         section(
           'Links',
           Arr.map(Record.values(asset.links), (link) =>
             h.li([h.Key(link.id)], [webLink(link.label, link.url) ?? link.label])
           ),
-          'No links recorded.'
+          'No links recorded.',
+          setup('AttachLink', 'Attach link')
         ),
         section(
           'Activity',
@@ -185,7 +256,7 @@ export const assetsView =
               h.Type('search'),
               h.Value(model.query),
               h.OnInput((query) => Message.SearchedAssets({ query })),
-              h.Placeholder('Name, location, category, or spec'),
+              h.Placeholder('Name, make, model, serial number, location, or spec'),
             ]),
           ]
         ),

@@ -1,5 +1,11 @@
 # Logbook
 
+## Record an asset
+
+Open **Quick Log** and select **New asset**. You can enter the make, model, serial number, purchase date, price, and location.
+
+Open **Assets** to find the record by name, category, location, make, model, serial number, or specification. Select an active asset to edit its details, add a maintenance schedule, record a warranty, set a specification, or attach a link to a manual.
+
 ## Develop locally
 
 From the repository root, run:

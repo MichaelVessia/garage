@@ -5,7 +5,7 @@ import * as Record from 'effect/Record'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { Editor, Message } from './Model.ts'
-import type { Field, Model, QuickMode } from './Model.ts'
+import type { AssetSetupEditor, Field, Model, QuickMode } from './Model.ts'
 
 export const primaryButton =
   'min-h-10 rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-900 disabled:opacity-50'
@@ -18,13 +18,18 @@ const change = (field: Field) => (value: string) => Message.EditedField({ field,
 
 export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
   const value = (field: Field) => model.fields[field] ?? ''
-  const text = (field: Field, label: string, options: Readonly<{ required?: boolean; numeric?: boolean }> = {}): Html =>
+  const text = (
+    field: Field,
+    label: string,
+    options: Readonly<{ required?: boolean; numeric?: boolean; type?: 'date' | 'url' }> = {}
+  ): Html =>
     h.label(
       [h.Class('block text-sm font-medium')],
       [
         label,
         h.input([
           h.Class(control),
+          h.Type(options.type ?? 'text'),
           h.Value(value(field)),
           h.OnInput(change(field)),
           h.Required(options.required ?? false),
@@ -112,7 +117,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
                     h.Type('button'),
                     h.Class(secondaryButton),
                     h.Disabled(model.attempt !== null),
-                    h.OnClick(Message.ClosedCompletion()),
+                    h.OnClick(Message.ClosedEditor()),
                   ],
                   ['Cancel']
                 )
@@ -145,24 +150,32 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     ['LogService', 'Log service'],
     ['RegisterAsset', 'New asset'],
   ] satisfies ReadonlyArray<readonly [typeof QuickMode.Type, string]>
+  const assetMetadata = (): ReadonlyArray<Html> => [
+    text('name', 'Asset name', { required: true }),
+    select(
+      'category',
+      'Category',
+      Arr.map(AssetCategory.literals, (category) => [category, category]),
+      'other'
+    ),
+    text('make', 'Make (optional)'),
+    text('model', 'Model (optional)'),
+    text('serialNumber', 'Serial number (optional)'),
+    text('purchasedOn', 'Purchase date (optional, YYYY-MM-DD)'),
+    text('purchasePrice', 'Purchase price in USD (optional)', { numeric: true }),
+    text('location', 'Location (optional)'),
+    notes,
+  ]
 
   const quick = (): Html => {
     const content = Editor.guards.RegisterAsset(model.editor)
       ? form('Register asset', [
-          text('name', 'Asset name', { required: true }),
-          select(
-            'category',
-            'Category',
-            Arr.map(AssetCategory.literals, (category) => [category, category]),
-            'other'
-          ),
-          text('location', 'Location (optional)'),
+          ...assetMetadata(),
           select('unit', 'Meter unit (optional)', [
             ['', 'No meter'],
             ...Arr.map(MeterUnit.literals, (unit): readonly [string, string] => [unit, unit]),
           ]),
           text('reading', 'Initial meter reading (optional)', { numeric: true }),
-          notes,
         ])
       : Editor.guards.LogService(model.editor)
         ? form('Save service', [
@@ -201,5 +214,87 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     )
   }
 
-  return { quick, completion: (meterEnabled: boolean) => form('Save completion', work(meterEnabled), true) }
+  const assetSetup = (editor: AssetSetupEditor): Html => {
+    switch (editor.mode) {
+      case 'AddSchedule': {
+        const cadence = value('cadence') || 'IntervalDays'
+        const unit = editor.meterUnit
+        const meterOptions: ReadonlyArray<readonly [string, string]> =
+          unit === undefined
+            ? []
+            : [
+                ['MeterInterval', `Every set number of ${unit}`],
+                ['Either', `Days or ${unit}, whichever comes first`],
+              ]
+        return form(
+          'Save schedule',
+          [
+            text('title', 'Schedule title', { required: true }),
+            select(
+              'cadence',
+              'Cadence',
+              [['IntervalDays', 'Every set number of days'], ...meterOptions, ['Seasonal', 'Annual date']],
+              'IntervalDays'
+            ),
+            ...(cadence === 'IntervalDays' || cadence === 'Either'
+              ? [text('days', 'Interval in days', { required: true, numeric: true })]
+              : []),
+            ...(unit !== undefined && (cadence === 'MeterInterval' || cadence === 'Either')
+              ? [
+                  text('every', `Interval in ${unit}`, { required: true, numeric: true }),
+                  text('lastCompletedMeter', `Meter at last completion in ${unit} (optional)`, { numeric: true }),
+                ]
+              : []),
+            ...(cadence === 'Seasonal'
+              ? [
+                  text('month', 'Month (1 to 12)', { required: true, numeric: true }),
+                  text('day', 'Day of month (1 to 31)', { required: true, numeric: true }),
+                ]
+              : []),
+            ...(cadence === 'MeterInterval'
+              ? []
+              : [text('lastCompletedOn', 'Last completion date (optional)', { type: 'date' })]),
+            text('cost', 'Estimated cost in USD (optional)', { numeric: true }),
+            notes,
+          ],
+          true
+        )
+      }
+      case 'RecordWarranty':
+        return form(
+          'Save warranty',
+          [
+            text('label', 'Warranty name', { required: true }),
+            text('expiresOn', 'Expiration date', { required: true, type: 'date' }),
+            text('coverage', 'Coverage (optional)'),
+            text('url', 'Warranty URL (optional)', { type: 'url' }),
+            notes,
+          ],
+          true
+        )
+      case 'SetSpec':
+        return form(
+          'Save spec',
+          [
+            text('key', 'Specification name', { required: true }),
+            text('value', 'Specification value', { required: true }),
+            text('url', 'Reorder URL (optional)', { type: 'url' }),
+          ],
+          true
+        )
+      case 'AttachLink':
+        return form(
+          'Save link',
+          [text('label', 'Link name', { required: true }), text('url', 'Link URL', { required: true, type: 'url' })],
+          true
+        )
+    }
+  }
+
+  return {
+    quick,
+    completion: (meterEnabled: boolean) => form('Save completion', work(meterEnabled), true),
+    assetSetup,
+    assetEdit: () => form('Save asset', assetMetadata(), true),
+  }
 }

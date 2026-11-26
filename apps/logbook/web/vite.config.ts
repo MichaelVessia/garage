@@ -1,4 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
-export default defineConfig({ plugins: [tailwindcss()] })
+export default defineConfig({
+  plugins: [tailwindcss()],
+  optimizeDeps: { rolldownOptions: { output: { strictExecutionOrder: true } } },
+})

@@ -8,6 +8,7 @@ import { Unauthorized } from '@garage/logbook-domain/Session.middleware'
 import { IsoDate } from '@garage/logbook-domain/Values'
 import * as DateTime from 'effect/DateTime'
 import * as Schema from 'effect/Schema'
+import * as Struct from 'effect/Struct'
 import { Scene } from 'foldkit'
 import { Command, given, message, story } from 'foldkit/story'
 
@@ -36,6 +37,11 @@ const truckAsset: CatalogAsset = {
   id: truck,
   name: 'Truck',
   category: 'vehicle',
+  make: 'Ford',
+  model: 'Ranger',
+  serialNumber: 'TRK-482',
+  purchasedOn: IsoDate.make('2024-06-07'),
+  purchasePriceCents: 1_234_567,
   location: 'Driveway',
   status: 'active',
   meter: { unit: 'miles', reading: 40_000 },
@@ -147,6 +153,96 @@ it('finds spec keys and values and opens live asset detail and activity', () => 
       })
     ),
     shows('Meter recorded at 40000')
+  )
+})
+
+it('finds assets by make, model, and serial number', () => {
+  const truckResult = role('button', { name: /Truck/u })
+  const furnaceResult = role('button', { name: /Furnace/u })
+  const search = label('Search assets')
+  Scene.scene(
+    app,
+    Scene.given(initial),
+    catalogLoaded,
+    press('Assets'),
+    Scene.expect(furnaceResult).toExist(),
+    Scene.type(search, 'FORD'),
+    Scene.expect(truckResult).toExist(),
+    Scene.expect(furnaceResult).toBeAbsent(),
+    Scene.type(search, 'ranger'),
+    Scene.expect(truckResult).toExist(),
+    Scene.type(search, 'trk-482'),
+    Scene.expect(truckResult).toExist(),
+    Scene.type(search, 'trk-999'),
+    Scene.expect(truckResult).toBeAbsent()
+  )
+})
+
+it('shows asset metadata and saves only the fields changed in the edit form', () => {
+  const detail = {
+    ...truckAsset,
+    notes: 'Keep the spare key in the garage.',
+    schedules: {},
+    warranties: {},
+    links: {},
+    totalSpendCents: 0,
+  }
+  const command = client.UpdateAsset({
+    target: truck,
+    commandId: 'test-session:0',
+    input: { serialNumber: null, purchasePriceCents: 0, location: 'Garage' },
+  })
+
+  Scene.scene(
+    app,
+    Scene.given(initial),
+    catalogLoaded,
+    press('Assets'),
+    click(role('button', { name: /Truck/u })),
+    Scene.Subscription.emit(Message.ReceivedDetail({ detail })),
+    shows('Ford'),
+    shows('Ranger'),
+    shows('TRK-482'),
+    shows('2024-06-07'),
+    shows('$12345.67'),
+    shows('Driveway'),
+    shows('Keep the spare key in the garage.'),
+    press('Edit asset'),
+    Scene.expect(label('Asset name')).toHaveValue('Truck'),
+    Scene.expect(label('Category')).toHaveValue('vehicle'),
+    Scene.expect(label('Make (optional)')).toHaveValue('Ford'),
+    Scene.expect(label('Model (optional)')).toHaveValue('Ranger'),
+    Scene.expect(label('Serial number (optional)')).toHaveValue('TRK-482'),
+    Scene.expect(label('Purchase date (optional, YYYY-MM-DD)')).toHaveValue('2024-06-07'),
+    Scene.expect(label('Purchase price in USD (optional)')).toHaveValue('12345.67'),
+    Scene.expect(label('Location (optional)')).toHaveValue('Driveway'),
+    Scene.expect(label('Notes (optional)')).toHaveValue('Keep the spare key in the garage.'),
+    Scene.Subscription.emit(Message.ReceivedDetail({ detail: { ...detail, notes: 'New spare key location.' } })),
+    Scene.type(label('Serial number (optional)'), ''),
+    Scene.type(label('Purchase price in USD (optional)'), '0'),
+    Scene.type(label('Location (optional)'), 'Garage'),
+    press('Save asset'),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve(
+      command,
+      client.Message.SucceededUpdateAsset({ commandId: 'test-session:0', reply: undefined, receipt })
+    ),
+    shows('Saved.'),
+    Scene.expect(role('button', { name: 'Save asset' })).toBeAbsent(),
+    Scene.Subscription.emit(
+      Message.ReceivedDetail({
+        detail: {
+          ...Struct.omit(detail, ['serialNumber']),
+          purchasePriceCents: 0,
+          location: 'Garage',
+          notes: 'New spare key location.',
+        },
+      })
+    ),
+    Scene.expect(text('TRK-482')).toBeAbsent(),
+    shows('$0.00'),
+    shows('Garage'),
+    shows('New spare key location.')
   )
 })
 
@@ -296,7 +392,19 @@ it('logs unscheduled service and registers a new asset', () => {
   const registration = client.RegisterAsset({
     target: AssetId.make('test-session:1'),
     commandId: 'test-session:1',
-    input: { name: 'Generator', category: 'equipment', meterUnit: 'hours', initialMeter: 0 },
+    input: {
+      name: 'Generator',
+      category: 'equipment',
+      make: 'Honda',
+      model: 'EU2200i',
+      serialNumber: 'GEN-7',
+      purchasedOn: IsoDate.make('2026-11-10'),
+      purchasePriceCents: 109_999,
+      location: 'Shed',
+      notes: 'Store with the cover.',
+      meterUnit: 'hours',
+      initialMeter: 0,
+    },
   })
   Scene.scene(
     app,
@@ -316,6 +424,19 @@ it('logs unscheduled service and registers a new asset', () => {
     press('New asset'),
     Scene.type(label('Asset name'), 'Generator'),
     Scene.change(label('Category'), 'equipment'),
+    Scene.type(label('Make (optional)'), 'Honda'),
+    Scene.type(label('Model (optional)'), 'EU2200i'),
+    Scene.type(label('Serial number (optional)'), 'GEN-7'),
+    Scene.type(label('Purchase date (optional, YYYY-MM-DD)'), '2026-11-31'),
+    press('Register asset'),
+    Scene.expect(role('alert')).toHaveText('Enter a purchase date in YYYY-MM-DD format.'),
+    Scene.type(label('Purchase date (optional, YYYY-MM-DD)'), '2026-11-10'),
+    Scene.type(label('Purchase price in USD (optional)'), '1099.999'),
+    press('Register asset'),
+    Scene.expect(role('alert')).toHaveText('Enter a purchase price in dollars with up to two decimal places.'),
+    Scene.type(label('Purchase price in USD (optional)'), '1099.99'),
+    Scene.type(label('Location (optional)'), 'Shed'),
+    Scene.type(label('Notes (optional)'), 'Store with the cover.'),
     Scene.change(label('Meter unit (optional)'), 'hours'),
     Scene.type(label('Initial meter reading (optional)'), '0'),
     press('Register asset'),

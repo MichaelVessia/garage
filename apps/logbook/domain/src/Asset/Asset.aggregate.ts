@@ -27,6 +27,7 @@ import { RemoveWarranty, WarrantyNotFound, WarrantyRemoved } from './RemoveWarra
 import { AssetRetired, RetireAsset } from './RetireAsset.command.ts'
 import { ScheduleNotFound } from './ScheduleNotFound.rejection.ts'
 import { SetSpec, SpecSet } from './SetSpec.command.ts'
+import { AssetUpdated, UpdateAsset } from './UpdateAsset.command.ts'
 
 const AssetState = Schema.TaggedUnion({
   Unregistered: {},
@@ -75,6 +76,7 @@ export class Asset extends Domain.Aggregate('Asset', {
   initial: AssetState.cases.Unregistered.make({}),
   commands: [
     RegisterAsset,
+    UpdateAsset,
     RetireAsset,
     RecordMeter,
     AddSchedule,
@@ -93,6 +95,8 @@ export class Asset extends Domain.Aggregate('Asset', {
       AssetState.guards.Unregistered(state)
         ? [AssetRegistered.make(Struct.omit(cmd, ['_tag']))]
         : AssetAlreadyRegistered.make({ assetId: id }),
+    UpdateAsset: (state, cmd) =>
+      AssetState.guards.Active(state) ? [AssetUpdated.make(Struct.omit(cmd, ['_tag']))] : notActive(state),
     RetireAsset: (state, cmd) =>
       AssetState.guards.Active(state) ? [AssetRetired.make(Struct.omit(cmd, ['_tag']))] : notActive(state),
     RecordMeter: (state, { reading, recordedOn, correction = false }, { id, now }) => {
@@ -230,6 +234,7 @@ export class Asset extends Domain.Aggregate('Asset', {
             linkIds: [],
           })
         : state,
+    AssetUpdated: (state) => state,
     AssetRetired: (state, { reason }) =>
       AssetState.guards.Active(state) ? AssetState.cases.Retired.make({ reason }) : state,
     MeterRecorded: (state, { reading }) =>

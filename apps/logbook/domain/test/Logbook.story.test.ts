@@ -5,6 +5,7 @@ import * as DateTime from 'effect/DateTime'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Stream from 'effect/Stream'
+import * as Struct from 'effect/Struct'
 
 import { owner, system } from '../src/Actor.ts'
 import { AddSchedule, ScheduleAdded, ScheduleAlreadyExists } from '../src/Asset/AddSchedule.command.ts'
@@ -29,6 +30,7 @@ import { RemoveWarranty, WarrantyNotFound, WarrantyRemoved } from '../src/Asset/
 import { AssetRetired, RetireAsset } from '../src/Asset/RetireAsset.command.ts'
 import { ScheduleNotFound } from '../src/Asset/ScheduleNotFound.rejection.ts'
 import { SetSpec, SpecSet } from '../src/Asset/SetSpec.command.ts'
+import { AssetUpdated, UpdateAsset } from '../src/Asset/UpdateAsset.command.ts'
 import { CurrentActor } from '../src/CurrentActor.context.ts'
 import { HomeCatalog } from '../src/Home/HomeCatalog.view.ts'
 import { HOME_HOUSEHOLD_ID } from '../src/Household.id.ts'
@@ -147,7 +149,13 @@ it.effect('registers two assets, retires one, and refuses all commands after ret
         name: 'Truck',
         category: 'vehicle',
         status: 'retired',
+        make: 'Example',
+        model: 'Pickup',
+        serialNumber: 'A100',
+        purchasedOn: IsoDate.make('2024-02-10'),
+        purchasePriceCents: 500_000,
         location: 'Garage',
+        notes: 'Used',
         meter: { unit: 'miles', reading: 100 },
         specs: {},
         schedules: {},
@@ -170,6 +178,72 @@ it.effect('registers two assets, retires one, and refuses all commands after ret
     ])
   )
 })
+
+it.effect('corrects stored asset metadata in detail and catalog views', () => {
+  const correction = {
+    name: 'Work truck',
+    category: 'equipment',
+    make: 'Corrected make',
+    serialNumber: 'B200',
+    purchasePriceCents: 0,
+  } satisfies Parameters<typeof UpdateAsset.make>[0]
+  const patch = { ...correction, notes: null }
+  const corrected = {
+    ...correction,
+    model: 'Pickup',
+    purchasedOn: truckInput.purchasedOn,
+    location: 'Garage',
+    meter: { unit: truckInput.meterUnit, reading: truckInput.initialMeter },
+  }
+  const cleared = {
+    make: null,
+    model: null,
+    serialNumber: null,
+    purchasedOn: null,
+    purchasePriceCents: null,
+    location: null,
+  }
+  return story(
+    Story.clock(jan1),
+    signedIn,
+    Story.given(truck, truckRegistered),
+    Story.when(truck, UpdateAsset.make(patch)),
+    Story.then(truck, AssetUpdated.make(patch)),
+    Story.view(AssetDetail, truck, (asset) => {
+      assert.deepInclude(asset, corrected)
+      assert.notProperty(asset, 'notes')
+    }),
+    Story.view(HomeCatalog, HOME_HOUSEHOLD_ID, ({ assets }) => {
+      assert.deepInclude(assets[truck.id], corrected)
+      assert.notProperty(assets[truck.id], 'notes')
+    }),
+    Story.when(truck, UpdateAsset.make(cleared)),
+    Story.then(truck, AssetUpdated.make(cleared)),
+    Story.view(AssetDetail, truck, (asset) => {
+      for (const field of Struct.keys(cleared)) {
+        assert.notProperty(asset, field)
+      }
+    }),
+    Story.view(HomeCatalog, HOME_HOUSEHOLD_ID, ({ assets }) => {
+      for (const field of Struct.keys(cleared)) {
+        assert.notProperty(assets[truck.id], field)
+      }
+    })
+  )
+})
+
+it.effect('rejects metadata changes before registration and after retirement', () =>
+  story(
+    Story.clock(jan1),
+    signedIn,
+    Story.when(truck, UpdateAsset.make({ name: 'Work truck' })),
+    Story.rejected(AssetNotActive.make({ status: 'unregistered' })),
+    Story.given(truck, truckRegistered, AssetRetired.make({ reason: 'sold' })),
+    Story.when(truck, UpdateAsset.make({ name: 'Work truck' })),
+    Story.rejected(AssetNotActive.make({ status: 'retired' })),
+    Story.then(truck)
+  )
+)
 
 it.effect('records and corrects meter readings, with explicit rollback evidence', () => {
   const recorded = MeterRecorded.make({
