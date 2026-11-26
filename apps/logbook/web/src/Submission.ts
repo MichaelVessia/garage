@@ -15,6 +15,7 @@ import type * as Types from 'effect/Types'
 import { Command } from 'foldkit'
 import type { Update } from 'foldkit'
 
+import { assetSetupCommand } from './AssetSetupCommand.ts'
 import { client, Message } from './Model.ts'
 import type { Client, Field, Model } from './Model.ts'
 
@@ -66,6 +67,13 @@ const commandFor = (
   }
 
   switch (model.editor?._tag) {
+    case 'AssetSetup':
+      return assetSetupCommand({
+        editor: model.editor,
+        commandId,
+        text,
+        costCents: costText === '' ? Option.none() : Option.some(cents),
+      })
     case 'CompleteTask':
       return client.CompleteTask({
         target: model.editor.assetId,
