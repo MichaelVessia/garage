@@ -54,6 +54,6 @@ Use the app Worker URL for the web app and its APIs. The browser uses the Access
 
 The Frame report includes a `pendingRepairs` array with all open pending work on active assets. Each entry has `assetId`, `assetName`, `category`, `workId`, and `title`. The entry also has `notes` and `dueOn` when the work record contains those fields. The date and meter limits do not filter this array.
 
-To link from Frame to an asset, resolve `/assets/${encodeURIComponent(assetId)}` against the configured Logbook base URL. Use the Logbook app host protected by Cloudflare Access.
+To link from Frame to an asset, resolve `/assets/${encodeURIComponent(assetId)}` against the configured Logbook base URL. For the special IDs `.` and `..`, use `/assets/:.` and `/assets/:..` so browsers preserve the path. Use the Logbook app host protected by Cloudflare Access.
 
 For both clients, set `CF-Access-Client-Id` and `CF-Access-Client-Secret` to the service token credentials when Access protects the host. For a host that accepts the optional Logbook API token, send `Authorization: Bearer <token>`.

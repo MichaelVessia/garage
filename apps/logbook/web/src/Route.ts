@@ -9,7 +9,11 @@ type Route = { readonly screen: keyof typeof screenPaths; readonly selected: Opt
 
 const assetPrefix = `${screenPaths.Assets}/`
 
-export const assetPath = (assetId: AssetId): string => `${assetPrefix}${encodeURIComponent(assetId)}`
+export const assetPath = (assetId: AssetId): string => {
+  // Browsers normalize a bare dot segment before the app receives the URL.
+  const segment = assetId === '.' || assetId === '..' ? ':' + assetId : encodeURIComponent(assetId)
+  return `${assetPrefix}${segment}`
+}
 
 export const isAppPath = (pathname: string): boolean =>
   pathname === screenPaths.Due ||
@@ -27,7 +31,12 @@ export const routeFromPath = (pathname: string): Route => {
       return { screen: 'Assets', selected: Option.none() }
     }
     try {
-      return { screen: 'Assets', selected: Schema.decodeOption(AssetId)(decodeURIComponent(segment)) }
+      return {
+        screen: 'Assets',
+        selected: Schema.decodeOption(AssetId)(
+          segment === ':.' || segment === ':..' ? Str.slice(1)(segment) : decodeURIComponent(segment)
+        ),
+      }
     } catch {
       return { screen: 'Assets', selected: Option.none() }
     }

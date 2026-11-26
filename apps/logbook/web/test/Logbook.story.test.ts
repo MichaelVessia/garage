@@ -182,9 +182,12 @@ it('finds assets by make, model, and serial number', () => {
   )
 })
 
-it('opens an encoded asset URL on load and when the browser changes location', () => {
-  const assetId = AssetId.make('shop/door?part#50% é')
-  const pathname = '/assets/shop%2Fdoor%3Fpart%2350%25%20%C3%A9'
+it.each([
+  ['shop/door?part#50% é', '/assets/shop%2Fdoor%3Fpart%2350%25%20%C3%A9'],
+  ['..', '/assets/:..'],
+  [':..', '/assets/%3A..'],
+])('opens asset %s on load and when the browser changes location', (id, pathname) => {
+  const assetId = AssetId.make(id)
   const asset = { ...truckAsset, id: assetId, name: 'Shop door' }
   const detail = { ...asset, links: {}, totalSpendCents: 0, schedules: {}, warranties: {} }
   const loaded = Scene.Subscription.emit(Message.ReceivedDetail({ detail }))
