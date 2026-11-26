@@ -1,8 +1,8 @@
+import { UiSchema } from '@effect/ui'
 import { InjectionId, ScheduleId } from '@garage/subq-domain/Journal/Journal.id'
 import { InjectionEntry } from '@garage/subq-domain/Journal/JournalRecords'
 import type { Schedule } from '@garage/subq-domain/Journal/JournalRecords'
 import * as Schema from 'effect/Schema'
-import { taggedStruct } from 'foldkit/schema'
 
 // ============================================
 // Model
@@ -48,63 +48,42 @@ export const initialInjectionsModel: InjectionsModel = {
 // Messages
 // ============================================
 
-export const CompletedOpenInjectionForm = taggedStruct('CompletedOpenInjectionForm', {
-  nowLocal: Schema.String,
-  log: Schema.NullOr(InjectionEntry),
+export const InjectionsMessage = UiSchema.TaggedEnum({
+  CompletedOpenInjectionForm: {
+    nowLocal: Schema.String,
+    log: Schema.NullOr(InjectionEntry),
+  },
+  ClickedAddInjection: {},
+  ClickedEditInjection: { log: InjectionEntry },
+  ClickedCancelInjectionForm: {},
+  ChangedInjectionDatetime: { value: Schema.String },
+  ChangedInjectionCompound: { value: Schema.String },
+  ChangedInjectionSupplier: { value: Schema.String },
+  ChangedInjectionDoseMg: { value: Schema.String },
+  ChangedInjectionSite: { value: Schema.String },
+  ChangedInjectionNotes: { value: Schema.String },
+  ChangedInjectionSchedule: { value: Schema.String },
+  ConfirmedInjectionOffSchedule: {},
+  SubmittedInjectionForm: {},
+  SucceededSaveInjection: {},
+  FailedSaveInjection: { message: Schema.String },
+  RequestedDeleteInjection: { id: InjectionId },
+  CancelledDeleteInjection: {},
+  ConfirmedDeleteInjection: {},
+  SucceededDeleteInjection: {},
+  FailedDeleteInjection: { message: Schema.String },
+  ClickedInjectionSort: {
+    column: Schema.Literals(['datetime', 'compound', 'doseMg']),
+  },
+  ClickedInjectionPage: { delta: Schema.Int },
+  ChangedInjectionAssignment: {
+    injectionId: InjectionId,
+    scheduleId: Schema.NullOr(ScheduleId),
+  },
+  SucceededInjectionAssignment: {},
 })
 
-export const ClickedAddInjection = taggedStruct('ClickedAddInjection')
-
-export const ClickedEditInjection = taggedStruct('ClickedEditInjection', { log: InjectionEntry })
-
-export const ClickedCancelInjectionForm = taggedStruct('ClickedCancelInjectionForm')
-
-export const ChangedInjectionDatetime = taggedStruct('ChangedInjectionDatetime', { value: Schema.String })
-
-export const ChangedInjectionCompound = taggedStruct('ChangedInjectionCompound', { value: Schema.String })
-
-export const ChangedInjectionSupplier = taggedStruct('ChangedInjectionSupplier', { value: Schema.String })
-
-export const ChangedInjectionDoseMg = taggedStruct('ChangedInjectionDoseMg', { value: Schema.String })
-
-export const ChangedInjectionSite = taggedStruct('ChangedInjectionSite', { value: Schema.String })
-
-export const ChangedInjectionNotes = taggedStruct('ChangedInjectionNotes', { value: Schema.String })
-
-export const ChangedInjectionSchedule = taggedStruct('ChangedInjectionSchedule', { value: Schema.String })
-
-export const ConfirmedInjectionOffSchedule = taggedStruct('ConfirmedInjectionOffSchedule')
-
-export const SubmittedInjectionForm = taggedStruct('SubmittedInjectionForm')
-
-export const SucceededSaveInjection = taggedStruct('SucceededSaveInjection')
-
-export const FailedSaveInjection = taggedStruct('FailedSaveInjection', { message: Schema.String })
-
-export const RequestedDeleteInjection = taggedStruct('RequestedDeleteInjection', { id: InjectionId })
-
-export const CancelledDeleteInjection = taggedStruct('CancelledDeleteInjection')
-
-export const ConfirmedDeleteInjection = taggedStruct('ConfirmedDeleteInjection')
-
-export const SucceededDeleteInjection = taggedStruct('SucceededDeleteInjection')
-
-export const FailedDeleteInjection = taggedStruct('FailedDeleteInjection', { message: Schema.String })
-
-export const ClickedInjectionSort = taggedStruct('ClickedInjectionSort', {
-  column: Schema.Literals(['datetime', 'compound', 'doseMg']),
-})
-
-export const ClickedInjectionPage = taggedStruct('ClickedInjectionPage', { delta: Schema.Int })
-
-export const ChangedInjectionAssignment = taggedStruct('ChangedInjectionAssignment', {
-  injectionId: InjectionId,
-  scheduleId: Schema.NullOr(ScheduleId),
-})
-
-export const SucceededInjectionAssignment = taggedStruct('SucceededInjectionAssignment')
-
-export const InjectionsMessage = Schema.Union([
+export const {
   CompletedOpenInjectionForm,
   ClickedAddInjection,
   ClickedEditInjection,
@@ -125,11 +104,11 @@ export const InjectionsMessage = Schema.Union([
   ConfirmedDeleteInjection,
   SucceededDeleteInjection,
   FailedDeleteInjection,
-  ChangedInjectionAssignment,
-  SucceededInjectionAssignment,
   ClickedInjectionSort,
   ClickedInjectionPage,
-])
+  ChangedInjectionAssignment,
+  SucceededInjectionAssignment,
+} = InjectionsMessage
 
 export type InjectionsMessage = typeof InjectionsMessage.Type
 

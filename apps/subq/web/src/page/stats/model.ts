@@ -1,10 +1,10 @@
+import { UiSchema } from '@effect/ui'
 import { CalendarDate } from '@garage/subq-domain/Calendar'
 import { GoalId } from '@garage/subq-domain/Journal/Journal.id'
 import { Goal } from '@garage/subq-domain/Journal/JournalRecords'
 import { WeightLbs } from '@garage/subq-domain/Values'
 import type * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
-import { taggedStruct } from 'foldkit/schema'
 
 import { ChartMessage, ChartState, initialChartState } from '../../chart/state.ts'
 import type { StatsBundle } from './data.ts'
@@ -49,51 +49,32 @@ export interface StatsRange {
   readonly end: Option.Option<CalendarDate>
 }
 
-export const ClickedStatsPreset = taggedStruct('ClickedStatsPreset', {
-  preset: StatsPreset,
+const StatsPageMessage = UiSchema.TaggedEnum({
+  ClickedStatsPreset: {
+    preset: StatsPreset,
+  },
+  ChangedCustomStart: { value: Schema.String },
+  ChangedCustomEnd: { value: Schema.String },
+  CommittedCustomRange: {},
+  ClickedSetGoal: {},
+  CompletedOpenGoalForm: { todayLocal: CalendarDate },
+  ClickedEditGoal: { goal: Goal },
+  ClickedCompleteGoal: { goalId: GoalId },
+  ClickedCancelGoalForm: {},
+  ChangedGoalWeight: { value: Schema.String },
+  ChangedGoalStartDate: { value: Schema.String },
+  ChangedGoalTargetDate: { value: Schema.String },
+  ChangedGoalNotes: { value: Schema.String },
+  SubmittedGoalForm: {},
+  SucceededSaveGoal: {},
+  FailedSaveGoal: { message: Schema.String },
+  RequestedDeleteGoal: {},
+  CancelledDeleteGoal: {},
+  ConfirmedDeleteGoal: { goalId: GoalId },
+  SucceededChangeGoalStatus: {},
 })
 
-export const ChangedCustomStart = taggedStruct('ChangedCustomStart', { value: Schema.String })
-
-export const ChangedCustomEnd = taggedStruct('ChangedCustomEnd', { value: Schema.String })
-
-export const CommittedCustomRange = taggedStruct('CommittedCustomRange')
-
-export const ClickedSetGoal = taggedStruct('ClickedSetGoal')
-
-export const CompletedOpenGoalForm = taggedStruct('CompletedOpenGoalForm', { todayLocal: CalendarDate })
-
-export const ClickedEditGoal = taggedStruct('ClickedEditGoal', { goal: Goal })
-
-export const ClickedCompleteGoal = taggedStruct('ClickedCompleteGoal', { goalId: GoalId })
-
-export const ClickedCancelGoalForm = taggedStruct('ClickedCancelGoalForm')
-
-export const ChangedGoalWeight = taggedStruct('ChangedGoalWeight', { value: Schema.String })
-
-export const ChangedGoalStartDate = taggedStruct('ChangedGoalStartDate', { value: Schema.String })
-
-export const ChangedGoalTargetDate = taggedStruct('ChangedGoalTargetDate', { value: Schema.String })
-
-export const ChangedGoalNotes = taggedStruct('ChangedGoalNotes', { value: Schema.String })
-
-export const SubmittedGoalForm = taggedStruct('SubmittedGoalForm')
-
-export const SucceededSaveGoal = taggedStruct('SucceededSaveGoal')
-
-export const FailedSaveGoal = taggedStruct('FailedSaveGoal', { message: Schema.String })
-
-export const RequestedDeleteGoal = taggedStruct('RequestedDeleteGoal')
-
-export const CancelledDeleteGoal = taggedStruct('CancelledDeleteGoal')
-
-export const ConfirmedDeleteGoal = taggedStruct('ConfirmedDeleteGoal', { goalId: GoalId })
-
-export const SucceededChangeGoalStatus = taggedStruct('SucceededChangeGoalStatus')
-
-export const NavigatedStats = taggedStruct('NavigatedStats')
-
-export const StatsMessage = Schema.Union([
+export const {
   ClickedStatsPreset,
   ChangedCustomStart,
   ChangedCustomEnd,
@@ -114,9 +95,9 @@ export const StatsMessage = Schema.Union([
   CancelledDeleteGoal,
   ConfirmedDeleteGoal,
   SucceededChangeGoalStatus,
-  NavigatedStats,
-  ChartMessage,
-])
+} = StatsPageMessage
+
+export const StatsMessage = Schema.Union([StatsPageMessage, ChartMessage])
 
 export type StatsMessage = typeof StatsMessage.Type
 

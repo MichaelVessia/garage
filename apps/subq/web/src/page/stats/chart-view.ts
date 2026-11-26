@@ -1,10 +1,11 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import type { IanaTimezone } from '@garage/subq-domain/Calendar'
 import type { doseHistory } from '@garage/subq-domain/StatsMath'
 import { arc, curveStepAfter, extent, line, pie } from 'd3'
 import type { PieArcDatum } from 'd3'
 import * as Arr from 'effect/Array'
 import * as Order from 'effect/Order'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { linearScale, utcScale } from '../../chart/scale.ts'
 
@@ -45,11 +46,11 @@ export const viewPieChart = <Message>({
   h,
   data,
 }: {
-  readonly h: HtmlBuilder<Message>
+  readonly h: Html.H<Message>
   readonly data: ReadonlyArray<ChartDatum>
-}): Html => {
+}): View.Content<Message> | false => {
   if (Arr.isReadonlyArrayEmpty(data)) {
-    return h.div([h.Class('text-muted-foreground h-[200px] flex items-center justify-center')], ['No data available'])
+    return h.div.class('text-muted-foreground h-[200px] flex items-center justify-center').children('No data available')
   }
 
   // d3's pie generator method, not Array#sort — null disables slice reordering
@@ -61,54 +62,55 @@ export const viewPieChart = <Message>({
   const sliceArc = arc<PieArcDatum<ChartDatum>>().innerRadius(50).outerRadius(80)
   const labelArc = arc<PieArcDatum<ChartDatum>>().innerRadius(65).outerRadius(65)
   const arcs = pieLayout([...data])
-  const attr = h.Attribute
 
-  return h.div(
-    [h.Class('flex items-center justify-center gap-6 h-[250px]')],
-    [
-      h.svg(
-        [h.ViewBox('-90 -90 180 180'), h.Class('h-[180px] w-[180px] shrink-0')],
+  return h.div.class('flex items-center justify-center gap-6 h-[250px]').children(
+    h
+      .el('svg')
+      .attr('viewBox', '-90 -90 180 180')
+      .attr('class', 'h-[180px] w-[180px] shrink-0')
+      .children(
         Arr.map(arcs, (slice, index) => {
           const d = sliceArc(slice)
           const [lx, ly] = labelArc.centroid(slice)
 
-          return h.g(
-            [],
-            [
+          return h
+            .el('g')
+            .children(
               d === null
-                ? h.empty
-                : h.path([attr('d', d), h.Fill(chartColor(index)), h.Stroke('var(--card)'), h.StrokeWidth('2')], []),
+                ? null
+                : h
+                    .el('path')
+                    .attr('d', d)
+                    .attr('fill', chartColor(index))
+                    .attr('stroke', 'var(--card)')
+                    .attr('stroke-width', '2'),
               slice.data[1] > 0
-                ? h.text(
-                    [
-                      attr('x', String(lx)),
-                      attr('y', String(ly)),
-                      h.TextAnchor('middle'),
-                      h.Dy('0.35em'),
-                      h.Fill('#fff'),
-                      h.FontSize('11px'),
-                      h.FontWeight('600'),
-                    ],
-                    [String(slice.data[1])]
-                  )
-                : h.empty,
-            ]
-          )
+                ? h
+                    .el('text')
+                    .attr('x', String(lx))
+                    .attr('y', String(ly))
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .attr('fill', '#fff')
+                    .attr('font-size', '11px')
+                    .attr('font-weight', '600')
+                    .children(String(slice.data[1]))
+                : null
+            )
         })
       ),
-      h.div(
-        [h.Class('flex flex-col gap-1.5')],
+    h.div
+      .class('flex flex-col gap-1.5')
+      .children(
         Arr.map(data, ([name, value], index) =>
-          h.div(
-            [h.Class('flex items-center gap-2')],
-            [
-              h.span([h.Class('inline-block h-3 w-3 shrink-0'), h.Style({ background: chartColor(index) })], []),
-              h.span([h.Class('text-xs text-muted-foreground')], [`${name} (${value})`]),
-            ]
-          )
+          h.div
+            .class('flex items-center gap-2')
+            .children(
+              h.span.class('inline-block h-3 w-3 shrink-0').style({ background: chartColor(index) }),
+              h.span.class('text-xs text-muted-foreground').children(`${name} (${value})`)
+            )
         )
-      ),
-    ]
+      )
   )
 }
 
@@ -118,39 +120,26 @@ export const viewBarChart = <Message>({
   h,
   data,
 }: {
-  readonly h: HtmlBuilder<Message>
+  readonly h: Html.H<Message>
   readonly data: ReadonlyArray<ChartDatum>
-}): Html => {
+}): View.Content<Message> | false => {
   if (Arr.isReadonlyArrayEmpty(data)) {
-    return h.div([h.Class('text-muted-foreground h-[100px] flex items-center justify-center')], ['No data available'])
+    return h.div.class('text-muted-foreground h-[100px] flex items-center justify-center').children('No data available')
   }
 
   const max = Math.max(...Arr.map(data, ([, value]) => value), 1)
 
-  return h.div(
-    [h.Class('flex flex-col gap-3 py-2')],
+  return h.div.class('flex flex-col gap-3 py-2').children(
     Arr.map(data, ([name, value], index) =>
-      h.div(
-        [h.Class('flex items-center gap-3')],
-        [
-          h.span([h.Class('w-20 shrink-0 text-xs text-right truncate'), h.Title(name)], [name]),
-          h.div(
-            [h.Class('flex-1 flex items-center gap-2')],
-            [
-              h.div(
-                [
-                  h.Class('h-6 rounded-r'),
-                  h.Style({
-                    background: chartColor(index),
-                    width: `${((value / max) * 100).toFixed(1)}%`,
-                  }),
-                ],
-                []
-              ),
-              h.span([h.Class('text-xs text-muted-foreground')], [String(value)]),
-            ]
-          ),
-        ]
+      h.div.class('flex items-center gap-3').children(
+        h.span.class('w-20 shrink-0 text-xs text-right truncate').attr('title', name).children(name),
+        h.div.class('flex-1 flex items-center gap-2').children(
+          h.div.class('h-6 rounded-r').style({
+            background: chartColor(index),
+            width: `${((value / max) * 100).toFixed(1)}%`,
+          }),
+          h.span.class('text-xs text-muted-foreground').children(String(value))
+        )
       )
     )
   )
@@ -167,12 +156,12 @@ export const viewDoseHistory = <Message>({
   data,
   timezone,
 }: {
-  readonly h: HtmlBuilder<Message>
+  readonly h: Html.H<Message>
   readonly data: DoseHistoryStats
   readonly timezone: IanaTimezone
-}): Html => {
+}): View.Content<Message> | false => {
   if (Arr.isReadonlyArrayEmpty(data.points)) {
-    return h.div([h.Class('text-muted-foreground h-[200px]')], ['No dose data available'])
+    return h.div.class('text-muted-foreground h-[200px]').children('No dose data available')
   }
 
   const margin = { bottom: 40, left: 50, right: 20, top: 20 }
@@ -194,7 +183,7 @@ export const viewDoseHistory = <Message>({
   const [minDose, maxDose] = extent(points, (point) => point.doseMg)
 
   if (minDate === undefined || maxDate === undefined || minDose === undefined || maxDose === undefined) {
-    return h.empty
+    return false
   }
 
   const xScale = utcScale({ start: minDate, end: maxDate, width })
@@ -220,7 +209,6 @@ export const viewDoseHistory = <Message>({
   })
 
   const segments = flushDoseSegment(builtSegments)
-  const attr = h.Attribute
 
   const formatDoseDate = (date: Date): string =>
     new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: timezone }).format(date)
@@ -228,91 +216,85 @@ export const viewDoseHistory = <Message>({
   const formatTick = (date: Date): string =>
     new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', timeZone: timezone }).format(date)
 
-  return h.div(
-    [h.Class('relative w-full')],
-    [
-      h.svg(
-        [h.ViewBox(`0 0 ${DOSE_W} ${DOSE_H}`), h.Class('block w-full h-auto')],
-        [
-          h.g(
-            [h.Transform(`translate(${margin.left},${margin.top})`)],
-            [
-              ...Arr.map(yScale.ticks(5), (tick) =>
-                h.line(
-                  [
-                    attr('x1', '0'),
-                    attr('x2', String(width)),
-                    attr('y1', String(yScale.position(tick))),
-                    attr('y2', String(yScale.position(tick))),
-                    h.Stroke('currentColor'),
-                    h.Opacity('0.1'),
-                  ],
-                  []
-                )
-              ),
-              ...Arr.flatMap(segments, (segment) => {
-                if (segment.points.length < 2) {
-                  return []
-                }
+  return h.div.class('relative w-full').children(
+    h
+      .el('svg')
+      .attr('viewBox', `0 0 ${DOSE_W} ${DOSE_H}`)
+      .attr('class', 'block w-full h-auto')
+      .children(
+        h
+          .el('g')
+          .attr('transform', `translate(${margin.left},${margin.top})`)
+          .children(
+            ...Arr.map(yScale.ticks(5), (tick) =>
+              h
+                .el('line')
+                .attr('x1', '0')
+                .attr('x2', String(width))
+                .attr('y1', String(yScale.position(tick)))
+                .attr('y2', String(yScale.position(tick)))
+                .attr('stroke', 'currentColor')
+                .attr('opacity', '0.1')
+            ),
+            ...Arr.flatMap(segments, (segment) => {
+              if (segment.points.length < 2) {
+                return []
+              }
 
-                const d = doseLine([...segment.points])
+              const d = doseLine([...segment.points])
 
-                return d === null
-                  ? []
-                  : [h.path([attr('d', d), h.Fill('none'), h.Stroke(segment.color), h.StrokeWidth('2')], [])]
-              }),
-              ...Arr.map(points, (point) =>
-                h.circle(
-                  [
-                    h.Cx(String(xScale.position(point.date))),
-                    h.Cy(String(yScale.position(point.doseMg))),
-                    attr('r', '4'),
-                    h.Fill(point.color),
-                    h.Stroke('var(--card)'),
-                    h.StrokeWidth('2'),
-                    h.Cursor('pointer'),
-                    h.AriaLabel(`${point.compound} ${point.doseMg} mg on ${formatDoseDate(point.date)}`),
-                  ],
-                  []
+              return d === null
+                ? []
+                : [
+                    h
+                      .el('path')
+                      .attr('d', d)
+                      .attr('fill', 'none')
+                      .attr('stroke', segment.color)
+                      .attr('stroke-width', '2'),
+                  ]
+            }),
+            ...Arr.map(points, (point) =>
+              h
+                .el('circle')
+                .attr('cx', String(xScale.position(point.date)))
+                .attr('cy', String(yScale.position(point.doseMg)))
+                .attr('r', '4')
+                .attr('fill', point.color)
+                .attr('stroke', 'var(--card)')
+                .attr('stroke-width', '2')
+                .attr('cursor', 'pointer')
+                .attr('aria-label', `${point.compound} ${point.doseMg} mg on ${formatDoseDate(point.date)}`)
+            ),
+            h
+              .el('g')
+              .attr('transform', `translate(0,${height})`)
+              .children(
+                h.el('line').attr('x1', '0').attr('x2', String(width)).attr('stroke', '#e5e7eb'),
+                ...Arr.map(xScale.ticks(5), (tick) =>
+                  h
+                    .el('text')
+                    .attr('x', String(xScale.position(tick)))
+                    .attr('y', '20')
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#9ca3af')
+                    .attr('font-size', '10px')
+                    .children(formatTick(tick))
                 )
               ),
-              h.g(
-                [h.Transform(`translate(0,${height})`)],
-                [
-                  h.line([attr('x1', '0'), attr('x2', String(width)), h.Stroke('#e5e7eb')], []),
-                  ...Arr.map(xScale.ticks(5), (tick) =>
-                    h.text(
-                      [
-                        attr('x', String(xScale.position(tick))),
-                        attr('y', '20'),
-                        h.TextAnchor('middle'),
-                        h.Fill('#9ca3af'),
-                        h.FontSize('10px'),
-                      ],
-                      [formatTick(tick)]
-                    )
-                  ),
-                ]
-              ),
-              h.g(
-                [],
-                Arr.map(yScale.ticks(5), (tick) =>
-                  h.text(
-                    [
-                      attr('x', '-8'),
-                      attr('y', String(yScale.position(tick) + 3)),
-                      h.TextAnchor('end'),
-                      h.Fill('#9ca3af'),
-                      h.FontSize('10px'),
-                    ],
-                    [`${tick} mg`]
-                  )
-                )
-              ),
-            ]
-          ),
-        ]
-      ),
-    ]
+            h.el('g').children(
+              Arr.map(yScale.ticks(5), (tick) =>
+                h
+                  .el('text')
+                  .attr('x', '-8')
+                  .attr('y', String(yScale.position(tick) + 3))
+                  .attr('text-anchor', 'end')
+                  .attr('fill', '#9ca3af')
+                  .attr('font-size', '10px')
+                  .children(`${tick} mg`)
+              )
+            )
+          )
+      )
   )
 }

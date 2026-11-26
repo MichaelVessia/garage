@@ -1,7 +1,6 @@
+import { UiSchema } from '@effect/ui'
 import { JournalSnapshot } from '@garage/subq-domain/ExportFormat'
 import * as Schema from 'effect/Schema'
-import { File } from 'foldkit'
-import { taggedStruct } from 'foldkit/schema'
 
 // ============================================
 // Model
@@ -35,43 +34,30 @@ export const initialSettingsModel: SettingsModel = {
 // Messages
 // ============================================
 
-export const ClickedSettingsWeightUnit = taggedStruct('ClickedSettingsWeightUnit', {
-  unit: Schema.Literals(['lbs', 'kg']),
+export const SettingsPageMessage = UiSchema.TaggedEnum({
+  ClickedSettingsWeightUnit: {
+    unit: Schema.Literals(['lbs', 'kg']),
+  },
+  ChangedSettingsTimezone: { value: Schema.String },
+  SubmittedSettingsTimezone: {},
+  SucceededUpdateSettingsPreference: {},
+  FailedUpdateSettingsPreference: {
+    message: Schema.String,
+  },
+  ClickedExportData: {},
+  SucceededExportData: {},
+  FailedExportData: { message: Schema.String },
+  ClickedSelectImportFile: {},
+  SelectedImportFile: { file: Schema.instanceOf(File) },
+  CancelledSelectImportFile: {},
+  PreparedImportData: { data: JournalSnapshot },
+  ConfirmedImportData: {},
+  CancelledImportData: {},
+  SucceededImportData: { summary: Schema.String },
+  FailedImportData: { message: Schema.String },
 })
 
-export const ChangedSettingsTimezone = taggedStruct('ChangedSettingsTimezone', { value: Schema.String })
-
-export const SubmittedSettingsTimezone = taggedStruct('SubmittedSettingsTimezone')
-
-export const SucceededUpdateSettingsPreference = taggedStruct('SucceededUpdateSettingsPreference')
-
-export const FailedUpdateSettingsPreference = taggedStruct('FailedUpdateSettingsPreference', {
-  message: Schema.String,
-})
-
-export const ClickedExportData = taggedStruct('ClickedExportData')
-
-export const SucceededExportData = taggedStruct('SucceededExportData')
-
-export const FailedExportData = taggedStruct('FailedExportData', { message: Schema.String })
-
-export const ClickedSelectImportFile = taggedStruct('ClickedSelectImportFile')
-
-export const SelectedImportFile = taggedStruct('SelectedImportFile', { file: File.File })
-
-export const CancelledSelectImportFile = taggedStruct('CancelledSelectImportFile')
-
-export const PreparedImportData = taggedStruct('PreparedImportData', { data: JournalSnapshot })
-
-export const ConfirmedImportData = taggedStruct('ConfirmedImportData')
-
-export const CancelledImportData = taggedStruct('CancelledImportData')
-
-export const SucceededImportData = taggedStruct('SucceededImportData', { summary: Schema.String })
-
-export const FailedImportData = taggedStruct('FailedImportData', { message: Schema.String })
-
-export const SettingsPageMessage = Schema.Union([
+export const {
   ClickedSettingsWeightUnit,
   ChangedSettingsTimezone,
   SubmittedSettingsTimezone,
@@ -88,6 +74,6 @@ export const SettingsPageMessage = Schema.Union([
   CancelledImportData,
   SucceededImportData,
   FailedImportData,
-])
+} = SettingsPageMessage
 
 export type SettingsPageMessage = typeof SettingsPageMessage.Type

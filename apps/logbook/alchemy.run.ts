@@ -19,7 +19,7 @@ export default Stack(
     const domain = dev
       ? undefined
       : yield* Config.String('LOGBOOK_DOMAIN').pipe(Config.option, Config.map(Option.getOrUndefined))
-    const app = yield* Cloudflare.Website.Foldkit('LogbookApp', {
+    const app = yield* Cloudflare.Website.Vite('LogbookApp', {
       rootDir: 'web',
       main: 'src/worker.ts',
       env: { LOGBOOK: logbook },

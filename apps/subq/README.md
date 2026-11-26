@@ -1,7 +1,7 @@
 # Subq development and deployment
 
 Subq is a single-owner journal for weight, injections, schedules, and goals.
-The Alchemy stack runs a Foldkit website Worker and a journal Worker.
+The Alchemy stack runs a Effect UI website Worker and a journal Worker.
 Cloudflare Access controls access to the website. The journal Worker checks
 the Access token and stores events in Cloudflare Durable Objects.
 
