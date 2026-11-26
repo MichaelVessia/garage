@@ -35,7 +35,7 @@ import { RemoveSpec, SpecNotFound, SpecRemoved } from '../src/Asset/RemoveSpec.c
 import { RemoveWarranty, WarrantyNotFound, WarrantyRemoved } from '../src/Asset/RemoveWarranty.command.ts'
 import { AssetRetired, RetireAsset } from '../src/Asset/RetireAsset.command.ts'
 import { ScheduleNotFound } from '../src/Asset/ScheduleNotFound.rejection.ts'
-import { SetSpec, SpecSet } from '../src/Asset/SetSpec.command.ts'
+import { SetSpec, SpecAlreadyExists, SpecSet } from '../src/Asset/SetSpec.command.ts'
 import { AssetUpdated, UpdateAsset } from '../src/Asset/UpdateAsset.command.ts'
 import { CurrentActor } from '../src/CurrentActor.context.ts'
 import { HomeCatalog } from '../src/Home/HomeCatalog.view.ts'
@@ -477,6 +477,110 @@ it.effect('rejects service readings without a meter and accepts explicit correct
       })
     ),
     Story.view(AssetDetail, truck, { meter: { unit: 'miles', reading: 75 } })
+  )
+})
+
+it.effect('replaces a schedule once and keeps its past completions and costs', () => {
+  const lastCompletedOn = IsoDate.make('2025-01-01')
+  const work = TaskCompleted.make({
+    scheduleId: oil.scheduleId,
+    performedBy: 'diy',
+    completedOn: lastCompletedOn,
+    meterReading: 100,
+    costCents: 2000,
+  })
+  const replacement = {
+    scheduleId: ScheduleId.make('new-oil'),
+    title: 'Oil change',
+    cadence: Cadence.cases.IntervalDays.make({ days: 60 }),
+    lastCompletedOn,
+  }
+  const replace = AddSchedule.make({ ...replacement, replacesScheduleId: oil.scheduleId })
+  const nextDueOn = IsoDate.make('2025-03-02')
+  const archived = ScheduleArchived.make({ scheduleId: oil.scheduleId })
+  const options = { commandId: 'replace-oil' }
+
+  return story(
+    Story.clock(jan1),
+    signedIn,
+    Story.given(truck, truckRegistered, ScheduleAdded.make(oil), work),
+    Story.when(
+      truck,
+      AddSchedule.make({
+        ...replace,
+        cadence: Cadence.cases.MeterInterval.make({ every: 500, unit: 'hours' }),
+      })
+    ),
+    Story.rejected(MeterUnitMismatch.make({ configured: 'miles', requested: 'hours' })),
+    Story.when(truck, replace, options),
+    Story.then(truck, archived, ScheduleAdded.make({ ...replacement, nextDueOn })),
+    Story.when(truck, replace, options),
+    Story.then(truck),
+    Story.when(truck, AddSchedule.make({ ...replace, scheduleId: ScheduleId.make('stale-replacement') })),
+    Story.rejected(ScheduleNotFound.make({ scheduleId: oil.scheduleId })),
+    Story.view(AssetDetail, truck, {
+      schedules: { [replacement.scheduleId]: { ...replacement, nextDueOn } },
+      totalSpendCents: 2000,
+    }),
+    Story.view(HomeCatalog, HOME_HOUSEHOLD_ID, ({ assets }) => {
+      assert.deepStrictEqual(assets[truck.id]?.schedules, {
+        [replacement.scheduleId]: { title: 'Oil change', nextDueOn },
+      })
+    }),
+    Story.emitted(AssetActivity, truck, [{ event: truckRegistered }, { event: work }])
+  )
+})
+
+it.effect('replaces links and warranties and renames a specification without overwriting another', () => {
+  const newLink = { ...link, linkId: LinkId.make('manual-v2'), url: 'https://example.com/new-manual' }
+  const newWarranty = {
+    ...warranty,
+    warrantyId: WarrantyId.make('parts-corrected'),
+    expiresOn: IsoDate.make('2028-01-01'),
+  }
+  const otherSpec = { key: 'filter', value: 'A1' }
+  const newSpec = { key: 'engine oil', value: '0W-20' }
+  return story(
+    Story.clock(jan1),
+    signedIn,
+    Story.given(
+      truck,
+      truckRegistered,
+      LinkAttached.make(link),
+      WarrantyRecorded.make(warranty),
+      SpecSet.make(spec),
+      SpecSet.make(otherSpec)
+    ),
+    Story.when(truck, AttachLink.make({ ...newLink, replacesLinkId: link.linkId })),
+    Story.then(truck, LinkRemoved.make({ linkId: link.linkId }), LinkAttached.make(newLink)),
+    Story.when(truck, AttachLink.make({ ...newLink, linkId: LinkId.make('stale'), replacesLinkId: link.linkId })),
+    Story.rejected(LinkNotFound.make({ linkId: link.linkId })),
+    Story.when(truck, RecordWarranty.make({ ...newWarranty, replacesWarrantyId: warranty.warrantyId })),
+    Story.then(truck, WarrantyRemoved.make({ warrantyId: warranty.warrantyId }), WarrantyRecorded.make(newWarranty)),
+    Story.when(truck, RecordWarranty.make({ ...newWarranty, replacesWarrantyId: warranty.warrantyId })),
+    Story.rejected(WarrantyNotFound.make({ warrantyId: warranty.warrantyId })),
+    Story.when(truck, SetSpec.make({ key: otherSpec.key, value: '0W-20', previousKey: spec.key })),
+    Story.rejected(SpecAlreadyExists.make({ key: otherSpec.key })),
+    Story.when(truck, SetSpec.make({ key: spec.key, value: '0W-20', previousKey: spec.key })),
+    Story.then(truck, SpecSet.make({ key: spec.key, value: '0W-20' })),
+    Story.when(truck, SetSpec.make({ ...newSpec, previousKey: spec.key })),
+    Story.then(truck, SpecRemoved.make({ key: spec.key }), SpecSet.make(newSpec)),
+    Story.when(truck, SetSpec.make({ ...newSpec, previousKey: spec.key })),
+    Story.rejected(SpecNotFound.make({ key: spec.key })),
+    Story.view(AssetDetail, truck, (state) => {
+      assert(state.status === 'active')
+      assert.deepStrictEqual(state.links, {
+        [newLink.linkId]: { id: newLink.linkId, label: newLink.label, url: newLink.url },
+      })
+      assert.deepStrictEqual(state.warranties, {
+        [newWarranty.warrantyId]: {
+          id: newWarranty.warrantyId,
+          label: newWarranty.label,
+          expiresOn: newWarranty.expiresOn,
+        },
+      })
+      assert.deepStrictEqual(state.specs, { [otherSpec.key]: otherSpec, [newSpec.key]: newSpec })
+    })
   )
 })
 

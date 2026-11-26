@@ -28,7 +28,7 @@ import { RemoveSpec, SpecNotFound, SpecRemoved } from './RemoveSpec.command.ts'
 import { RemoveWarranty, WarrantyNotFound, WarrantyRemoved } from './RemoveWarranty.command.ts'
 import { AssetRetired, RetireAsset } from './RetireAsset.command.ts'
 import { ScheduleNotFound } from './ScheduleNotFound.rejection.ts'
-import { SetSpec, SpecSet } from './SetSpec.command.ts'
+import { SetSpec, SpecAlreadyExists, SpecSet } from './SetSpec.command.ts'
 import { AssetUpdated, UpdateAsset } from './UpdateAsset.command.ts'
 
 const WorkStatus = Schema.TaggedUnion({ Pending: { title: Schema.NonEmptyString }, Completed: {} })
@@ -124,14 +124,17 @@ export class Asset extends Domain.Aggregate('Asset', {
         }),
       ])
     },
-    AddSchedule: (state, cmd, { id, now }) => {
+    AddSchedule: (state, { _tag, replacesScheduleId, ...schedule }, { id, now }) => {
       if (!AssetState.guards.Active(state)) {
         return notActive(state)
       }
-      if (Record.has(state.schedules, cmd.scheduleId)) {
-        return ScheduleAlreadyExists.make({ scheduleId: cmd.scheduleId })
+      if (replacesScheduleId !== undefined && !Record.has(state.schedules, replacesScheduleId)) {
+        return ScheduleNotFound.make({ scheduleId: replacesScheduleId })
       }
-      const { cadence, lastCompletedOn, lastCompletedMeter } = cmd
+      if (Record.has(state.schedules, schedule.scheduleId)) {
+        return ScheduleAlreadyExists.make({ scheduleId: schedule.scheduleId })
+      }
+      const { cadence, lastCompletedOn, lastCompletedMeter } = schedule
       if ('unit' in cadence) {
         if (state.meter === undefined) {
           return NoMeterConfigured.make({ assetId: id })
@@ -145,7 +148,10 @@ export class Asset extends Domain.Aggregate('Asset', {
         lastCompletedOn ?? isoDateFromUtc(now),
         lastCompletedMeter ?? state.meter?.reading
       )
-      return [ScheduleAdded.make({ ...Struct.omit(cmd, ['_tag']), ...due })]
+      const added = ScheduleAdded.make({ ...schedule, ...due })
+      return replacesScheduleId === undefined
+        ? [added]
+        : [ScheduleArchived.make({ scheduleId: replacesScheduleId }), added]
     },
     ArchiveSchedule: (state, { scheduleId }) => {
       if (!AssetState.guards.Active(state)) {
@@ -218,13 +224,20 @@ export class Asset extends Domain.Aggregate('Asset', {
         }),
       ])
     },
-    RecordWarranty: (state, cmd) => {
+    RecordWarranty: (state, { _tag, replacesWarrantyId, ...warranty }) => {
       if (!AssetState.guards.Active(state)) {
         return notActive(state)
       }
-      return state.warrantyIds.includes(cmd.warrantyId)
-        ? WarrantyAlreadyExists.make({ warrantyId: cmd.warrantyId })
-        : [WarrantyRecorded.make(Struct.omit(cmd, ['_tag']))]
+      if (replacesWarrantyId !== undefined && !state.warrantyIds.includes(replacesWarrantyId)) {
+        return WarrantyNotFound.make({ warrantyId: replacesWarrantyId })
+      }
+      if (state.warrantyIds.includes(warranty.warrantyId)) {
+        return WarrantyAlreadyExists.make({ warrantyId: warranty.warrantyId })
+      }
+      const recorded = WarrantyRecorded.make(warranty)
+      return replacesWarrantyId === undefined
+        ? [recorded]
+        : [WarrantyRemoved.make({ warrantyId: replacesWarrantyId }), recorded]
     },
     RemoveWarranty: (state, { warrantyId }) => {
       if (!AssetState.guards.Active(state)) {
@@ -234,21 +247,42 @@ export class Asset extends Domain.Aggregate('Asset', {
         ? [WarrantyRemoved.make({ warrantyId })]
         : WarrantyNotFound.make({ warrantyId })
     },
-    SetSpec: (state, cmd) =>
-      AssetState.guards.Active(state) ? [SpecSet.make(Struct.omit(cmd, ['_tag']))] : notActive(state),
+    SetSpec: (state, { _tag, previousKey, ...spec }) => {
+      if (!AssetState.guards.Active(state)) {
+        return notActive(state)
+      }
+      const set = SpecSet.make(spec)
+      if (previousKey === undefined) {
+        return [set]
+      }
+      if (!state.specKeys.includes(previousKey)) {
+        return SpecNotFound.make({ key: previousKey })
+      }
+      if (previousKey === spec.key) {
+        return [set]
+      }
+      return state.specKeys.includes(spec.key)
+        ? SpecAlreadyExists.make({ key: spec.key })
+        : [SpecRemoved.make({ key: previousKey }), set]
+    },
     RemoveSpec: (state, { key }) => {
       if (!AssetState.guards.Active(state)) {
         return notActive(state)
       }
       return state.specKeys.includes(key) ? [SpecRemoved.make({ key })] : SpecNotFound.make({ key })
     },
-    AttachLink: (state, cmd) => {
+    AttachLink: (state, { _tag, replacesLinkId, ...link }) => {
       if (!AssetState.guards.Active(state)) {
         return notActive(state)
       }
-      return state.linkIds.includes(cmd.linkId)
-        ? LinkAlreadyExists.make({ linkId: cmd.linkId })
-        : [LinkAttached.make(Struct.omit(cmd, ['_tag']))]
+      if (replacesLinkId !== undefined && !state.linkIds.includes(replacesLinkId)) {
+        return LinkNotFound.make({ linkId: replacesLinkId })
+      }
+      if (state.linkIds.includes(link.linkId)) {
+        return LinkAlreadyExists.make({ linkId: link.linkId })
+      }
+      const attached = LinkAttached.make(link)
+      return replacesLinkId === undefined ? [attached] : [LinkRemoved.make({ linkId: replacesLinkId }), attached]
     },
     RemoveLink: (state, { linkId }) => {
       if (!AssetState.guards.Active(state)) {

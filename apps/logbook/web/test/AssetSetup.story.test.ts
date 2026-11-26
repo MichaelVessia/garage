@@ -219,14 +219,207 @@ it('attaches a web link and retries with the same command and link IDs', () => {
   )
 })
 
+const scheduleId = ScheduleId.make('oil')
+const linkId = LinkId.make('manual')
+const warrantyId = WarrantyId.make('powertrain')
+const specKey = 'Oil filter'
+const schedule = {
+  scheduleId,
+  title: 'Change oil',
+  cadence: Cadence.cases.Either.make({ days: 90, every: 5000, unit: 'miles' }),
+  estimatedCostCents: 4250,
+  lastCompletedOn: IsoDate.make('2026-11-01'),
+  lastCompletedMeter: 39_000,
+  notes: 'Synthetic oil',
+}
+const configured: AssetDetails = {
+  ...asset,
+  schedules: { [scheduleId]: schedule },
+  links: { [linkId]: { id: linkId, label: 'Manual', url: 'https://maker.example/manual' } },
+  warranties: {
+    [warrantyId]: {
+      id: warrantyId,
+      label: 'Powertrain',
+      expiresOn: IsoDate.make('2029-11-24'),
+      coverage: 'Engine and transmission',
+      url: 'https://dealer.example/warranty',
+    },
+  },
+  specs: { [specKey]: { key: specKey, value: 'FL-500S', url: 'https://parts.example/filter' } },
+}
+
+it('replaces the selected link and retries after a live update removes the old row', () => {
+  const replacementId = LinkId.make(commandId)
+  const replacement = { label: 'Manual', url: 'https://maker.example/new-manual' }
+  const command = client.AttachLink({
+    target: truck,
+    commandId,
+    input: { ...replacement, linkId: replacementId, replacesLinkId: linkId },
+  })
+  Scene.scene(
+    app,
+    ...assetPage,
+    detail(configured),
+    press('Replace link Manual'),
+    Scene.expect(label('Link name')).toHaveValue('Manual'),
+    Scene.expect(label('Link URL')).toHaveValue('https://maker.example/manual'),
+    enter('Link URL', replacement.url),
+    press('Replace link'),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve(command, client.Message.FailedAttachLink({ commandId, failure: unknown })),
+    detail({ ...configured, links: { [replacementId]: { ...replacement, id: replacementId } } }),
+    Scene.expect(label('Link URL')).toHaveValue(replacement.url),
+    Scene.expect(role('button', { name: 'Cancel' })).toBeDisabled(),
+    press('Retry save'),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve(command, client.Message.SucceededAttachLink({ commandId, reply: undefined, receipt })),
+    saved,
+    Scene.expect(role('link', { name: 'Manual' })).toHaveAttr('href', replacement.url)
+  )
+})
+
+it('replaces a schedule with the corrected cadence and prefilled completion values', () => {
+  const command = client.AddSchedule({
+    target: truck,
+    commandId,
+    input: {
+      ...schedule,
+      scheduleId: ScheduleId.make(commandId),
+      cadence: Cadence.cases.Either.make({ days: 120, every: 5000, unit: 'miles' }),
+      replacesScheduleId: scheduleId,
+    },
+  })
+  Scene.scene(
+    app,
+    ...assetPage,
+    detail(configured),
+    press('Edit schedule Change oil'),
+    Scene.expect(label('Schedule title')).toHaveValue('Change oil'),
+    Scene.expect(label('Cadence')).toHaveValue('Either'),
+    Scene.expect(label('Interval in days')).toHaveValue('90'),
+    Scene.expect(label('Last completion date (optional)')).toHaveValue('2026-11-01'),
+    Scene.expect(label('Meter at last completion in miles (optional)')).toHaveValue('39000'),
+    Scene.expect(text(/keep its past completions/u)).toExist(),
+    enter('Interval in days', '120'),
+    press('Replace schedule'),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve(command, client.Message.SucceededAddSchedule({ commandId, reply: undefined, receipt })),
+    saved
+  )
+})
+
+it('corrects a warranty expiration date and clears the optional URL', () => {
+  const command = client.RecordWarranty({
+    target: truck,
+    commandId,
+    input: {
+      warrantyId: WarrantyId.make(commandId),
+      replacesWarrantyId: warrantyId,
+      label: 'Powertrain',
+      expiresOn: IsoDate.make('2029-12-24'),
+      coverage: 'Engine and transmission',
+    },
+  })
+  Scene.scene(
+    app,
+    ...assetPage,
+    detail(configured),
+    press('Edit warranty Powertrain'),
+    Scene.expect(label('Expiration date')).toHaveValue('2029-11-24'),
+    enter('Expiration date', '2029-12-24'),
+    enter('Warranty URL (optional)', ''),
+    press('Save warranty'),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve(command, client.Message.SucceededRecordWarranty({ commandId, reply: undefined, receipt })),
+    saved
+  )
+})
+
+it('corrects a specification name and value', () => {
+  const command = client.SetSpec({
+    target: truck,
+    commandId,
+    input: { key: 'Engine oil filter', previousKey: specKey, value: 'FL-910S', url: 'https://parts.example/filter' },
+  })
+  Scene.scene(
+    app,
+    ...assetPage,
+    detail(configured),
+    press('Edit spec Oil filter'),
+    Scene.expect(label('Specification name')).toHaveValue(specKey),
+    enter('Specification name', 'Engine oil filter'),
+    enter('Specification value', 'FL-910S'),
+    press('Save spec'),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve(command, client.Message.SucceededSetSpec({ commandId, reply: undefined, receipt })),
+    saved
+  )
+})
+
+it.each([
+  {
+    name: 'Stop schedule',
+    subject: 'Change oil',
+    command: client.ArchiveSchedule({ target: truck, commandId, input: { scheduleId } }),
+    success: client.Message.SucceededArchiveSchedule({ commandId, reply: undefined, receipt }),
+    after: { ...configured, schedules: {} },
+  },
+  {
+    name: 'Remove link',
+    subject: 'Manual',
+    command: client.RemoveLink({ target: truck, commandId, input: { linkId } }),
+    success: client.Message.SucceededRemoveLink({ commandId, reply: undefined, receipt }),
+    after: { ...configured, links: {} },
+  },
+  {
+    name: 'Remove warranty',
+    subject: 'Powertrain',
+    command: client.RemoveWarranty({ target: truck, commandId, input: { warrantyId } }),
+    success: client.Message.SucceededRemoveWarranty({ commandId, reply: undefined, receipt }),
+    after: { ...configured, warranties: {} },
+  },
+  {
+    name: 'Remove spec',
+    subject: specKey,
+    command: client.RemoveSpec({ target: truck, commandId, input: { key: specKey } }),
+    success: client.Message.SucceededRemoveSpec({ commandId, reply: undefined, receipt }),
+    after: { ...configured, specs: {} },
+  },
+])('confirms $name for $subject before saving', ({ name, subject, command, success, after }) => {
+  const rowAction = `${name} ${subject}`
+  Scene.scene(
+    app,
+    ...assetPage,
+    detail(configured),
+    press(rowAction),
+    Scene.expect(role('button', { name })).toExist(),
+    press('Cancel'),
+    Scene.expect(role('button', { name })).toBeAbsent(),
+    press(rowAction),
+    press(name),
+    Scene.Command.expectExact(command),
+    Scene.Command.resolve<typeof client.Message.Type>(command, success),
+    saved,
+    detail(after),
+    Scene.expect(role('button', { name: rowAction })).toBeAbsent()
+  )
+})
+
 it('hides all setup actions for a retired asset', () => {
   Scene.scene(
     app,
     ...assetPage,
-    detail({ ...asset, status: 'retired' }),
+    detail({ ...configured, status: 'retired' }),
     Scene.expect(role('button', { name: 'Add schedule' })).toBeAbsent(),
     Scene.expect(role('button', { name: 'Record warranty' })).toBeAbsent(),
     Scene.expect(role('button', { name: 'Set spec' })).toBeAbsent(),
-    Scene.expect(role('button', { name: 'Attach link' })).toBeAbsent()
+    Scene.expect(role('button', { name: 'Attach link' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Edit schedule Change oil' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Stop schedule Change oil' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Edit warranty Powertrain' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Remove warranty Powertrain' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Edit spec Oil filter' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Remove spec Oil filter' })).toBeAbsent(),
+    Scene.expect(role('button', { name: 'Replace link Manual' })).toBeAbsent()
   )
 })

@@ -8,14 +8,15 @@ import * as DateTime from 'effect/DateTime'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import * as Option from 'effect/Option'
+import * as Record from 'effect/Record'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
 import * as Struct from 'effect/Struct'
 import { Subscription } from 'foldkit'
 import type { Update } from 'foldkit'
 
-import { client, dollarsFromCents, Editor, Message } from './Model.ts'
-import type { Client, Model } from './Model.ts'
+import { AssetSetupAction, client, dollarsFromCents, Editor, Message } from './Model.ts'
+import type { AssetDetails, Client, Model } from './Model.ts'
 import { receiveResult, submit } from './Submission.ts'
 
 const noCommands = (model: Model) => ({ model })
@@ -57,16 +58,20 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }
       return noCommands(edit(model, Editor.cases.CompletePendingWork.make({ assetId, workId })))
     },
-    OpenedAssetSetup: ({ mode }) => {
+    OpenedAssetSetup: ({ action }) => {
       const asset = model.detail
       if (model.attempt !== null || model.sessionExpired || model.screen !== 'Assets' || asset?.status !== 'active') {
         return noCommands(model)
       }
-      const setup = { assetId: asset.id, mode }
+      const draft = setupDraft(asset, action)
+      if (Option.isNone(draft)) {
+        return noCommands(model)
+      }
+      const setup = { assetId: asset.id, action, ...Struct.pick(draft.value, ['subject']) }
       const editor = Editor.cases.AssetSetup.make(
         asset.meter === undefined ? setup : { ...setup, meterUnit: asset.meter.unit }
       )
-      return noCommands(edit(model, editor))
+      return noCommands({ ...edit(model, editor), fields: draft.value.fields })
     },
     OpenedAssetEdit: () => noCommands(openAssetEdit(model)),
     ChoseQuickMode: ({ mode }) => noCommands(model.attempt === null ? edit(model, Editor.cases[mode].make({})) : model),
@@ -125,6 +130,67 @@ const edit = (model: Model, editor: Model['editor']): Model => ({
   correctionOffered: false,
   notice: null,
 })
+
+const setupDraft = (
+  asset: AssetDetails,
+  action: AssetSetupAction
+): Option.Option<{ readonly fields: Model['fields']; readonly subject?: string }> =>
+  AssetSetupAction.match(action, {
+    AddSchedule: ({ replacesScheduleId }) => {
+      if (replacesScheduleId === undefined) {
+        return Option.some({ fields: {} })
+      }
+      return Option.map(Record.get(asset.schedules, replacesScheduleId), (schedule) => {
+        const { cadence } = schedule
+        return {
+          subject: schedule.title,
+          fields: {
+            title: schedule.title,
+            cadence: cadence._tag,
+            days: 'days' in cadence ? String(cadence.days) : '',
+            every: 'every' in cadence ? String(cadence.every) : '',
+            month: 'month' in cadence ? String(cadence.month) : '',
+            day: 'day' in cadence ? String(cadence.day) : '',
+            lastCompletedOn: schedule.lastCompletedOn ?? '',
+            lastCompletedMeter: schedule.lastCompletedMeter === undefined ? '' : String(schedule.lastCompletedMeter),
+            cost: schedule.estimatedCostCents === undefined ? '' : dollarsFromCents(schedule.estimatedCostCents),
+            notes: schedule.notes ?? '',
+          },
+        }
+      })
+    },
+    ArchiveSchedule: ({ scheduleId }) =>
+      Option.map(Record.get(asset.schedules, scheduleId), ({ title }) => ({ subject: title, fields: {} })),
+    RecordWarranty: ({ replacesWarrantyId }) =>
+      replacesWarrantyId === undefined
+        ? Option.some({ fields: {} })
+        : Option.map(
+            Record.get(asset.warranties, replacesWarrantyId),
+            ({ label, expiresOn, coverage, url, notes }) => ({
+              subject: label,
+              fields: { label, expiresOn, coverage: coverage ?? '', url: url ?? '', notes: notes ?? '' },
+            })
+          ),
+    RemoveWarranty: ({ warrantyId }) =>
+      Option.map(Record.get(asset.warranties, warrantyId), ({ label }) => ({ subject: label, fields: {} })),
+    SetSpec: ({ previousKey }) =>
+      previousKey === undefined
+        ? Option.some({ fields: {} })
+        : Option.map(Record.get(asset.specs, previousKey), ({ key, value, url }) => ({
+            subject: key,
+            fields: { key, value, url: url ?? '' },
+          })),
+    RemoveSpec: ({ key }) => Option.map(Record.get(asset.specs, key), () => ({ subject: key, fields: {} })),
+    AttachLink: ({ replacesLinkId }) =>
+      replacesLinkId === undefined
+        ? Option.some({ fields: {} })
+        : Option.map(Record.get(asset.links, replacesLinkId), ({ label, url }) => ({
+            subject: label,
+            fields: { label, url },
+          })),
+    RemoveLink: ({ linkId }) =>
+      Option.map(Record.get(asset.links, linkId), ({ label }) => ({ subject: label, fields: {} })),
+  })
 
 const openAssetEdit = (model: Model): Model => {
   const asset = model.detail

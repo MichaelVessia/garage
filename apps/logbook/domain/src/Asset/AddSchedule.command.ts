@@ -3,10 +3,12 @@ import * as Schema from 'effect/Schema'
 
 import { Session } from '../Session.middleware.ts'
 import { Cadence, Cents, IsoDate, MeterReading } from '../Values.ts'
+import { ScheduleArchived } from './ArchiveSchedule.command.ts'
 import { AssetId, ScheduleId } from './Asset.id.ts'
 import { AssetNotActive } from './AssetNotActive.rejection.ts'
 import { MeterUnitMismatch } from './MeterUnitMismatch.rejection.ts'
 import { NoMeterConfigured } from './NoMeterConfigured.rejection.ts'
+import { ScheduleNotFound } from './ScheduleNotFound.rejection.ts'
 
 export class ScheduleAlreadyExists extends Schema.TaggedError<
   ScheduleAlreadyExists,
@@ -40,9 +42,10 @@ export class AddSchedule extends Domain.Command(
       notes: Schema.optionalKey(Schema.String),
       lastCompletedOn: Schema.optionalKey(IsoDate),
       lastCompletedMeter: Schema.optionalKey(MeterReading),
+      replacesScheduleId: Schema.optionalKey(ScheduleId),
     },
-    events: [ScheduleAdded],
-    rejects: [AssetNotActive, ScheduleAlreadyExists, NoMeterConfigured, MeterUnitMismatch],
+    events: [ScheduleArchived, ScheduleAdded],
+    rejects: [AssetNotActive, ScheduleAlreadyExists, ScheduleNotFound, NoMeterConfigured, MeterUnitMismatch],
   },
-  { description: 'Add a maintenance schedule based on days, meter readings, or a seasonal date.' }
+  { description: 'Add a maintenance schedule or replace an active schedule with a new one.' }
 ) {}

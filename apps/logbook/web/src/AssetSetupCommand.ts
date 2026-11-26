@@ -2,10 +2,11 @@ import { LinkId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Ass
 import { Cadence, IsoDate, MeterReading } from '@garage/logbook-domain/Values'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as Str from 'effect/String'
 import type * as Types from 'effect/Types'
 
-import { client } from './Model.ts'
-import type { AssetSetupEditor, Field } from './Model.ts'
+import { AssetSetupAction, client } from './Model.ts'
+import type { AssetSetupEditor, Field, Model } from './Model.ts'
 
 const parseDate = Schema.decodeUnknownOption(IsoDate)
 const parseReading = Schema.decodeUnknownOption(
@@ -48,13 +49,16 @@ const scheduleCadence = ({ editor, text }: SetupFields): Option.Option<Cadence> 
 export const assetSetupCommand = ({
   editor,
   commandId,
-  text,
+  fields,
   costCents,
-}: SetupFields & {
+}: {
+  readonly editor: AssetSetupEditor
   readonly commandId: string
+  readonly fields: Model['fields']
   readonly costCents: Option.Option<number>
 }) => {
-  const target = editor.assetId
+  const text = (field: Field) => Str.trim(fields[field] ?? '')
+  const { assetId: target, action } = editor
   const notes = text('notes')
   const url = text('url')
   const label = text('label')
@@ -62,8 +66,8 @@ export const assetSetupCommand = ({
     return 'Enter a link that starts with https:// or http://.'
   }
 
-  switch (editor.mode) {
-    case 'AddSchedule': {
+  return AssetSetupAction.match(action, {
+    AddSchedule: ({ replacesScheduleId }) => {
       const title = text('title')
       if (title === '') {
         return 'Enter the schedule title.'
@@ -72,8 +76,9 @@ export const assetSetupCommand = ({
       if (Option.isNone(cadence)) {
         return 'Enter a valid interval or annual date for this cadence.'
       }
-      const date = Cadence.guards.MeterInterval(cadence.value) ? '' : text('lastCompletedOn')
-      const meter = 'unit' in cadence.value ? text('lastCompletedMeter') : ''
+      const replacing = replacesScheduleId !== undefined
+      const date = replacing || !Cadence.guards.MeterInterval(cadence.value) ? text('lastCompletedOn') : ''
+      const meter = replacing || 'unit' in cadence.value ? text('lastCompletedMeter') : ''
       const lastCompletedOn = Option.getOrUndefined(parseDate(date))
       const lastCompletedMeter = meter === '' ? undefined : Option.getOrUndefined(parseReading(meter))
       if (date !== '' && lastCompletedOn === undefined) {
@@ -83,6 +88,9 @@ export const assetSetupCommand = ({
         return 'Enter a last completion meter reading of zero or more.'
       }
       const input: ScheduleInput = { scheduleId: ScheduleId.make(commandId), title, cadence: cadence.value }
+      if (replacesScheduleId !== undefined) {
+        input.replacesScheduleId = replacesScheduleId
+      }
       if (Option.isSome(costCents)) {
         input.estimatedCostCents = costCents.value
       }
@@ -96,14 +104,18 @@ export const assetSetupCommand = ({
         input.lastCompletedMeter = lastCompletedMeter
       }
       return client.AddSchedule({ target, commandId, input })
-    }
-    case 'RecordWarranty': {
+    },
+    ArchiveSchedule: ({ scheduleId }) => client.ArchiveSchedule({ target, commandId, input: { scheduleId } }),
+    RecordWarranty: ({ replacesWarrantyId }) => {
       const expiresOn = parseDate(text('expiresOn'))
       const coverage = text('coverage')
       if (label === '' || Option.isNone(expiresOn)) {
         return 'Enter the warranty name and a valid expiration date.'
       }
       const input: WarrantyInput = { warrantyId: WarrantyId.make(commandId), label, expiresOn: expiresOn.value }
+      if (replacesWarrantyId !== undefined) {
+        input.replacesWarrantyId = replacesWarrantyId
+      }
       if (coverage !== '') {
         input.coverage = coverage
       }
@@ -114,20 +126,32 @@ export const assetSetupCommand = ({
         input.url = url
       }
       return client.RecordWarranty({ target, commandId, input })
-    }
-    case 'SetSpec': {
-      const key = text('key')
+    },
+    RemoveWarranty: ({ warrantyId }) => client.RemoveWarranty({ target, commandId, input: { warrantyId } }),
+    SetSpec: ({ previousKey }) => {
+      const key = previousKey !== undefined && fields.key === previousKey ? previousKey : text('key')
       const value = text('value')
       if (key === '' || value === '') {
         return 'Enter the specification name and value.'
       }
-      const spec = { key, value }
-      return client.SetSpec({ target, commandId, input: url === '' ? spec : { ...spec, url } })
-    }
-    case 'AttachLink':
+      const input: Types.Mutable<Parameters<typeof client.SetSpec>[0]['input']> = { key, value }
+      if (previousKey !== undefined) {
+        input.previousKey = previousKey
+      }
+      if (url !== '') {
+        input.url = url
+      }
+      return client.SetSpec({ target, commandId, input })
+    },
+    RemoveSpec: ({ key }) => client.RemoveSpec({ target, commandId, input: { key } }),
+    AttachLink: ({ replacesLinkId }) => {
       if (label === '' || url === '') {
         return 'Enter the link name and URL.'
       }
-      return client.AttachLink({ target, commandId, input: { linkId: LinkId.make(commandId), label, url } })
-  }
+      const link = { linkId: LinkId.make(commandId), label, url }
+      const input = replacesLinkId === undefined ? link : { ...link, replacesLinkId }
+      return client.AttachLink({ target, commandId, input })
+    },
+    RemoveLink: ({ linkId }) => client.RemoveLink({ target, commandId, input: { linkId } }),
+  })
 }

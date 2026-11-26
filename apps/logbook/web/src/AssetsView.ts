@@ -8,8 +8,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { thresholdText } from './DueView.ts'
 import { forms, secondaryButton } from './Forms.ts'
-import type { AssetSetupMode } from './Model.ts'
-import { dollarsFromCents, Editor, Message } from './Model.ts'
+import { AssetSetupAction, dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, CatalogAsset, Model } from './Model.ts'
 import { pendingWorkView } from './PendingWorkView.ts'
 
@@ -67,21 +66,24 @@ const detailView =
     }
     const opened = Editor.guards.CompleteTask(model.editor) ? model.editor : null
     const { completion, assetSetup, assetEdit } = forms(h)(model)
-    const setup = (mode: typeof AssetSetupMode.Type, label: string): Html => {
-      if (Editor.guards.AssetSetup(model.editor) && model.editor.mode === mode) {
-        return assetSetup(model.editor)
-      }
-      return asset.status !== 'active'
+    const setupButton = (action: AssetSetupAction, label: string, subject?: string): Html =>
+      asset.status !== 'active'
         ? null
         : h.button(
             [
               h.Type('button'),
               h.Class(secondaryButton),
               h.Disabled(model.attempt !== null || model.sessionExpired),
-              h.OnClick(Message.OpenedAssetSetup({ mode })),
+              ...(subject === undefined ? [] : [h.AriaLabel(`${label} ${subject}`)]),
+              h.OnClick(Message.OpenedAssetSetup({ action })),
             ],
             [label]
           )
+    const setup = (add: AssetSetupAction, label: string, remove: AssetSetupAction['_tag']): Html => {
+      const editor = model.editor
+      return Editor.guards.AssetSetup(editor) && (editor.action._tag === add._tag || editor.action._tag === remove)
+        ? assetSetup(editor)
+        : setupButton(add, label)
     }
     const editing = Editor.guards.UpdateAsset(model.editor)
     const metadata = [
@@ -137,12 +139,22 @@ const detailView =
           'Specs & Consumables',
           Arr.map(Record.values(asset.specs), (spec) =>
             h.li(
-              [h.Key(spec.key), h.Class('flex flex-wrap items-baseline justify-between gap-x-3 break-words')],
-              [h.span([], [h.strong([], [spec.key]), ' · ', spec.value]), webLink(`Reorder ${spec.key}`, spec.url)]
+              [h.Key(spec.key), h.Class('space-y-1 break-words')],
+              [
+                h.p([], [h.strong([], [spec.key]), ' · ', spec.value]),
+                h.div(
+                  [h.Class('flex flex-wrap items-center gap-2')],
+                  [
+                    webLink(`Reorder ${spec.key}`, spec.url),
+                    setupButton(AssetSetupAction.cases.SetSpec.make({ previousKey: spec.key }), 'Edit spec', spec.key),
+                    setupButton(AssetSetupAction.cases.RemoveSpec.make({ key: spec.key }), 'Remove spec', spec.key),
+                  ]
+                ),
+              ]
             )
           ),
           'No specs or consumables recorded.',
-          setup('SetSpec', 'Set spec')
+          setup(AssetSetupAction.cases.SetSpec.make({}), 'Set spec', 'RemoveSpec')
         ),
         h.p(
           [h.Class('text-sm')],
@@ -171,17 +183,34 @@ const detailView =
                         h.p([h.Class('text-stone-600')], [thresholdText({ ...schedule, meter: asset.meter })]),
                       ]
                     ),
-                    opened?.scheduleId === schedule.scheduleId || asset.status !== 'active'
-                      ? null
-                      : h.button(
-                          [
-                            h.Type('button'),
-                            h.Class(secondaryButton),
-                            h.Disabled(model.attempt !== null || model.sessionExpired),
-                            h.OnClick(Message.OpenedCompletion({ assetId: asset.id, scheduleId: schedule.scheduleId })),
-                          ],
-                          ['Mark done']
+                    h.div(
+                      [h.Class('flex flex-wrap gap-2')],
+                      [
+                        setupButton(
+                          AssetSetupAction.cases.AddSchedule.make({ replacesScheduleId: schedule.scheduleId }),
+                          'Edit schedule',
+                          schedule.title
                         ),
+                        setupButton(
+                          AssetSetupAction.cases.ArchiveSchedule.make({ scheduleId: schedule.scheduleId }),
+                          'Stop schedule',
+                          schedule.title
+                        ),
+                        opened?.scheduleId === schedule.scheduleId || asset.status !== 'active'
+                          ? null
+                          : h.button(
+                              [
+                                h.Type('button'),
+                                h.Class(secondaryButton),
+                                h.Disabled(model.attempt !== null || model.sessionExpired),
+                                h.OnClick(
+                                  Message.OpenedCompletion({ assetId: asset.id, scheduleId: schedule.scheduleId })
+                                ),
+                              ],
+                              ['Mark done']
+                            ),
+                      ]
+                    ),
                   ]
                 ),
                 opened?.scheduleId === schedule.scheduleId ? completion(asset.meter !== undefined) : null,
@@ -189,7 +218,7 @@ const detailView =
             )
           ),
           'No active schedules.',
-          setup('AddSchedule', 'Add schedule')
+          setup(AssetSetupAction.cases.AddSchedule.make({}), 'Add schedule', 'ArchiveSchedule')
         ),
         pendingWorkView(h)(model, { asset }),
         section(
@@ -201,20 +230,46 @@ const detailView =
                 h.p([], [h.strong([], [warranty.label]), ` · Expires ${warranty.expiresOn}`]),
                 warranty.coverage === undefined ? null : h.p([], [warranty.coverage]),
                 warranty.notes === undefined ? null : h.p([], [warranty.notes]),
-                webLink(`Open ${warranty.label}`, warranty.url),
+                h.div(
+                  [h.Class('flex flex-wrap items-center gap-2')],
+                  [
+                    webLink(`Open ${warranty.label}`, warranty.url),
+                    setupButton(
+                      AssetSetupAction.cases.RecordWarranty.make({ replacesWarrantyId: warranty.id }),
+                      'Edit warranty',
+                      warranty.label
+                    ),
+                    setupButton(
+                      AssetSetupAction.cases.RemoveWarranty.make({ warrantyId: warranty.id }),
+                      'Remove warranty',
+                      warranty.label
+                    ),
+                  ]
+                ),
               ]
             )
           ),
           'No warranties recorded.',
-          setup('RecordWarranty', 'Record warranty')
+          setup(AssetSetupAction.cases.RecordWarranty.make({}), 'Record warranty', 'RemoveWarranty')
         ),
         section(
           'Links',
           Arr.map(Record.values(asset.links), (link) =>
-            h.li([h.Key(link.id)], [webLink(link.label, link.url) ?? link.label])
+            h.li(
+              [h.Key(link.id), h.Class('flex flex-wrap items-center gap-2')],
+              [
+                webLink(link.label, link.url) ?? link.label,
+                setupButton(
+                  AssetSetupAction.cases.AttachLink.make({ replacesLinkId: link.id }),
+                  'Replace link',
+                  link.label
+                ),
+                setupButton(AssetSetupAction.cases.RemoveLink.make({ linkId: link.id }), 'Remove link', link.label),
+              ]
+            )
           ),
           'No links recorded.',
-          setup('AttachLink', 'Attach link')
+          setup(AssetSetupAction.cases.AttachLink.make({}), 'Attach link', 'RemoveLink')
         ),
         section(
           'Activity',

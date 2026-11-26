@@ -7,7 +7,11 @@ import { PendingWorkNotOpen } from '@garage/logbook-domain/Asset/CompletePending
 import { MeterRollback } from '@garage/logbook-domain/Asset/MeterRollback.rejection'
 import { NoMeterConfigured } from '@garage/logbook-domain/Asset/NoMeterConfigured.rejection'
 import { AssetAlreadyRegistered } from '@garage/logbook-domain/Asset/RegisterAsset.command'
+import { LinkNotFound } from '@garage/logbook-domain/Asset/RemoveLink.command'
+import { SpecNotFound } from '@garage/logbook-domain/Asset/RemoveSpec.command'
+import { WarrantyNotFound } from '@garage/logbook-domain/Asset/RemoveWarranty.command'
 import { ScheduleNotFound } from '@garage/logbook-domain/Asset/ScheduleNotFound.rejection'
+import { SpecAlreadyExists } from '@garage/logbook-domain/Asset/SetSpec.command'
 import { Unauthorized } from '@garage/logbook-domain/Session.middleware'
 import { AssetCategory, Cents, IsoDate, MeterReading, MeterUnit } from '@garage/logbook-domain/Values'
 import * as Arr from 'effect/Array'
@@ -125,7 +129,7 @@ const commandFor = (
       return assetSetupCommand({
         editor: model.editor,
         commandId,
-        text,
+        fields: model.fields,
         costCents: costText === '' ? Option.none() : Option.some(cents),
       })
     case 'CompleteTask':
@@ -275,6 +279,18 @@ const rejectionMessage = (rejection: unknown): string => {
   }
   if (Schema.is(PendingWorkAlreadyExists)(rejection)) {
     return 'This work is already recorded.'
+  }
+  if (Schema.is(LinkNotFound)(rejection)) {
+    return 'This link is no longer attached.'
+  }
+  if (Schema.is(WarrantyNotFound)(rejection)) {
+    return 'This warranty is no longer recorded.'
+  }
+  if (Schema.is(SpecNotFound)(rejection)) {
+    return 'This specification is no longer recorded.'
+  }
+  if (Schema.is(SpecAlreadyExists)(rejection)) {
+    return 'A specification already uses this name.'
   }
   if (Schema.is(NoMeterConfigured)(rejection)) {
     return 'This asset has no meter.'

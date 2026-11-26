@@ -4,7 +4,7 @@ import * as Option from 'effect/Option'
 import * as Record from 'effect/Record'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import { Editor, Message } from './Model.ts'
+import { AssetSetupAction, Editor, Message } from './Model.ts'
 import type { AssetSetupEditor, Field, Model, QuickMode } from './Model.ts'
 
 export const primaryButton =
@@ -88,16 +88,19 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     ]
   )
 
-  const form = (label: string, inputs: ReadonlyArray<Html>, canCancel = false): Html => {
+  const form = (label: string, inputs: ReadonlyArray<Html>, canCancel = false, prompt?: string): Html => {
     const status = model.attempt?.status
     const submitLabel = status === undefined ? label : { saving: 'Saving…', unknown: 'Retry save' }[status]
     return h.form(
       [h.Class('rounded-xl border border-teal-200 bg-teal-50/50 p-4'), h.OnSubmit(Message.Submitted())],
       [
-        h.fieldset(
-          [h.Class('grid gap-3 sm:grid-cols-2'), h.Disabled(model.attempt !== null || model.sessionExpired)],
-          inputs
-        ),
+        prompt === undefined ? null : h.p([h.Class('mb-3 text-sm')], [prompt]),
+        inputs.length === 0
+          ? null
+          : h.fieldset(
+              [h.Class('grid gap-3 sm:grid-cols-2'), h.Disabled(model.attempt !== null || model.sessionExpired)],
+              inputs
+            ),
         model.problem === null ? null : h.p([h.Role('alert'), h.Class('mt-3 text-sm text-red-800')], [model.problem]),
         model.correctionOffered
           ? h.fieldset([h.Class('mt-3'), h.Disabled(model.attempt !== null || model.sessionExpired)], [correction])
@@ -217,8 +220,10 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
   }
 
   const assetSetup = (editor: AssetSetupEditor): Html => {
-    switch (editor.mode) {
-      case 'AddSchedule': {
+    const { action, subject } = editor
+    return AssetSetupAction.match(action, {
+      AddSchedule: ({ replacesScheduleId }) => {
+        const replacing = replacesScheduleId !== undefined
         const cadence = value('cadence') || 'IntervalDays'
         const unit = editor.meterUnit
         const meterOptions: ReadonlyArray<readonly [string, string]> =
@@ -229,7 +234,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
                 ['Either', `Days or ${unit}, whichever comes first`],
               ]
         return form(
-          'Save schedule',
+          replacing ? 'Replace schedule' : 'Save schedule',
           [
             text('title', 'Schedule title', { required: true }),
             select(
@@ -242,10 +247,10 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
               ? [text('days', 'Interval in days', { required: true, numeric: true })]
               : []),
             ...(unit !== undefined && (cadence === 'MeterInterval' || cadence === 'Either')
-              ? [
-                  text('every', `Interval in ${unit}`, { required: true, numeric: true }),
-                  text('lastCompletedMeter', `Meter at last completion in ${unit} (optional)`, { numeric: true }),
-                ]
+              ? [text('every', `Interval in ${unit}`, { required: true, numeric: true })]
+              : []),
+            ...(unit !== undefined && (replacing || cadence === 'MeterInterval' || cadence === 'Either')
+              ? [text('lastCompletedMeter', `Meter at last completion in ${unit} (optional)`, { numeric: true })]
               : []),
             ...(cadence === 'Seasonal'
               ? [
@@ -253,17 +258,22 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
                   text('day', 'Day of month (1 to 31)', { required: true, numeric: true }),
                 ]
               : []),
-            ...(cadence === 'MeterInterval'
-              ? []
-              : [text('lastCompletedOn', 'Last completion date (optional)', { type: 'date' })]),
+            ...(replacing || cadence !== 'MeterInterval'
+              ? [text('lastCompletedOn', 'Last completion date (optional)', { type: 'date' })]
+              : []),
             text('cost', 'Estimated cost in USD (optional)', { numeric: true }),
             notes,
           ],
-          true
+          true,
+          subject === undefined
+            ? undefined
+            : `Replace “${subject}” and keep its past completions. For a blank last completion field, Logbook uses the current date or meter reading for that interval.`
         )
-      }
-      case 'RecordWarranty':
-        return form(
+      },
+      ArchiveSchedule: () =>
+        form('Stop schedule', [], true, `Stop reminders for “${subject}”? Logbook keeps past completions.`),
+      RecordWarranty: () =>
+        form(
           'Save warranty',
           [
             text('label', 'Warranty name', { required: true }),
@@ -272,25 +282,31 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
             text('url', 'Warranty URL (optional)', { type: 'url' }),
             notes,
           ],
-          true
-        )
-      case 'SetSpec':
-        return form(
+          true,
+          subject === undefined ? undefined : `Edit warranty “${subject}”.`
+        ),
+      RemoveWarranty: () => form('Remove warranty', [], true, `Remove warranty “${subject}” from this asset?`),
+      SetSpec: () =>
+        form(
           'Save spec',
           [
             text('key', 'Specification name', { required: true }),
             text('value', 'Specification value', { required: true }),
             text('url', 'Reorder URL (optional)', { type: 'url' }),
           ],
-          true
-        )
-      case 'AttachLink':
-        return form(
-          'Save link',
+          true,
+          subject === undefined ? undefined : `Edit specification “${subject}”.`
+        ),
+      RemoveSpec: () => form('Remove spec', [], true, `Remove specification “${subject}” from this asset?`),
+      AttachLink: ({ replacesLinkId }) =>
+        form(
+          replacesLinkId === undefined ? 'Save link' : 'Replace link',
           [text('label', 'Link name', { required: true }), text('url', 'Link URL', { required: true, type: 'url' })],
-          true
-        )
-    }
+          true,
+          subject === undefined ? undefined : `Replace link “${subject}”.`
+        ),
+      RemoveLink: () => form('Remove link', [], true, `Remove link “${subject}” from this asset?`),
+    })
   }
 
   return {

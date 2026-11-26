@@ -5,6 +5,7 @@ import { Session } from '../Session.middleware.ts'
 import { IsoDate } from '../Values.ts'
 import { AssetId, WarrantyId } from './Asset.id.ts'
 import { AssetNotActive } from './AssetNotActive.rejection.ts'
+import { WarrantyNotFound, WarrantyRemoved } from './RemoveWarranty.command.ts'
 
 export class WarrantyAlreadyExists extends Schema.TaggedError<
   WarrantyAlreadyExists,
@@ -34,9 +35,10 @@ export class RecordWarranty extends Domain.Command(
       coverage: Schema.optionalKey(Schema.String),
       notes: Schema.optionalKey(Schema.String),
       url: Schema.optionalKey(Schema.String),
+      replacesWarrantyId: Schema.optionalKey(WarrantyId),
     },
-    events: [WarrantyRecorded],
-    rejects: [AssetNotActive, WarrantyAlreadyExists],
+    events: [WarrantyRemoved, WarrantyRecorded],
+    rejects: [AssetNotActive, WarrantyAlreadyExists, WarrantyNotFound],
   },
-  { description: 'Record an asset warranty and its expiry date.' }
+  { description: 'Record or replace an asset warranty and its expiry date.' }
 ) {}

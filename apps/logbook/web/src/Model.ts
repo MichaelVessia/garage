@@ -1,5 +1,5 @@
 import * as DomainFoldkit from '@alchemy.run/domain/Foldkit'
-import { AssetId, PendingWorkId, ScheduleId } from '@garage/logbook-domain/Asset/Asset.id'
+import { AssetId, LinkId, PendingWorkId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { ActivityEntry } from '@garage/logbook-domain/Asset/AssetActivity.view'
 import { AssetMetadata } from '@garage/logbook-domain/Asset/AssetMetadata'
 import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
@@ -17,7 +17,17 @@ export type AssetDetails = Exclude<NonNullable<Model['detail']>, { readonly stat
 
 export const Screen = Schema.Literals(['Due', 'Assets', 'Quick Log'])
 export const QuickMode = Schema.Literals(['RecordMeter', 'LogService', 'RegisterAsset'])
-export const AssetSetupMode = Schema.Literals(['AddSchedule', 'RecordWarranty', 'SetSpec', 'AttachLink'])
+export const AssetSetupAction = Schema.TaggedUnion({
+  AddSchedule: { replacesScheduleId: Schema.optionalKey(ScheduleId) },
+  ArchiveSchedule: { scheduleId: ScheduleId },
+  RecordWarranty: { replacesWarrantyId: Schema.optionalKey(WarrantyId) },
+  RemoveWarranty: { warrantyId: WarrantyId },
+  SetSpec: { previousKey: Schema.optionalKey(Schema.String) },
+  RemoveSpec: { key: Schema.String },
+  AttachLink: { replacesLinkId: Schema.optionalKey(LinkId) },
+  RemoveLink: { linkId: LinkId },
+})
+export type AssetSetupAction = typeof AssetSetupAction.Type
 export const dollarsFromCents = (cents: number): string => {
   const digits = Str.padStart(3, '0')(String(cents))
   return `${Str.slice(0, -2)(digits)}.${Str.slice(-2)(digits)}`
@@ -66,7 +76,12 @@ export const Editor = Schema.TaggedUnion({
   RecordMeter: {},
   LogService: {},
   RegisterAsset: {},
-  AssetSetup: { assetId: AssetId, mode: AssetSetupMode, meterUnit: Schema.optionalKey(MeterUnit) },
+  AssetSetup: {
+    assetId: AssetId,
+    action: AssetSetupAction,
+    subject: Schema.optionalKey(Schema.String),
+    meterUnit: Schema.optionalKey(MeterUnit),
+  },
   UpdateAsset: { assetId: AssetId, original: AssetMetadata },
 })
 export type Editor = typeof Editor.Type
@@ -105,7 +120,7 @@ export const Message = defineMessageUnion({
   OpenedCompletion: { assetId: AssetId, scheduleId: ScheduleId },
   OpenedPendingWork: {},
   OpenedPendingWorkCompletion: { assetId: AssetId, workId: PendingWorkId },
-  OpenedAssetSetup: { mode: AssetSetupMode },
+  OpenedAssetSetup: { action: AssetSetupAction },
   OpenedAssetEdit: {},
   ChoseQuickMode: { mode: QuickMode },
   ClosedEditor: {},
