@@ -22,6 +22,7 @@ import type * as Types from 'effect/Types'
 
 import { assetSetupCommand } from './AssetSetupCommand.ts'
 import type { Field, Model, SaveResult } from './Model.ts'
+import { LogbookRoutes } from './Route.ts'
 import { AssetChange, SaveAsset } from './SaveAsset.ts'
 
 const parseReading = Schema.decodeUnknownOption(
@@ -327,7 +328,7 @@ export const receiveResult =
     if (result.failure === undefined) {
       return {
         ...model,
-        editor: model.screen === 'Quick Log' ? model.editor : null,
+        editor: LogbookRoutes.guards['Quick Log'](model.route) ? model.editor : null,
         fields: {},
         attempt: null,
         problem: null,

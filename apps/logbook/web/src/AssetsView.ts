@@ -11,7 +11,8 @@ import { forms, secondaryButton } from './Forms.ts'
 import { AssetSetupAction, dollarsFromCents, Editor, Message } from './Model.ts'
 import type { AssetDetails, CatalogAsset, Model } from './Model.ts'
 import { pendingWorkView } from './PendingWorkView.ts'
-import { webLink } from './WebLink.ts'
+import { assetPath, selectedAsset } from './Route.ts'
+import { appLink, webLink } from './WebLink.ts'
 
 const byName = Order.mapInput(Order.String, (asset: CatalogAsset) => Str.toLowerCase(asset.name))
 const searchableText = (asset: CatalogAsset): string =>
@@ -246,6 +247,8 @@ export const assetsView = (h: Html.H<Message>) => (model: Model) => {
     return Arr.every(terms, (term) => Str.includes(term)(text))
   })
   const { detail } = model
+  const selected = selectedAsset(model.route)
+  const missing = selected !== null && model.catalog !== null && !Record.has(model.catalog.assets, selected)
   return h.section.class('space-y-4').children(
     h.h2.class('text-2xl font-semibold').children('Assets'),
     h.label.class('block max-w-md text-sm font-medium').children(
@@ -271,14 +274,11 @@ export const assetsView = (h: Html.H<Message>) => (model: Model) => {
         : h.ul.class('space-y-2').children(
             Arr.map(matches, (asset) =>
               h.li.key(asset.id).children(
-                h.button
-                  .attr('type', 'button')
+                appLink(h)(model, assetPath(asset.id))
                   .class(
-                    'w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:border-teal-700 aria-pressed:border-teal-700 aria-pressed:bg-teal-50 disabled:opacity-50'
+                    'block rounded-xl border border-stone-200 bg-white p-3 hover:border-teal-700 aria-current:border-teal-700 aria-current:bg-teal-50 aria-disabled:opacity-50'
                   )
-                  .attr('aria-pressed', model.selected === asset.id ? 'true' : 'false')
-                  .disabled(model.attempt !== null)
-                  .on('click', Message.SelectedAsset({ assetId: asset.id }))
+                  .attr('aria-current', selected === asset.id ? 'page' : 'false')
                   .children(
                     h.span.class('block break-words font-semibold').children(asset.name),
                     h.span.class('block text-sm text-stone-600').children(
@@ -295,9 +295,9 @@ export const assetsView = (h: Html.H<Message>) => (model: Model) => {
             )
           ),
       detail === null || detail.status === 'unregistered'
-        ? model.selected === null || model.readFailures.detail
+        ? selected === null || model.readFailures.detail || model.sessionExpired
           ? undefined
-          : h.p.attr('role', 'status').children('Loading asset…')
+          : h.p.attr('role', 'status').children(missing ? 'Asset not found.' : 'Loading asset…')
         : detailView(h)(model, detail)
     )
   )

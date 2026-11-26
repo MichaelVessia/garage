@@ -1,6 +1,6 @@
 import * as Domain from '@alchemy.run/domain'
 import { assert, it } from '@effect/vitest'
-import { AssetId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
+import { AssetId, PendingWorkId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { HOME_HOUSEHOLD_ID } from '@garage/logbook-domain/Household.id'
 import { Logbook, LogbookHandlers } from '@garage/logbook-domain/Logbook.model'
 import { LogbookApi } from '@garage/logbook-domain/LogbookApi.api'
@@ -126,13 +126,25 @@ it.live('returns only due maintenance and expiring warranties for active assets'
       { ...warranty, warrantyId: WarrantyId.make('expired'), expiresOn: addDays(today, -1) },
       session
     )
-    const truckWrite = yield* client.RecordWarranty(truck, warranty, session)
+    yield* client.RecordWarranty(truck, warranty, session)
+    const dated = { workId: PendingWorkId.make('exhaust'), title: 'Repair exhaust', dueOn: addDays(today, 90) }
+    const undated = { workId: PendingWorkId.make('door'), title: 'Fix door', notes: 'Parts in the garage.' }
+    const completed = { workId: PendingWorkId.make('belt'), title: 'Replace belt' }
+    yield* client.AddPendingWork(truck, undated, session)
+    yield* client.AddPendingWork(truck, dated, session)
+    yield* client.AddPendingWork(truck, completed, session)
+    const truckWrite = yield* client.CompletePendingWork(
+      truck,
+      { workId: completed.workId, performedBy: 'diy' },
+      session
+    )
 
     yield* client.RegisterAsset(mower, { name: 'Mower', category: 'equipment' }, session)
     const mowerWrite = yield* client.AddSchedule(mower, oilSchedule, session)
     yield* client.RegisterAsset(retired, { name: 'Retired', category: 'vehicle' }, session)
     yield* client.AddSchedule(retired, oilSchedule, session)
     yield* client.RecordWarranty(retired, warranty, session)
+    yield* client.AddPendingWork(retired, undated, session)
     const retiredWrite = yield* client.RetireAsset(retired, { reason: 'sold' }, session)
 
     yield* Effect.forEach(
@@ -151,6 +163,10 @@ it.live('returns only due maintenance and expiring warranties for active assets'
       currentMeter: 1200,
       meterUnit: 'miles',
     }
+    const pendingRepairs = [
+      { assetId: truck, assetName: 'Truck', category: 'vehicle', ...dated },
+      { assetId: truck, assetName: 'Truck', category: 'vehicle', ...undated },
+    ]
     const overdue = [
       {
         assetId: mower,
@@ -169,6 +185,7 @@ it.live('returns only due maintenance and expiring warranties for active assets'
         { ...truckFields, scheduleId: service, title: 'Service', nextDueOn: addDays(today, 4) },
         { ...truckFields, scheduleId: tires, title: 'Tires', nextDueMeter: 1500 },
       ],
+      pendingRepairs,
       warrantiesExpiring: [
         {
           assetId: truck,
@@ -183,7 +200,13 @@ it.live('returns only due maintenance and expiring warranties for active assets'
     const filtered = yield* handle('/frame/due?withinDays=0&withinMeter=200&warrantyDays=7', session)
     assert.strictEqual(filtered.status, 200)
     const filteredReport = yield* json(filtered)
-    assert.deepStrictEqual(filteredReport, { generatedOn: today, overdue, dueSoon: [], warrantiesExpiring: [] })
+    assert.deepStrictEqual(filteredReport, {
+      generatedOn: today,
+      overdue,
+      dueSoon: [],
+      pendingRepairs,
+      warrantiesExpiring: [],
+    })
     const invalid = yield* handle('/frame/due?withinDays=-1', session)
     assert.strictEqual(invalid.status, 400)
   }).pipe(Effect.provide(server))
@@ -233,6 +256,7 @@ it.live('uses a 25-hour due window by default and accepts a meter override', () 
     assert.strictEqual(response.status, 200)
     const report = yield* json(response)
     assert.deepPropertyVal(report, 'dueSoon', [filterItem])
+    assert.deepPropertyVal(report, 'pendingRepairs', [])
 
     const expanded = yield* handle('/frame/due?withinMeter=200', session)
     assert.strictEqual(expanded.status, 200)

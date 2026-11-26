@@ -1,4 +1,4 @@
-import { Subscription } from '@effect/ui'
+import { Router, Subscription } from '@effect/ui'
 import { HtmlLocator, HtmlPlay, HtmlScene } from '@effect/ui/html/testing'
 import { Locator, Story, TestHost } from '@effect/ui/testing'
 import { assert, it } from '@effect/vitest'
@@ -25,6 +25,7 @@ import * as TestClock from 'effect/testing/TestClock'
 import { Logbook } from '../src/Logbook.ts'
 import { Message } from '../src/Model.ts'
 import type { CatalogAsset, Model } from '../src/Model.ts'
+import { LogbookRoutes } from '../src/Route.ts'
 import { AssetChange, SaveAsset } from '../src/SaveAsset.ts'
 
 const truck = AssetId.make('truck')
@@ -34,7 +35,8 @@ const rotation = ScheduleId.make('rotate')
 const inspection = ScheduleId.make('inspection')
 const warranty = WarrantyId.make('powertrain')
 const today = IsoDate.make('2026-11-24')
-const props = { session: 'test-session', today }
+const props = { session: 'test-session', today, route: LogbookRoutes.Due() }
+const truckRoute = LogbookRoutes.Asset({ params: { assetId: truck } })
 const Failure = Schema.TaggedUnion({
   Denied: { error: Unauthorized },
   Unknown: {},
@@ -101,6 +103,10 @@ it.effect('places tasks and warranties in the correct groups when the catalog ar
       .toExist()
       .expect(inside(role('region', { name: 'Expiring Warranties' }), text('Powertrain warranty')))
       .toExist()
+      .expect(inside(role('region', { name: 'Expiring Warranties' }), role('link', { name: 'Truck' })))
+      .toHaveAttribute('href', '/assets/truck')
+      .expect(inside(role('region', { name: 'Overdue' }), role('link', { name: 'Truck' })))
+      .toHaveAttribute('href', '/assets/truck')
       .expect(text('Annual inspection'))
       .toBeAbsent()
   })
@@ -143,14 +149,14 @@ it.effect('finds spec keys and values and opens live asset detail and activity',
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Assets'))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: LogbookRoutes.Assets() }))
       .type(label('Search assets'), 'filter')
-      .expect(role('button', { name: /Furnace/u }))
+      .expect(role('link', { name: /Furnace/u }))
       .toBeAbsent()
-      .expect(role('button', { name: /Truck/u }))
-      .toExist()
+      .expect(role('link', { name: /Truck/u }))
+      .toHaveAttribute('href', '/assets/truck')
       .type(label('Search assets'), 'FL-500S')
-      .click(role('button', { name: /Truck/u }))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: truckRoute }))
       .expect(text('Loading asset…'))
       .toExist()
       .subscription(
@@ -188,13 +194,13 @@ it.effect('finds spec keys and values and opens live asset detail and activity',
 
 it.effect('finds assets by make, model, and serial number', () =>
   Effect.gen(function* () {
-    const truckResult = role('button', { name: /Truck/u })
-    const furnaceResult = role('button', { name: /Furnace/u })
+    const truckResult = role('link', { name: /Truck/u })
+    const furnaceResult = role('link', { name: /Furnace/u })
     const search = label('Search assets')
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Assets'))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: LogbookRoutes.Assets() }))
       .expect(furnaceResult)
       .toExist()
       .type(search, 'FORD')
@@ -211,6 +217,75 @@ it.effect('finds assets by make, model, and serial number', () =>
       .type(search, 'trk-999')
       .expect(truckResult)
       .toBeAbsent()
+  })
+)
+
+it.effect.each([
+  { id: 'shop/door?part#50% é', pathname: '/assets/shop%2Fdoor%3Fpart%2350%25%20%C3%A9' },
+  { id: '.', pathname: '/assets/:.' },
+  { id: '..', pathname: '/assets/:..' },
+  { id: ':..', pathname: '/assets/%3A..' },
+])('opens asset $id from its URL and restores it on Back and Forward', ({ id, pathname }) =>
+  Effect.gen(function* () {
+    const assetId = AssetId.make(id)
+    const asset = { ...truckAsset, id: assetId, name: 'Shop door' }
+    const detail = { ...asset, links: {}, totalSpendCents: 0, schedules: {}, warranties: {} }
+    const history = Router.memoryHistory(new URL(pathname, 'https://logbook.example').pathname)
+    const reads = {
+      get: () => Effect.die('Unexpected view get'),
+      snapshot: () => Effect.die('Unexpected view snapshot'),
+      events: () => Stream.die('Unexpected view events'),
+      list: () => Effect.die('Unexpected view list'),
+      watch: () => Stream.die('Unexpected view watch'),
+    }
+    const api = Layer.mock(LogbookApi.Client, {
+      HomeCatalog: {
+        ...reads,
+        watch: () =>
+          Stream.succeed({ state: { ...catalog, assets: { ...catalog.assets, [assetId]: asset } }, cursor: 0 }),
+      },
+      AssetDetail: {
+        ...reads,
+        watch: (requested) => Stream.succeed({ state: requested === assetId ? detail : null, cursor: 0 }),
+      },
+      AssetActivity: { ...reads, events: () => Stream.empty },
+    })
+    const runtime = Layer.mergeAll(TestHost.layer(), api, Router.memory({ routes: LogbookRoutes, history }))
+
+    yield* Effect.gen(function* () {
+      const router = yield* Router.Router
+      const play = yield* HtmlPlay.make(
+        Logbook,
+        Router.currentRoute(LogbookRoutes).pipe(Effect.map((route) => ({ ...props, route })))
+      )
+      const heading = role('heading', { name: 'Shop door' })
+      const link = role('link', { name: /Shop door/u })
+      yield* play.expect(link).toHaveAttribute('href', pathname)
+      yield* play.expect(heading).toExist()
+
+      yield* router.navigate('/assets/missing')
+      yield* play.expect(text('Asset not found.')).toExist()
+      yield* play.expect(heading).toBeAbsent()
+
+      yield* Effect.sync(() => history.go(-1))
+      yield* play.expect(heading).toExist()
+      assert.strictEqual(history.current().url, pathname)
+      yield* Effect.sync(() => history.go(1))
+      yield* play.expect(text('Asset not found.')).toExist()
+      yield* play.expect(heading).toBeAbsent()
+
+      yield* play.expect(link).toHaveAttribute('href', pathname)
+      const href = play.root.get(link).attrs?.href
+      assert.isDefined(href)
+      yield* router.navigate(href)
+      yield* play.expect(heading).toExist()
+      assert.strictEqual(history.current().url, pathname)
+
+      yield* router.navigate('/assets/%ZZ')
+      yield* play.expect(role('heading', { name: 'Assets' })).toExist()
+      yield* play.expect(text('Loading asset…')).toBeAbsent()
+      yield* play.expect(heading).toBeAbsent()
+    }).pipe(Effect.provide(runtime))
   })
 )
 
@@ -250,8 +325,7 @@ it.effect('shows past service and task details in performed date order as they a
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Assets'))
-      .click(role('button', { name: /Truck/u }))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: truckRoute }))
       .subscription(
         detailKey,
         Message.ReceivedDetail({
@@ -317,8 +391,7 @@ it.effect('shows asset metadata and saves only the fields changed in the edit fo
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Assets'))
-      .click(role('button', { name: /Truck/u }))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: truckRoute }))
       .subscription(detailKey, Message.ReceivedDetail({ detail }))
       .expect(text('Ford'))
       .toExist()
@@ -488,8 +561,7 @@ it.effect('adds undated work in asset detail and completes it from the household
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Assets'))
-      .click(role('button', { name: /Truck/u }))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: truckRoute }))
       .subscription(detailKey, Message.ReceivedDetail({ detail }))
       .click(button('Add pending work'))
       .type(label('Work title'), work.title)
@@ -502,10 +574,12 @@ it.effect('adds undated work in asset detail and completes it from the household
       .toExist()
       .expect(inside(pending, text(work.notes)))
       .toExist()
-      .click(button('Due'))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: LogbookRoutes.Due() }))
       .subscription('catalog', updatedCatalog)
       .expect(inside(pending, text(work.title)))
       .toExist()
+      .expect(inside(pending, role('link', { name: 'Truck' })))
+      .toHaveAttribute('href', '/assets/truck')
       .click(inside(pending, role('button', { name: 'Mark done' })))
       .type(label('Performed date (optional, YYYY-MM-DD)'), today)
       .type(label('Cost in USD (optional)'), '45.99')
@@ -524,7 +598,7 @@ it.effect('adds undated work in asset detail and completes it from the household
       .resolve(completed, Message.ReceivedResult({ result: { commandId: 'test-session:1' } }))
       .expect(text('No pending work.'))
       .toExist()
-      .click(button('Assets'))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: truckRoute }))
       .subscription(detailKey, Message.ReceivedDetail({ detail: { ...detail, totalSpendCents: 4599 } }))
       .subscription(activityKey, activity)
       .expect(inside(pending, text(work.title)))
@@ -570,7 +644,7 @@ it.effect('shows both readings on rollback and permits an explicit correction', 
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Quick Log'))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: LogbookRoutes['Quick Log']() }))
       .change(label('Asset'), truck)
       .type(label('Meter reading (miles)'), '39900')
       .click(button('Save reading'))
@@ -651,7 +725,7 @@ it.effect('logs unscheduled service and registers a new asset', () =>
     const scene = yield* HtmlScene.make(Logbook, props)
     scene
       .subscription('catalog', catalogReceived)
-      .click(button('Quick Log'))
+      .subscription('@effect/ui/Router', Message.ChangedRoute({ route: LogbookRoutes['Quick Log']() }))
       .click(button('Log service'))
       .change(label('Asset'), furnace)
       .type(label('Service title'), 'Replace igniter')
@@ -727,7 +801,7 @@ it.effect('runs the catalog watch and retries a save with the same RPC request',
           )
         ),
     })
-    const runtime = Layer.merge(TestHost.layer(), api)
+    const runtime = Layer.mergeAll(TestHost.layer(), api, Router.memory({ routes: LogbookRoutes }))
 
     yield* Effect.gen(function* () {
       const play = yield* HtmlPlay.make(Logbook, props)

@@ -7,6 +7,8 @@ import * as Record from 'effect/Record'
 import { forms, secondaryButton } from './Forms.ts'
 import { Editor, Message } from './Model.ts'
 import type { CatalogAsset, Model } from './Model.ts'
+import { assetPath } from './Route.ts'
+import { appLink } from './WebLink.ts'
 
 type WorkAsset = Pick<CatalogAsset, 'id' | 'name' | 'status' | 'meter' | 'pendingWork'>
 type WorkItem = { readonly asset: WorkAsset; readonly work: typeof PendingWork.Type }
@@ -63,7 +65,11 @@ export const pendingWorkView =
                         .class('min-w-0 break-words')
                         .children(
                           h.p.class('font-semibold').children(work.title),
-                          selected === undefined ? h.p.class('text-sm text-stone-600').children(asset.name) : undefined,
+                          selected === undefined
+                            ? appLink(h)(model, assetPath(asset.id))
+                                .class('text-sm text-stone-600 underline')
+                                .children(asset.name)
+                            : undefined,
                           work.dueOn === undefined
                             ? undefined
                             : h.p.class('text-sm text-stone-600').children(`Due ${work.dueOn}`),

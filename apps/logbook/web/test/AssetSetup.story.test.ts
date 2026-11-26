@@ -10,13 +10,14 @@ import * as Schema from 'effect/Schema'
 import { Logbook } from '../src/Logbook.ts'
 import { Message } from '../src/Model.ts'
 import type { AssetDetails } from '../src/Model.ts'
+import { LogbookRoutes } from '../src/Route.ts'
 import { AssetChange, SaveAsset } from '../src/SaveAsset.ts'
 
 const truck = AssetId.make('truck')
 const today = IsoDate.make('2026-11-24')
 const commandId = 'test-session:0'
 const unknownOutcome = Schema.TaggedStruct('Unknown', {}).make({})
-const props = { session: 'test-session', today }
+const props = { session: 'test-session', today, route: LogbookRoutes.Asset({ params: { assetId: truck } }) }
 const asset: AssetDetails = {
   id: truck,
   name: 'Truck',
@@ -35,10 +36,7 @@ const { text } = Locator
 const button = (name: string | RegExp) => role('button', { name })
 const detailKey = Subscription.keyOf('detail', truck)
 const openAsset = (scene: HtmlScene.Steps<typeof Logbook>) =>
-  scene
-    .subscription('catalog', Message.ReceivedCatalog({ catalog: { assets: { [truck]: asset }, spendByYear: {} } }))
-    .click(button('Assets'))
-    .click(button(/Truck/u))
+  scene.subscription('catalog', Message.ReceivedCatalog({ catalog: { assets: { [truck]: asset }, spendByYear: {} } }))
 
 it.effect.each([
   {
