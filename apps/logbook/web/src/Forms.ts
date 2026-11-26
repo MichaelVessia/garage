@@ -1,8 +1,9 @@
+import type { View } from '@effect/ui'
+import type { Html } from '@effect/ui/html'
 import { AssetCategory, MeterUnit } from '@garage/logbook-domain/Values'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import * as Record from 'effect/Record'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { AssetSetupAction, Editor, Message } from './Model.ts'
 import type { AssetSetupEditor, Field, Model, QuickMode } from './Model.ts'
@@ -16,50 +17,44 @@ const control =
 
 const change = (field: Field) => (value: string) => Message.EditedField({ field, value })
 
-export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
+export const forms = (h: Html.H<Message>) => (model: Model) => {
   const value = (field: Field) => model.fields[field] ?? ''
   const text = (
     field: Field,
     label: string,
     options: Readonly<{ required?: boolean; numeric?: boolean; type?: 'date' | 'url' }> = {}
-  ): Html =>
-    h.label(
-      [h.Class('block text-sm font-medium')],
-      [
-        label,
-        h.input([
-          h.Class(control),
-          h.Type(options.type ?? 'text'),
-          h.Value(value(field)),
-          h.OnInput(change(field)),
-          h.Required(options.required ?? false),
-          ...(options.numeric === true ? [h.InputMode('decimal')] : []),
-        ]),
-      ]
+  ) =>
+    h.label.class('block text-sm font-medium').children(
+      label,
+      h.input
+        .class(control)
+        .attr('type', options.type ?? 'text')
+        .value(value(field))
+        .on('input', ({ value }) => change(field)(value))
+        .attr('required', (options.required ?? false) ? '' : undefined)
+        .attr('inputmode', options.numeric === true ? 'decimal' : undefined)
     )
-  const select = (field: Field, label: string, options: ReadonlyArray<readonly [string, string]>, initial = ''): Html =>
-    h.div(
-      [h.Class('text-sm font-medium')],
-      [
-        h.label([h.For(`logbook-${field}`)], [label]),
-        h.select(
-          [
-            h.Id(`logbook-${field}`),
-            h.Class(control),
-            h.Value(model.fields[field] ?? initial),
-            h.OnChange(change(field)),
-          ],
-          Arr.map(options, ([value, label]) => h.option([h.Key(value), h.Value(value)], [label]))
-        ),
-      ]
+  const select = (field: Field, label: string, options: ReadonlyArray<readonly [string, string]>, initial = '') =>
+    h.div.class('text-sm font-medium').children(
+      h.label.attr('for', `logbook-${field}`).children(label),
+      h.select
+        .id(`logbook-${field}`)
+        .class(control)
+        .value(model.fields[field] ?? initial)
+        .on('change', ({ value }) => change(field)(value))
+        .children(Arr.map(options, ([value, label]) => h.option.key(value).attr('value', value).children(label)))
     )
-  const textarea = (field: Field, label: string): Html =>
-    h.label(
-      [h.Class('block text-sm font-medium')],
-      [label, h.textarea([h.Class(control), h.Rows(2), h.Value(value(field)), h.OnInput(change(field))])]
+  const textarea = (field: Field, label: string) =>
+    h.label.class('block text-sm font-medium').children(
+      label,
+      h.textarea
+        .class(control)
+        .attr('rows', '2')
+        .value(value(field))
+        .on('input', ({ value }) => change(field)(value))
     )
   const notes = textarea('notes', 'Notes (optional)')
-  const work = (meterEnabled: boolean): ReadonlyArray<Html> => [
+  const work = (meterEnabled: boolean) => [
     text('performedOn', 'Performed date (optional, YYYY-MM-DD)'),
     select(
       'performedBy',
@@ -77,65 +72,57 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     notes,
   ]
 
-  const correction = h.label(
-    [h.Class('flex items-center gap-2 text-sm font-medium')],
-    [
-      h.input([
-        h.Type('checkbox'),
-        h.Class('size-4 accent-teal-800'),
-        h.Checked(value('correction') === 'true'),
-        h.OnClick(Message.EditedField({ field: 'correction', value: value('correction') === 'true' ? '' : 'true' })),
-      ]),
-      'Save as a correction',
-    ]
+  const correction = h.label.class('flex items-center gap-2 text-sm font-medium').children(
+    h.input
+      .attr('type', 'checkbox')
+      .class('size-4 accent-teal-800')
+      .checked(value('correction') === 'true')
+      .on('click', Message.EditedField({ field: 'correction', value: value('correction') === 'true' ? '' : 'true' })),
+    'Save as a correction'
   )
 
-  const form = (label: string, inputs: ReadonlyArray<Html>, canCancel = false, prompt?: string): Html => {
+  const form = (label: string, inputs: View.Children<Message, never>, canCancel = false, prompt?: string) => {
     const status = model.attempt?.status
     const submitLabel = status === undefined ? label : { saving: 'Saving…', unknown: 'Retry save' }[status]
-    return h.form(
-      [h.Class('rounded-xl border border-teal-200 bg-teal-50/50 p-4'), h.OnSubmit(Message.Submitted())],
-      [
-        prompt === undefined ? null : h.p([h.Class('mb-3 text-sm')], [prompt]),
+    return h.form
+      .class('rounded-xl border border-teal-200 bg-teal-50/50 p-4')
+      .on('submit', Message.Submitted(), { preventDefault: true })
+      .children(
+        prompt === undefined ? undefined : h.p.class('mb-3 text-sm').children(prompt),
         inputs.length === 0
-          ? null
-          : h.fieldset(
-              [h.Class('grid gap-3 sm:grid-cols-2'), h.Disabled(model.attempt !== null || model.sessionExpired)],
-              inputs
-            ),
-        model.problem === null ? null : h.p([h.Role('alert'), h.Class('mt-3 text-sm text-red-800')], [model.problem]),
+          ? undefined
+          : h.fieldset
+              .class('grid gap-3 sm:grid-cols-2')
+              .disabled(model.attempt !== null || model.sessionExpired)
+              .children(inputs),
+        model.problem === null
+          ? undefined
+          : h.p.attr('role', 'alert').class('mt-3 text-sm text-red-800').children(model.problem),
         model.correctionOffered
-          ? h.fieldset([h.Class('mt-3'), h.Disabled(model.attempt !== null || model.sessionExpired)], [correction])
-          : null,
-        h.div(
-          [h.Class('mt-4 flex flex-wrap gap-2')],
-          [
-            h.button(
-              [
-                h.Type('submit'),
-                h.Class(primaryButton),
-                h.Disabled(model.attempt?.status === 'saving' || model.sessionExpired),
-              ],
-              [submitLabel]
-            ),
-            canCancel
-              ? h.button(
-                  [
-                    h.Type('button'),
-                    h.Class(secondaryButton),
-                    h.Disabled(model.attempt !== null),
-                    h.OnClick(Message.ClosedEditor()),
-                  ],
-                  ['Cancel']
-                )
-              : null,
-          ]
-        ),
-      ]
-    )
+          ? h.fieldset
+              .class('mt-3')
+              .disabled(model.attempt !== null || model.sessionExpired)
+              .children(correction)
+          : undefined,
+        h.div.class('mt-4 flex flex-wrap gap-2').children(
+          h.button
+            .attr('type', 'submit')
+            .class(primaryButton)
+            .disabled(model.attempt?.status === 'saving' || model.sessionExpired)
+            .children(submitLabel),
+          canCancel
+            ? h.button
+                .attr('type', 'button')
+                .class(secondaryButton)
+                .disabled(model.attempt !== null)
+                .on('click', Message.ClosedEditor())
+                .children('Cancel')
+            : undefined
+        )
+      )
   }
 
-  const assetSelect = (requiresMeter: boolean): Html =>
+  const assetSelect = (requiresMeter: boolean) =>
     select('asset', 'Asset', [
       ['', 'Select an asset'],
       ...Arr.map(
@@ -157,7 +144,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     ['LogService', 'Log service'],
     ['RegisterAsset', 'New asset'],
   ] satisfies ReadonlyArray<readonly [typeof QuickMode.Type, string]>
-  const assetMetadata = (): ReadonlyArray<Html> => [
+  const assetMetadata = () => [
     text('name', 'Asset name', { required: true }),
     select(
       'category',
@@ -174,7 +161,7 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
     notes,
   ]
 
-  const quick = (): Html => {
+  const quick = () => {
     const content = Editor.guards.RegisterAsset(model.editor)
       ? form('Register asset', [
           ...assetMetadata(),
@@ -197,31 +184,24 @@ export const forms = (h: HtmlBuilder<Message>) => (model: Model) => {
               numeric: true,
             }),
           ])
-    return h.section(
-      [h.Class('space-y-4')],
-      [
-        h.h2([h.Class('text-2xl font-semibold')], ['Quick Log']),
-        h.div(
-          [h.Class('flex flex-wrap gap-2')],
-          Arr.map(modes, ([mode, label]) =>
-            h.button(
-              [
-                h.Type('button'),
-                h.Class(secondaryButton),
-                h.AriaPressed(Editor.guards[mode](model.editor) ? 'true' : 'false'),
-                h.Disabled(model.attempt !== null),
-                h.OnClick(Message.ChoseQuickMode({ mode })),
-              ],
-              [label]
-            )
-          )
-        ),
-        content,
-      ]
+    return h.section.class('space-y-4').children(
+      h.h2.class('text-2xl font-semibold').children('Quick Log'),
+      h.div.class('flex flex-wrap gap-2').children(
+        Arr.map(modes, ([mode, label]) =>
+          h.button
+            .attr('type', 'button')
+            .class(secondaryButton)
+            .attr('aria-pressed', Editor.guards[mode](model.editor) ? 'true' : 'false')
+            .disabled(model.attempt !== null)
+            .on('click', Message.ChoseQuickMode({ mode }))
+            .children(label)
+        )
+      ),
+      content
     )
   }
 
-  const assetSetup = (editor: AssetSetupEditor): Html => {
+  const assetSetup = (editor: AssetSetupEditor) => {
     const { action, subject } = editor
     return AssetSetupAction.match(action, {
       AddSchedule: ({ replacesScheduleId }) => {

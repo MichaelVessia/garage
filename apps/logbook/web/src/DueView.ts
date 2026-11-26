@@ -1,3 +1,4 @@
+import type { Html } from '@effect/ui/html'
 import type { AssetId, ScheduleId, WarrantyId } from '@garage/logbook-domain/Asset/Asset.id'
 import { addDays, computeDueStatus, defaultWithinMeter } from '@garage/logbook-domain/ScheduleMath'
 import type { DueThresholds, IsoDate } from '@garage/logbook-domain/Values'
@@ -5,7 +6,6 @@ import * as Arr from 'effect/Array'
 import * as Order from 'effect/Order'
 import * as Record from 'effect/Record'
 import * as Struct from 'effect/Struct'
-import type { Html, HtmlBuilder } from 'foldkit/html'
 
 import { forms, secondaryButton } from './Forms.ts'
 import { Editor, Message } from './Model.ts'
@@ -86,100 +86,78 @@ export const thresholdText = (item: DueThresholds & { readonly meter: CatalogAss
     ' · '
   )
 
-export const dueView =
-  (h: HtmlBuilder<Message>) =>
-  (model: Model): Html => {
-    if (model.catalog === null) {
-      return h.h2([h.Class('text-2xl font-semibold')], ['Due'])
-    }
-    const { overdue, dueSoon, warranties } = dueItems(model)
-    const { completion } = forms(h)(model)
-    const opened = Editor.guards.CompleteTask(model.editor) ? model.editor : null
-    const isOpen = (task: Task) => opened?.assetId === task.assetId && opened.scheduleId === task.scheduleId
-    const group = (label: string, empty: string, items: ReadonlyArray<Task>, accent: string) =>
-      h.section(
-        [h.Class('space-y-3'), h.AriaLabel(label)],
-        [
-          h.h3([h.Class(`text-lg font-semibold ${accent}`)], [label]),
-          items.length === 0
-            ? h.p([h.Class('text-sm text-stone-600')], [empty])
-            : h.ul(
-                [h.Class('grid gap-2')],
-                Arr.map(items, (task) =>
-                  h.li(
-                    [
-                      h.Key(`${task.assetId}/${task.scheduleId}`),
-                      h.Class('rounded-xl border border-stone-200 bg-white p-4'),
-                    ],
-                    [
-                      h.div(
-                        [h.Class('flex flex-wrap items-center justify-between gap-3')],
-                        [
-                          h.div(
-                            [],
-                            [
-                              h.p([h.Class('font-semibold')], [task.title]),
-                              h.p([h.Class('text-sm text-stone-600')], [task.assetName, ' · ', thresholdText(task)]),
-                            ]
-                          ),
-                          isOpen(task)
-                            ? null
-                            : h.button(
-                                [
-                                  h.Type('button'),
-                                  h.Class(secondaryButton),
-                                  h.Disabled(model.attempt !== null || model.sessionExpired),
-                                  h.OnClick(
-                                    Message.OpenedCompletion({ assetId: task.assetId, scheduleId: task.scheduleId })
-                                  ),
-                                ],
-                                ['Mark done']
-                              ),
-                        ]
-                      ),
-                      isOpen(task) ? h.div([h.Class('mt-3')], [completion(task.meter !== undefined)]) : null,
-                    ]
-                  )
-                )
-              ),
-        ]
-      )
-    return h.div(
-      [h.Class('space-y-6')],
-      [
-        h.h2([h.Class('text-2xl font-semibold')], ['Due']),
-        opened !== null && !Arr.some(overdue, isOpen) && !Arr.some(dueSoon, isOpen)
-          ? completion(model.catalog.assets[opened.assetId]?.meter !== undefined)
-          : null,
-        group('Overdue', 'No overdue tasks.', overdue, 'text-red-800'),
-        group('Due Soon', 'No tasks due soon.', dueSoon, 'text-amber-800'),
-        pendingWorkView(h)(model, { assets: Record.values(model.catalog.assets) }),
-        h.section(
-          [h.Class('space-y-3'), h.AriaLabel('Expiring Warranties')],
-          [
-            h.h3([h.Class('text-lg font-semibold')], ['Expiring Warranties']),
-            warranties.length === 0
-              ? h.p([h.Class('text-sm text-stone-600')], ['No warranties expire in the next 60 days.'])
-              : h.ul(
-                  [h.Class('grid gap-2')],
-                  Arr.map(warranties, (warranty) =>
-                    h.li(
-                      [
-                        h.Key(`${warranty.assetId}/${warranty.warrantyId}`),
-                        h.Class('rounded-xl border border-stone-200 bg-white p-4'),
-                      ],
-                      [
-                        h.p([h.Class('font-semibold')], [warranty.label]),
-                        h.p(
-                          [h.Class('text-sm text-stone-600')],
-                          [`${warranty.assetName} · Expires ${warranty.expiresOn}`]
-                        ),
-                      ]
-                    )
-                  )
-                ),
-          ]
-        ),
-      ]
-    )
+export const dueView = (h: Html.H<Message>) => (model: Model) => {
+  if (model.catalog === null) {
+    return h.h2.class('text-2xl font-semibold').children('Due')
   }
+  const { overdue, dueSoon, warranties } = dueItems(model)
+  const { completion } = forms(h)(model)
+  const opened = Editor.guards.CompleteTask(model.editor) ? model.editor : undefined
+  const isOpen = (task: Task) => opened?.assetId === task.assetId && opened.scheduleId === task.scheduleId
+  const group = (label: string, empty: string, items: ReadonlyArray<Task>, accent: string) =>
+    h.section
+      .class('space-y-3')
+      .attr('aria-label', label)
+      .children(
+        h.h3.class(`text-lg font-semibold ${accent}`).children(label),
+        items.length === 0
+          ? h.p.class('text-sm text-stone-600').children(empty)
+          : h.ul.class('grid gap-2').children(
+              Arr.map(items, (task) =>
+                h.li
+                  .key(`${task.assetId}/${task.scheduleId}`)
+                  .class('rounded-xl border border-stone-200 bg-white p-4')
+                  .children(
+                    h.div.class('flex flex-wrap items-center justify-between gap-3').children(
+                      h.div.children(
+                        h.p.class('font-semibold').children(task.title),
+                        h.p.class('text-sm text-stone-600').children(task.assetName, ' · ', thresholdText(task))
+                      ),
+                      isOpen(task)
+                        ? undefined
+                        : h.button
+                            .attr('type', 'button')
+                            .class(secondaryButton)
+                            .disabled(model.attempt !== null || model.sessionExpired)
+                            .on(
+                              'click',
+                              Message.OpenedCompletion({ assetId: task.assetId, scheduleId: task.scheduleId })
+                            )
+                            .children('Mark done')
+                    ),
+                    isOpen(task) ? h.div.class('mt-3').children(completion(task.meter !== undefined)) : undefined
+                  )
+              )
+            )
+      )
+  return h.div.class('space-y-6').children(
+    h.h2.class('text-2xl font-semibold').children('Due'),
+    opened !== undefined && !Arr.some(overdue, isOpen) && !Arr.some(dueSoon, isOpen)
+      ? completion(model.catalog.assets[opened.assetId]?.meter !== undefined)
+      : undefined,
+    group('Overdue', 'No overdue tasks.', overdue, 'text-red-800'),
+    group('Due Soon', 'No tasks due soon.', dueSoon, 'text-amber-800'),
+    pendingWorkView(h)(model, { assets: Record.values(model.catalog.assets) }),
+    h.section
+      .class('space-y-3')
+      .attr('aria-label', 'Expiring Warranties')
+      .children(
+        h.h3.class('text-lg font-semibold').children('Expiring Warranties'),
+        warranties.length === 0
+          ? h.p.class('text-sm text-stone-600').children('No warranties expire in the next 60 days.')
+          : h.ul.class('grid gap-2').children(
+              Arr.map(warranties, (warranty) =>
+                h.li
+                  .key(`${warranty.assetId}/${warranty.warrantyId}`)
+                  .class('rounded-xl border border-stone-200 bg-white p-4')
+                  .children(
+                    h.p.class('font-semibold').children(warranty.label),
+                    h.p
+                      .class('text-sm text-stone-600')
+                      .children(`${warranty.assetName} · Expires ${warranty.expiresOn}`)
+                  )
+              )
+            )
+      )
+  )
+}

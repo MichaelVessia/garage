@@ -5,8 +5,9 @@ import * as Schema from 'effect/Schema'
 import * as Str from 'effect/String'
 import type * as Types from 'effect/Types'
 
-import { AssetSetupAction, client } from './Model.ts'
+import { AssetSetupAction } from './Model.ts'
 import type { AssetSetupEditor, Field, Model } from './Model.ts'
+import { AssetChange, SaveAsset } from './SaveAsset.ts'
 
 const parseDate = Schema.decodeUnknownOption(IsoDate)
 const parseReading = Schema.decodeUnknownOption(
@@ -25,8 +26,8 @@ type SetupFields = {
   readonly editor: AssetSetupEditor
   readonly text: (field: Field) => string
 }
-type ScheduleInput = Types.Mutable<Parameters<typeof client.AddSchedule>[0]['input']>
-type WarrantyInput = Types.Mutable<Parameters<typeof client.RecordWarranty>[0]['input']>
+type ScheduleInput = Types.Mutable<typeof AssetChange.cases.AddSchedule.Type.input>
+type WarrantyInput = Types.Mutable<typeof AssetChange.cases.RecordWarranty.Type.input>
 
 const scheduleCadence = ({ editor, text }: SetupFields): Option.Option<Cadence> => {
   const days = Number(text('days'))
@@ -103,9 +104,10 @@ export const assetSetupCommand = ({
       if (lastCompletedMeter !== undefined) {
         input.lastCompletedMeter = lastCompletedMeter
       }
-      return client.AddSchedule({ target, commandId, input })
+      return SaveAsset.make({ target, commandId, change: AssetChange.AddSchedule({ input }) })
     },
-    ArchiveSchedule: ({ scheduleId }) => client.ArchiveSchedule({ target, commandId, input: { scheduleId } }),
+    ArchiveSchedule: ({ scheduleId }) =>
+      SaveAsset.make({ target, commandId, change: AssetChange.ArchiveSchedule({ input: { scheduleId } }) }),
     RecordWarranty: ({ replacesWarrantyId }) => {
       const expiresOn = parseDate(text('expiresOn'))
       const coverage = text('coverage')
@@ -125,33 +127,35 @@ export const assetSetupCommand = ({
       if (url !== '') {
         input.url = url
       }
-      return client.RecordWarranty({ target, commandId, input })
+      return SaveAsset.make({ target, commandId, change: AssetChange.RecordWarranty({ input }) })
     },
-    RemoveWarranty: ({ warrantyId }) => client.RemoveWarranty({ target, commandId, input: { warrantyId } }),
+    RemoveWarranty: ({ warrantyId }) =>
+      SaveAsset.make({ target, commandId, change: AssetChange.RemoveWarranty({ input: { warrantyId } }) }),
     SetSpec: ({ previousKey }) => {
       const key = previousKey !== undefined && fields.key === previousKey ? previousKey : text('key')
       const value = text('value')
       if (key === '' || value === '') {
         return 'Enter the specification name and value.'
       }
-      const input: Types.Mutable<Parameters<typeof client.SetSpec>[0]['input']> = { key, value }
+      const input: Types.Mutable<typeof AssetChange.cases.SetSpec.Type.input> = { key, value }
       if (previousKey !== undefined) {
         input.previousKey = previousKey
       }
       if (url !== '') {
         input.url = url
       }
-      return client.SetSpec({ target, commandId, input })
+      return SaveAsset.make({ target, commandId, change: AssetChange.SetSpec({ input }) })
     },
-    RemoveSpec: ({ key }) => client.RemoveSpec({ target, commandId, input: { key } }),
+    RemoveSpec: ({ key }) => SaveAsset.make({ target, commandId, change: AssetChange.RemoveSpec({ input: { key } }) }),
     AttachLink: ({ replacesLinkId }) => {
       if (label === '' || url === '') {
         return 'Enter the link name and URL.'
       }
       const link = { linkId: LinkId.make(commandId), label, url }
       const input = replacesLinkId === undefined ? link : { ...link, replacesLinkId }
-      return client.AttachLink({ target, commandId, input })
+      return SaveAsset.make({ target, commandId, change: AssetChange.AttachLink({ input }) })
     },
-    RemoveLink: ({ linkId }) => client.RemoveLink({ target, commandId, input: { linkId } }),
+    RemoveLink: ({ linkId }) =>
+      SaveAsset.make({ target, commandId, change: AssetChange.RemoveLink({ input: { linkId } }) }),
   })
 }
