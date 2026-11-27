@@ -304,7 +304,9 @@ it('restores a save that predates medals', () => {
   const r = createRuntime(2)
   const saved = exportSave(r)
   const p = r.inspect(state).p
-  const legacy = { ...p, meta: Rec.remove(p.meta, 'medals') }
+  const { runTicks: _ticks, meta, ...rest } = p
+  const { medals: _medals, bestRunTicks: _best, ...oldMeta } = meta
+  const legacy = { ...rest, meta: oldMeta }
   const restored = createRuntimeFromSave({
     ...saved,
     resources: { ...saved.resources, 'Beltworks/Progression': legacy },

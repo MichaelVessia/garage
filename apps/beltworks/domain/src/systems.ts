@@ -726,6 +726,8 @@ function outputDirections(
 }
 export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
   const { resources, queries, commands } = ctx
+  const before = resources.progress.get()
+  resources.progress.set({ ...before, runTicks: before.runTicks + 1 })
   const { data } = queries.cargo
   const occupants = Rec.fromEntries(Arr.map(queries.cargo.each(), (e) => [key(data.tile.get(e)), e]))
   const clearTile = (cell: Cell) => {

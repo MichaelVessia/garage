@@ -266,6 +266,7 @@ export function createBoard() {
     },
   }
 }
+type BoardStats = { p: typeof initial; tick: number; index: Descriptor.Descriptor.Value<typeof GridIndex> }
 export const stats = Game.Inspector(
   'Beltworks/View',
   {
@@ -275,7 +276,7 @@ export const stats = Game.Inspector(
       index: Game.System.readResource(GridIndex),
     },
   },
-  ({ resources }) => ({ p: resources.p.get(), tick: resources.t.get().step, index: resources.index.get() })
+  ({ resources }): BoardStats => ({ p: resources.p.get(), tick: resources.t.get().step, index: resources.index.get() })
 )
 export const draw = Game.Schedule(
   RenderSync.system(Game, {

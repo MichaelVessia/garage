@@ -137,6 +137,7 @@ export const medalIds = [
 ] as const
 export type MedalId = (typeof medalIds)[number]
 const meta = S.Struct({
+  bestRunTicks: S.OptionFromOptionalKey(natural),
   medals: S.Array(S.Literals(medalIds))
     .check(S.isUnique())
     .pipe(S.withDecodingDefaultKey(Effect.succeed([]))),
@@ -154,6 +155,7 @@ const meta = S.Struct({
   }),
 })
 const progression = S.Struct({
+  runTicks: natural.pipe(S.withDecodingDefaultKey(Effect.succeed(0))),
   meta,
   boardTier: tier,
   milestoneIndex: natural,
@@ -176,16 +178,18 @@ const progression = S.Struct({
   }),
   deliveryWindow: S.Array(S.Struct({ tick: natural, value: natural })),
 })
+export const initialMeta = {
+  medals: [],
+  ascensions: 0,
+  cores: 0,
+  totalCoresEarned: 0,
+  seed: 0,
+  mutator: 'standard',
+  metaUpgrades: { bootstrap: 0, masterySynergy: 0, beaconResonance: 0, veinRichness: 0, contractMastery: 0 },
+} as const
 export const initial: typeof progression.Type = {
-  meta: {
-    medals: [],
-    ascensions: 0,
-    cores: 0,
-    totalCoresEarned: 0,
-    seed: 0,
-    mutator: 'standard',
-    metaUpgrades: { bootstrap: 0, masterySynergy: 0, beaconResonance: 0, veinRichness: 0, contractMastery: 0 },
-  },
+  runTicks: 0,
+  meta: { ...initialMeta, bestRunTicks: Option.none() },
   boardTier: 0,
   milestoneIndex: 0,
   delivered: {},

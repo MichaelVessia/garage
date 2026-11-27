@@ -624,3 +624,30 @@ body:has(#blueprint-bar:not([hidden])) #inspector { visibility: hidden; }
   #bar #lens span, #bar #center span { display: none; }
   #requirements .target, #requirements .quota, #requirements .rate { white-space: nowrap; }
 }
+
+#milestone { anchor-name: --mission; justify-self: start; cursor: pointer; }
+#roadmap {
+  position: fixed;
+  position-anchor: --mission;
+  top: anchor(bottom);
+  left: clamp(8px, anchor(left), calc(100vw - 344px));
+  margin: 6px 0;
+  width: min(336px, 96vw);
+  max-height: 68dvh;
+  overflow: auto;
+  padding: 14px;
+  color: inherit;
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  pointer-events: auto;
+}
+#roadmap h2 { font-size: 16px; font-weight: 700; }
+#run-time, #roadmap .unlock { color: #aac0c3; }
+#roadmap li { padding: 7px 4px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 42px 1fr; }
+#roadmap .unlock { grid-column: 2; }
+#roadmap [aria-current] { color: var(--mint); background: #18302f; }
+#dock [data-tool="belt"], #dock [data-tool="add"], #dock.starter [data-tool="erase"] { margin-left: 7px; position: relative; }
+#dock [data-tool="belt"]::before, #dock [data-tool="add"]::before, #dock.starter [data-tool="erase"]::before { content: ""; position: absolute; left: -7px; height: 70%; width: 1px; background: var(--line); }
+#dock.starter [data-tool="erase"] { order: 1; }

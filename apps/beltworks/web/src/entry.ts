@@ -497,7 +497,12 @@ function refresh(edited = false) {
     editedSinceStart = true
     board.tracks(view.index.buildings)
   }
-  if (previous.p !== view.p) {
+  if (
+    edited ||
+    previous.p.deliveryWindow !== view.p.deliveryWindow ||
+    previous.p.meta !== view.p.meta ||
+    Math.floor(previous.p.runTicks / 60) !== Math.floor(view.p.runTicks / 60)
+  ) {
     updateHud(view.p, tool)
   }
   if (
@@ -863,6 +868,9 @@ canvas.onpointerleave = () => {
 }
 window.addEventListener('keydown', (e) => {
   const k = Str.toLowerCase(e.key)
+  if (k === 'escape' && document.querySelector('#roadmap:popover-open') !== null) {
+    return
+  }
   if (filterForm.hidden === false && k === 'escape') {
     filterForm.hidden = true
     valueInput.blur()

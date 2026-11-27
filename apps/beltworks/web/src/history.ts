@@ -2,10 +2,10 @@ import type { exportSave } from '@garage/beltworks-domain'
 import { Game, Progression } from '@garage/beltworks-domain'
 import type { Runtime } from '@garage/beltworks-domain'
 
-const ownedMedals = Game.Inspector(
-  'Beltworks/OwnedMedals',
+const runProgress = Game.Inspector(
+  'Beltworks/RunProgress',
   { resources: { p: Game.System.readResource(Progression) } },
-  ({ resources }) => resources.p.get().meta.medals
+  ({ resources }) => resources.p.get()
 )
 export function editHistory(runtime: Runtime) {
   const snapshots: Array<ReturnType<typeof exportSave>> = []
@@ -24,24 +24,26 @@ export function editHistory(runtime: Runtime) {
       if (previous === undefined) {
         return false
       }
-      const medals = runtime.inspect(ownedMedals)
+      const {
+        runTicks,
+        meta: { medals, bestRunTicks },
+      } = runtime.inspect(runProgress)
       if (!runtime.restore(previous).ok) {
         return false
       }
-      if (medals.length !== runtime.inspect(ownedMedals).length) {
-        runtime.tick(
-          Game.Schedule(
-            Game.System(
-              'Beltworks/RetainMedals',
-              { resources: { progress: Game.System.writeResource(Progression) } },
-              ({ resources }) => {
-                const p = resources.progress.get()
-                resources.progress.set({ ...p, meta: { ...p.meta, medals } })
-              }
-            )
+
+      runtime.tick(
+        Game.Schedule(
+          Game.System(
+            'Beltworks/RetainRunProgress',
+            { resources: { progress: Game.System.writeResource(Progression) } },
+            ({ resources }) => {
+              const p = resources.progress.get()
+              resources.progress.set({ ...p, runTicks, meta: { ...p.meta, medals, bestRunTicks } })
+            }
           )
         )
-      }
+      )
       snapshots.pop()
       return true
     },

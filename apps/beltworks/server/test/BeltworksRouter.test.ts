@@ -136,7 +136,7 @@ it.effect('saves, advances and shares a factory without credentials', () =>
   }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
 )
 
-it.effect('restores a stamped filter, beacon and divider before offline production', () =>
+it.effect('shares and advances an ascended v7 factory with a fueled beacon', () =>
   Effect.gen(function* () {
     const board = createRuntime(-1)
     board.tick(
@@ -167,11 +167,28 @@ it.effect('restores a stamped filter, beacon and divider before offline producti
         { dx: 1, dy: 0, kind: 'beacon', dir: 'W' },
         { dx: 2, dy: 0, kind: 'filter', targetValue: 2, dir: 'W' },
         { dx: 3, dy: 0, kind: 'belt', dir: 'W' },
+        { dx: 0, dy: 1, kind: 'merger', dir: 'W' },
+        { dx: 1, dy: 1, kind: 'buffer', dir: 'N' },
       ],
     })(board)
     enqueue({ type: 'placeBuilding', kind: 'extractor', dir: 'S', gx: 21, gy: 13 })(board)
     board.tick(applyEdits)
-    const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(exportSave(board))
+    const start = catchUp({ runtime: board, elapsedMs: 5000 }).save
+    const states = board.inspect(
+      Game.Inspector(
+        'Test/SharedMachines',
+        { queries: { machines: Game.Query({ selection: { building: Game.Query.read(Building) } }) } },
+        ({ queries }) => Array.from(queries.machines.each(), (e) => queries.machines.data.building.get(e))
+      )
+    )
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'merger'))
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'buffer'))
+    assert.includeDeepMembers(states, [{ kind: 'filter', targetValue: 2 }])
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'combiner' && s.op === 'div'))
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'beacon' && s.fuelTicks > 0))
+    const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(start)
+    const created = yield* request('/api/shares', 'POST', body)
+    const shared = yield* json(created).pipe(Effect.flatMap(S.decodeUnknownEffect(S.Struct({ shareId: S.String }))))
     const path = '/api/saves/strategy-1234'
     assert.equal((yield* request(path, 'PUT', body)).status, 200)
     yield* TestClock.adjust(Duration.seconds(5))
@@ -182,15 +199,15 @@ it.effect('restores a stamped filter, beacon and divider before offline producti
     const expected = catchUp({ runtime: board, elapsedMs: 5000 })
     assert.equal(actual.offlineTicks, 300)
     assert.deepEqual(actual.save, expected.save)
-    const states = board.inspect(
-      Game.Inspector(
-        'Test/RestoredMachines',
-        { queries: { machines: Game.Query({ selection: { building: Game.Query.read(Building) } }) } },
-        ({ queries }) => Array.from(queries.machines.each(), (e) => queries.machines.data.building.get(e))
+    const original = yield* request('/api/shares/' + shared.shareId).pipe(Effect.flatMap(json))
+    assert.deepEqual(original, { save: start })
+    const progression = board.inspect(
+      Game.Inspector('Test/CloudMeta', { resources: { p: Game.System.readResource(Progression) } }, ({ resources }) =>
+        resources.p.get()
       )
     )
-    assert.includeDeepMembers(states, [{ kind: 'filter', targetValue: 2 }])
-    assert.isTrue(Arr.some(states, (s) => s.kind === 'combiner' && s.op === 'div'))
-    assert.isTrue(Arr.some(states, (s) => s.kind === 'beacon' && s.fuelTicks > 0))
+    assert.equal(progression.runTicks, 600)
+    assert.equal(progression.meta.ascensions, 1)
+    assert.includeMembers([...progression.meta.medals], ['ascended', 'blueprintArchitect'])
   }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
 )

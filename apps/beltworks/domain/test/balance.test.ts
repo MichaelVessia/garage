@@ -2,6 +2,7 @@ import { assert, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as Console from 'effect/Console'
 import * as Effect from 'effect/Effect'
+import * as Option from 'effect/Option'
 
 import {
   Building,
@@ -78,6 +79,34 @@ it.each([
   assert.equal(readProgress(r).milestoneIndex, index)
   deliver(r, secondary)
   assert.equal(readProgress(r).milestoneIndex, index + 1)
+})
+
+it('keeps the fastest M8 finish across ascensions and clears it on reset', () => {
+  const r = hubLine(7)
+  for (const [ticks, best] of [
+    [900, 900],
+    [1200, 900],
+    [720, 720],
+  ] as const) {
+    setProgress(r, {
+      milestoneIndex: 7,
+      runTicks: ticks - 1,
+      delivered: { 72: 699, 24: 400 },
+      rateByValue: { 72: 89, 24: 45 },
+    })
+    place(r, belt(16))
+    r.tick(applyEdits)
+    deliver(r, 72)
+    assert.equal(readProgress(r).runTicks, ticks)
+    assert.deepEqual(readProgress(r).meta.bestRunTicks, Option.some(best))
+    place(r, { type: 'ascendBoard', mutator: 'standard' })
+    r.tick(applyEdits)
+    assert.equal(readProgress(r).runTicks, 0)
+    assert.deepEqual(readProgress(r).meta.bestRunTicks, Option.some(best))
+  }
+  place(r, { type: 'resetBoard' })
+  r.tick(applyEdits)
+  assert.deepEqual(readProgress(r).meta.bestRunTicks, Option.none())
 })
 
 it('pays the contract bonus and rotates the contract on its last delivery', () => {
@@ -515,6 +544,10 @@ it.effect.each(modes)(
           cores,
           coresPerMinute: (cores * 3600) / ticks,
         })
+      }
+      if (prime) {
+        assert.isAtLeast(results[6]?.minutes ?? 0, 4.2)
+        assert.isAtMost(results[6]?.minutes ?? Infinity, 5)
       }
       yield* Console.table(results).pipe(Effect.provideService(Console.Console, Console.Console.defaultValue()))
       assert.lengthOf(results, 11)

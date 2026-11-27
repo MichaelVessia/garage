@@ -51,7 +51,7 @@ One side contract is active after M3. The seed and contract index select a value
 
 The Ascend tab opens after M7. After M8, select the next run and confirm twice to start a new factory. Each ascension advances the map seed by one. Buildings, cargo, stock, Sparks, upgrades, contracts and milestones start over. Foundry Cores and permanent upgrades carry over. A full reset clears them. Mastery medals also survive ascension and undo. Each of the eight medals adds 3% to Spark yield. The Vault and Ascend tabs show the conditions and earned medals.
 
-Standard runs pay 3, 6, 10 and 15 Cores at M8 through M11. Each additional milestone increases the gain over the previous milestone by one Core. The completed run determines the payout. Prime Rush and High Velocity pay 30% more Cores, rounded up. Prime Rush cycles the primary target through 11, 19, 29, 41, 59 and 83 from M4. High Velocity increases production speed by 35% and rate gates by 50%.
+Standard runs pay 3, 6, 10 and 15 Cores at M8 through M11. Each additional milestone increases the gain over the previous milestone by one Core. The completed run determines the payout. Prime Rush and High Velocity pay 30% more Cores, rounded up. Prime Rush cycles the primary target through 11, 19, 29, 41, 59 and 83 from M4. At M7, Prime Rush needs 290 units of 41 and 300 units of 12. Both rate gates still apply. High Velocity increases production speed by 35% and rate gates by 50%.
 
 | Core technology | Maximum rank | Effect |
 | --- | --- | --- |
@@ -62,6 +62,8 @@ Standard runs pay 3, 6, 10 and 15 Cores at M8 through M11. Each additional miles
 | Contract Mastery | 4 | Each rank adds 40% to Spark and Vault contract rewards. |
 
 The Vault displays stock, deliveries in the last minute, and current uses for each landmark value. The Vault and Ascend tabs show the run seed, mutator, completed milestones, completed contracts and ascensions.
+
+Click the milestone number to see the first ten missions and the elapsed simulation time. The fastest M8 time survives ascension. Ascension starts the run timer at zero. A full reset clears both times.
 
 ## Factory controls
 

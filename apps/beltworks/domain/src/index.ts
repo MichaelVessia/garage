@@ -2,7 +2,7 @@ import { Clock, Result } from '@typeonce/ritmo'
 import * as ER from 'effect/Result'
 import * as S from 'effect/Schema'
 
-import { CommandRequested, CommandQueue, Game, initial, step, Time } from './model.ts'
+import { CommandRequested, CommandQueue, Game, initial, initialMeta, step, Time } from './model.ts'
 import type { Command } from './model.ts'
 import { savedBoard } from './save.ts'
 import { positions, processCommands, transport, setup } from './systems.ts'
@@ -21,7 +21,7 @@ export const simulation = Game.Schedule(
 )
 export const initialResources = () => ({
   Time: Clock.start(step),
-  Progression: initial,
+  Progression: { ...initial, meta: initialMeta },
   CommandQueue: [],
   GridIndex: { veins: {}, buildings: {}, items: {} },
 })
@@ -97,7 +97,7 @@ export function createRuntimeFromSave(save: unknown) {
             'Beltworks/Progression': {
               ...progress,
               vaultRemainders: {},
-              meta: { ...initial.meta, seed: progress.seed },
+              meta: { ...initialMeta, seed: progress.seed },
             },
           },
         }

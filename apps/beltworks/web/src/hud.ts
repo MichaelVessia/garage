@@ -21,6 +21,7 @@ import {
   upgradeCost,
 } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 import * as Str from 'effect/String'
 
@@ -87,6 +88,10 @@ function price(cost: Cost, p?: Progress) {
     )
   }
   return parts
+}
+function formatTime(ticks: number) {
+  const seconds = Math.floor(ticks / 60)
+  return Str.padStart(2, '0')(String(Math.floor(seconds / 60))) + ':' + Str.padStart(2, '0')(String(seconds % 60))
 }
 function recipeButton(read: () => string) {
   const wrap = document.createElement('span')
@@ -184,10 +189,13 @@ export function hud({
     path.setAttribute('stroke-linejoin', 'round')
     glyph.append(path)
     hotkey.textContent = t.key
+    button.dataset.tool = t.id
+    button.title = t.name
+    name.textContent = t.id === 'buffer' ? 'Silo' : t.name
     button.append(glyph, hotkey, name)
     button.onclick = () => choose(t.id)
     element('dock').append(button)
-    return { t, button, name }
+    return { t, button }
   })
   const cards = Arr.map(upgrades, (u) => {
     const card = document.createElement('section'),
@@ -249,6 +257,10 @@ export function hud({
   let rows: ReadonlyArray<(p: Progress) => void> = []
   return (p: Progress, tool: Tool) => {
     latest = p
+    element('run-time').textContent =
+      'Run ' +
+      formatTime(p.runTicks) +
+      (Option.isSome(p.meta.bestRunTicks) ? ' · M8 best ' + formatTime(p.meta.bestRunTicks.value) : '')
     const key = Arr.join(p.meta.medals, ',') + '.'
     if (key !== medalKey) {
       medalKey = key
@@ -259,6 +271,23 @@ export function hud({
       previousMission = p.milestoneIndex
       previousMutator = p.meta.mutator
       const m = milestoneFor(p)
+      element('dock').classList.toggle('starter', p.milestoneIndex === 0)
+      element('roadmap-list').replaceChildren(
+        ...Arr.makeBy(10, (milestoneIndex) => {
+          const mission = milestoneFor({ ...p, milestoneIndex })
+          const row = document.createElement('li')
+          if (milestoneIndex === p.milestoneIndex) {
+            row.setAttribute('aria-current', 'step')
+          }
+          const label = (milestoneIndex < p.milestoneIndex ? '✓ ' : '') + 'M' + (milestoneIndex + 1)
+          const targets = Arr.map(
+            mission.requirements,
+            (r) => r.quota + ' × ' + r.value + (r.minRatePerMin === undefined ? '' : ' (' + r.minRatePerMin + '/min)')
+          )
+          row.append(tag(label, 'stage'), tag(Arr.join(targets, ' + '), 'targets'), tag(mission.reward, 'unlock'))
+          return row
+        })
+      )
       element('requirements').replaceChildren()
       rows = Arr.map(m.requirements, (r) => requirementRow(r, () => recipe(r.value)))
       element('milestone').textContent = 'Milestone ' + (p.milestoneIndex + 1)
@@ -275,10 +304,9 @@ export function hud({
     }
     previousSparks = p.sparks
     element('sparks').textContent = p.sparks.toLocaleString('en-US')
-    for (const { t, button, name } of dock) {
-      button.hidden = p.milestoneIndex < t.unlock
+    for (const { t, button } of dock) {
+      button.hidden = p.milestoneIndex < t.unlock || (t.id === 'blueprint' && p.milestoneIndex === 0)
       button.setAttribute('aria-pressed', String(t.id === tool))
-      name.textContent = t.name
     }
     const showAscend = p.milestoneIndex >= 7 || p.meta.ascensions > 0
     element('workshop').hidden = p.milestoneIndex === 0 && !showAscend

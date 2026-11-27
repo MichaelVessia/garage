@@ -1,5 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import {
+  applyEdits,
   createRuntime,
   Game,
   Progression,
@@ -8,6 +9,7 @@ import {
   simulation,
   exportSave,
 } from '@garage/beltworks-domain'
+import * as Option from 'effect/Option'
 
 import { editHistory } from '../src/history.ts'
 import { loadBoard, saveBoard } from '../src/storage.ts'
@@ -61,7 +63,7 @@ it('undoes the most recent 25 edits and restores the complete prior snapshot', (
   const before = exportSave(r)
   history.record(before)
   enqueue({ type: 'placeBuilding', gx: 14, gy: 10, dir: 'S', kind: 'belt' })(r)
-  r.tick(simulation)
+  r.tick(applyEdits)
   assert.isTrue(history.undo())
   assert.deepEqual(exportSave(r), before)
   for (let n = 0; n < 24; n++) {
@@ -70,7 +72,7 @@ it('undoes the most recent 25 edits and restores the complete prior snapshot', (
   assert.isFalse(history.undo())
 })
 
-it('keeps a medal after undo restores an earlier factory', () => {
+it('keeps the run timer, best finish and medals when undo restores an earlier factory', () => {
   const r = createRuntime(0)
   const history = editHistory(r)
   history.record(exportSave(r))
@@ -78,7 +80,11 @@ it('keeps a medal after undo restores an earlier factory', () => {
     Game.Schedule(
       Game.System('Test/EarnMedal', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) => {
         const p = resources.p.get()
-        resources.p.set({ ...p, meta: { ...p.meta, medals: ['blueprintArchitect'] } })
+        resources.p.set({
+          ...p,
+          runTicks: 120,
+          meta: { ...p.meta, bestRunTicks: Option.some(90), medals: ['blueprintArchitect'] },
+        })
       })
     )
   )
@@ -87,8 +93,10 @@ it('keeps a medal after undo restores an earlier factory', () => {
     Game.Inspector(
       'Test/RestoredMedals',
       { resources: { p: Game.System.readResource(Progression) } },
-      ({ resources }) => resources.p.get().meta.medals
+      ({ resources }) => resources.p.get()
     )
   )
-  assert.deepEqual(current, ['blueprintArchitect'])
+  assert.equal(current.runTicks, 120)
+  assert.deepEqual(current.meta.bestRunTicks, Option.some(90))
+  assert.deepEqual(current.meta.medals, ['blueprintArchitect'])
 })

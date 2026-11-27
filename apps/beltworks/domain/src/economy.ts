@@ -1,5 +1,6 @@
 import * as Arr from 'effect/Array'
 import * as Fn from 'effect/Function'
+import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 
 import type { BoardTier, initial, MetaUpgradeKey, Mutator, Upgrade } from './model.ts'
@@ -62,7 +63,7 @@ export function milestoneFor(p: State): Mission {
       return { ...r, minRatePerMin: Math.ceil(r.minRatePerMin * 1.5) }
     }
     return p.meta.mutator === 'primeRush' && p.milestoneIndex >= 3 && i === 0 && prime !== undefined
-      ? { ...r, value: prime }
+      ? { ...r, value: prime, quota: p.milestoneIndex === 6 ? 290 : r.quota }
       : r
   })
   return { ...mission, requirements }
@@ -193,6 +194,12 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
   const extraStockCents = (p.vaultRemainders[value] ?? 0) + 35 * p.meta.metaUpgrades.masterySynergy
   const next: State = {
     ...p,
+    meta:
+      complete &&
+      p.milestoneIndex === 7 &&
+      (Option.isNone(p.meta.bestRunTicks) || p.runTicks < p.meta.bestRunTicks.value)
+        ? { ...p.meta, bestRunTicks: Option.some(p.runTicks) }
+        : p.meta,
     sparkCents: cents % 100,
     totalDelivered: p.totalDelivered + 1,
     sparks: p.sparks + sparksEarned,
