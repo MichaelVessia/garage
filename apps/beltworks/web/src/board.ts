@@ -22,8 +22,9 @@ import { Descriptor } from '@typeonce/ritmo'
 import { PixiNodeRegistry } from '@typeonce/ritmo-pixi'
 import { RenderSync } from '@typeonce/ritmo-render'
 import type { NodeRegistry } from '@typeonce/ritmo-render'
+import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
-import { Container, Graphics } from 'pixi.js'
+import { Container, Graphics, GraphicsContext } from 'pixi.js'
 
 import { beltShape } from './beltShape.ts'
 import { ink, label, Machine, oreColor, tile } from './machines.ts'
@@ -33,6 +34,29 @@ const Veins = Descriptor.Service<NodeRegistry.NodeRegistry<Container>>()('Beltwo
 const Machines = Descriptor.Service<NodeRegistry.NodeRegistry<Machine>>()('Beltworks/Machines')
 const Items = Descriptor.Service<NodeRegistry.NodeRegistry<Cargo>>()('Beltworks/Items')
 
+const cargoBodies: Record<number, GraphicsContext> = {}
+function cargoBody(c: number) {
+  const existing = cargoBodies[c]
+  if (existing !== undefined) {
+    return existing
+  }
+  const body = new GraphicsContext()
+    .roundRect(-13, -10.5, 26, 26, 8)
+    .setFillStyle({ color: 0x05_09_0d, alpha: 0.65 })
+    .fill()
+    .roundRect(-13, -13, 26, 26, 8)
+    .fill(c)
+    .stroke({ width: 1, color: ink })
+    .roundRect(-10, -10, 20, 20, 6)
+    .setFillStyle({ color: 0x10_18_20, alpha: 0.78 })
+    .fill()
+    .moveTo(-7, -10)
+    .quadraticCurveTo(0, -12, 7, -10)
+    .stroke({ width: 1, color: 0xff_ff_ff, alpha: 0.75 })
+  body.batchMode = 'batch'
+  cargoBodies[c] = body
+  return body
+}
 class Cargo extends Container {
   stalled = false
   readonly pulse = this.addChild(new Graphics().circle(0, 0, 16).stroke({ color: 0xff_b8_51, width: 3 }))
@@ -195,18 +219,33 @@ export function createBoard() {
   let flowLens = false
   let hoveredKey = Option.none<string>()
   let selectedKey = Option.none<string>()
+  let drawnAuras = ''
   function drawAuras() {
-    auras.clear()
     if (!flowLens && Option.isNone(hoveredKey) && Option.isNone(selectedKey)) {
+      if (drawnAuras !== '') {
+        auras.clear()
+        drawnAuras = ''
+      }
       return
     }
-    for (const [, node] of machines.entries()) {
-      const cellKey = key({ gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) })
-      if (
-        node.state.kind === 'beacon' &&
-        (flowLens || Option.contains(hoveredKey, cellKey) || Option.contains(selectedKey, cellKey))
-      ) {
-        beaconAura(auras, node, node.state.fuelTicks > 0, auraRadius)
+    const visible = Arr.flatMap(buildings.children, (node) => {
+      if (node.state.kind !== 'beacon') {
+        return []
+      }
+      const cell = key({ gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) })
+      return flowLens || Option.contains(hoveredKey, cell) || Option.contains(selectedKey, cell)
+        ? [{ node, cell, fueled: node.state.fuelTicks > 0 }]
+        : []
+    })
+    const signature = Arr.join(
+      Arr.map(visible, ({ cell, fueled }) => cell + '/' + fueled + '/' + auraRadius),
+      ','
+    )
+    if (signature !== drawnAuras) {
+      drawnAuras = signature
+      auras.clear()
+      for (const { node, fueled } of visible) {
+        beaconAura(auras, node, fueled, auraRadius)
       }
     }
   }
@@ -358,21 +397,7 @@ export const draw = Game.Schedule(
     create: ({ renderable: { value } }) => {
       const n = new Cargo({ label: String(value) })
       const c = oreColor(value)
-      n.addChild(
-        new Graphics()
-          .roundRect(-13, -10.5, 26, 26, 8)
-          .setFillStyle({ color: 0x05_09_0d, alpha: 0.65 })
-          .fill()
-          .roundRect(-13, -13, 26, 26, 8)
-          .fill(c)
-          .stroke({ width: 1, color: ink })
-          .roundRect(-10, -10, 20, 20, 6)
-          .setFillStyle({ color: 0x10_18_20, alpha: 0.78 })
-          .fill()
-          .moveTo(-7, -10)
-          .quadraticCurveTo(0, -12, 7, -10)
-          .stroke({ width: 1, color: 0xff_ff_ff, alpha: 0.75 })
-      )
+      n.addChild(new Graphics(cargoBody(c)))
       n.addChild(label({ text: String(value), size: Math.min(16, 34 / String(value).length), fill: 0xff_ff_ff }))
       return n
     },

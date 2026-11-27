@@ -10,7 +10,7 @@
   --line: rgba(120, 158, 178, 0.24);
   --gold: #e8b86d;
   --mint: #87e3ce;
-  --glass: rgba(14, 22, 29, 0.88);
+  --glass: rgba(14, 22, 29, 0.94);
 }
 * {
   box-sizing: border-box;
@@ -56,7 +56,6 @@ header > *,
   background: var(--glass);
   border: 1px solid var(--line);
   border-radius: 13px;
-  backdrop-filter: blur(12px);
   box-shadow:
     0 5px 20px #04090d66,
     inset 0 1px #ffffff07;
@@ -613,7 +612,6 @@ summary {
   padding: 14px;
   color: inherit;
   background: var(--glass);
-  backdrop-filter: blur(16px);
   border: 1px solid var(--line);
   border-radius: 12px;
   pointer-events: auto;
@@ -651,7 +649,6 @@ summary {
     background: transparent;
     border: 0;
     box-shadow: none;
-    backdrop-filter: none;
   }
   #bar h1 { padding: 0 3px; font-size: 17px; }
   .mission { flex: 1; padding: 0; min-width: 0; }
@@ -707,7 +704,6 @@ summary {
     padding: 0 max(4px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(4px, env(safe-area-inset-left));
     border-radius: 16px 16px 0 0;
     background: #132029eb;
-    backdrop-filter: blur(16px);
     overscroll-behavior: contain;
   }
   #workshop > summary, #workshop .help, #minimap, #direction, #dock small { display: none; }
@@ -770,7 +766,6 @@ summary {
   max-height: 84dvh;
   color: inherit;
   background: linear-gradient(145deg, #202e37f7, #101920f5 64%);
-  backdrop-filter: blur(18px);
   border: 1px solid #48565c;
   border-radius: 16px;
   box-shadow: 0 18px 60px #0009;

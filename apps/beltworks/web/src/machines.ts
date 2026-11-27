@@ -11,7 +11,7 @@ import {
 import type { BuildingState, Direction, initial } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
-import { Container, Graphics, Text } from 'pixi.js'
+import { Container, Graphics, GraphicsContext, Text } from 'pixi.js'
 
 import type { beltShape } from './beltShape.ts'
 
@@ -87,19 +87,79 @@ function arrow(g: Graphics, x: number, y: number, color: number) {
     .lineTo(x + 4, y + 2)
     .stroke({ width: 2, color })
 }
+// Geometry is shared across machines. Each animation has a bounded set of phases.
+const animationFrames: Record<string, Array<GraphicsContext>> = {}
+const chevron = new GraphicsContext().moveTo(-4, 4).lineTo(0, -2).lineTo(4, 4).stroke({ width: 2, color: 0x5f_9c_9c })
+const emptyDetail = new GraphicsContext()
+function frame(group: string, phase: number, paint: (g: GraphicsContext) => void) {
+  const frames = (animationFrames[group] ??= [])
+  const existing = frames[phase]
+  if (existing !== undefined) {
+    return existing
+  }
+  const context = new GraphicsContext()
+  paint(context)
+  frames[phase] = context
+  return context
+}
 export class Machine extends Container {
   readonly mounted = performance.now()
   readonly plate = this.addChild(new Graphics())
-  readonly detail = this.addChild(new Graphics())
+  readonly detail = this.addChild(new Graphics(emptyDetail))
+  private rotor?: Graphics
+  private hubProgress = -1
+  private hubDetail?: GraphicsContext
+  private readonly chevrons = this.addChild(new Container<Graphics>())
   readonly symbol = this.addChild(label({ text: '', size: 18, fill: 0xee_f5_ef }))
   readonly a = this.addChild(label({ text: '', size: 10, fill: aqua }))
   readonly b = this.addChild(label({ text: '', size: 10, fill: gold }))
   state: BuildingState = { kind: 'belt' }
   facing: Direction = 'N'
   update(state: BuildingState, dir: Direction, ore = '') {
-    if (this.label === 'belt' && state.kind === 'belt' && this.facing === dir) {
+    const previous = this.state
+    if (this.label === state.kind && this.facing === dir) {
       this.state = state
-      return
+      switch (state.kind) {
+        case 'combiner':
+          if (previous.kind === 'combiner' && previous.op === state.op) {
+            this.a.text = Option.match(state.slotA, { onNone: () => 'A', onSome: String })
+            this.b.text = Option.match(state.slotB, { onNone: () => 'B', onSome: String })
+            return
+          }
+          break
+        case 'beacon':
+          if (previous.kind === 'beacon' && previous.fuelTicks > 0 === state.fuelTicks > 0) {
+            return
+          }
+          break
+        case 'buffer':
+          if (
+            previous.kind === 'buffer' &&
+            previous.count === state.count &&
+            Option.getOrUndefined(previous.storedValue) === Option.getOrUndefined(state.storedValue)
+          ) {
+            return
+          }
+          break
+        case 'filter':
+          if (previous.kind === 'filter' && previous.targetValue === state.targetValue) {
+            return
+          }
+          break
+        case 'extractor':
+          if (this.symbol.text === ore) {
+            return
+          }
+          break
+        default:
+          return
+      }
+    }
+    this.chevrons.visible = state.kind === 'belt'
+    this.detail.context = emptyDetail
+    this.hubProgress = -1
+    if (this.rotor !== undefined) {
+      this.rotor.visible = state.kind === 'extractor'
     }
     this.facing = dir
     this.label = state.kind
@@ -111,6 +171,7 @@ export class Machine extends Container {
     this.b.alpha = 1
     this.plate.rotation = { N: 0, E: Math.PI / 2, S: Math.PI, W: -Math.PI / 2 }[dir]
     this.detail.rotation = this.plate.rotation
+    this.chevrons.rotation = this.plate.rotation
     const g = this.plate.clear()
     this.symbol.text = ''
     this.symbol.style.fontSize = 18
@@ -278,6 +339,9 @@ export class Machine extends Container {
         this.a.text = 'HUB'
         break
     }
+    this.symbol.visible = this.symbol.text !== '' || state.kind === 'hub'
+    this.a.visible = this.a.text !== ''
+    this.b.visible = this.b.text !== ''
     const cos = Math.cos(g.rotation),
       sin = Math.sin(g.rotation)
     this.a.position.set(-14 * cos - 8 * sin, -14 * sin + 8 * cos)
@@ -289,7 +353,7 @@ export class Machine extends Container {
       this.a.position.set(0, -19)
     }
   }
-  private lanes = [0]
+  private lanes: Array<number> = []
   private inletCapped = true
   private capped = true
   track(shape: ReturnType<typeof beltShape>) {
@@ -303,6 +367,13 @@ export class Machine extends Container {
     }
     this.capped = !shape.connected
     this.inletCapped = shape.inDirs.length === 0
+    const count = Arr.reduce(this.lanes, 0, (sum, side) => sum + (side === 0 ? 3 : 2))
+    while (this.chevrons.children.length < count) {
+      this.chevrons.addChild(new Graphics(chevron))
+    }
+    while (this.chevrons.children.length > count) {
+      this.chevrons.removeChildAt(count).destroy()
+    }
     const entry = this.inletCapped ? 19 : 24
     const exit = this.capped ? 19 : 24
     for (const [width, color] of [
@@ -337,7 +408,6 @@ export class Machine extends Container {
     }
   }
   animate(tick: number, p: typeof initial, flowLens = false) {
-    const g = this.detail.clear()
     const state = this.state
     switch (state.kind) {
       case 'tunnelIn':
@@ -346,40 +416,40 @@ export class Machine extends Container {
       case 'filter':
         break
       case 'trash':
-        for (const side of [-1, 1]) {
-          g.roundRect(side * 7 - 5, -12, 10, 24, 4).fill(0x60_74_81)
-          for (let y = -11; y < 9; y += 5) {
-            const shift = side === 1 ? (tick / 4) % 5 : 5 - ((tick / 4) % 5)
-            g.moveTo(side * 7 - 4, y + shift)
-              .lineTo(side * 7 + 4, y + shift + side * 2)
-              .stroke({ color: ink, width: 2 })
+        this.detail.context = frame('trash', tick % 20, (g) => {
+          for (const side of [-1, 1]) {
+            g.roundRect(side * 7 - 5, -12, 10, 24, 4).fill(0x60_74_81)
+            for (let y = -11; y < 9; y += 5) {
+              const shift = side === 1 ? (tick / 4) % 5 : 5 - ((tick / 4) % 5)
+              g.moveTo(side * 7 - 4, y + shift)
+                .lineTo(side * 7 + 4, y + shift + side * 2)
+                .stroke({ color: ink, width: 2 })
+            }
           }
-        }
+        })
         break
       case 'belt': {
         const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * productionSpeed(p))) / 1000
+        const spacing = tile / 3
+        const offset = (distance * tile) % spacing
+        let index = 0
         for (const side of this.lanes) {
           const radius = tile / 2
           const length = side === 0 ? tile : (Math.PI * radius) / 2
-          const spacing = tile / 3
           const count = Math.floor(length / spacing)
           const margin = (length - count * spacing) / 2
           for (let i = 0; i < count; i++) {
-            const along = margin + i * spacing + ((distance * tile) % spacing)
-            if ((this.inletCapped && along < 12) || (this.capped && along > length - 8)) {
-              continue
+            const along = margin + i * spacing + offset
+            const mark = this.chevrons.getChildAt(index++)
+            mark.visible = !((this.inletCapped && along < 12) || (this.capped && along > length - 8))
+            if (side === 0) {
+              mark.position.set(0, radius - along)
+              mark.rotation = 0
+            } else {
+              const angle = along / radius
+              mark.position.set(side * radius * (1 - Math.sin(angle)), radius * (Math.cos(angle) - 1))
+              mark.rotation = side * (angle - Math.PI / 2)
             }
-            const angle = along / radius
-            const tx = -side * Math.cos(angle)
-            const ty = side === 0 ? -1 : -Math.sin(angle)
-            const cx = side * radius * (1 - Math.sin(angle))
-            const cy = side === 0 ? radius - along : radius * (Math.cos(angle) - 1)
-            const nx = -ty
-            const ny = tx
-            g.moveTo(cx - tx * 4 - nx * 4, cy - ty * 4 - ny * 4)
-              .lineTo(cx + tx * 2, cy + ty * 2)
-              .lineTo(cx - tx * 4 + nx * 4, cy - ty * 4 + ny * 4)
-              .stroke({ width: 2, color: 0x5f_9c_9c })
           }
         }
         break
@@ -387,44 +457,74 @@ export class Machine extends Container {
       case 'extractor': {
         const period = extractorPeriod(p.upgrades.extractorSpeed) / productionSpeed(p)
         const fraction = 1 - state.remainingTicks / period
-        g.save().rotateTransform((tick / period) * Math.PI)
-        for (let i = 0; i < 8; i++) {
-          g.rotateTransform(Math.PI / 4)
-            .rect(-2, -16, 4, 4)
-            .fill(0x98_ae_aa)
+        if (this.rotor === undefined) {
+          this.rotor = this.addChildAt(
+            new Graphics(
+              frame('rotor', 0, (g) => {
+                for (let i = 0; i < 8; i++) {
+                  g.rotate(Math.PI / 4)
+                    .rect(-2, -16, 4, 4)
+                    .fill(0x98_ae_aa)
+                }
+              })
+            ),
+            1
+          )
         }
-        g.restore()
-          .arc(0, 0, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, fraction))
-          .stroke({ color: aqua, width: 1.5 })
+        this.rotor.rotation = this.plate.rotation + (tick / period) * Math.PI
+        const phase = Math.round(128 * Math.max(0, Math.min(1, fraction)))
+        this.detail.context = frame('extraction', phase, (g) => {
+          g.arc(0, 0, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, phase / 128)).stroke({
+            color: aqua,
+            width: 1.5,
+          })
+        })
         break
       }
       case 'beacon':
         if (state.fuelTicks > 0) {
-          const angle = tick * 0.055
-          g.save().translateTransform(0, -8).scaleTransform(1, 0.48)
-          g.circle(0, 0, 15).stroke({ color: aqua, width: 3, alpha: 0.38 })
-          g.arc(0, 0, 15, angle, angle + Math.PI * 0.7).stroke({ color: 0xcd_ff_f9, width: 3 })
-          g.restore()
+          const phase = Math.floor((((tick * 0.055) % (2 * Math.PI)) * 128) / (2 * Math.PI))
+          this.detail.context = frame('beacon', phase, (g) => {
+            const angle = (phase * 2 * Math.PI) / 128
+            g.save().translate(0, -8).scale(1, 0.48)
+            g.circle(0, 0, 15).stroke({ color: aqua, width: 3, alpha: 0.38 })
+            g.arc(0, 0, 15, angle, angle + Math.PI * 0.7).stroke({ color: 0xcd_ff_f9, width: 3 })
+            g.restore()
+          })
+        } else {
+          this.detail.context = emptyDetail
         }
         break
-      case 'combiner':
-        if (flowLens && Option.isSome(state.slotA) !== Option.isSome(state.slotB)) {
-          g.circle(0, 0, 21).stroke({ color: 0xff_83_78, width: 5, alpha: 0.3 })
-          g.circle(0, 0, 21).stroke({ color: 0xff_83_78, width: 1.5 })
-        }
-        if (state.remainingTicks > 0) {
-          const start = -Math.PI / 2
-          const end =
-            start +
-            2 *
-              Math.PI *
-              Math.max(0.01, 1 - (state.remainingTicks * productionSpeed(p)) / craftPeriod(p.upgrades.combinerSpeed))
-          g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 4, alpha: 0.25 })
-          g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 1.6 })
-        }
+      case 'combiner': {
+        const missing = flowLens && Option.isSome(state.slotA) !== Option.isSome(state.slotB)
+        const phase =
+          state.remainingTicks > 0
+            ? Math.round(
+                128 *
+                  Math.max(
+                    0.01,
+                    1 - (state.remainingTicks * productionSpeed(p)) / craftPeriod(p.upgrades.combinerSpeed)
+                  )
+              )
+            : 0
+        this.detail.context = frame(missing ? 'missing' : 'craft', phase, (g) => {
+          if (missing) {
+            g.circle(0, 0, 21).stroke({ color: 0xff_83_78, width: 5, alpha: 0.3 })
+            g.circle(0, 0, 21).stroke({ color: 0xff_83_78, width: 1.5 })
+          }
+          if (phase > 0) {
+            const start = -Math.PI / 2
+            const end = start + (2 * Math.PI * phase) / 128
+            g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 4, alpha: 0.25 })
+            g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 1.6 })
+          }
+        })
         break
+      }
       case 'splitter':
-        g.circle(state.nextPort === 0 ? -10 : 10, 0, 3).fill(gold)
+        this.detail.context = frame('splitter', state.nextPort, (g) => {
+          g.circle(state.nextPort === 0 ? -10 : 10, 0, 3).fill(gold)
+        })
         break
       case 'hub': {
         const { requirements } = milestoneFor(p)
@@ -437,6 +537,12 @@ export class Machine extends Container {
           Arr.reduce(requirements, 0, (sum, { value, quota }) => sum + Math.min(1, (p.delivered[value] ?? 0) / quota)) /
           requirements.length
         const start = -Math.PI / 2
+        if (this.hubProgress === progress) {
+          break
+        }
+        this.hubProgress = progress
+        const g = (this.hubDetail ??= new GraphicsContext()).clear()
+        this.detail.context = g
         const end = start + Math.PI * 2 * progress
         if (end > start) {
           g.arc(0, 0, 30, start, end).stroke({ width: 7, color: aqua, alpha: 0.22 })
