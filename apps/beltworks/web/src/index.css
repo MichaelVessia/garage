@@ -203,10 +203,14 @@ kbd,
   color: var(--gold);
   background: #29261ef0;
 }
-nav {
+header nav {
   margin-left: auto;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  gap: 6px;
   display: flex;
-  padding: 4px;
+  padding: 0;
   align-items: center;
 }
 button,
@@ -229,7 +233,13 @@ nav svg {
   width: 16px;
   height: 16px;
 }
-nav button + button {
+nav > button, .playback {
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.playback { display: flex; }
+.playback button + button {
   border-left: 1px solid var(--line);
 }
 button:hover:enabled,
@@ -533,8 +543,6 @@ summary {
 @media (min-width: 1101px) and (max-width: 1320px) {
   #bar { gap: 6px; }
   #bar h1 { font-size: 20px; padding: 9px 11px; }
-  #bar nav button { padding: 7px 5px; white-space: nowrap; }
-  #bar #lens span, #bar #center span { display: none; }
   #requirements .target, #requirements .quota, #requirements .rate { white-space: nowrap; }
 }
 
@@ -565,7 +573,29 @@ summary {
 #dock.starter [data-tool="erase"] { order: 1; }
 
 .mobile-control { display: none; }
-#more-actions { display: contents; }
+#more { anchor-name: --more; font-size: 20px; line-height: 1; min-width: 34px; justify-content: center; }
+#more-actions:popover-open {
+  display: grid;
+  position: fixed;
+  inset: var(--drawer-top, 74px) max(16px, env(safe-area-inset-right)) auto auto;
+  position-anchor: --more;
+  top: calc(anchor(bottom) + 6px);
+  margin: 0;
+  width: 204px;
+  max-height: 70dvh;
+  overflow: auto;
+  padding: 6px;
+  color: inherit;
+  background: #15212af7;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #04090d80;
+}
+#more-actions button { justify-content: start; gap: 8px; padding: 8px 10px; }
+#more-actions kbd { margin-left: auto; }
+#more-actions hr { margin: 4px 6px; border-color: var(--line); }
+#lens[aria-pressed=true] { color: var(--mint); background: #193b36; }
+#clear, #reset { color: #f0b6a6; }
 
 @media (max-width: 768px) {
 
@@ -591,7 +621,7 @@ summary {
   }
   #bar h1 { padding: 0 3px; font-size: 17px; }
   .mission { flex: 1; padding: 0; min-width: 0; }
-  #milestone, #reward, .rate, .sparks-label, #pause span, #speed svg { display: none; }
+  #milestone, #reward, .rate, .sparks-label { display: none; }
   .requirement {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 1px 4px;
@@ -604,24 +634,9 @@ summary {
   .requirement progress { grid-column: 2; height: 3px; }
   .sparks { padding: 0 2px; gap: 1px; max-width: 18vw; }
   .sparks svg { width: 13px; }
-  nav { margin: 0; padding: 0; }
+  header nav { margin: 0; gap: 2px; }
   nav button { min-height: 36px; padding: 3px 6px; }
   .mobile-control { display: inline-flex; align-items: center; justify-content: center; }
-  #more-actions { display: none; }
-  #more-actions:popover-open {
-    display: grid;
-    position: fixed;
-    inset: var(--drawer-top, 54px) max(6px, env(safe-area-inset-right)) auto auto;
-    margin: 0;
-    padding: 4px;
-    max-height: 70dvh;
-    overflow: auto;
-    background: #15212a;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    pointer-events: auto;
-  }
-  #more-actions button { justify-content: start; padding: 5px 12px; border: 0; }
   #roadmap { top: var(--drawer-top, 54px); left: max(5px, env(safe-area-inset-left)); }
   #minimap, #direction, #dock small { display: none; }
   .drawer-tabs button { min-height: 40px; }
@@ -648,7 +663,7 @@ summary {
 }
 
 @media (max-width: 768px) {
-  #more { font-size: 20px; line-height: 1; }
+  #more-actions:popover-open { right: max(6px, env(safe-area-inset-right)); }
   #close-workshop { font-size: 24px; width: 44px; }
   #rotate svg { width: 22px; height: 22px; }
   #dock { mask-image: linear-gradient(to right, transparent, black 3px, black calc(100% - 5px), transparent); }
@@ -843,7 +858,6 @@ summary {
 }
 
 @media (min-width:769px) and (max-width:1550px) {
-  #more-actions :is(#clear,#reset,#undo,#center,#sound,#lens) span { display: none; }
   #bar .mission { flex-shrink: 0; }
   #bar nav button { white-space: nowrap; }
 }

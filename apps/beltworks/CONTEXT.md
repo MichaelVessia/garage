@@ -77,7 +77,7 @@ From Ring 2, click or drag the minimap to pan the board. Dragging belts or erasi
 
 ## Global leaderboard
 
-Open **Leaderboard** beside **Share** on a desktop or from **More actions** on a phone. Players join automatically after their first delivery. Milestones and ascensions update the score immediately. Other changes sync at most once every 30 seconds during periodic saves. Edit the generated callsign and select **Save & update** to rename the entry.
+Select the trophy beside **More actions** to open the global leaderboard. Players join automatically after their first delivery. Milestones and ascensions update the score immediately. Other changes sync at most once every 30 seconds during periodic saves. Edit the generated callsign and select **Save & update** to rename the entry.
 
 Each board shows up to 50 players. Foundry Rank orders players by ascensions, lifetime Cores, current milestone and verified delivery rate. Fastest M8 keeps each player's shortest run to M8. Verified Rate keeps the highest measured rate. The server runs a copy of the submitted factory for 600 ticks. Each delivery of a current mission value or Vault landmark counts as six items per minute.
 

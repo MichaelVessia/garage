@@ -822,7 +822,7 @@ function confirmAction(id: string, title: string, confirm: string, action: () =>
     }, 3000)
   }
 }
-confirmAction('reset', 'Reset', 'Confirm reset', () => {
+confirmAction('reset', 'Reset run', 'Confirm reset', () => {
   history.clear()
   edit({ type: 'resetBoard' })
   choose('extractor')
@@ -1235,10 +1235,10 @@ window.addEventListener('keydown', (e) => {
     return
   }
   const k = Str.toLowerCase(e.key)
-  if (inspection.visiting && k !== 'h' && k !== 'v') {
+  if (inspection.visiting && k !== 'h' && k !== 'v' && k !== '?') {
     return
   }
-  if (k === 'escape' && document.querySelector('#roadmap:popover-open') !== null) {
+  if (k === 'escape' && document.querySelector(':popover-open') !== null) {
     return
   }
   if (filterForm.hidden === false && k === 'escape') {
@@ -1260,7 +1260,9 @@ window.addEventListener('keydown', (e) => {
     return
   }
   const hoveredState = Option.isSome(hovered) ? machineAt(hovered.value)?.state : undefined
-  if (k === 'v') {
+  if (k === '?') {
+    element('controls').togglePopover()
+  } else if (k === 'v') {
     toggleLens()
   } else if (k === 'f' && Option.isSome(hovered) && hoveredState?.kind === 'filter') {
     openFilter(hovered.value, hoveredState.targetValue)

@@ -212,9 +212,6 @@ export function hud({
   if (sheet === null) {
     throw new Error('Expected a Research dialog')
   }
-  const layoutMenu = () => element('more-actions').toggleAttribute('popover', mobile.matches)
-  layoutMenu()
-  mobile.addEventListener('change', layoutMenu)
   const openResearch = () => {
     if (trigger.hidden === true) {
       return
