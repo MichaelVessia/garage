@@ -18,12 +18,29 @@ import * as Effect from 'effect/Effect'
 import * as Request from 'effect/http/HttpServerRequest'
 import * as Response from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
+import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 import * as S from 'effect/Schema'
 import * as TestClock from 'effect/testing/TestClock'
 
 import { FactoryStore, router } from '../src/BeltworksRouter.ts'
 import { catchUp } from '../src/catchUp.ts'
+import { LeaderboardStore, readBoards, updateBoards } from '../src/LeaderboardStore.ts'
+import type { PlayerEntry } from '../src/LeaderboardStore.ts'
+import { verifyFactoryThroughput } from '../src/verifyThroughput.ts'
+
+const leaderboard = Layer.sync(LeaderboardStore, () => {
+  const players = new Map<string, PlayerEntry>()
+  return LeaderboardStore.of({
+    list: (viewer) => Effect.sync(() => readBoards({ entries: players.values(), viewer })),
+    submit: (incoming) =>
+      Effect.sync(() => {
+        const { updated, result } = updateBoards({ players, incoming })
+        players.set(updated.playerId, updated)
+        return result
+      }),
+  })
+})
 
 const memory = Layer.sync(FactoryStore, () => {
   const records = new Map<string, unknown>()
@@ -135,7 +152,7 @@ it.effect('saves, advances and shares a factory without credentials', () =>
     assert.deepEqual(after.save, again.save)
     const original = yield* request('/api/shares/' + shared.shareId).pipe(Effect.flatMap(json))
     assert.deepEqual(original, { save })
-  }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
+  }).pipe(Effect.provide([memory, leaderboard, SecureRandom.layerWebCrypto]))
 )
 
 it.effect('shares and advances an ascended v7 factory with a fueled beacon', () =>
@@ -204,5 +221,150 @@ it.effect('shares and advances an ascended v7 factory with a fueled beacon', () 
     assert.equal(progression.runTicks, 600)
     assert.equal(progression.meta.ascensions, 1)
     assert.includeMembers([...progression.meta.medals], ['ascended'])
-  }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
+  }).pipe(Effect.provide([memory, leaderboard, SecureRandom.layerWebCrypto]))
 )
+
+it('excludes untracked deliveries and saved history from the measured rate', () => {
+  const board = createRuntime(0)
+  enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 21, gy: 13, dir: 'W' })(board)
+  for (const gx of [19, 20]) {
+    enqueue({ type: 'placeBuilding', kind: 'belt', gx, gy: 13, dir: 'W' })(board)
+  }
+  board.tick(applyEdits)
+  board.tick(
+    Game.Schedule(
+      Game.System(
+        'Test/DeliveryHistory',
+        { resources: { p: Game.System.writeResource(Progression) } },
+        ({ resources }) =>
+          resources.p.set({
+            ...resources.p.get(),
+            deliveryWindow: [{ tick: 0, value: 1 }],
+            rateByValue: { 1: 1 },
+            totalDelivered: 100,
+          })
+      )
+    )
+  )
+  const verified = verifyFactoryThroughput(exportSave(board))
+  assert.equal(Option.getOrThrow(verified).score.verifiedThroughput, 0)
+  assert.isAbove(catchUp({ runtime: board, elapsedMs: 10_000 }).deliveredDelta, 0)
+})
+
+const boardPath = '/api/leaderboard'
+const post = Effect.fn(function* (payload: unknown) {
+  const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(payload)
+  return yield* request(boardPath, 'POST', body)
+})
+const posted = S.decodeUnknownEffect(
+  S.Struct({
+    entry: S.Struct({
+      callsign: S.String,
+      verifiedThroughput: S.Int,
+      milestone: S.Int,
+      bestRunTicks: S.NullOr(S.Int),
+      shareId: S.NullOr(S.String),
+    }),
+    ranks: S.Struct({ foundryRank: S.Int, fastestM8: S.NullOr(S.Int), throughput: S.NullOr(S.Int) }),
+  })
+)
+it.effect('ranks submitted factories, keeps best scores and shares the original snapshot', () =>
+  Effect.gen(function* () {
+    const runtime = createRuntime(0)
+    const empty = exportSave(runtime)
+    runtime.tick(
+      Game.Schedule(
+        Game.System(
+          'Test/ReadyForDelivery',
+          { resources: { p: Game.System.writeResource(Progression) } },
+          ({ resources }) => {
+            const p = resources.p.get()
+            resources.p.set({ ...p, delivered: { 1: 7 }, meta: { ...p.meta, bestRunTicks: Option.some(150) } })
+          }
+        )
+      )
+    )
+    enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 13, gy: 12, dir: 'E' })(runtime)
+    for (const gx of [14, 15, 16]) {
+      enqueue({ type: 'placeBuilding', kind: 'belt', gx, gy: 12, dir: 'E' })(runtime)
+    }
+    runtime.tick(applyEdits)
+    const save = exportSave(runtime)
+    const input = { playerId: 'player-1234', callsign: '  Forge  ', save }
+    yield* Effect.forEach(
+      [{ save: {} }, { callsign: '<img>' }, { callsign: ' ' }, { playerId: 'short' }, { shareFactory: 'yes' }],
+      (bad) => post({ ...input, ...bad }).pipe(Effect.map((response) => assert.equal(response.status, 400))),
+      { concurrency: 1 }
+    )
+    const first = yield* post({ ...input, shareFactory: true }).pipe(Effect.flatMap(json), Effect.flatMap(posted))
+    assert.equal(first.entry.callsign, 'Forge')
+    assert.equal(first.entry.milestone, 1)
+    const delivered = catchUp({ runtime, elapsedMs: 10_000 }).deliveredDelta
+    assert.isAbove(delivered, 0)
+    assert.equal(first.entry.verifiedThroughput, delivered * 6)
+    assert.deepEqual(first.ranks, { foundryRank: 1, fastestM8: 1, throughput: 1 })
+    assert.isNotNull(first.entry.shareId)
+    const shared = yield* request('/api/shares/' + first.entry.shareId).pipe(Effect.flatMap(json))
+    assert.deepEqual(shared, { save })
+    const second = yield* post({ ...input, save: empty, callsign: 'Mint' }).pipe(
+      Effect.flatMap(json),
+      Effect.flatMap(posted)
+    )
+    assert.deepEqual(second.entry, { ...first.entry, callsign: 'Mint' })
+    const other = yield* post({ ...input, playerId: 'player-5678', callsign: 'Idle', save: empty }).pipe(
+      Effect.flatMap(json),
+      Effect.flatMap(posted)
+    )
+    assert.deepEqual(other.ranks, { foundryRank: 2, fastestM8: null, throughput: null })
+    assert.equal(other.entry.verifiedThroughput, 0)
+    const row = S.Struct({ callsign: S.String, isYou: S.Boolean })
+    const response = yield* request(boardPath + '?playerId=player-5678')
+    const raw = yield* Effect.promise(() => response.text())
+    assert.notInclude(raw, 'playerId')
+    assert.notInclude(raw, 'player-1234')
+    const boards = yield* S.decodeEffect(
+      S.fromJsonString(
+        S.Struct({ totalPlayers: S.Int, foundryRank: S.Array(row), fastestM8: S.Array(row), throughput: S.Array(row) })
+      )
+    )(raw)
+    const mint = { callsign: 'Mint', isYou: false }
+    assert.deepEqual(boards, {
+      totalPlayers: 2,
+      foundryRank: [mint, { callsign: 'Idle', isYou: true }],
+      fastestM8: [mint],
+      throughput: [mint],
+    })
+  }).pipe(Effect.provide([memory, leaderboard, SecureRandom.layerWebCrypto]))
+)
+
+it('limits each board to 50 and ranks eligible players outside the published list', () => {
+  const players = new Map<string, PlayerEntry>()
+  for (let i = 1; i <= 52; i++) {
+    const playerId = 'factory-' + i
+    players.set(playerId, {
+      playerId,
+      callsign: playerId,
+      ascensions: 0,
+      totalCores: i,
+      milestone: 1,
+      medals: 0,
+      bestRunTicks: Option.some(i),
+      verifiedThroughput: i * 6,
+      shareId: Option.none(),
+      updatedAtMs: 0,
+    })
+  }
+  const result = readBoards({ entries: players.values(), viewer: '' })
+  assert.equal(result.totalPlayers, 52)
+  for (const board of [result.foundryRank, result.fastestM8, result.throughput]) {
+    assert.lengthOf(board, 50)
+  }
+  assert.equal(result.fastestM8[0]?.bestRunTicks, 1)
+  assert.equal(result.throughput[0]?.verifiedThroughput, 312)
+  const incoming = players.get('factory-1')
+  assert.isDefined(incoming)
+  if (incoming === undefined) {
+    throw new Error('Missing player')
+  }
+  assert.deepEqual(updateBoards({ players, incoming }).result.ranks, { foundryRank: 52, fastestM8: 1, throughput: 52 })
+})

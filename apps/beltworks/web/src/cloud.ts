@@ -12,14 +12,14 @@ import * as S from 'effect/Schema'
 
 const client = ManagedRuntime.make(FetchHttpClient.layer)
 const playerKey = 'beltworks:player-id:v4'
-function playerId() {
+function storedId(key: string) {
   try {
-    const existing = localStorage.getItem(playerKey)
+    const existing = localStorage.getItem(key)
     if (existing !== null && /^[a-zA-Z0-9-]{8,64}$/u.test(existing)) {
       return { id: existing, fresh: false }
     }
     const id = SecureRandom.uuidV4Unsafe()
-    localStorage.setItem(playerKey, id)
+    localStorage.setItem(key, id)
     return { id, fresh: true }
   } catch {
     return undefined
@@ -33,7 +33,23 @@ const snapshot = S.Struct({
 })
 const share = S.Struct({ shareId: S.String })
 
-export function cloud(runtime: Runtime) {
+export const leaderboardPlayerId = () =>
+  storedId('beltworks:leaderboard-player-id:v1')?.id ?? SecureRandom.uuidV4Unsafe()
+
+export const readSharedFactory = (id: string) =>
+  client.runPromise(
+    Effect.gen(function* () {
+      const response = yield* HttpClient.get(new URL('/api/shares/' + encodeURIComponent(id), location.origin)).pipe(
+        Effect.timeout(Duration.seconds(4))
+      )
+      if (response.status !== 200) {
+        return yield* Effect.fail('Shared factory unavailable')
+      }
+      return (yield* response.json.pipe(Effect.flatMap(S.decodeUnknownEffect(snapshot)))).save
+    })
+  )
+
+export function cloud({ runtime, getSave }: { runtime: Runtime; getSave: () => ReturnType<typeof exportSave> }) {
   if (import.meta.env.MODE === 'standalone') {
     return {
       upload: () => {},
@@ -41,12 +57,12 @@ export function cloud(runtime: Runtime) {
       shareLink: () => Promise.resolve('Start the full stack to share this factory'),
     }
   }
-  const player = playerId()
+  const player = storedId(playerKey)
   const path = new URL('/api/saves/' + player?.id, location.origin)
   function upload(revision: number, keepalive: boolean) {
     if (player !== undefined) {
       const put = Request.put(path, { headers: { 'x-factory-revision': String(revision) } }).pipe(
-        Request.bodyJsonUnsafe(exportSave(runtime)),
+        Request.bodyJsonUnsafe(getSave()),
         HttpClient.execute
       )
       client.runFork(put.pipe(Effect.provideService(FetchHttpClient.RequestInit, { keepalive })))
@@ -88,7 +104,7 @@ export function cloud(runtime: Runtime) {
   })
   const shareLink = Effect.gen(function* () {
     const response = yield* Request.post(new URL('/api/shares', location.origin)).pipe(
-      Request.bodyJsonUnsafe(exportSave(runtime)),
+      Request.bodyJsonUnsafe(getSave()),
       HttpClient.execute
     )
     if (response.status !== 200) {
@@ -106,7 +122,8 @@ export function cloud(runtime: Runtime) {
   })
   return {
     upload,
-    load: (canRestore: () => boolean, revision?: number) => client.runPromise(load(canRestore, revision)),
+    load: (canRestore: () => boolean, revision?: number) =>
+      client.runPromise(load(canRestore, revision)).catch(() => undefined),
     shareLink: () => client.runPromise(shareLink),
   }
 }

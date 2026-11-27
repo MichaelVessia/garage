@@ -81,6 +81,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
             <path d="m8 11 8-5M8 13l8 5"/><circle cx="5" cy="12" r="3"/><circle cx="19" cy="4" r="3"/><circle cx="19" cy="20" r="3"/>
           </svg><span>Share</span></button
+        ><button id="open-leaderboard" title="Global leaderboard" aria-label="Leaderboard" aria-haspopup="dialog" aria-controls="leaderboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v5a5 5 0 0 1-10 0zM7 5H3v2a5 5 0 0 0 5 5m9-7h4v2a5 5 0 0 1-5 5m-4 1v5m-4 3h8l-1-3H9z"/></svg>
+          <span>Leaderboard</span></button
         ><button id="lens" title="Flow Lens (V)" aria-pressed="false"><svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="m13 14 6 6M4 10h3l2-4 2 5h4"/></svg><span>Flow Lens</span></button
         ><button id="sound" title="Toggle sound" aria-pressed="false">
           <svg
@@ -151,6 +154,31 @@
       <button id="quick-upgrade">Open Upgrades</button>
     </section>
     <output id="notice" role="status"></output>
+    <section id="inspection-banner" hidden>
+      <strong id="inspection-label" role="status"></strong>
+      <button id="inspection-back">Back to my factory</button>
+    </section>
+    <dialog id="leaderboard" aria-labelledby="leaderboard-title">
+      <div class="leaderboard-content">
+        <div class="leaderboard-heading">
+          <div><h2 id="leaderboard-title">Global leaderboard</h2><p id="leaderboard-count"></p></div>
+          <button id="leaderboard-close" aria-label="Close leaderboard" autofocus>×</button>
+        </div>
+        <form id="leaderboard-form">
+          <label class="callsign-field">Callsign<input id="leaderboard-callsign" required maxlength="16" placeholder="Your callsign..." autocomplete="off" spellcheck="false" /></label>
+          <label class="share-field"><input type="checkbox" id="leaderboard-share" />Share my factory</label>
+          <button id="leaderboard-post">Post score</button>
+        </form>
+        <p id="leaderboard-status" role="status"></p>
+        <div class="leaderboard-tabs" role="group" aria-label="Ranking">
+          <button id="board-foundryRank" aria-pressed="true">Foundry Rank</button>
+          <button id="board-fastestM8" aria-pressed="false">Fastest M8</button>
+          <button id="board-throughput" aria-pressed="false">Verified Rate</button>
+        </div>
+        <div class="leaderboard-results"><table aria-labelledby="board-foundryRank"><thead><tr id="leaderboard-columns"></tr></thead><tbody id="leaderboard-rows"></tbody></table>
+        <p id="leaderboard-empty" role="status"></p></div>
+      </div>
+    </dialog>
     <dialog id="workshop-sheet" aria-label="Workshop"></dialog>
     <details id="workshop" open hidden>
       <summary>

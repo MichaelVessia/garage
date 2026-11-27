@@ -5,12 +5,15 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 
 import { FactoryStore, router } from './BeltworksRouter.ts'
+import LeaderboardObject from './LeaderboardObject.ts'
+import { encodeEntry, LeaderboardStore } from './LeaderboardStore.ts'
 
 const factories = Cloudflare.KV.Namespace('BeltworksFactories')
 export default class BeltworksWorker extends Cloudflare.Worker<BeltworksWorker>()(
   'BeltworksWorker',
   { main: import.meta.url, compatibility: { flags: ['nodejs_compat'] } },
   Effect.gen(function* () {
+    const leaderboard = yield* LeaderboardObject
     const services = yield* Layer.build(
       Layer.merge(Cloudflare.KV.ReadWriteNamespaceBinding, SecureRandom.layerWebCrypto)
     )
@@ -18,7 +21,13 @@ export default class BeltworksWorker extends Cloudflare.Worker<BeltworksWorker>(
     return {
       fetch: Effect.gen(function* () {
         const context = yield* RuntimeContext
+        const board = leaderboard.getByName('global')
         return yield* router.pipe(
+          Effect.provideService(LeaderboardStore, {
+            list: (viewer) => board.list(viewer).pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),
+            submit: (entry) =>
+              board.submit(encodeEntry(entry)).pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),
+          }),
           Effect.provideService(FactoryStore, {
             get: (key) => kv.get(key, 'json').pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),
             put: (key, value) => kv.put(key, value).pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),

@@ -36,10 +36,12 @@ import { Application, Graphics, Point } from 'pixi.js'
 import { Burst, draw, createBoard, stats } from './board.ts'
 import { expansionCamera } from './camera.ts'
 import type { Camera } from './camera.ts'
-import { cloud } from './cloud.ts'
+import { cloud, leaderboardPlayerId, readSharedFactory } from './cloud.ts'
 import { editHistory } from './history.ts'
 import { element, hud } from './hud.ts'
+import { factoryInspection } from './inspection.ts'
 import { inspectCell } from './inspector.ts'
+import { setupLeaderboard } from './leaderboard.ts'
 import { label, Machine, tile, oreColor } from './machines.ts'
 import { medalInfo } from './medals.ts'
 import { minimap } from './minimap.ts'
@@ -74,7 +76,8 @@ const history = editHistory(runtime)
 const undoButton = element('undo')
 const storage = () => window.localStorage
 const localRevision = loadBoard(storage)(runtime)
-const sync = cloud(runtime)
+const inspection = factoryInspection(runtime)
+const sync = cloud({ runtime, getSave: inspection.getSave })
 let editedSinceStart = false
 runtime.tick(draw)
 let view = runtime.inspect(stats)
@@ -263,6 +266,9 @@ function preview() {
   }
 }
 function choose(t: Tool) {
+  if (inspection.visiting && t !== 'select') {
+    return
+  }
   brush = Option.none()
   beltDrag = Option.none()
   selectedBeacon = Option.none()
@@ -538,7 +544,7 @@ const quota = milestone(0).requirements[0]?.quota ?? 8
 const touch = window.matchMedia('(pointer: coarse)')
 const cellOf = (node: { x: number; y: number }) => ({ gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) })
 function currentGuide() {
-  if (view.p.milestoneIndex > 1) {
+  if (inspection.visiting || view.p.milestoneIndex > 1) {
     return { step: 'hidden' } as const
   }
   const vein = (value: string) =>
@@ -720,6 +726,9 @@ function refresh(edited = false) {
   dirty = true
 }
 function edit(command: Command) {
+  if (inspection.visiting) {
+    return
+  }
   const tracked =
     command.type !== 'resetBoard' &&
     command.type !== 'expandBoard' &&
@@ -741,6 +750,7 @@ function edit(command: Command) {
       chime(220, 0, 0.035, 'triangle')
     }
     if (command.type === 'ascendBoard') {
+      leaderboard.sync()
       history.clear()
       choose('extractor')
       celebrate()
@@ -755,24 +765,33 @@ function edit(command: Command) {
   undoButton.toggleAttribute('disabled', !history.available)
 }
 function save(keepalive = false) {
-  if (dirty) {
+  if (!dirty) {
+    return
+  }
+  inspection.saveHome((home) => {
     const revision = Math.floor(performance.timeOrigin + performance.now())
     sync.upload(revision, keepalive)
-    if (saveBoard(storage)(runtime, revision)) {
+    if (saveBoard(storage)(home, revision)) {
       dirty = false
     } else {
       notify('Local save unavailable')
     }
-  }
+  })
 }
 let paused = false,
   speed = 1
 function pause() {
+  if (inspection.visiting) {
+    return
+  }
   paused = !paused
   control('pause', paused ? 'Play' : 'Pause', paused ? 'M6 3l12 8-12 8z' : 'M7 5v12m8-12v12')
 }
 element('pause').onclick = pause
 element('speed').onclick = () => {
+  if (inspection.visiting) {
+    return
+  }
   speed = speed === 4 ? 1 : speed * 2
   control('speed', speed + '×')
   element('speed').classList.toggle('active', speed > 1)
@@ -781,6 +800,9 @@ function confirmAction(id: string, title: string, confirm: string, action: () =>
   const button = element(id)
   let timer = 0
   button.onclick = () => {
+    if (inspection.visiting) {
+      return
+    }
     if (timer !== 0) {
       window.clearTimeout(timer)
       timer = 0
@@ -805,7 +827,7 @@ confirmAction('reset', 'Reset', 'Confirm reset', () => {
 })
 confirmAction('clear', 'Clear floor', 'Confirm clear', () => edit({ type: 'clearFloor' }))
 function undo() {
-  if (!history.undo()) {
+  if (inspection.visiting || !history.undo()) {
     return
   }
   brush = Option.none()
@@ -945,6 +967,9 @@ function machineAt(cell: Cell) {
 let brush = Option.none<{ cell: Cell; dir: Direction }>()
 canvas.oncontextmenu = (e) => e.preventDefault()
 function beginEdit(cell: Cell) {
+  if (inspection.visiting) {
+    return
+  }
   filterForm.hidden = true
   if (starterExtractor(cell)) {
     return
@@ -988,7 +1013,7 @@ function beginEdit(cell: Cell) {
   }
 }
 function extendBelt(cell: Cell) {
-  if (Option.isNone(brush)) {
+  if (inspection.visiting || Option.isNone(brush)) {
     return
   }
   const path = beltPath({
@@ -1213,7 +1238,13 @@ function rotateFacing() {
 }
 rotateButton.onclick = rotateFacing
 window.addEventListener('keydown', (e) => {
+  if (document.querySelector('#leaderboard:modal') !== null) {
+    return
+  }
   const k = Str.toLowerCase(e.key)
+  if (inspection.visiting && k !== 'h' && k !== 'v') {
+    return
+  }
   if (k === 'escape' && document.querySelector('#roadmap:popover-open') !== null) {
     return
   }
@@ -1280,14 +1311,70 @@ element('share').onclick = () => {
     .then(notify)
     .catch(() => notify('Could not share factory'))
 }
+let homeView = Option.none<{ tool: Tool; camera: Camera; dismissed: typeof dismissedMilestone }>()
+let inspectionRequest = 0
+function redrawFactory(nextTool: Tool) {
+  pendingStroke = Option.none()
+  clearStroke()
+  element('milestone-banner').hidden = true
+  for (const node of board.fx.removeChildren()) {
+    node.destroy({ children: true })
+  }
+  runtime.tick(draw)
+  refresh(true)
+  choose(nextTool)
+  center()
+  undoButton.toggleAttribute('disabled', inspection.visiting || !history.available)
+  for (const id of ['clear', 'reset', 'speed', 'pause']) {
+    element(id).toggleAttribute('disabled', inspection.visiting)
+  }
+}
+const resumed = sync.load(() => !editedSinceStart, localRevision)
+const leaderboard = setupLeaderboard({
+  getSave: inspection.getSave,
+  playerId: leaderboardPlayerId(),
+  inspect: (shareId, callsign) => {
+    const request = ++inspectionRequest
+    return Promise.all([readSharedFactory(shareId), resumed]).then(([shared]) => {
+      if (request !== inspectionRequest) {
+        return
+      }
+      save()
+      const camera = { scale: board.world.scale.x, x: board.world.x, y: board.world.y }
+      inspection.enter(shared)
+      if (Option.isNone(homeView)) {
+        homeView = Option.some({ tool, camera, dismissed: dismissedMilestone })
+      }
+      redrawFactory('select')
+      element('inspection-label').textContent = 'Inspecting ' + callsign + "'s factory"
+      element('inspection-banner').hidden = false
+    })
+  },
+})
+element('inspection-back').onclick = () => {
+  if (Option.isNone(homeView)) {
+    return
+  }
+  inspection.leave()
+  const { camera, tool: homeTool, dismissed } = homeView.value
+  inspectionRequest++
+  homeView = Option.none()
+  redrawFactory(homeTool)
+  dismissedMilestone = dismissed
+  animateBoard(true)
+  board.world.scale.set(camera.scale)
+  board.world.position.set(camera.x, camera.y)
+  element('inspection-banner').hidden = true
+}
 const loop = FixedLoop.start({
   source: BrowserTickSource.make(window),
   step,
   maxStepsPerFrame: 5,
   maxFrameSeconds: 0.25,
   update: () => {
-    if (!paused) {
-      for (let i = 0; i < speed; i++) {
+    if (!paused || inspection.visiting) {
+      const milestoneBefore = view.p.milestoneIndex
+      for (let i = 0; i < (inspection.visiting ? 1 : speed); i++) {
         const result = runtime.tick(simulation, observe)
         if (!result.ok) {
           return result
@@ -1295,6 +1382,9 @@ const loop = FixedLoop.start({
       }
       runtime.tick(draw)
       refresh()
+      if (!inspection.visiting && view.p.milestoneIndex > milestoneBefore) {
+        leaderboard.sync()
+      }
     }
     return Result.success(undefined)
   },
@@ -1350,7 +1440,7 @@ if (!loop.ok) {
   throw new Error('Could not start factory clock')
 }
 
-const restoredMessage = await sync.load(() => !editedSinceStart, localRevision).catch(() => undefined)
+const restoredMessage = await resumed
 if (restoredMessage !== undefined) {
   history.clear()
   undoButton.toggleAttribute('disabled', true)

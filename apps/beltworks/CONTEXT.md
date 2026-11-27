@@ -74,3 +74,13 @@ On a phone, tap the marked vein to place the first extractor. The game selects B
 The Flow Lens (V) shows beacon range, combiners with one empty input, and cargo blocked at the end of a belt. A fueled beacon has a cyan outline. A dormant beacon has a dashed amber outline.
 
 From Ring 2, click or drag the minimap to pan the board. Dragging belts or erasing an area shows the size of the edit. Select **?** beside a mission target or side contract to see a recipe using the veins and operators available on the current floor.
+
+## Global leaderboard
+
+Open **Leaderboard** beside **Share** on a desktop or from **More actions** on a phone. Enter a callsign and select **Post score** to join. After the first post, milestone completions and ascensions update the score.
+
+Each board shows up to 50 players. Foundry Rank orders players by ascensions, lifetime Cores, current milestone and verified delivery rate. Fastest M8 keeps each player's shortest run to M8. Verified Rate keeps the highest measured rate. The server runs a copy of the submitted factory for 600 ticks. Each delivery of a current mission value or Vault landmark counts as six items per minute.
+
+Select **Share my factory** when posting to attach a snapshot. **Inspect** runs that snapshot on the board. Local and cloud saves pause during inspection. **Back to my factory** restores the player's factory and resumes saves.
+
+The Worker stores scores in one global Durable Object. Factory saves and shared snapshots use the existing BeltworksFactories KV namespace.
