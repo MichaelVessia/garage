@@ -67,6 +67,7 @@ export const tools = [
   {
     id: 'beacon',
     name: 'Beacon',
+    title: 'Overclock Beacon (K) · Belt any 2+ number into it for +50% speed in a 5×5 aura',
     key: 'K',
     path: 'M4 19h14M8 17l3-13 3 13M5 8q6 4 12 0M3 5q8 5 16 0',
     unlock: toolUnlock.beacon,

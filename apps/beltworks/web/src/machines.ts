@@ -235,6 +235,12 @@ export class Machine extends Container {
       case 'beacon':
         g.rotation = 0
         this.detail.rotation = 0
+        for (const angle of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+          collar(g, angle)
+          g.save().rotateTransform(angle)
+          arrow(g, 0, 21, 0x78_aa_a8)
+          g.restore()
+        }
         housing(g, 19, 7, 0x37_32_2b, 0xa2_83_55)
         g.ellipse(0, 9, 14, 6).fill(ink).stroke({ color: 0xb4_90_58, width: 2 })
         g.poly([-8, 9, -3, -18, 3, -18, 8, 9]).fill(0xc5_9a_60)

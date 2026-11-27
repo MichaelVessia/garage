@@ -166,9 +166,9 @@ function preview() {
   inspectHover()
   board.setBeaconFocus(Option.getOrUndefined(hovered), Option.getOrUndefined(selectedBeacon))
   const direction = element('direction')
-  direction.hidden = tool === 'select' || tool === 'erase' || tool === 'trash' || tool === 'beacon'
-  direction.textContent = 'Facing ' + facing + ' · R to rotate'
-  rotateButton.hidden = direction.hidden
+  direction.hidden = tool === 'select' || tool === 'erase' || tool === 'trash'
+  direction.textContent = tool === 'beacon' ? 'Boosts Extractors and Combiners' : 'Facing ' + facing + ' · R to rotate'
+  rotateButton.hidden = direction.hidden || tool === 'beacon'
   if (rotateLabel.data !== facing) {
     rotateLabel.data = facing
     rotateButton.setAttribute('aria-label', 'Rotate clockwise. Facing ' + facing)
@@ -176,6 +176,7 @@ function preview() {
   for (const marker of Rec.values(portLabels)) {
     marker.visible = false
   }
+  board.beaconPreview.visible = false
   ghost.visible = false
   border.clear()
   measurement.hidden = true
@@ -265,6 +266,10 @@ function preview() {
     ghost.tint = color
     ghost.position.set(x, y)
     ghost.visible = true
+    if (state.value.kind === 'beacon') {
+      board.beaconPreview.position.set(x, y)
+      board.beaconPreview.visible = true
+    }
     if (state.value.kind === 'combiner') {
       previewPorts(hovered.value, facing)
     }
@@ -758,6 +763,9 @@ function edit(command: Command) {
       beltNote(0)
     } else if (command.type === 'rotateBuilding' || command.type === 'placeBuilding') {
       chime(220, 0, 0.035, 'triangle')
+    }
+    if (command.type === 'placeBuilding' && command.kind === 'beacon') {
+      notify('Belt any 2+ number into the Beacon to power its speed boost (higher numbers last longer)')
     }
     if (command.type === 'ascendBoard') {
       leaderboard.sync()

@@ -12,6 +12,7 @@ import type { initial } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 
+import { beaconRadius } from './board.ts'
 import type { createBoard } from './board.ts'
 
 export function inspectCell({
@@ -77,8 +78,13 @@ export function inspectCell({
     }
     case 'filter':
       return 'Filter · ' + state.targetValue + ' straight · Other values to the side'
-    case 'beacon':
-      return 'Beacon · ' + (state.fuelTicks > 0 ? Math.ceil(state.fuelTicks / 60) + ' s of fuel' : 'Needs fuel ≥ 2')
+    case 'beacon': {
+      const width = 2 * beaconRadius(p.meta.metaUpgrades.beaconResonance) + 1
+      const boost = `+50% speed in ${width}×${width} aura`
+      return state.fuelTicks > 0
+        ? `Beacon · Active (${Math.ceil(state.fuelTicks / 60)}s left · ${boost}, higher numbers last longer)`
+        : `Beacon · Belt any 2+ number into any side to power (${boost})`
+    }
     case 'buffer':
       return (
         'Buffer Silo · ' +

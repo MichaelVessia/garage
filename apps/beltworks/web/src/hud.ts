@@ -209,7 +209,7 @@ export function hud({
     glyph.append(path)
     hotkey.textContent = t.key
     button.dataset.tool = t.id
-    button.title = t.name
+    button.title = 'title' in t ? t.title : t.name
     name.textContent = t.id === 'buffer' ? 'Silo' : t.name
     button.append(glyph, hotkey, name)
     button.onclick = () => choose(t.id)

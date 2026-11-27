@@ -67,7 +67,10 @@ class Cargo extends Container {
   }
 }
 
-function beaconAura(g: Graphics, node: Machine, fueled: boolean, radius: number) {
+export function beaconRadius(resonance: number) {
+  return resonance >= 2 ? 3 : 2
+}
+function beaconAura(g: Graphics, node: { x: number; y: number }, fueled: boolean, radius: number) {
   const size = tile * (2 * radius + 1)
   const left = node.x - size / 2
   const top = node.y - size / 2
@@ -140,6 +143,9 @@ export function createBoard() {
     new Graphics().circle(0, 0, 22).circle(0, 0, 28).stroke({ color: 0x87_ff_d6, width: 2.5 })
   )
   const auras = world.addChild(new Graphics({ label: 'Beacon coverage' }))
+  const beaconPreview = world.addChild(new Graphics())
+  beaconAura(beaconPreview, { x: 0, y: 0 }, true, 2)
+  beaconPreview.visible = false
   const buildings = world.addChild(new Container<Machine>())
   const items = world.addChild(new Container<Cargo>())
   const preview = world.addChild(new Container())
@@ -264,6 +270,7 @@ export function createBoard() {
     buildings,
     items,
     preview,
+    beaconPreview,
     fx,
     services,
     buildingAt,
@@ -280,7 +287,8 @@ export function createBoard() {
       }
     },
     animate: (tick: number, p: typeof initial, guideVein = false) => {
-      auraRadius = p.meta.metaUpgrades.beaconResonance >= 2 ? 3 : 2
+      auraRadius = beaconRadius(p.meta.metaUpgrades.beaconResonance)
+      beaconPreview.scale.set((2 * auraRadius + 1) / 5)
       drawAuras()
       for (const cargo of items.children) {
         cargo.pulse.visible = flowLens && cargo.stalled

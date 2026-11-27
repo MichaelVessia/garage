@@ -164,6 +164,30 @@ it('shows the filter target and divider operation on their housings', () => {
   assert.equal(machine.detail.width, 0)
 })
 
+it.each([
+  [0, '5×5', 5],
+  [2, '7×7', 7],
+] as const)('shows Beacon fuel instructions and coverage at Resonance level %i', (beaconResonance, aura, width) => {
+  const board = createBoard()
+  const cell = { gx: 14, gy: 12 }
+  const index = { buildings: { '14,12': 1 }, veins: {} }
+  const p = { ...initial, meta: { ...initial.meta, metaUpgrades: { ...initial.meta.metaUpgrades, beaconResonance } } }
+  const beacon = board.machines.ensure(1, () => new Machine())
+  beacon.update({ kind: 'beacon', fuelTicks: 0 }, 'E')
+  board.animate(0, p)
+  assert.closeTo(board.beaconPreview.width, width * tile, 3)
+  assert.closeTo(board.beaconPreview.height, width * tile, 3)
+  assert.equal(
+    inspectCell({ board, cell, index, p }),
+    `Beacon · Belt any 2+ number into any side to power (+50% speed in ${aura} aura)`
+  )
+  beacon.update({ kind: 'beacon', fuelTicks: 61 }, 'E')
+  assert.equal(
+    inspectCell({ board, cell, index, p }),
+    `Beacon · Active (2s left · +50% speed in ${aura} aura, higher numbers last longer)`
+  )
+})
+
 it('shows five cells of beacon coverage on focus or with the lens', () => {
   const board = createBoard()
   const beacon = board.machines.ensure(1, () => new Machine())
