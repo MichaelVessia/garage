@@ -18,14 +18,17 @@ it('derives stable workshop callsigns that the server accepts', () => {
 
 it.effect('posts active home factories, throttles periodic saves and syncs changes on demand', () =>
   Effect.gen(function* () {
-    const current = { revision: 0, visiting: false, totalDelivered: 0, milestoneIndex: 0, ascensions: 0 }
+    const current = { revision: 0, visiting: false, milestoneIndex: 0, ascensions: 0 }
     const post = vi.fn(() => Promise.resolve())
     const sync = leaderboardSync({ state: () => current, post })
     vi.useFakeTimers()
     try {
       yield* Effect.promise(() => sync())
       assert.lengthOf(post.mock.calls, 0)
-      current.totalDelivered++
+      current.milestoneIndex = 1
+      yield* Effect.promise(() => sync(true))
+      assert.lengthOf(post.mock.calls, 0)
+      current.milestoneIndex = 2
       yield* Effect.promise(() => sync(true))
       assert.lengthOf(post.mock.calls, 1)
       current.revision++
@@ -39,7 +42,6 @@ it.effect('posts active home factories, throttles periodic saves and syncs chang
       yield* Effect.promise(() => sync())
       assert.lengthOf(post.mock.calls, 2)
       current.visiting = false
-      current.totalDelivered = 0
       current.milestoneIndex++
       yield* Effect.promise(() => sync())
       yield* Effect.promise(() => sync())

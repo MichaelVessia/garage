@@ -1,4 +1,5 @@
 import type { exportSave } from '@garage/beltworks-domain'
+import { leaderboardEligible } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
@@ -101,6 +102,19 @@ export function setupLeaderboard({
   let selected: Tab = 'foundryRank'
   let readVersion = 0
   let profileRevision = 0
+
+  const progressPrompt = 'Complete Milestone 2 (craft 3s) to join the leaderboard.'
+  let saving = false
+  const updateControls = () => {
+    const current = state()
+    const eligible = leaderboardEligible(current)
+    post.disabled = !eligible || saving || current.visiting
+    if (!eligible) {
+      status.textContent = progressPrompt
+    } else if (status.textContent === progressPrompt) {
+      status.textContent = ''
+    }
+  }
 
   function render() {
     element('leaderboard-columns').replaceChildren(...Arr.map(labels[selected], (label) => cell('th', label)))
@@ -217,6 +231,7 @@ export function setupLeaderboard({
     }
     dialog.showModal()
     status.textContent = ''
+    updateControls()
     empty.textContent = 'Loading scores…'
     render()
     void sync()
@@ -232,39 +247,48 @@ export function setupLeaderboard({
   }
   element('leaderboard-form').onsubmit = (event) => {
     event.preventDefault()
+    updateControls()
+    if (post.disabled) {
+      return
+    }
     const callsign = Str.trim(name.value)
     if (!/^[a-zA-Z0-9 _.-]{1,16}$/u.test(callsign)) {
       status.textContent = 'Use 1 to 16 letters, numbers, spaces, periods, hyphens or underscores.'
       name.focus()
       return
     }
-    if (!post.disabled) {
-      post.disabled = true
-      profile = { callsign, shareFactory: share.checked }
-      profileRevision++
-      try {
-        localStorage.setItem(callsignKey, callsign)
-        localStorage.setItem(shareKey, String(profile.shareFactory))
-      } catch {
-        // Keep the settings for this session when storage is unavailable.
-      }
-      status.textContent = 'Saving…'
-      void sync()
-        .then(
-          () => {
-            status.textContent = 'Settings saved.'
-            return refresh()
-          },
-          () => {
-            status.textContent = 'Could not update the leaderboard. Try again.'
-          }
-        )
-        .finally(() => {
-          post.disabled = false
-        })
+    saving = true
+    post.disabled = true
+    profile = { callsign, shareFactory: share.checked }
+    profileRevision++
+    try {
+      localStorage.setItem(callsignKey, callsign)
+      localStorage.setItem(shareKey, String(profile.shareFactory))
+    } catch {
+      // Keep the settings for this session when storage is unavailable.
     }
+    status.textContent = 'Saving…'
+    void sync()
+      .then(
+        () => {
+          status.textContent = 'Settings saved.'
+          return refresh()
+        },
+        () => {
+          status.textContent = 'Could not update the leaderboard. Try again.'
+        }
+      )
+      .finally(() => {
+        saving = false
+        updateControls()
+      })
   }
   return {
-    sync: (periodic = false) => void sync(periodic).catch(() => {}),
+    sync: (periodic = false) => {
+      if (dialog.open) {
+        updateControls()
+      }
+      void sync(periodic).catch(() => {})
+    },
   }
 }

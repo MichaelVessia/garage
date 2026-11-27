@@ -1,3 +1,4 @@
+import { leaderboardEligible } from '@garage/beltworks-domain'
 import * as Hash from 'effect/Hash'
 
 const materials = ['Amber', 'Brass', 'Cobalt', 'Copper', 'Iron', 'Jade', 'Mint', 'Silver']
@@ -15,7 +16,6 @@ export function leaderboardSync({
   state: () => {
     visiting: boolean
     revision: number
-    totalDelivered: number
     milestoneIndex: number
     ascensions: number
   }
@@ -26,8 +26,9 @@ export function leaderboardSync({
   let pending = Promise.resolve()
   return (periodic = false) => {
     const attempt = pending.then(() => {
-      const { visiting, revision, totalDelivered, milestoneIndex, ascensions } = state()
-      if (visiting || (totalDelivered === 0 && milestoneIndex === 0 && ascensions === 0)) {
+      const current = state()
+      const { revision } = current
+      if (current.visiting || !leaderboardEligible(current)) {
         return
       }
       const now = performance.now()

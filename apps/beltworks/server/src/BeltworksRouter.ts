@@ -6,6 +6,7 @@ import * as Effect from 'effect/Effect'
 import * as Request from 'effect/http/HttpServerRequest'
 import * as Response from 'effect/http/HttpServerResponse'
 import * as Option from 'effect/Option'
+import * as Result from 'effect/Result'
 import * as S from 'effect/Schema'
 
 import { catchUp } from './catchUp.ts'
@@ -60,16 +61,18 @@ const leaderboardRoute = Effect.fn(function* (request: Request.HttpServerRequest
   }
   const { playerId, callsign, save, shareFactory } = input.value
   const verified = verifyFactoryThroughput(save)
-  if (Option.isNone(verified)) {
-    return invalid
+  if (Result.isFailure(verified)) {
+    return verified.failure === 'ineligible'
+      ? Response.jsonUnsafe({ error: 'Complete Milestone 2 to join the global leaderboard' }, { status: 400 })
+      : invalid
   }
   const updatedAtMs = yield* Clock.currentTimeMillis
   const shareId =
     shareFactory === true
-      ? yield* putShare(verified.value.snapshot, updatedAtMs).pipe(Effect.asSome)
+      ? yield* putShare(verified.success.snapshot, updatedAtMs).pipe(Effect.asSome)
       : Option.none<string>()
   const result = yield* store.submit(
-    { playerId, callsign, ...verified.value.score, shareId, updatedAtMs },
+    { playerId, callsign, ...verified.success.score, shareId, updatedAtMs },
     shareFactory === false
   )
   return Response.jsonUnsafe(result)

@@ -52,6 +52,10 @@ const missions: ReadonlyArray<Mission> = [
     reward: '+30% foundry efficiency',
   },
 ]
+export function leaderboardEligible({ milestoneIndex, ascensions }: { milestoneIndex: number; ascensions: number }) {
+  return milestoneIndex >= 2 || ascensions > 0
+}
+
 export function milestone(index: number): Mission {
   const fixed = missions[index]
   if (fixed !== undefined) {

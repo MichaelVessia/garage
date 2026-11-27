@@ -4,10 +4,12 @@ import {
   Game,
   ItemDelivered,
   landmarks,
+  leaderboardEligible,
   Progression,
   simulation,
 } from '@garage/beltworks-domain'
 import * as Option from 'effect/Option'
+import * as Result from 'effect/Result'
 
 import type { PlayerEntry } from './LeaderboardStore.ts'
 
@@ -24,15 +26,18 @@ const progression = Game.Inspector(
   ({ resources }) => resources.progress.get()
 )
 
-export function verifyFactoryThroughput(save: unknown): Option.Option<VerifiedFactory> {
+export function verifyFactoryThroughput(save: unknown): Result.Result<VerifiedFactory, 'invalid' | 'ineligible'> {
   const restored = createRuntimeFromSave(save)
   if (!restored.ok) {
-    return Option.none()
+    return Result.fail('invalid')
   }
 
   const runtime = restored.value
-  const snapshot = exportSave(runtime)
   const progress = runtime.inspect(progression)
+  if (!leaderboardEligible({ milestoneIndex: progress.milestoneIndex, ascensions: progress.meta.ascensions })) {
+    return Result.fail('ineligible')
+  }
+  const snapshot = exportSave(runtime)
   let deliveries = 0
   const observe = Game.Schedule(
     Game.System(
@@ -51,10 +56,10 @@ export function verifyFactoryThroughput(save: unknown): Option.Option<VerifiedFa
   )
   for (let i = 0; i < 600; i++) {
     if (!runtime.tick(simulation, observe).ok) {
-      return Option.none()
+      return Result.fail('invalid')
     }
   }
-  return Option.some({
+  return Result.succeed({
     snapshot,
     score: {
       ascensions: progress.meta.ascensions,

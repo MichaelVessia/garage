@@ -1,3 +1,4 @@
+import { leaderboardEligible } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
 import * as Context from 'effect/Context'
 import type * as Effect from 'effect/Effect'
@@ -31,7 +32,9 @@ const publicEntry = (entry: PlayerEntry, viewer: string) => {
 }
 
 function rankPlayers(entries: Iterable<PlayerEntry>) {
-  const foundryRank = Array.from(entries).sort(
+  const foundryRank = Arr.filter(entries, (entry) =>
+    leaderboardEligible({ milestoneIndex: entry.milestone - 1, ascensions: entry.ascensions })
+  ).sort(
     (a, b) =>
       b.ascensions - a.ascensions ||
       b.totalCores - a.totalCores ||

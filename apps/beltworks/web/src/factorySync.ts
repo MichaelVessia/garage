@@ -92,7 +92,6 @@ export function connectFactory({
     state: () => ({
       visiting: inspection.visiting,
       revision: editor.revision,
-      totalDelivered: state.view.p.totalDelivered,
       milestoneIndex: state.view.p.milestoneIndex,
       ascensions: state.view.p.meta.ascensions,
     }),

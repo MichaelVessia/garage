@@ -20,6 +20,7 @@ import * as Response from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
+import * as Result from 'effect/Result'
 import * as S from 'effect/Schema'
 import * as TestClock from 'effect/testing/TestClock'
 
@@ -239,6 +240,7 @@ it('excludes untracked deliveries and saved history from the measured rate', () 
         ({ resources }) =>
           resources.p.set({
             ...resources.p.get(),
+            milestoneIndex: 2,
             deliveryWindow: [{ tick: 0, value: 1 }],
             rateByValue: { 1: 1 },
             totalDelivered: 100,
@@ -247,7 +249,7 @@ it('excludes untracked deliveries and saved history from the measured rate', () 
     )
   )
   const verified = verifyFactoryThroughput(exportSave(board))
-  assert.equal(Option.getOrThrow(verified).score.verifiedThroughput, 0)
+  assert.equal(Result.getOrThrow(verified).score.verifiedThroughput, 0)
   assert.isAbove(catchUp({ runtime: board, elapsedMs: 10_000 }).deliveredDelta, 0)
 })
 
@@ -268,9 +270,47 @@ const posted = S.decodeUnknownEffect(
     ranks: S.Struct({ foundryRank: S.Int, fastestM8: S.NullOr(S.Int), throughput: S.NullOr(S.Int) }),
   })
 )
+function factoryAt(milestoneIndex: number, ascensions = 0) {
+  const runtime = createRuntime(0)
+  runtime.tick(
+    Game.Schedule(
+      Game.System(
+        'Test/LeaderboardProgress',
+        { resources: { p: Game.System.writeResource(Progression) } },
+        ({ resources }) => {
+          const p = resources.p.get()
+          resources.p.set({ ...p, milestoneIndex, meta: { ...p.meta, ascensions } })
+        }
+      )
+    )
+  )
+  return runtime
+}
+
+it.effect('requires completion of M2 or a prior ascension to submit', () =>
+  Effect.gen(function* () {
+    yield* Effect.forEach(
+      [0, 1],
+      Effect.fn(function* (milestoneIndex) {
+        const response = yield* post({
+          playerId: 'player-1234',
+          callsign: 'Mint',
+          save: exportSave(factoryAt(milestoneIndex)),
+        })
+        assert.equal(response.status, 400)
+        const body = yield* json(response)
+        assert.deepEqual(body, { error: 'Complete Milestone 2 to join the global leaderboard' })
+      }),
+      { concurrency: 1 }
+    )
+    const ascended = yield* post({ playerId: 'player-1234', callsign: 'Mint', save: exportSave(factoryAt(0, 1)) })
+    assert.equal(ascended.status, 200)
+  }).pipe(Effect.provide([memory, leaderboard, SecureRandom.layerWebCrypto]))
+)
+
 it.effect('ranks submitted factories, keeps best scores and shares the original snapshot', () =>
   Effect.gen(function* () {
-    const runtime = createRuntime(0)
+    const runtime = factoryAt(2)
     const empty = exportSave(runtime)
     runtime.tick(
       Game.Schedule(
@@ -298,7 +338,7 @@ it.effect('ranks submitted factories, keeps best scores and shares the original 
     )
     const first = yield* post({ ...input, shareFactory: true }).pipe(Effect.flatMap(json), Effect.flatMap(posted))
     assert.equal(first.entry.callsign, 'Forge')
-    assert.equal(first.entry.milestone, 1)
+    assert.equal(first.entry.milestone, 3)
     const delivered = catchUp({ runtime, elapsedMs: 10_000 }).deliveredDelta
     assert.isAbove(delivered, 0)
     assert.equal(first.entry.verifiedThroughput, delivered * 6)
@@ -322,6 +362,22 @@ it.effect('ranks submitted factories, keeps best scores and shares the original 
     )
     assert.deepEqual(other.ranks, { foundryRank: 2, fastestM8: null, throughput: null })
     assert.equal(other.entry.verifiedThroughput, 0)
+    const store = yield* LeaderboardStore
+    yield* store.submit(
+      {
+        playerId: 'legacy-1234',
+        callsign: 'Legacy',
+        ascensions: 0,
+        totalCores: 0,
+        milestone: 2,
+        medals: 0,
+        bestRunTicks: Option.some(1),
+        verifiedThroughput: 1000,
+        shareId: Option.none(),
+        updatedAtMs: 0,
+      },
+      false
+    )
     const row = S.Struct({ callsign: S.String, isYou: S.Boolean })
     const response = yield* request(boardPath + '?playerId=player-5678')
     const raw = yield* Effect.promise(() => response.text())
@@ -351,7 +407,7 @@ it('limits each board to 50 and ranks eligible players outside the published lis
       callsign: playerId,
       ascensions: 0,
       totalCores: i,
-      milestone: 1,
+      milestone: 3,
       medals: 0,
       bestRunTicks: Option.some(i),
       verifiedThroughput: i * 6,
