@@ -72,6 +72,20 @@ function tag(text: string, className: string) {
   node.className = className
   return node
 }
+function setText(node: HTMLElement, text: string) {
+  if (node.textContent !== text) {
+    node.textContent = text
+  }
+}
+function affordabilityChanged(cost: Cost, previous: Progress, current: Progress) {
+  return (
+    previous.sparks >= cost.sparks !== current.sparks >= cost.sparks ||
+    Rec.some(
+      cost.stock,
+      (count, value) => (previous.vault[value] ?? 0) >= count !== (current.vault[value] ?? 0) >= count
+    )
+  )
+}
 function price(cost: Cost, p?: Progress) {
   const parts = document.createDocumentFragment()
   function part(label: string, enough: boolean, ore = '#efc069') {
@@ -132,13 +146,17 @@ function requirementRow(
   return (p: Progress) => {
     const delivered = p.delivered[value] ?? 0
     const currentRate = missionRate({ p, value })
-    count.textContent = (delivered >= quota ? '✓ ' : '') + delivered + ' / ' + quota
-    meter.value = Math.min(quota, delivered)
-    rate.textContent =
+    setText(count, (delivered >= quota ? '✓ ' : '') + delivered + ' / ' + quota)
+    if (meter.value !== Math.min(quota, delivered)) {
+      meter.value = Math.min(quota, delivered)
+    }
+    setText(
+      rate,
       (minRatePerMin !== undefined && currentRate >= minRatePerMin ? '✓ ' : '') +
-      currentRate +
-      (minRatePerMin === undefined ? '' : ' / ' + minRatePerMin) +
-      ' per min'
+        currentRate +
+        (minRatePerMin === undefined ? '' : ' / ' + minRatePerMin) +
+        ' per min'
+    )
     rate.classList.toggle('met', minRatePerMin !== undefined && currentRate >= minRatePerMin)
   }
 }
@@ -294,11 +312,15 @@ export function hud({
   let previousMission = -1
   let rows: ReadonlyArray<(p: Progress) => void> = []
   return (p: Progress, tool: Tool) => {
+    const previous = latest
+    const first = previousMission < 0
     latest = p
-    element('run-time').textContent =
+    setText(
+      element('run-time'),
       'Run ' +
-      formatTime(p.runTicks) +
-      (Option.isSome(p.meta.bestRunTicks) ? ' · M8 best ' + formatTime(p.meta.bestRunTicks.value) : '')
+        formatTime(p.runTicks) +
+        (Option.isSome(p.meta.bestRunTicks) ? ' · M8 best ' + formatTime(p.meta.bestRunTicks.value) : '')
+    )
     const key = Arr.join(p.meta.medals, ',') + '.'
     if (key !== medalKey) {
       medalKey = key
@@ -352,28 +374,39 @@ export function hud({
     if (!showAscend && panel === 'ascend') {
       selectPanel('upgrade')
     }
-    ascension.update(p)
+    if (
+      first ||
+      previous.meta !== p.meta ||
+      previous.milestoneIndex !== p.milestoneIndex ||
+      previous.contractIndex !== p.contractIndex
+    ) {
+      ascension.update(p)
+    }
     const full = p.boardTier === 3
     element('expand-card').hidden = !full && p.milestoneIndex < expansionUnlock(p.boardTier)
     element('expansion').textContent =
       ['Ring 1 · 18×14', 'Ring 2 · 26×20', 'Full floor · 36×26', 'Full floor unlocked · 36×26'][p.boardTier] ?? ''
     const expansion = expansionCost(p.boardTier)
     expandButton.disabled = full || !canAfford(p, expansion)
-    expandButton.replaceChildren(full ? 'Maximum' : 'Buy ', ...(full ? [] : [price(expansion, p)]))
+    if (first || previous.boardTier !== p.boardTier || (!full && affordabilityChanged(expansion, previous, p))) {
+      expandButton.replaceChildren(full ? 'Maximum' : 'Buy ', ...(full ? [] : [price(expansion, p)]))
+    }
     for (const { u, card, stat, button, levelBadge, bar } of cards) {
       card.hidden = p.milestoneIndex < upgradeUnlock(u.id)
       const level = p.upgrades[u.id]
       const limit = upgradeLimit(u.id)
       const maxed = level >= limit
-      levelBadge.textContent = 'Lv ' + level + '/' + limit
+      setText(levelBadge, 'Lv ' + level + '/' + limit)
       for (let i = 0; i < bar.children.length; i++) {
         bar.children.item(i)?.classList.toggle('lit', i < level)
       }
       const factor = productionSpeed(p)
-      stat.textContent = u.rate(level, factor) + (maxed ? '' : ' → ' + u.rate(level + 1, factor))
+      setText(stat, u.rate(level, factor) + (maxed ? '' : ' → ' + u.rate(level + 1, factor)))
       const cost = upgradeCost(level)
       button.disabled = maxed || !canAfford(p, cost)
-      button.replaceChildren(maxed ? 'Maximum' : 'Buy ', ...(maxed ? [] : [price(cost, p)]))
+      if (first || previous.upgrades[u.id] !== level || (!maxed && affordabilityChanged(cost, previous, p))) {
+        button.replaceChildren(maxed ? 'Maximum' : 'Buy ', ...(maxed ? [] : [price(cost, p)]))
+      }
     }
     const affordable =
       (element('expand-card').hidden === false && !expandButton.disabled) ||

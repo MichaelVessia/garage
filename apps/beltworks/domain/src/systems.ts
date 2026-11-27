@@ -421,12 +421,16 @@ export const processCommands = System(
 const nextInput = [1, 2, 0] as const
 function destinations(
   { queries, resources, events }: TransportContext,
+  occupied: (key: string) => boolean,
   clearTile: (cell: Cell) => void,
   tryInput: (cell: Cell, travel: Direction) => void
 ) {
   const { structures: machines } = queries
   const { data } = machines
-  const byCell = Rec.fromEntries(Arr.map(machines.each(), (e) => [key(data.cell.get(e)), e]))
+  const byCell: Record<string, ReturnType<typeof machines.each>[number]> = {}
+  for (const e of machines.each()) {
+    byCell[key(data.cell.get(e))] = e
+  }
   const accept = (
     cell: Cell,
     travel: Direction,
@@ -444,7 +448,7 @@ function destinations(
     const p = resources.progress.get()
     switch (b.kind) {
       case 'tunnelOut':
-        if (underground && resources.index.get().items[k] === undefined) {
+        if (underground && !occupied(k)) {
           unlock({ resources, events }, 'underground')
           move(cell, opposite[facing])
           return true
@@ -496,7 +500,7 @@ function destinations(
         return true
       case 'belt': {
         clearTile(cell)
-        if (travel === opposite[facing] || resources.index.get().items[k] !== undefined) {
+        if (travel === opposite[facing] || occupied(k)) {
           return false
         }
         const inputs = [counterClockwise[facing], opposite[facing], clockwise[facing]] as const
@@ -504,7 +508,7 @@ function destinations(
         while (inputs[port] !== opposite[travel]) {
           const side = inputs[port]
           tryInput(neighbor(side)(cell), opposite[side])
-          if (resources.index.get().items[k] !== undefined) {
+          if (occupied(k)) {
             return false
           }
           port = nextInput[port]
@@ -536,11 +540,7 @@ function destinations(
         return true
       }
       default:
-        if (
-          (b.kind === 'filter' && travel !== facing) ||
-          travel === opposite[facing] ||
-          resources.index.get().items[k] !== undefined
-        ) {
+        if ((b.kind === 'filter' && travel !== facing) || travel === opposite[facing] || occupied(k)) {
           return false
         }
         move(cell, opposite[travel])
@@ -555,8 +555,12 @@ function destinations(
   }
   return { accept, byCell, at }
 }
-function output(ctx: TransportContext, accept: ReturnType<typeof destinations>['accept']) {
-  const { commands, resources } = ctx
+function output(
+  ctx: TransportContext,
+  accept: ReturnType<typeof destinations>['accept'],
+  editItems: () => Record<string, number>
+) {
+  const { commands } = ctx
   return (cell: Cell, dir: Direction, value: number) =>
     accept(neighbor(dir)(cell), dir, value, (tile, fromDir) => {
       const delta = offsets[fromDir]
@@ -567,18 +571,18 @@ function output(ctx: TransportContext, accept: ReturnType<typeof destinations>['
           [WorldPosition, { x: tile.gx + 0.5 + delta.gx / 2, y: tile.gy + 0.5 + delta.gy / 2 }]
         )
       )
-      const index = resources.index.get()
-      resources.index.set({ ...index, items: { ...index.items, [key(tile)]: id } })
+      editItems()[key(tile)] = id
     })
 }
 function productionTurns(
   ctx: TransportContext,
   accept: ReturnType<typeof destinations>['accept'],
+  editItems: () => Record<string, number>,
   clearTile: (cell: Cell) => void,
   bufferInterval: number
 ) {
   const { queries, resources } = ctx
-  const emit = output(ctx, accept)
+  const emit = output(ctx, accept, editItems)
   const { data } = queries.structures
   const values = Rec.fromEntries(
     Arr.map(queries.veins.each(), (e) => [key(queries.veins.data.cell.get(e)), queries.veins.data.vein.get(e).value])
@@ -722,17 +726,32 @@ function outputDirections(
 }
 export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
   const { resources, queries, commands } = ctx
+  const index = resources.index.get()
+  let changes = Option.none<Record<string, number>>()
+  const editItems = () => {
+    if (Option.isSome(changes)) {
+      return changes.value
+    }
+    const items = { ...index.items }
+    changes = Option.some(items)
+    return items
+  }
+  const occupied = (k: string) => (Option.isSome(changes) ? changes.value : index.items)[k] !== undefined
   const before = resources.progress.get()
   resources.progress.set({ ...before, runTicks: before.runTicks + 1 })
   const { data } = queries.cargo
-  const occupants = Rec.fromEntries(Arr.map(queries.cargo.each(), (e) => [key(data.tile.get(e)), e]))
+  type Cargo = ReturnType<typeof queries.cargo.each>[number]
+  const occupants: Record<string, Cargo> = {}
+  for (const e of queries.cargo.each()) {
+    occupants[key(data.tile.get(e))] = e
+  }
   const clearTile = (cell: Cell) => {
     const item = occupants[key(cell)]
     if (item !== undefined) {
       advance(item)
     }
   }
-  const { accept, byCell, at } = destinations(ctx, clearTile, (cell, travel) => {
+  const { accept, byCell, at } = destinations(ctx, occupied, clearTile, (cell, travel) => {
     const k = key(cell)
     const machine = byCell[k]
     if (machine === undefined) {
@@ -757,10 +776,10 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
   const produce = productionTurns(
     ctx,
     accept,
+    editItems,
     clearTile,
     Math.max(1, Math.ceil(TILE_PROGRESS_MAX / beltRate(p.upgrades.beltSpeed)))
   )
-  type Cargo = ReturnType<typeof queries.cargo.each>[number]
   const visited = Visited.empty<number>()
   // Free the downstream cell first. Each item gets one turn, including in a cycle.
   const advance = (e: Cargo) => {
@@ -804,15 +823,13 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
       if (!accepted) {
         continue
       }
-      const index = resources.index.get()
-      const items = { ...index.items }
-      delete items[k]
+      const updated = editItems()
+      delete updated[k]
       if (moved) {
-        items[key(dest)] = e.id
+        updated[key(dest)] = e.id
       } else {
         commands.despawn(e)
       }
-      resources.index.set({ ...index, items })
       delete occupants[k]
       if (state.kind === 'splitter') {
         queries.structures.data.building.set(machine, {
@@ -837,6 +854,9 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
   for (const e of queries.cargo.each()) {
     advance(e)
   }
+  if (Option.isSome(changes)) {
+    resources.index.set({ ...index, items: changes.value })
+  }
 })
 export const positions = System(
   'Beltworks/UpdateWorldPositions',
@@ -845,14 +865,11 @@ export const positions = System(
     resources: { progress: System.writeResource(Progression), time: System.readResource(Time) },
   },
   ({ queries, resources }) => {
-    const dirs = Rec.fromEntries(
-      Arr.map(queries.structures.each(), (e) => {
-        const { data } = queries.structures
-        const dir = data.facing.get(e).dir
-        const state = data.building.get(e)
-        return [key(data.cell.get(e)), { state, dir }] as const
-      })
-    )
+    const dirs: Record<string, { state: BuildingState; dir: Direction }> = {}
+    const machines = queries.structures.data
+    for (const e of queries.structures.each()) {
+      dirs[key(machines.cell.get(e))] = { state: machines.building.get(e), dir: machines.facing.get(e).dir }
+    }
     const { data } = queries.cargo
     for (const e of queries.cargo.each()) {
       const tile = data.tile.get(e)

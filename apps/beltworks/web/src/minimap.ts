@@ -81,7 +81,7 @@ export function minimap({ board, viewport }: { board: ReturnType<typeof createBo
       }
       const { x, y, scale } = board.world
       if (canvas.hidden || (!dirty && previousX === x && previousY === y && previousScale === scale.x)) {
-        return
+        return false
       }
       dirty = false
       previousX = x
@@ -118,6 +118,7 @@ export function minimap({ board, viewport }: { board: ReturnType<typeof createBo
         ctx.strokeStyle = '#ffffffad'
         ctx.strokeRect(left, top, right - left, bottom - top)
       }
+      return true
     },
   }
 }

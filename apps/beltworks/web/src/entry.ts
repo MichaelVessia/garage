@@ -160,7 +160,9 @@ function inspectHover() {
     inspector.textContent = info
   }
 }
+let boardChanged = true
 function preview() {
+  boardChanged = true
   inspectHover()
   board.setBeaconFocus(Option.getOrUndefined(hovered), Option.getOrUndefined(selectedBeacon))
   const direction = element('direction')
@@ -592,6 +594,7 @@ function starterExtractor(cell: Cell) {
   return true
 }
 function animateBoard(updateGuide = true) {
+  boardChanged = true
   if (updateGuide) {
     guide = currentGuide()
   }
@@ -612,7 +615,9 @@ function animateBoard(updateGuide = true) {
     dismissHint.hidden = hint.hidden
     hint.dataset.step = guide.step
   }
-  guideArrows.clear()
+  if (guideArrows.context.instructions.length > 0) {
+    guideArrows.clear()
+  }
   const showUpgrade =
     view.p.milestoneIndex === 1 &&
     guide.step !== 'hidden' &&
@@ -717,7 +722,7 @@ function refresh(edited = false) {
   ) {
     fitBoard(view.p.boardTier > previous.p.boardTier)
   }
-  if (previous.index !== view.index) {
+  if (previous.index.buildings !== view.index.buildings || (previous.index !== view.index && Option.isSome(hovered))) {
     preview()
   }
   animateBoard(
@@ -1398,14 +1403,17 @@ const loop = FixedLoop.start({
   step,
   maxStepsPerFrame: 5,
   maxFrameSeconds: 0.25,
-  update: () => {
-    if (!paused || inspection.visiting) {
+  update: (_, frame) => {
+    if (!document.hidden && (!paused || inspection.visiting)) {
       const milestoneBefore = view.p.milestoneIndex
       for (let i = 0; i < (inspection.visiting ? 1 : speed); i++) {
         const result = runtime.tick(simulation, observe)
         if (!result.ok) {
           return result
         }
+      }
+      if (!frame.last) {
+        return Result.success(undefined)
       }
       runtime.tick(draw)
       refresh()
@@ -1416,6 +1424,14 @@ const loop = FixedLoop.start({
     return Result.success(undefined)
   },
   render: () => {
+    if (document.hidden) {
+      return
+    }
+    const cameraMoved = map.draw(view.p.boardTier)
+    if (paused && !inspection.visiting && !boardChanged && !cameraMoved) {
+      return
+    }
+    boardChanged = Option.isSome(reveal)
     const now = performance.now()
     perimeter.visible = Option.isSome(reveal)
     if (Option.isSome(reveal)) {
@@ -1434,8 +1450,10 @@ const loop = FixedLoop.start({
       const intake = (now - lastIntake) / 230
       if (node.visible && node.state.kind === 'hub' && intake < 1) {
         const pulse = Math.sin(Math.PI * intake) * (1 - intake)
+        boardChanged = true
         node.scale.set(1 + pulse * 0.12)
       } else if (t < 1) {
+        boardChanged = true
         node.scale.set(
           t < 0.68 ? 0.78 + 0.27 * Math.sin(((t / 0.68) * Math.PI) / 2) : 1.05 - (0.05 * (t - 0.68)) / 0.32
         )
@@ -1444,6 +1462,7 @@ const loop = FixedLoop.start({
       }
     }
     for (let i = board.fx.children.length - 1; i >= 0; i--) {
+      boardChanged = true
       const node = board.fx.getChildAt(i)
 
       const t = Math.min(1, (now - node.born) / node.duration)
@@ -1456,7 +1475,6 @@ const loop = FixedLoop.start({
       }
     }
     positionGuide()
-    map.draw(view.p.boardTier)
     app.render()
   },
   onFailure: (error) => {
