@@ -815,3 +815,30 @@ summary {
 }
 .leaderboard-results .verified-rate { color: var(--mint); font-weight: 700; }
 #leaderboard-status:not(:empty) { justify-self: start; padding: 4px 9px; border: 1px solid #41615c; border-radius: 8px; background: #182c29; }
+
+#update-notice {
+  position: fixed;
+  z-index: 4;
+  left: 16px;
+  bottom: 90px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 5px 20px #04090d66;
+}
+#update-reload { background: var(--gold); color: #211a12; }
+#update-later { background: transparent; }
+@media (max-width: 768px) {
+  #update-notice {
+    left: 50%;
+    top: var(--drawer-top, 54px);
+    bottom: auto;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+}

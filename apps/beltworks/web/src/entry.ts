@@ -51,8 +51,11 @@ import { pinchCamera } from './pinch.ts'
 import { loadBoard, saveBoard } from './storage.ts'
 import { ghostState, pickToolForBuilding, placement, tools, tunnelPreview } from './tools.ts'
 import type { Tool } from './tools.ts'
+import { watchUpdates, saveAndReload } from './updates.ts'
 
 import './feedback.css'
+
+declare const __BELTWORKS_BUILD_ID__: string
 
 const field = element('field')
 const app = new Application()
@@ -766,19 +769,19 @@ function edit(command: Command) {
   }
   undoButton.toggleAttribute('disabled', !history.available)
 }
-function save(keepalive = false) {
-  if (!dirty) {
+function save(keepalive = false, force = false) {
+  if (!dirty && !force) {
     return
   }
-  inspection.saveHome((home) => {
+  return inspection.saveHome((home) => {
     const revision = Math.floor(performance.timeOrigin + performance.now())
-    sync.upload(revision, keepalive)
     leaderboard.sync(true)
     if (saveBoard(storage)(home, revision)) {
       dirty = false
     } else {
       notify('Local save unavailable')
     }
+    return sync.upload(revision, keepalive)
   })
 }
 let paused = false,
@@ -1306,8 +1309,22 @@ board.tracks(view.index.buildings)
 animateBoard()
 updateHud(view.p, tool)
 center()
-window.setInterval(save, 5000)
-window.addEventListener('pagehide', () => save(true))
+const updateNotice = element('update-notice')
+watchUpdates({
+  currentVersion: __BELTWORKS_BUILD_ID__,
+  onUpdate: () => {
+    updateNotice.hidden = false
+  },
+})
+element('update-later').onclick = () => {
+  updateNotice.hidden = true
+}
+element('update-reload').onclick = () => {
+  updateNotice.hidden = true
+  void saveAndReload({ save: () => save(false, true), reload: () => window.location.reload() })
+}
+window.setInterval(() => void save(), 5000)
+window.addEventListener('pagehide', () => void save(true))
 element('share').onclick = () => {
   void sync
     .shareLink()
@@ -1349,7 +1366,7 @@ const leaderboard = setupLeaderboard({
       if (request !== inspectionRequest) {
         return
       }
-      save()
+      void save()
       const camera = { scale: board.world.scale.x, x: board.world.x, y: board.world.y }
       inspection.enter(shared)
       if (Option.isNone(homeView)) {
@@ -1457,7 +1474,7 @@ if (restoredMessage !== undefined) {
   runtime.tick(draw)
   refresh(true)
   if (restoredMessage === 'Loaded shared factory') {
-    save()
+    void save()
   }
   if (restoredMessage.length > 0) {
     notify(restoredMessage)

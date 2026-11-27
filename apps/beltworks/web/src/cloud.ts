@@ -65,8 +65,15 @@ export function cloud({ runtime, getSave }: { runtime: Runtime; getSave: () => R
         Request.bodyJsonUnsafe(getSave()),
         HttpClient.execute
       )
-      client.runFork(put.pipe(Effect.provideService(FetchHttpClient.RequestInit, { keepalive })))
+      return client.runPromise(
+        put.pipe(
+          Effect.provideService(FetchHttpClient.RequestInit, { keepalive }),
+          Effect.tapError((error) => Effect.logDebug(error)),
+          Effect.ignore
+        )
+      )
     }
+    return undefined
   }
   const load = Effect.fn('beltworks.load')(function* (canRestore: () => boolean, localRevision?: number) {
     const url = new URL(location.href)

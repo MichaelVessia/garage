@@ -8,10 +8,11 @@ export function factoryInspection(runtime: Runtime) {
     get visiting() {
       return Option.isSome(home)
     },
-    saveHome(write: (owner: Runtime) => void) {
+    saveHome<A>(write: (owner: Runtime) => A) {
       if (Option.isNone(home)) {
-        write(runtime)
+        return write(runtime)
       }
+      return undefined
     },
     getSave: () => Option.getOrElse(home, () => exportSave(runtime)),
     enter(save: unknown) {

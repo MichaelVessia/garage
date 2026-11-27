@@ -27,7 +27,7 @@ export default Stack(
       env: { BELTWORKS: beltworks },
       domain,
       assets: {
-        runWorkerFirst: ['/api', '/api/*', '/health'],
+        runWorkerFirst: ['/api', '/api/*', '/health', '/version.json'],
         notFoundHandling: 'single-page-application',
       },
     })
