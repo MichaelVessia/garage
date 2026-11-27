@@ -1,0 +1,54 @@
+name: Deploy Beltworks
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'apps/beltworks/**'
+      - 'bun.lock'
+      - 'package.json'
+      - 'tsconfig.base.json'
+      - '.github/workflows/deploy-beltworks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-beltworks-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate
+        run: bun run validate:fast
+
+      - name: Build Beltworks web
+        run: bun run --filter '@garage/beltworks-web' build
+
+      - name: Deploy to production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BELTWORKS_DOMAIN: ${{ vars.BELTWORKS_DOMAIN }}
+        run: |
+          if [[ -z "$BELTWORKS_DOMAIN" ]]; then
+            unset BELTWORKS_DOMAIN
+          fi
+          bun run --filter '@garage/beltworks' deploy:prod
