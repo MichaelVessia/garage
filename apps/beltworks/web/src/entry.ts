@@ -1,6 +1,7 @@
 import {
   toolUnlock,
   CommandRejected,
+  MedalUnlocked,
   Game,
   findTunnelPartner,
   ItemCrafted,
@@ -37,7 +38,9 @@ import { cloud } from './cloud.ts'
 import { editHistory } from './history.ts'
 import { element, hud } from './hud.ts'
 import { inspectCell } from './inspector.ts'
-import { Machine, label, tile, oreColor } from './machines.ts'
+import { Machine, tile, oreColor } from './machines.ts'
+import { medalInfo } from './medals.ts'
+import { minimap } from './minimap.ts'
 import { beltPath } from './path.ts'
 import { loadBoard, saveBoard } from './storage.ts'
 import { ghostState, pickToolForBuilding, placement, tools, tunnelPreview } from './tools.ts'
@@ -75,7 +78,12 @@ let hovered = Option.none<Cell>()
 const ghost = board.preview.addChild(new Machine())
 const border = board.preview.addChild(new Graphics())
 let eraseStart = Option.none<Cell>()
-const dimensions = board.preview.addChild(label({ text: '', size: 16, fill: 0xff_ff_ff }))
+const measurement = element('measurement')
+let beltDrag = Option.none<{ bounds: ReturnType<typeof area>; placed: number }>()
+function measure(width: number, height: number, count: number, unit: string) {
+  measurement.textContent = width + '×' + height + ' · ' + count + ' ' + unit + (count === 1 ? '' : 's')
+  measurement.hidden = false
+}
 let clipboard: Array<BlueprintEntry> = []
 let stamping = false
 let copyStart = Option.none<Cell>()
@@ -185,7 +193,11 @@ function preview() {
   }
   ghost.visible = false
   border.clear()
-  dimensions.visible = false
+  measurement.hidden = true
+  if (Option.isSome(beltDrag)) {
+    const { minX, maxX, minY, maxY } = beltDrag.value.bounds
+    measure(maxX - minX + 1, maxY - minY + 1, beltDrag.value.placed, 'new belt')
+  }
   const at = board.buildingAt(view.index.buildings)
   for (const node of board.buildings.children) {
     if (node.state.kind !== 'tunnelIn') {
@@ -214,9 +226,12 @@ function preview() {
       .setFillStyle({ color: copying ? 0x47_df_f0 : 0xe5_4a_48, alpha: 0.3 })
       .fill()
       .stroke({ width: 3, color: copying ? 0x61_e7_ef : 0xff_79_75 })
-    dimensions.text = w + '×' + h
-    dimensions.position.set((minX + w / 2) * tile, (minY + h / 2) * tile)
-    dimensions.visible = true
+    const entries = captureBlueprint({
+      start: start.value,
+      end: hovered.value,
+      machineAt: (cell) => Option.fromUndefinedOr(machineAt(cell)),
+    })
+    measure(w, h, entries.length, copying ? 'tile' : 'building')
     return
   }
   if (tool === 'blueprint') {
@@ -264,6 +279,8 @@ function preview() {
   }
 }
 function choose(t: Tool, paste = false) {
+  brush = Option.none()
+  beltDrag = Option.none()
   copyStart = Option.none()
   selectedBeacon = Option.none()
   stamping = paste
@@ -275,6 +292,11 @@ function choose(t: Tool, paste = false) {
   preview()
 }
 const updateHud = hud({
+  veins: () =>
+    Arr.map(
+      Arr.filter(board.veins.children, (vein) => vein.visible),
+      (vein) => Number(vein.label)
+    ),
   choose,
   ascend: (mutator) => edit({ type: 'ascendBoard', mutator }),
   buyMeta: (upgrade) => edit({ type: 'buyMetaUpgrade', upgrade }),
@@ -406,6 +428,7 @@ const observe = Game.Schedule(
         delivery: Game.System.readEvent(ItemDelivered),
         craft: Game.System.readEvent(ItemCrafted),
         complete: Game.System.readEvent(MilestoneCompleted),
+        medal: Game.System.readEvent(MedalUnlocked),
         reject: Game.System.readEvent(CommandRejected),
       },
     },
@@ -419,12 +442,30 @@ const observe = Game.Schedule(
       for (const craft of events.craft.all()) {
         burst((craft.gx + 0.5) * tile, (craft.gy + 0.5) * tile, 4, oreColor(craft.result), false)
       }
+      const messages: Array<string> = []
       for (const event of events.complete.all()) {
         const reward = milestone(event.milestoneIndex).reward
-        notify(
+        messages.push(
           'Milestone ' + (event.milestoneIndex + 1) + ' Complete' + (reward.length > 0 ? ' · Unlocked ' + reward : '')
         )
+      }
+      const medals = events.medal.all()
+      if (medals.length > 0) {
+        messages.push(
+          'Medal · ' +
+            Arr.join(
+              Arr.map(medals, (event) => medalInfo[event.medal][0]),
+              ' + '
+            )
+        )
+        chime(523.25)
+        chime(659.25, 0.06)
+        chime(783.99, 0.12, 0.45)
+      } else if (messages.length > 0) {
         celebrate()
+      }
+      if (messages.length > 0) {
+        notify(Arr.join(messages, ' · '))
       }
       for (const event of events.reject.all()) {
         rejected = true
@@ -452,6 +493,7 @@ function refresh(edited = false) {
   const previous = view
   view = runtime.inspect(stats)
   if (edited) {
+    map.invalidate()
     editedSinceStart = true
     board.tracks(view.index.buildings)
   }
@@ -493,7 +535,6 @@ function edit(command: Command) {
     if (command.type === 'ascendBoard') {
       history.clear()
       choose('extractor')
-      notify('Foundry ascended')
       celebrate()
     }
     if (command.type === 'expandBoard') {
@@ -558,6 +599,7 @@ function undo() {
     return
   }
   brush = Option.none()
+  beltDrag = Option.none()
   eraseStart = Option.none()
   for (const node of board.fx.removeChildren()) {
     node.destroy()
@@ -572,7 +614,7 @@ function undo() {
 }
 undoButton.onclick = undo
 const canvas = app.canvas
-function center() {
+function boardViewport() {
   const drawer = element('workshop')
   const top = element('bar').getBoundingClientRect().bottom + 12
   document.documentElement.style.setProperty('--drawer-top', Math.max(74, top) + 'px')
@@ -582,10 +624,35 @@ function center() {
       : field.clientWidth
   const w = Math.max(1, right),
     h = Math.max(1, element('toolbar').getBoundingClientRect().top - 12 - top)
+  return { width: w, height: h, top }
+}
+let viewport = boardViewport()
+const map = minimap({ board, viewport: () => viewport })
+function positionMinimap() {
+  const panels = [element('toolbar'), bar, filterForm]
+  const top = Math.min(
+    ...Arr.map(
+      Arr.filter(panels, (panel) => panel.hidden === false),
+      (panel) => panel.getBoundingClientRect().top
+    )
+  )
+  element('minimap').style.bottom = field.clientHeight - top + 12 + 'px'
+}
+const popupLayout = new ResizeObserver(positionMinimap)
+popupLayout.observe(bar)
+popupLayout.observe(filterForm)
+function center() {
+  map.cancelPan()
+  viewport = boardViewport()
+  map.invalidate()
+  const { width: w, height: h, top } = viewport
+  element('minimap').style.right = field.clientWidth - w + 8 + 'px'
+  positionMinimap()
   const { minX, maxX, minY, maxY } = boardBounds(view.p.boardTier)
   const scale = Math.min(w / ((maxX - minX + 1) * tile + 40), h / ((maxY - minY + 1) * tile + 40))
   board.world.scale.set(scale)
   board.world.position.set((w - columns * tile * scale) / 2, top + (h - rows * tile * scale) / 2)
+  map.draw(view.p.boardTier)
   hovered = Option.none()
   preview()
 }
@@ -606,6 +673,8 @@ const pointer = (e: MouseEvent) => {
   return new Point(e.clientX - rect.left, e.clientY - rect.top)
 }
 function hover(e: MouseEvent) {
+  measurement.style.left = Math.max(4, Math.min(window.innerWidth - 170, e.clientX + 14)) + 'px'
+  measurement.style.top = Math.max(4, Math.min(window.innerHeight - 32, e.clientY + 16)) + 'px'
   const p = board.world.toLocal(pointer(e))
   const gx = Math.floor(p.x / tile),
     gy = Math.floor(p.y / tile)
@@ -616,6 +685,7 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault()
+    map.cancelPan()
     const p = pointer(e),
       local = board.world.toLocal(p)
     const min = Math.min(0.5, field.clientWidth / (columns * tile + 40), field.clientHeight / (rows * tile + 40))
@@ -638,6 +708,7 @@ canvas.onpointerdown = (e) => {
   if (!e.isPrimary) {
     return
   }
+  map.cancelPan()
   hover(e)
   canvas.setPointerCapture(e.pointerId)
   if (e.button === 2 || e.button === 1) {
@@ -675,7 +746,9 @@ canvas.onpointerdown = (e) => {
     }
     existingBeltStart = tool === 'belt' && machine?.state.kind === 'belt'
     if (existingBeltStart && machine !== undefined) {
+      beltDrag = Option.some({ bounds: area({ start: hovered.value, end: hovered.value }), placed: 0 })
       brush = Option.some({ cell: hovered.value, dir: machine.facing })
+      preview()
       return
     }
     const empty = view.index.buildings[key(hovered.value)] === undefined
@@ -687,7 +760,9 @@ canvas.onpointerdown = (e) => {
       })
     )
     if (tool === 'belt' && empty && inBounds(hovered.value, view.p.boardTier)) {
+      beltDrag = Option.some({ bounds: area({ start: hovered.value, end: hovered.value }), placed: 1 })
       brush = Option.some({ cell: hovered.value, dir: facing })
+      preview()
     }
   }
 }
@@ -720,6 +795,15 @@ canvas.onpointermove = (e) => {
       return machine === undefined && inBounds(cell, view.p.boardTier) ? 'empty' : 'blocked'
     },
   })
+  if (Option.isSome(beltDrag)) {
+    const bounds = beltDrag.value.bounds
+    bounds.minX = Math.min(bounds.minX, path.cell.gx)
+    bounds.maxX = Math.max(bounds.maxX, path.cell.gx)
+    bounds.minY = Math.min(bounds.minY, path.cell.gy)
+    bounds.maxY = Math.max(bounds.maxY, path.cell.gy)
+    beltDrag.value.placed += Arr.filter(path.commands, (c) => c.type === 'placeBuilding').length
+    preview()
+  }
   if (path.commands.length > 0) {
     if (existingBeltStart) {
       history.record(exportSave(runtime))
@@ -757,6 +841,7 @@ canvas.onpointerup = (e) => {
     edit({ type: 'removeArea', ...area({ start: eraseStart.value, end: hovered.value }) })
   }
   eraseStart = Option.none()
+  beltDrag = Option.none()
   preview()
   if (e.button === 2 && Option.isSome(pan) && !pan.value.moved && Option.isSome(hovered)) {
     edit({ ...hovered.value, type: 'removeBuilding' })
@@ -767,6 +852,7 @@ canvas.onpointerup = (e) => {
 canvas.onlostpointercapture = () => {
   copyStart = Option.none()
   eraseStart = Option.none()
+  beltDrag = Option.none()
   preview()
   pan = Option.none()
   brush = Option.none()
@@ -896,6 +982,7 @@ const loop = FixedLoop.start({
         node.destroy()
       }
     }
+    map.draw(view.p.boardTier)
     app.render()
   },
   onFailure: (error) => {

@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { createRuntimeFromSave, exportSave } from '@garage/beltworks-domain'
 import type { Runtime } from '@garage/beltworks-domain'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
@@ -33,6 +34,13 @@ const snapshot = S.Struct({
 const share = S.Struct({ shareId: S.String })
 
 export function cloud(runtime: Runtime) {
+  if (import.meta.env.MODE === 'standalone') {
+    return {
+      upload: () => {},
+      load: () => Promise.resolve(undefined),
+      shareLink: () => Promise.resolve('Start the full stack to share this factory'),
+    }
+  }
   const player = playerId()
   const path = new URL('/api/saves/' + player?.id, location.origin)
   function upload(revision: number, keepalive: boolean) {

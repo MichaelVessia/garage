@@ -573,3 +573,54 @@ summary {
 #ascend-panel .upgrade strong:nth-of-type(2),
 #ascend-panel .upgrade span:not(.level) { grid-column: 1/-1; grid-row: auto; }
 body:has(#blueprint-bar:not([hidden])) #inspector { visibility: hidden; }
+
+.recipe-button, .upgrade .recipe-button {
+  margin-left: 4px; padding: 0 4px; border-radius: 50%; font-size: 11px;
+  color: #deebe7; background: #334550; cursor: pointer;
+}
+.recipe-answer:not([hidden]) {
+  display: block; padding: 4px 0; white-space: normal; color: #e2f5e6;
+}
+#mastery { margin: 4px 10px 10px; }
+.medal-heading { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+#medal-bonus { font-size: 11px; color: var(--gold); }
+#medal-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); padding: 0; margin: 6px 0; gap: 4px; list-style: none; }
+#medal-grid li { padding: 5px; border-radius: 5px; border: 1px solid #33434d; color: #adbfc6; background: #17232b; }
+#medal-grid b, #medal-grid small { display: block; font-size: 11px; line-height: 1.2; }
+#medal-grid b::before { content: '◇ '; }
+#medal-grid small { margin-top: 3px; color: #b4c3cb; font-size: 10px; }
+#medal-grid .earned { border-color: #7e7046; color: var(--gold); }
+#medal-grid .earned b::before { content: '◆ '; }
+
+#minimap {
+  position: fixed;
+  border: 3px solid #21303c;
+  border-radius: 7px;
+  box-shadow: 0 3px 12px #05090eb3;
+  width: min(144px, 23vw);
+  height: auto;
+  aspect-ratio: 144 / 104;
+  outline: 1px solid var(--line);
+  cursor: grab;
+}
+#minimap:active { cursor: grabbing; }
+#measurement {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  padding: 4px 9px;
+  border: 1px solid var(--mint);
+  border-radius: 99px;
+  background: #101a21;
+  color: #e4edea;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (min-width: 1101px) and (max-width: 1320px) {
+  #bar { gap: 6px; }
+  #bar h1 { font-size: 20px; padding: 9px 11px; }
+  #bar nav button { padding: 7px 5px; white-space: nowrap; }
+  #bar #lens span, #bar #center span { display: none; }
+  #requirements .target, #requirements .quota, #requirements .rate { white-space: nowrap; }
+}

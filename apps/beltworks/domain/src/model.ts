@@ -1,4 +1,5 @@
 import { Clock, Descriptor, Schema as Ritmo } from '@typeonce/ritmo'
+import * as Effect from 'effect/Effect'
 import * as Fn from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as S from 'effect/Schema'
@@ -91,6 +92,7 @@ const building = S.Union([
   S.Struct({
     kind: S.Literal('buffer'),
     storedValue: S.Option(natural),
+    cooldownTicks: S.optionalKey(natural),
     count: natural.check(S.isLessThanOrEqualTo(BUFFER_CAPACITY)),
   }).check(S.makeFilter((b) => Option.isNone(b.storedValue) === (b.count === 0))),
   S.Struct({ kind: S.Literal('splitter'), nextPort: port }),
@@ -123,7 +125,21 @@ export const metaUpgradeLimits = {
 export type MetaUpgradeKey = keyof typeof metaUpgradeLimits
 const metaUpgrade = S.Literals(['bootstrap', 'masterySynergy', 'beaconResonance', 'veinRichness', 'contractMastery'])
 const rank = (key: MetaUpgradeKey) => natural.check(S.isLessThanOrEqualTo(metaUpgradeLimits[key]))
+export const medalIds = [
+  'firstDelivery',
+  'multiLine',
+  'underground',
+  'overclocked',
+  'blueprintArchitect',
+  'throughputTitan',
+  'ascended',
+  'primeEngineer',
+] as const
+export type MedalId = (typeof medalIds)[number]
 const meta = S.Struct({
+  medals: S.Array(S.Literals(medalIds))
+    .check(S.isUnique())
+    .pipe(S.withDecodingDefaultKey(Effect.succeed([]))),
   ascensions: natural,
   cores: natural,
   totalCoresEarned: natural,
@@ -162,6 +178,7 @@ const progression = S.Struct({
 })
 export const initial: typeof progression.Type = {
   meta: {
+    medals: [],
     ascensions: 0,
     cores: 0,
     totalCoresEarned: 0,
@@ -248,13 +265,14 @@ export const ItemDelivered = Descriptor.Event<
 export const MilestoneCompleted = Descriptor.Event<{ readonly milestoneIndex: number; readonly targetValue: number }>()(
   'Beltworks/MilestoneCompleted'
 )
+export const MedalUnlocked = Descriptor.Event<{ readonly medal: MedalId }>()('Beltworks/MedalUnlocked')
 export const CommandRejected = Descriptor.Event<{ readonly reason: string }>()('Beltworks/CommandRejected')
 export const CommandRequested = Descriptor.Event<Command>()('Beltworks/CommandRequested')
 export const Game = Ritmo.bind(
   Ritmo.fragment({
     components: { GridCell, Facing, ResourceVein, Building, Item, OnTile, WorldPosition },
     resources: { Time, Progression, CommandQueue, GridIndex },
-    events: { CommandRequested, ItemCrafted, ItemDelivered, MilestoneCompleted, CommandRejected },
+    events: { CommandRequested, ItemCrafted, ItemDelivered, MilestoneCompleted, CommandRejected, MedalUnlocked },
   }),
   Ritmo.defineRoot('Beltworks')
 )

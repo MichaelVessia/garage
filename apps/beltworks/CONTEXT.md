@@ -13,11 +13,11 @@ The 2 × 2 Hub occupies columns 17 and 18 and rows 12 and 13. Buildings and belt
 | Ring 2 | 26 × 20 | 4 | 180 Sparks and 60 sevens | 5, 6 and 7 clusters, extra low numbers |
 | Full Foundry | 36 × 26 | 6 | 650 Sparks, 120 twelves and 80 twenty-fours | 4, 5, 7, 8 and 9 clusters |
 
-Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v6`. The game can load a v5 save.
+Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v7`. The game can load v5 and v6 saves.
 
 ## Transport and production
 
-A belt moves one item at a time. A splitter alternates left and right and uses an open port if the preferred port is blocked. A merger takes one item from the left, rear or right. Each successful transfer moves priority to the next port. A buffer silo accepts up to 24 items of one value through any side except the front. It sends one item per tick when its output is open. An empty silo can accept a new value. A tunnel sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. The exit accepts cargo only through the tunnel. Combiners take A from the left and B from the right, relative to their output.
+A belt moves one item at a time. A splitter alternates left and right and uses an open port if the preferred port is blocked. A merger takes one item from the left, rear or right. Each successful transfer moves priority to the next port. A buffer silo accepts up to 24 items of one value through any side except the front. After a successful transfer it waits one belt interval before releasing another item, including into the Hub. An empty silo can accept a new value. A tunnel sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. The exit accepts cargo only through the tunnel. Combiners take A from the left and B from the right, relative to their output.
 
 The divider returns the integer part of A divided by B. A zero divisor produces zero. A filter accepts cargo from the rear. A matching number goes straight. Other numbers turn right, or left if the right port cannot accept the item. A new filter uses the primary mission target. Select a filter or press F over it to set a value from 1 to 999.
 
@@ -49,9 +49,9 @@ One side contract is active after M3. The seed and contract index select a value
 
 ## Foundry ascension
 
-The Ascend tab opens after M7. After M8, select the next run and confirm twice to start a new factory. Each ascension advances the map seed by one. Buildings, cargo, stock, Sparks, upgrades, contracts and milestones start over. Foundry Cores and permanent upgrades carry over. A full reset clears them.
+The Ascend tab opens after M7. After M8, select the next run and confirm twice to start a new factory. Each ascension advances the map seed by one. Buildings, cargo, stock, Sparks, upgrades, contracts and milestones start over. Foundry Cores and permanent upgrades carry over. A full reset clears them. Mastery medals also survive ascension and undo. Each of the eight medals adds 3% to Spark yield. The Vault and Ascend tabs show the conditions and earned medals.
 
-Standard runs pay 3, 5, 8 and 12 Cores at M8 through M11. Each additional milestone increases the gain over the previous milestone by one Core. The completed run determines the payout. Prime Rush and High Velocity pay 30% more Cores, rounded up. Prime Rush cycles the primary target through 11, 19, 29, 41, 59 and 83 from M4. High Velocity increases production speed by 35% and rate gates by 50%.
+Standard runs pay 3, 6, 10 and 15 Cores at M8 through M11. Each additional milestone increases the gain over the previous milestone by one Core. The completed run determines the payout. Prime Rush and High Velocity pay 30% more Cores, rounded up. Prime Rush cycles the primary target through 11, 19, 29, 41, 59 and 83 from M4. High Velocity increases production speed by 35% and rate gates by 50%.
 
 | Core technology | Maximum rank | Effect |
 | --- | --- | --- |
@@ -68,3 +68,5 @@ The Vault displays stock, deliveries in the last minute, and current uses for ea
 In Select mode, hold Shift and drag to copy a rectangle. The Blueprint tool (B) and Ctrl+C also start a copy. Release to preview the stamp. R rotates the layout and its buildings clockwise. Click to stamp, or press Esc to cancel. Ctrl+V recalls the last copy. Select Blueprint to load one of four saved layouts. With a copy selected, use Save beside a slot to store it. Slots use `beltworks:blueprints:v1` in local browser storage and survive reloads and ascensions. Each stamp uses one undo step. Occupied cells, locked cells and extractors without veins are skipped.
 
 The Flow Lens (V) shows beacon range, combiners with one empty input, and cargo blocked at the end of a belt. A fueled beacon has a cyan outline. A dormant beacon has a dashed amber outline.
+
+From Ring 2, click or drag the minimap to pan the board. Dragging belts, erasing an area, or copying a blueprint shows the size of the edit. Select **?** beside a mission target or side contract to see a recipe using the veins and operators available on the current floor.

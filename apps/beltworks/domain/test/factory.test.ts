@@ -8,6 +8,9 @@ import * as S from 'effect/Schema'
 
 import {
   ResourceVein,
+  milestoneFor,
+  suggestRecipe,
+  toolUnlock,
   applyEdits,
   inBounds,
   TUNNEL_MAX_SPAN,
@@ -19,6 +22,7 @@ import {
   ItemCrafted,
   ItemDelivered,
   MilestoneCompleted,
+  MedalUnlocked,
   OnTile,
   Progression,
   WorldPosition,
@@ -69,6 +73,7 @@ const grant = (runtime: Runtime, milestoneIndex = 6) => {
 }
 it('delivers fifteen ones, unlocks addition and consumes subsequent unmatched items', () => {
   const r = factory()
+  const medals: Array<string> = []
   const completed: Array<number> = []
   const payments: Array<number> = []
   const observe = Game.Schedule(
@@ -78,9 +83,13 @@ it('delivers fifteen ones, unlocks addition and consumes subsequent unmatched it
         events: {
           delivery: Game.System.readEvent(ItemDelivered),
           milestone: Game.System.readEvent(MilestoneCompleted),
+          medal: Game.System.readEvent(MedalUnlocked),
         },
       },
       ({ events }) => {
+        for (const event of events.medal.all()) {
+          medals.push(event.medal)
+        }
         for (const event of events.delivery.all()) {
           payments.push(event.sparksEarned)
         }
@@ -103,6 +112,7 @@ it('delivers fifteen ones, unlocks addition and consumes subsequent unmatched it
   assert.equal(p.vault[1], p.totalDelivered)
   assert.equal(p.sparks, p.totalDelivered)
   assert.deepEqual(completed, [1])
+  assert.deepEqual(medals, ['firstDelivery'])
   assert.equal(payments.at(-1), 1)
   assert.isAbove(p.totalDelivered, 15)
   place(r, { type: 'placeBuilding', kind: 'combiner', op: 'add', gx: 14, gy: 9, dir: 'E' })
@@ -290,6 +300,20 @@ it('replays commands and resumes a JSON save with a queued command', () => {
     }).ok
   )
 })
+it('restores a save that predates medals', () => {
+  const r = createRuntime(2)
+  const saved = exportSave(r)
+  const p = r.inspect(state).p
+  const legacy = { ...p, meta: Rec.remove(p.meta, 'medals') }
+  const restored = createRuntimeFromSave({
+    ...saved,
+    resources: { ...saved.resources, 'Beltworks/Progression': legacy },
+  })
+  if (!restored.ok) {
+    throw new Error('Legacy restore failed')
+  }
+  assert.deepEqual(restored.value.inspect(state).p, p)
+})
 it('removes queued and occupied buildings and retains the generated board on reset', () => {
   const r = factory()
   advance(r, 181)
@@ -376,6 +400,7 @@ it('carries cargo under a crossing and blocks surface traffic and a full exit', 
   ])
   advance(r, 1)
   assert.hasAllKeys(r.inspect(state).index.items, ['15,9', '17,9', '18,9'])
+  assert.deepEqual(r.inspect(state).p.meta.medals, ['underground'])
   feed(r, [{ gx: 13, gy: 9, value: 4 }])
   advance(r, 45)
   assert.hasAllKeys(r.inspect(state).index.items, ['13,9', '15,9', '17,9', '18,9'])
@@ -595,15 +620,17 @@ it('advances the seed, clears the run, pays its mutator and restores the origina
   assert.isEmpty(first.tiles)
   assert.deepEqual(first.p.vault, {})
   assert.equal(first.p.milestoneIndex, 0)
-  assert.equal(first.p.meta.totalCoresEarned, 12)
-  assert.equal(first.p.meta.cores, 8)
+  assert.deepEqual(first.p.meta.medals, ['ascended'])
+  assert.equal(first.p.meta.totalCoresEarned, 15)
+  assert.equal(first.p.meta.cores, 11)
   assert.deepEqual(first.veins, createRuntime(1).inspect(state).veins)
   grant(r, 9)
   place(r, { type: 'ascendBoard', mutator: 'highVelocity' })
   r.tick(applyEdits)
   const next = r.inspect(state)
-  assert.equal(next.p.meta.cores, 15)
-  assert.equal(next.p.meta.totalCoresEarned, 19)
+  assert.deepEqual(next.p.meta.medals, ['ascended', 'primeEngineer'])
+  assert.equal(next.p.meta.cores, 19)
+  assert.equal(next.p.meta.totalCoresEarned, 23)
   assert.equal(next.p.meta.ascensions, 2)
   assert.equal(next.p.meta.seed, 2)
   assert.equal(next.p.sparks, 50)
@@ -679,7 +706,7 @@ it.each([false, true])('rotates saturated merger inputs with rear intake active 
   }
 })
 
-it('stores 24 matching values, blocks other values and drains one item per tick into an open hub', () => {
+it('stores 24 matching values, blocks other values and drains one item per belt interval into an open hub', () => {
   const r = createRuntime(0)
   grant(r, 5)
   const source = { gx: 16, gy: 11, value: 3 }
@@ -713,11 +740,22 @@ it('stores 24 matching values, blocks other values and drains one item per tick 
   for (let i = 0; i < 3; i++) {
     place(r, { type: 'rotateBuilding', gx: 16, gy: 12 })
   }
-  advance(r, 24)
+  advance(r, 40)
+  assert.equal(r.inspect(state).p.totalDelivered, 1)
+  const resumed = createRuntimeFromSave(exportSave(r))
+  assert.isTrue(resumed.ok)
+  if (resumed.ok) {
+    advance(resumed.value, 1)
+    assert.equal(resumed.value.inspect(state).p.totalDelivered, 2)
+  }
+  advance(r, 1 + 22 * 40)
   assert.equal(r.inspect(state).p.totalDelivered, 24)
-  assert.deepEqual(buffer(), Option.some({ kind: 'buffer', storedValue: Option.some(7), count: 1 }))
-  advance(r, 1)
-  assert.deepEqual(buffer(), Option.some({ kind: 'buffer', storedValue: Option.none(), count: 0 }))
+  assert.deepEqual(buffer(), Option.some({ kind: 'buffer', storedValue: Option.some(7), count: 1, cooldownTicks: 40 }))
+  advance(r, 40)
+  assert.deepEqual(
+    buffer(),
+    Option.some({ kind: 'buffer', storedValue: Option.none<number>(), count: 0, cooldownTicks: 40 })
+  )
 })
 
 it('gives a direct extractor and a waiting belt alternating merger turns', () => {
@@ -741,5 +779,20 @@ it('gives a direct extractor and a waiting belt alternating merger turns', () =>
       feed(r, [source])
     }
     advance(r, 40)
+  }
+})
+
+it.each([0, 1, 19])('finds a legal recipe for each Prime Rush target on seed %i', (seed) => {
+  const { p, veins } = createRuntime(seed).inspect(state)
+  for (let index = 3; index <= 10; index++) {
+    const tier = index < 4 ? 1 : index < 6 ? 2 : 3
+    const ores = Arr.map(Arr.filter(veins, inBounds(tier)), (vein) => vein.value)
+    const ops = Arr.filter(['add', 'mul', 'sub', 'div'] as const, (op) => toolUnlock[op] <= index)
+    const target = milestoneFor({ ...p, milestoneIndex: index, meta: { ...p.meta, mutator: 'primeRush' } })
+      .requirements[0]
+    assert.isDefined(target)
+    if (target !== undefined) {
+      assert.isNotEmpty(suggestRecipe(target.value, ores, ops), 'M' + (index + 1) + ' target ' + target.value)
+    }
   }
 })

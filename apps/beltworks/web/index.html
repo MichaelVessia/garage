@@ -159,9 +159,13 @@
         <strong>Workshop expansion</strong><span id="expansion"></span>
       </section>
       </div>
+      <section id="mastery" hidden aria-label="Mastery medals">
+        <div class="medal-heading"><strong>Mastery medals</strong><span id="medal-bonus"></span></div>
+        <ul id="medal-grid"></ul>
+      </section>
       <div id="vault-panel" hidden>
         <section class="upgrade"><strong>Vault</strong><span id="vault-income"></span><div id="stock"></div></section>
-        <section class="upgrade" id="contract-card"><strong>Side contract</strong><span id="contract"></span><progress id="contract-meter" aria-label="Side contract quota"></progress><div id="contract-reward"></div></section>
+        <section class="upgrade" id="contract-card"><strong>Side contract <span id="contract-hint"></span></strong><span id="contract"></span><progress id="contract-meter" aria-label="Side contract quota"></progress><div id="contract-reward"></div></section>
       </div>
       <div id="ascend-panel" hidden>
         <section class="upgrade">
@@ -194,6 +198,8 @@
         </dl>
       </details>
     </details>
+    <canvas id="minimap" width="144" height="104" aria-label="Factory minimap. Click or drag to pan." hidden></canvas>
+    <div id="measurement" hidden></div>
     <div id="starter-hint"></div>
     <div id="inspector"></div>
     <footer id="toolbar">

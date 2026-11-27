@@ -1,5 +1,8 @@
 import {
   initial,
+  suggestRecipe,
+  medalSparkMultiplier,
+  toolUnlock,
   amplifier,
   canAfford,
   efficiency,
@@ -24,6 +27,7 @@ import * as Str from 'effect/String'
 import { ascendPanel } from './ascend.ts'
 import type { AscendActions } from './ascend.ts'
 import { oreColor } from './machines.ts'
+import { medalGrid } from './medals.ts'
 import { tools } from './tools.ts'
 import type { Tool } from './tools.ts'
 import { vaultRows } from './vault.ts'
@@ -84,7 +88,29 @@ function price(cost: Cost, p?: Progress) {
   }
   return parts
 }
-function requirementRow({ value, quota, minRatePerMin }: ReturnType<typeof milestoneFor>['requirements'][number]) {
+function recipeButton(read: () => string) {
+  const wrap = document.createElement('span')
+  const button = document.createElement('button')
+  const answer = tag('', 'recipe-answer')
+  button.className = 'recipe-button'
+  button.textContent = '?'
+  button.setAttribute('aria-label', 'Recipe hint')
+  button.setAttribute('aria-expanded', 'false')
+  answer.hidden = true
+  button.onclick = () => {
+    answer.hidden = answer.hidden === false
+    button.setAttribute('aria-expanded', String(answer.hidden === false))
+    if (answer.hidden === false) {
+      answer.textContent = read()
+    }
+  }
+  wrap.append(button, answer)
+  return wrap
+}
+function requirementRow(
+  { value, quota, minRatePerMin }: ReturnType<typeof milestoneFor>['requirements'][number],
+  read: () => string
+) {
   const row = document.createElement('div')
   row.className = 'requirement'
   row.style.setProperty('--ore', '#' + Str.padStart(6, '0')(oreColor(value).toString(16)))
@@ -94,6 +120,7 @@ function requirementRow({ value, quota, minRatePerMin }: ReturnType<typeof miles
   const meter = document.createElement('progress')
   meter.max = quota
   meter.setAttribute('aria-label', 'Quota for target ' + value)
+  target.append(recipeButton(read))
   row.append(target, count, rate, meter)
   element('requirements').append(row)
   return (p: Progress) => {
@@ -134,8 +161,10 @@ export function hud({
   choose,
   buy,
   expand,
+  veins,
   ...actions
 }: AscendActions & {
+  veins: () => ReadonlyArray<number>
   expand: () => void
   choose: (t: Tool) => void
   buy: (u: keyof typeof initial.upgrades) => void
@@ -186,6 +215,13 @@ export function hud({
   const panels = ['upgrade', 'vault', 'ascend'] as const
   let panel: (typeof panels)[number] = 'upgrade'
   let latest = initial
+  function recipe(target: number) {
+    const ops = Arr.filter(['add', 'mul', 'sub', 'div'] as const, (op) => toolUnlock[op] <= latest.milestoneIndex)
+    return suggestRecipe(target, veins(), ops)[0] ?? 'No short recipe on this floor.'
+  }
+  const updateMedals = medalGrid({ grid: element('medal-grid'), bonus: element('medal-bonus') })
+  let medalKey = ''
+  let contractKey = ''
   function selectPanel(selected: typeof panel) {
     panel = selected
     ascension.cancel()
@@ -196,6 +232,7 @@ export function hud({
         String(name === selected)
       )
     }
+    element('mastery').hidden = selected === 'upgrade'
     element('run-summary').hidden = selected === 'upgrade'
     if (selected === 'vault') {
       updateStock(latest)
@@ -207,16 +244,23 @@ export function hud({
   const contractMeter = element('contract-meter')
   let previousSparks = 0
   let previousMutator = initial.meta.mutator
+  let previousTier = -1
   let previousMission = -1
   let rows: ReadonlyArray<(p: Progress) => void> = []
   return (p: Progress, tool: Tool) => {
     latest = p
-    if (previousMission !== p.milestoneIndex || previousMutator !== p.meta.mutator) {
+    const key = Arr.join(p.meta.medals, ',') + '.'
+    if (key !== medalKey) {
+      medalKey = key
+      updateMedals(p.meta.medals)
+    }
+    if (previousMission !== p.milestoneIndex || previousMutator !== p.meta.mutator || previousTier !== p.boardTier) {
+      previousTier = p.boardTier
       previousMission = p.milestoneIndex
       previousMutator = p.meta.mutator
       const m = milestoneFor(p)
       element('requirements').replaceChildren()
-      rows = Arr.map(m.requirements, requirementRow)
+      rows = Arr.map(m.requirements, (r) => requirementRow(r, () => recipe(r.value)))
       element('milestone').textContent = 'Milestone ' + (p.milestoneIndex + 1)
       element('reward').textContent = m.reward.length > 0 ? 'Unlocks ' + m.reward : 'Deliver to earn Sparks'
     }
@@ -267,7 +311,9 @@ export function hud({
     }
     element('vault-income').textContent =
       'Income efficiency · ' +
-      Math.round(100 * efficiency(p.milestoneIndex) * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy)) +
+      Math.round(
+        100 * efficiency(p.milestoneIndex) * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy) * medalSparkMultiplier(p)
+      ) +
       '%'
     if (panel === 'vault') {
       updateStock(p)
@@ -275,13 +321,21 @@ export function hud({
     element('contract-card').hidden = p.milestoneIndex < 3
     if (p.milestoneIndex >= 3) {
       const c = sideContract(p.meta.seed, p.contractIndex)
+      const id = p.meta.seed + '/' + p.contractIndex + '/' + p.boardTier
+      if (id !== contractKey) {
+        element('contract-hint').replaceChildren(recipeButton(() => recipe(c.value)))
+        contractKey = id
+      }
       element('contract').textContent = 'Deliver ' + c.value + ' · ' + p.contractDelivered + ' / ' + c.quota
       contractMeter.setAttribute('max', String(c.quota))
       contractMeter.setAttribute('value', String(p.contractDelivered))
       const jackpot = 1 + 0.4 * p.meta.metaUpgrades.contractMastery
       element('contract-reward').replaceChildren(
         'Reward ',
-        price({ sparks: Math.round(c.sparks * jackpot), stock: { [c.value]: Math.round(c.stock * jackpot) } })
+        price({
+          sparks: Math.round(Math.round(c.sparks * jackpot) * medalSparkMultiplier(p)),
+          stock: { [c.value]: Math.round(c.stock * jackpot) },
+        })
       )
     }
   }

@@ -20,6 +20,7 @@ import {
   coresEarned,
   metaUpgradeCost,
   milestoneFor,
+  missionRate,
   surgeInterval,
 } from './economy.ts'
 import {
@@ -35,6 +36,7 @@ import {
   ItemCrafted,
   ItemDelivered,
   MilestoneCompleted,
+  MedalUnlocked,
   OnTile,
   Progression,
   ResourceVein,
@@ -53,7 +55,7 @@ import {
   offsets,
   opposite,
 } from './model.ts'
-import type { BuildingAt, BuildingState, Cell, Command, Direction } from './model.ts'
+import type { BuildingAt, BuildingState, Cell, Command, Direction, MedalId } from './model.ts'
 
 const { Query, System } = Game
 const structures = Query({
@@ -72,12 +74,26 @@ const production = {
   },
   commands: System.commands(System.spawns(OnTile, Item, WorldPosition), System.despawns(Item)),
   events: {
+    medal: System.writeEvent(MedalUnlocked),
     craft: System.writeEvent(ItemCrafted),
     delivery: System.writeEvent(ItemDelivered),
     complete: System.writeEvent(MilestoneCompleted),
   },
 }
 type TransportContext = Parameters<Parameters<typeof System<'Beltworks/Production', typeof production>>[2]>[0]
+function unlock(
+  {
+    resources,
+    events,
+  }: { resources: Pick<TransportContext['resources'], 'progress'>; events: Pick<TransportContext['events'], 'medal'> },
+  medal: MedalId
+) {
+  const p = resources.progress.get()
+  if (!p.meta.medals.includes(medal)) {
+    resources.progress.set({ ...p, meta: { ...p.meta, medals: [...p.meta.medals, medal] } })
+    events.medal.emit({ medal })
+  }
+}
 const buildingDraft = (cell: Cell, dir: Direction, state: BuildingState) =>
   Game.Command.spawn([GridCell, { gx: cell.gx, gy: cell.gy }], [Facing, { dir }], [Building, state])
 function veinLayout(seed: number, richness: number) {
@@ -198,7 +214,7 @@ export const processCommands = System(
       System.spawns(GridCell, Building, Facing, ResourceVein),
       System.despawns(Building, Item, ResourceVein)
     ),
-    events: { reject: System.writeEvent(CommandRejected) },
+    events: { reject: System.writeEvent(CommandRejected), medal: System.writeEvent(MedalUnlocked) },
   },
   ({ commands, queries, resources, events }) => {
     const queue = resources.queue.get()
@@ -339,13 +355,26 @@ export const processCommands = System(
               mutator: cmd.mutator,
             },
           })
+          unlock({ resources, events }, 'ascended')
+          if (p.meta.mutator !== 'standard') {
+            unlock({ resources, events }, 'primeEngineer')
+          }
           newVeins = Option.some(veinLayout(seed, veinRichness))
         }
         continue
       }
       if (cmd.type === 'stampBlueprint') {
+        let placed = 0
         for (const entry of cmd.entries) {
-          place({ ...entry, type: 'placeBuilding', gx: cmd.originX + entry.dx, gy: cmd.originY + entry.dy })
+          if (
+            place({ ...entry, type: 'placeBuilding', gx: cmd.originX + entry.dx, gy: cmd.originY + entry.dy }) ===
+            undefined
+          ) {
+            placed++
+          }
+        }
+        if (placed >= 6) {
+          unlock({ resources, events }, 'blueprintArchitect')
         }
         continue
       }
@@ -433,6 +462,7 @@ function destinations(
     switch (b.kind) {
       case 'tunnelOut':
         if (underground && resources.index.get().items[k] === undefined) {
+          unlock({ resources, events }, 'underground')
           move(cell, opposite[facing])
           return true
         }
@@ -446,6 +476,22 @@ function destinations(
           tick: resources.time.get().step,
         })
         resources.progress.set(next)
+        if (complete && p.milestoneIndex === 0) {
+          unlock({ resources, events }, 'firstDelivery')
+        }
+        if (
+          !p.meta.medals.includes('multiLine') &&
+          Arr.filter(Rec.values(next.rateByValue), (rate) => rate >= 10).length >= 3
+        ) {
+          unlock({ resources, events }, 'multiLine')
+        }
+        if (
+          matchedTarget &&
+          !p.meta.medals.includes('throughputTitan') &&
+          Arr.reduce(milestoneFor(p).requirements, 0, (sum, r) => sum + missionRate({ p: next, value: r.value })) >= 150
+        ) {
+          unlock({ resources, events }, 'throughputTitan')
+        }
         events.delivery.emit({ ...cell, value, matchedTarget, sparksEarned })
         if (complete) {
           events.complete.emit({ milestoneIndex: p.milestoneIndex, targetValue: value })
@@ -540,7 +586,8 @@ function output(ctx: TransportContext, accept: ReturnType<typeof destinations>['
 function productionTurns(
   ctx: TransportContext,
   accept: ReturnType<typeof destinations>['accept'],
-  clearTile: (cell: Cell) => void
+  clearTile: (cell: Cell) => void,
+  bufferInterval: number
 ) {
   const { queries, resources } = ctx
   const emit = output(ctx, accept)
@@ -573,7 +620,15 @@ function productionTurns(
     }
     Visited.add(processed, e.id)
     const b = data.building.get(e)
-    if (b.kind === 'buffer' && Option.isSome(b.storedValue)) {
+    if (b.kind === 'buffer') {
+      const previousDelay = b.cooldownTicks ?? 0
+      const delay = previousDelay - 1
+      if (previousDelay > 0) {
+        data.building.set(e, { ...b, cooldownTicks: Math.max(0, delay) })
+      }
+      if (delay > 0 || Option.isNone(b.storedValue)) {
+        return
+      }
       const cell = data.cell.get(e)
       const dir = data.facing.get(e).dir
       clearTile(neighbor(dir)(cell))
@@ -582,6 +637,7 @@ function productionTurns(
         if (current.kind === 'buffer') {
           data.building.set(e, {
             ...current,
+            cooldownTicks: bufferInterval,
             count: current.count - 1,
             storedValue: current.count === 1 ? Option.none<number>() : current.storedValue,
           })
@@ -594,7 +650,15 @@ function productionTurns(
       const value = values[key(cell)]
       const p = resources.progress.get()
       const remainingTicks = b.remainingTicks - (1 + 0.5 * (coverage[key(cell)] ?? 0))
-      const send = () => value !== undefined && emit(cell, data.facing.get(e).dir, value)
+      const send = () => {
+        if (value === undefined || !emit(cell, data.facing.get(e).dir, value)) {
+          return false
+        }
+        if ((coverage[key(cell)] ?? 0) >= 2) {
+          unlock(ctx, 'overclocked')
+        }
+        return true
+      }
       if (b.bonusPending) {
         data.building.set(e, { ...b, remainingTicks: Math.max(0, remainingTicks), bonusPending: !send() })
       } else if (remainingTicks <= 0 && send()) {
@@ -638,6 +702,9 @@ function productionTurns(
     )
     if (emit(cell, data.facing.get(e).dir, result)) {
       data.building.set(e, { ...b, slotA: Option.none<number>(), slotB: Option.none<number>(), remainingTicks })
+      if ((coverage[key(cell)] ?? 0) >= 2) {
+        unlock(ctx, 'overclocked')
+      }
       ctx.events.craft.emit({ ...cell, op: b.op, a, b: second, result })
     } else {
       data.building.set(e, { ...b, remainingTicks: 1 })
@@ -687,9 +754,14 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
       advance(item)
     }
   })
-  const produce = productionTurns(ctx, accept, clearTile)
   const p = resources.progress.get()
   const speed = Math.min(TILE_PROGRESS_MAX, beltRate(p.upgrades.beltSpeed) * productionSpeed(p))
+  const produce = productionTurns(
+    ctx,
+    accept,
+    clearTile,
+    Math.max(1, Math.ceil(TILE_PROGRESS_MAX / beltRate(p.upgrades.beltSpeed)))
+  )
   type Cargo = ReturnType<typeof queries.cargo.each>[number]
   const visited = Visited.empty<number>()
   // Free the downstream cell first. Each item gets one turn, including in a cycle.

@@ -10,6 +10,14 @@ To start the web app, run `bun run --filter '@garage/beltworks-web' dev`.
 
 To start the full stack with local Workers, run `bun run --filter '@garage/beltworks' dev`.
 
+To run the M1 through M11 balance benchmark on seed zero, run
+
+```sh
+bun run --filter @garage/beltworks-domain test balance.test.ts -t "benchmarks a full" --silent=false
+```
+
+Each mode starts with base upgrades. The simulation clock pauses for construction. The benchmark counts every production tick, including time spent making upgrade stock. From M8, it ascends a copy of each checkpoint and reports Cores per elapsed simulation minute.
+
 ## Production deployment
 
 In the GitHub repository settings, add these Actions secrets.

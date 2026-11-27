@@ -1,7 +1,10 @@
 import { assert, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
+import * as Console from 'effect/Console'
+import * as Effect from 'effect/Effect'
 
 import {
+  Building,
   Game,
   Progression,
   applyEdits,
@@ -14,6 +17,7 @@ import {
   upgradeCost,
 } from '../src/index.ts'
 import type { Runtime } from '../src/index.ts'
+import { layout } from './balance-layouts.ts'
 import { fixtures } from './fixtures.ts'
 
 const { advance, belt, extractor, feed, place } = fixtures
@@ -234,6 +238,7 @@ it.each([
   place(r, extractor, belt(14), belt(15), belt(16))
   advance(r, 480)
   assert.equal(readProgress(r).totalDelivered, expected)
+  assert.equal(readProgress(r).meta.medals.includes('overclocked'), count >= 2)
   for (const cell of cells) {
     place(r, { type: 'removeBuilding', ...cell })
   }
@@ -271,6 +276,7 @@ it.each([
   assert.equal(readProgress(r).totalDelivered, 0)
   advance(r, 1)
   assert.equal(readProgress(r).vault[7], 1)
+  assert.equal(readProgress(r).meta.medals.includes('overclocked'), count >= 2)
 })
 
 it('resumes a fueled beacon and returns to normal extraction when its fuel runs out', () => {
@@ -311,11 +317,11 @@ it('requires fresh deliveries of both targets after removing a production line',
 it('pays the stated Core awards and rejects purchases with insufficient Cores or a full rank', () => {
   assert.deepEqual(
     Arr.map([7, 8, 9, 10, 11], (i) => coresEarned(i, 'standard')),
-    [0, 3, 5, 8, 12]
+    [0, 3, 6, 10, 15]
   )
   assert.deepEqual(
     Arr.map([8, 9, 10, 11], (i) => coresEarned(i, 'highVelocity')),
-    [4, 7, 11, 16]
+    [4, 8, 13, 20]
   )
   const r = createRuntime(0)
   const buy = { type: 'buyMetaUpgrade', upgrade: 'bootstrap' } as const
@@ -370,3 +376,153 @@ it('adds fractional mastery income and scales both contract jackpots', () => {
   assert.equal(p.vault[offer.value], 54 + offer.stock * 1.8)
   assert.equal(p.rateByValue[offer.value], 40)
 })
+
+it('awards medals at the third active line and the combined mission rate', () => {
+  const r = hubLine(6)
+  deliver(r, 48, 75)
+  deliver(r, 12, 74)
+  deliver(r, 2, 10)
+  deliver(r, 1, 9)
+  assert.deepEqual(readProgress(r).meta.medals, [])
+  deliver(r, 1)
+  assert.deepEqual(readProgress(r).meta.medals, ['multiLine'])
+  deliver(r, 12)
+  assert.deepEqual(readProgress(r).meta.medals, ['multiLine', 'throughputTitan'])
+  const before = readProgress(r)
+  deliver(r, 1, 100)
+  assert.equal(readProgress(r).sparks - before.sparks, 106)
+})
+
+it('counts only buildings placed in one blueprint stamp', () => {
+  const r = hubLine(0)
+  const entries = Arr.makeBy(6, (dx) => ({ dx, dy: 0, kind: 'belt' as const, dir: 'E' as const }))
+  const stamp = { type: 'stampBlueprint' as const, originX: 13, originY: 12, entries }
+  place(r, stamp)
+  r.tick(applyEdits)
+  assert.deepEqual(readProgress(r).meta.medals, [])
+  place(r, { ...stamp, originY: 10 })
+  r.tick(applyEdits)
+  assert.deepEqual(readProgress(r).meta.medals, ['blueprintArchitect'])
+})
+
+const hasFueledBeacon = Game.Inspector(
+  'Test/HasFueledBeacon',
+  { queries: { machines: Game.Query({ selection: { building: Game.Query.read(Building) } }) } },
+  ({ queries: { machines } }) =>
+    Arr.some(machines.each(), (entity) => {
+      const building = machines.data.building.get(entity)
+      return building.kind === 'beacon' && building.fuelTicks > 0
+    })
+)
+const modes = ['standard', 'primeRush', 'highVelocity'] as const
+it.effect.each(modes)(
+  'benchmarks a full %s run',
+  (mutator) =>
+    Effect.gen(function* () {
+      const r = createRuntime(0)
+      setProgress(r, { meta: { ...readProgress(r).meta, mutator } })
+      let ticks = 0
+      function build(name: Parameters<typeof layout>[0]) {
+        place(r, ...layout(name))
+        r.tick(applyEdits)
+      }
+      function runUntil(done: (p: Progress) => boolean) {
+        const start = ticks
+        while (!done(readProgress(r))) {
+          if (ticks - start > 100_000) {
+            throw new Error('Factory stalled at M' + (readProgress(r).milestoneIndex + 1))
+          }
+          advance(r, 1)
+          ticks++
+        }
+      }
+      function stock(value: number, units: number, name: Parameters<typeof layout>[0]) {
+        if ((readProgress(r).vault[value] ?? 0) < units) {
+          build(name)
+          runUntil((p) => (p.vault[value] ?? 0) >= units)
+        }
+      }
+      function upgrade(level: number) {
+        for (const upgrade of ['beltSpeed', 'extractorSpeed', 'combinerSpeed'] as const) {
+          place(r, { type: 'buyUpgrade', upgrade })
+          r.tick(applyEdits)
+          assert.equal(readProgress(r).upgrades[upgrade], level)
+        }
+      }
+      function expand(tier: number) {
+        place(r, { type: 'expandBoard' })
+        r.tick(applyEdits)
+        assert.equal(readProgress(r).boardTier, tier)
+      }
+      const prime = mutator === 'primeRush'
+      const missions = [
+        'one',
+        'three',
+        'seven',
+        prime ? 'eleven' : 'twelve',
+        prime ? 'nineteen' : 'twentyFour',
+        prime ? 'twentyNine' : 'thirtySeven',
+        prime ? 'fortyOne' : 'fortyEight',
+        prime ? 'fiftyNine' : 'seventyTwo',
+        prime ? 'eightyThree' : 'ninetySix',
+        prime ? 'elevenAgain' : 'oneTwentyEight',
+        prime ? 'nineteenAgain' : 'oneFortyFour',
+      ] as const
+      const results: Array<{
+        milestone: number
+        ticks: number
+        stageTicks: number
+        minutes: number
+        cores: number
+        coresPerMinute: number
+      }> = []
+      for (const [index, mission] of missions.entries()) {
+        const start = ticks
+        if (index === 2) {
+          expand(1)
+          upgrade(2)
+        }
+        if (index === 4) {
+          expand(2)
+          stock(3, 60, 'three')
+          upgrade(3)
+        }
+        if (index === 6) {
+          stock(12, 120, 'twelve')
+          stock(24, 80, 'twentyFour')
+          expand(3)
+          stock(7, 135, 'seven')
+          upgrade(4)
+        }
+        build(mission)
+        runUntil((p) => p.milestoneIndex === index + 1)
+        let cores = 0
+        if (index >= 7) {
+          assert.isTrue(r.inspect(hasFueledBeacon), mission)
+          const checkpoint = createRuntimeFromSave(exportSave(r))
+          if (!checkpoint.ok) {
+            throw new Error('Invalid milestone checkpoint')
+          }
+          place(checkpoint.value, { type: 'ascendBoard', mutator: 'standard' })
+          checkpoint.value.tick(applyEdits)
+          cores = readProgress(checkpoint.value).meta.cores
+        }
+        results.push({
+          milestone: index + 1,
+          ticks,
+          stageTicks: ticks - start,
+          minutes: (ticks - start) / 3600,
+          cores,
+          coresPerMinute: (cores * 3600) / ticks,
+        })
+      }
+      yield* Console.table(results).pipe(Effect.provideService(Console.Console, Console.Console.defaultValue()))
+      assert.lengthOf(results, 11)
+      let previous = 0
+      for (const row of results.slice(7)) {
+        assert.isAbove(row.coresPerMinute, previous, mutator + ' M' + row.milestone)
+        previous = row.coresPerMinute
+      }
+    }),
+  180_000
+)

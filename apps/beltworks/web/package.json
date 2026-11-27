@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "vite build",
-    "dev": "vite",
+    "dev": "vite --mode standalone",
     "typecheck": "effect-tsgo tsrs --noEmit",
     "format": "oxfmt --config ../../../oxfmt.config.mjs --check src/ test/ index.html package.json tsconfig.json vite.config.ts vitest.config.ts",
     "format:fix": "oxfmt --config ../../../oxfmt.config.mjs src/ test/ index.html package.json tsconfig.json vite.config.ts vitest.config.ts",

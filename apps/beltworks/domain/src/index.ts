@@ -9,6 +9,7 @@ import { positions, processCommands, transport, setup } from './systems.ts'
 
 export * from './model.ts'
 export * from './economy.ts'
+export * from './recipe.ts'
 
 export const simulation = Game.Schedule(
   Clock.system(Game, { name: 'Beltworks/AdvanceTime', resource: Time }),

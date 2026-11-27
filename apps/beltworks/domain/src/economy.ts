@@ -75,7 +75,7 @@ export const coresEarned: {
     return 0
   }
   const n = index - 8
-  const cores = 3 + (n * (n + 3)) / 2
+  const cores = ((n + 2) * (n + 3)) / 2
   return mutator === 'standard' ? cores : Math.ceil((cores * 13) / 10)
 })
 export const metaUpgradeCost: {
@@ -160,6 +160,7 @@ export function missionRate({ p, value }: { p: State; value: number }) {
   }
   return count
 }
+export const medalSparkMultiplier = (p: State) => 1 + 0.03 * p.meta.medals.length
 export function deliver({ previous, value, tick }: { previous: State; value: number; tick: number }) {
   const p = expireDeliveries({ p: previous, tick })
   const mission = milestoneFor(p)
@@ -179,11 +180,16 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
     )
   const paid = side && p.contractDelivered + 1 >= contract.quota
   const base = matchedTarget ? value * amplifier(p.upgrades.hubValue) : Number(tracked)
+  const jackpot = 1 + 0.4 * p.meta.metaUpgrades.contractMastery
+  const contractSparks = paid ? Math.round(contract.sparks * jackpot) : 0
   const cents =
     p.sparkCents +
-    Math.round(100 * efficiency(p.milestoneIndex) * base * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy))
-  const jackpot = 1 + 0.4 * p.meta.metaUpgrades.contractMastery
-  const sparksEarned = Math.floor(cents / 100) + (paid ? Math.round(contract.sparks * jackpot) : 0)
+    Math.round(
+      100 *
+        (contractSparks + efficiency(p.milestoneIndex) * base * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy)) *
+        medalSparkMultiplier(p)
+    )
+  const sparksEarned = Math.floor(cents / 100)
   const extraStockCents = (p.vaultRemainders[value] ?? 0) + 35 * p.meta.metaUpgrades.masterySynergy
   const next: State = {
     ...p,
