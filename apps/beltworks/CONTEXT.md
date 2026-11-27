@@ -69,7 +69,7 @@ Click the milestone number to see the first ten missions and the elapsed simulat
 
 ## Factory controls
 
-On a phone, tap the marked vein to place the first extractor. The game selects Belt. Drag from the extractor to the Hub. Use Rotate beside the tool dock to turn the next building. Drag with one finger in Select to pan. Use two fingers with any tool to pan and zoom. Open Workshop to buy an upgrade when the gold dot appears. Use More to mute sound or center the floor.
+On a phone, tap the marked vein to place the first extractor. The game selects Belt. Drag from the extractor to the Hub. Use Rotate beside the tool dock to turn the next building. Drag with one finger in Select to pan. Use two fingers with any tool to pan and zoom. After M1, open Research (U) to inspect an upgrade or expand the floor. A gold dot marks an available purchase or ascension. Use More to mute sound or center the floor.
 
 The Flow Lens (V) shows beacon range, combiners with one empty input, and cargo blocked at the end of a belt. A fueled beacon has a cyan outline. A dormant beacon has a dashed amber outline.
 

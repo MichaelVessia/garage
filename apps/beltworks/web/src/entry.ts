@@ -321,14 +321,6 @@ function milestoneBanner(index: number, bonus: number) {
     banner.hidden = true
   }, 5000)
 }
-element('quick-upgrade').onclick = () => {
-  element('milestone-banner').hidden = true
-  element('workshop').setAttribute('open', '')
-  if (window.matchMedia('(max-width: 768px)').matches) {
-    element('open-workshop').click()
-  }
-  element('show-upgrades').click()
-}
 const filterForm = element('filter-picker')
 const filterInput = document.querySelector<HTMLInputElement>('input#filter-value')
 if (filterInput === null) {
@@ -623,14 +615,6 @@ function animateBoard(updateGuide = true) {
   if (guideArrows.context.instructions.length > 0) {
     guideArrows.clear()
   }
-  const showUpgrade =
-    view.p.milestoneIndex === 1 &&
-    guide.step !== 'hidden' &&
-    view.p.upgrades.beltSpeed === 1 &&
-    view.p.upgrades.extractorSpeed === 1 &&
-    view.p.upgrades.combinerSpeed === 1
-  element('workshop').classList.toggle('guided', showUpgrade)
-  element('open-workshop').classList.toggle('guided', showUpgrade)
   if (guide.step === 'place-adder') {
     for (const [cells, color] of [
       [guide.a, portColors.a],
@@ -774,7 +758,6 @@ function edit(command: Command) {
       celebrate()
     }
     if (command.type === 'expandBoard') {
-      document.querySelector<HTMLDialogElement>('#workshop-sheet')?.close()
       revealExpansion()
       notify('Workshop expanded · Ring ' + view.p.boardTier)
       celebrate(329.63)
@@ -866,14 +849,9 @@ function undo() {
 undoButton.onclick = undo
 const canvas = app.canvas
 function boardViewport() {
-  const drawer = element('workshop')
   const top = element('bar').getBoundingClientRect().bottom + 12
   document.documentElement.style.setProperty('--drawer-top', Math.max(74, top) + 'px')
-  const right =
-    field.clientWidth > 900 && !drawer.hasAttribute('hidden') && drawer.hasAttribute('open')
-      ? drawer.getBoundingClientRect().left - 12
-      : field.clientWidth
-  const w = Math.max(1, right),
+  const w = Math.max(1, field.clientWidth),
     h = Math.max(1, element('toolbar').getBoundingClientRect().top - 12 - top)
   return { width: w, height: h, top }
 }
@@ -934,10 +912,6 @@ function fitBoard(animated: boolean) {
 function center() {
   fitBoard(false)
 }
-if (window.matchMedia('(max-width:850px)').matches) {
-  document.querySelector('details')?.removeAttribute('open')
-}
-element('workshop').addEventListener('toggle', center)
 const layout = new ResizeObserver(() => {
   app.resize()
   center()
@@ -1257,7 +1231,7 @@ function rotateFacing() {
 }
 rotateButton.onclick = rotateFacing
 window.addEventListener('keydown', (e) => {
-  if (document.querySelector('#leaderboard:modal') !== null) {
+  if (document.querySelector('dialog:modal') !== null) {
     return
   }
   const k = Str.toLowerCase(e.key)
@@ -1358,7 +1332,7 @@ function redrawFactory(nextTool: Tool) {
   choose(nextTool)
   center()
   undoButton.toggleAttribute('disabled', inspection.visiting || !history.available)
-  for (const id of ['clear', 'reset', 'speed', 'pause']) {
+  for (const id of ['clear', 'reset', 'speed', 'pause', 'open-workshop']) {
     element(id).toggleAttribute('disabled', inspection.visiting)
   }
 }

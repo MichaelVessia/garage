@@ -73,10 +73,11 @@
             <path d="M3 6l6 5-6 5m8-10 6 5-6 5" /></svg
           ><span>1×</span></button
         >
-        <button class="mobile-control" id="open-workshop" aria-haspopup="dialog" aria-controls="workshop-sheet" title="Workshop" aria-label="Workshop"><span class="upgrade-ready">Upgrade ready!</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 20V9l6 3V8l6 3V4h4l2 16H3zM7 16h2m3 0h2m3 0h1"/></svg></button>
+        <button hidden id="open-workshop" aria-haspopup="dialog" aria-controls="workshop-sheet" title="Research (U)" aria-label="Research"><span class="upgrade-ready">Upgrade ready!</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 20V9l6 3V8l6 3V4h4l2 16H3zM7 16h2m3 0h2m3 0h1"/></svg><span class="research-label">Research</span></button>
         <button class="mobile-control" id="more" popovertarget="more-actions" aria-label="More actions" title="More actions">⋯</button>
         <div id="more-actions">
           <button class="mobile-control" popovertarget="roadmap">Milestone roadmap</button>
+          <button popovertarget="controls" title="Controls" aria-label="Controls">?</button>
           <button id="share" title="Copy factory link">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
             <path d="m8 11 8-5M8 13l8 5"/><circle cx="5" cy="12" r="3"/><circle cx="19" cy="4" r="3"/><circle cx="19" cy="20" r="3"/>
@@ -184,40 +185,33 @@
         <p id="leaderboard-empty" role="status"></p></div>
       </div>
     </dialog>
-    <dialog id="workshop-sheet" aria-label="Workshop"></dialog>
-    <details id="workshop" open hidden>
-      <summary>
-        Workshop<span class="upgrade-ready">Upgrade ready!</span><svg
-          viewBox="0 0 22 22"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.7"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M6 9l5 5 5-5" />
-        </svg>
-      </summary>
-      <div class="sheet-heading"><strong>Workshop</strong><button id="close-workshop" aria-label="Close Workshop">×</button></div>
+    <dialog id="workshop-sheet" aria-labelledby="research-title">
+      <div class="research-body">
+      <div class="research-heading"><div><small>WORKSHOP</small><h2 id="research-title">Research tree</h2></div><button id="close-workshop" aria-label="Close research">×</button></div>
       <div class="drawer-tabs" role="group" aria-label="Workshop view">
-        <button id="show-upgrades" aria-controls="upgrade-panel" aria-pressed="true">Upgrades</button>
+        <button id="show-upgrades" aria-controls="upgrade-panel" aria-pressed="true">Tech tree</button>
         <button id="show-vault" aria-controls="vault-panel" aria-pressed="false">Vault &amp; Contract</button>
         <button id="show-ascend" aria-controls="ascend-panel" aria-pressed="false" hidden>Ascend</button>
       </div>
-      <div id="upgrade-panel"><div id="upgrades"></div>
-      <section class="upgrade" id="expand-card">
-        <strong>Workshop expansion</strong><span id="expansion"></span>
-      </section>
+      <div id="upgrade-panel"><div id="research-graph" role="group" aria-label="Research nodes">
+        <svg class="wires" viewBox="0 0 120 100" preserveAspectRatio="none" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M10 50H60V25H80V50H110M60 50V75H80V50"/></svg>
+        <svg class="mobile-wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M25 10H75V30H50V40H25V50M50 40H75V50M25 50V60H75V50M50 60V90"/></svg>
+        <button class="research-node" id="node-extractorSpeed"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M5 4h12l3 5-4 10H6L2 9z M11 6l4 4-4 5-4-5z"/></svg><strong>Extractor</strong><small></small><i></i></button>
+        <button class="research-node" id="node-beltSpeed"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M2 5h18v12H2z M5 8l3 3-3 3m6-6 3 3-3 3"/></svg><strong>Belt</strong><small></small><i></i></button>
+        <button class="research-node" id="node-combinerSpeed"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4 3h14l2 3v11l-3 3H5l-3-3V6z M6 11h10m-5-5v10"/></svg><strong>Combiner</strong><small></small><i></i></button>
+        <button class="research-node" id="node-hubValue"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M2 15h4l3-9 4 12 3-8h4"/></svg><strong>Amplifier</strong><small></small><i></i></button>
+        <button class="research-node" id="node-surge"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="m13 2-9 11h6l-1 7 9-12h-6z"/></svg><strong>Surge</strong><small></small><i></i></button>
+        <button class="research-node" id="node-expand"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M8 3H3v5m11-5h5v5M3 14v5h5m11-5v5h-5M3 3l5 5m11-5-5 5M3 19l5-5m11 5-5-5"/></svg><strong>Expand</strong><small></small><i></i></button>
+        <button class="research-node" id="node-ascension"><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M3 15l8-8 8 8M5 18l6-6 6 6M8 5l3-3 3 3"/></svg><strong>Ascension</strong><small></small><i></i></button>
+      </div><div class="research-inspector"><div><strong id="research-name"></strong><p id="research-effect"></p></div><div id="research-cost"></div><button id="research-buy">Upgrade</button></div></div>
+      <div id="vault-panel" hidden>
+        <section class="upgrade" id="contract-card"><strong>Side contract <span id="contract-hint"></span></strong><span id="contract"></span><progress id="contract-meter" aria-label="Side contract quota"></progress><div id="contract-reward"></div></section>
+        <section class="upgrade"><strong>Vault stockpile</strong><span id="vault-income"></span><div id="stock"></div></section>
       </div>
       <section id="mastery" hidden aria-label="Mastery medals">
         <div class="medal-heading"><strong>Mastery medals</strong><span id="medal-bonus"></span></div>
         <ul id="medal-grid"></ul>
       </section>
-      <div id="vault-panel" hidden>
-        <section class="upgrade"><strong>Vault</strong><span id="vault-income"></span><div id="stock"></div></section>
-        <section class="upgrade" id="contract-card"><strong>Side contract <span id="contract-hint"></span></strong><span id="contract"></span><progress id="contract-meter" aria-label="Side contract quota"></progress><div id="contract-reward"></div></section>
-      </div>
       <div id="ascend-panel" hidden>
         <section class="upgrade">
           <strong>Foundry Cores</strong><b id="cores"></b>
@@ -227,12 +221,13 @@
           <span id="mutator-effect"></span>
           <button id="ascend" disabled>Ascend</button>
         </section>
-        <div id="core-tech"></div>
+        <div id="core-tech" role="group" aria-label="Core technology"></div><div class="research-inspector"><div><strong id="core-name"></strong><p id="core-effect"></p></div><button id="core-buy"></button></div>
       </div>
       <p id="run-summary" hidden></p>
-      <details class="help">
-        <summary>Controls</summary>
-        <dl>
+      </div>
+    </dialog>
+    <section popover id="controls"><strong>Controls</strong><dl>
+          <dt><kbd>U</kbd></dt><dd>Research</dd>
           <dt><kbd>Drag</kbd></dt>
           <dd>Lay belts</dd>
           <dt><kbd>Q</kbd></dt><dd>Eyedropper</dd>
@@ -245,8 +240,7 @@
           <dt><kbd>Right-drag</kbd></dt>
           <dd>Pan</dd>
         </dl>
-      </details>
-    </details>
+    </section>
     <canvas id="minimap" width="144" height="104" aria-label="Factory minimap. Click or drag to pan." hidden></canvas>
     <div id="measurement" hidden></div>
     <div id="starter-hint" hidden><span id="starter-message"></span><button id="dismiss-starter" aria-label="Dismiss hint" hidden>×</button></div>

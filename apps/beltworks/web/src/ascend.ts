@@ -1,5 +1,5 @@
-import { coresEarned, metaUpgradeCost, metaUpgradeLimits } from '@garage/beltworks-domain'
-import type { initial, MetaUpgradeKey, Mutator } from '@garage/beltworks-domain'
+import { coresEarned, initial, metaUpgradeCost, metaUpgradeLimits } from '@garage/beltworks-domain'
+import type { MetaUpgradeKey, Mutator } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
 import * as Rec from 'effect/Record'
 
@@ -59,25 +59,42 @@ export function ascendPanel({ element, ...actions }: AscendActions & { element: 
     element('mutator-effect').textContent = mutators[next][1]
   }
   select(next)
-  const cards = Arr.map(Rec.toEntries(technology), ([key, [label, effect]]) => {
-    const card = document.createElement('section')
-    card.className = 'upgrade'
-    const title = document.createElement('strong')
-    title.textContent = label
-    const rank = document.createElement('span')
-    rank.className = 'level'
-    const description = document.createElement('span')
-    description.textContent = effect
+  let selected: MetaUpgradeKey = 'bootstrap'
+  let latest = initial
+  const purchase = element('core-buy')
+  purchase.onclick = () => actions.buyMeta(selected)
+  const nodes = Arr.map(Rec.toEntries(technology), ([key, [label]]) => {
     const button = document.createElement('button')
-    button.onclick = () => actions.buyMeta(key)
-    card.append(title, rank, description, button)
-    element('core-tech').append(card)
-    return { key, max: metaUpgradeLimits[key], rank, button }
+    const rank = document.createElement('small')
+    button.append(label, rank)
+    button.onclick = () => {
+      selected = key
+      updateTech(latest)
+    }
+    element('core-tech').append(button)
+    return { key, button, rank }
   })
+  function updateTech(p: typeof initial) {
+    latest = p
+    for (const { key, button, rank } of nodes) {
+      const level = p.meta.metaUpgrades[key]
+      const max = metaUpgradeLimits[key]
+      const cost = metaUpgradeCost(key, level)
+      rank.textContent = level + ' / ' + max
+      button.setAttribute('aria-pressed', String(selected === key))
+      if (selected !== key) {
+        continue
+      }
+      element('core-name').textContent = technology[key][0]
+      element('core-effect').textContent = technology[key][1]
+      purchase.toggleAttribute('disabled', level >= max || p.meta.cores < cost)
+      purchase.textContent = level >= max ? 'Maximum' : 'Buy · ' + cost + ' Cores'
+    }
+  }
   return {
     cancel,
     update(p: typeof initial) {
-      const { cores, ascensions, mutator, metaUpgrades } = p.meta
+      const { cores, ascensions, mutator } = p.meta
       element('cores').textContent = String(cores)
       const eligible = p.milestoneIndex >= 8
       ascend.toggleAttribute('disabled', !eligible)
@@ -87,13 +104,7 @@ export function ascendPanel({ element, ...actions }: AscendActions & { element: 
       if (!eligible && timer !== 0) {
         cancel()
       }
-      for (const { key, max, rank, button } of cards) {
-        const level = metaUpgrades[key]
-        rank.textContent = 'Rank ' + level + '/' + max
-        const cost = metaUpgradeCost(key, level)
-        button.disabled = level >= max || cores < cost
-        button.textContent = level >= max ? 'Maximum' : 'Buy · ' + cost + ' Cores'
-      }
+      updateTech(p)
       element('run-summary').textContent =
         'Milestones cleared ' +
         p.milestoneIndex +

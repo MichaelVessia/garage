@@ -1,0 +1,53 @@
+// @vitest-environment happy-dom
+import { assert, it } from '@effect/vitest'
+import { initial } from '@garage/beltworks-domain'
+import { vi } from 'vitest'
+
+import layout from '../index.html?raw'
+import { element, hud } from '../src/hud.ts'
+
+const key = (target: EventTarget, value: string) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true }))
+
+it('opens research from its shortcut and milestone banner, inspects nodes and buys the selection', () => {
+  const parsed = new DOMParser().parseFromString(layout, 'text/html')
+  document.body.replaceChildren(...parsed.body.children)
+  const buy = vi.fn()
+  const expand = vi.fn()
+  const render = hud({ buy, expand, buyMeta: vi.fn(), ascend: vi.fn(), choose: vi.fn(), veins: () => [] })
+  const dialog = element('workshop-sheet')
+  render(initial, 'select')
+  key(window, 'u')
+  assert.isFalse(dialog.hasAttribute('open'))
+  render({ ...initial, milestoneIndex: 1 }, 'select')
+  key(window, 'u')
+  assert.include(element('research-name').textContent, 'Belt speed')
+  assert.isTrue(element('research-buy').hasAttribute('disabled'))
+  assert.isTrue(element('show-ascend').hidden)
+  element('node-surge').click()
+  assert.include(element('research-effect').textContent, 'Complete M3')
+  element('close-workshop').click()
+  render({ ...initial, milestoneIndex: 2, sparks: 500, vault: { 1: 100, 3: 50 } }, 'select')
+  key(window, 'u')
+  assert.isTrue(dialog.hasAttribute('open'))
+  assert.include(element('research-name').textContent, 'Extractor speed')
+  element('node-beltSpeed').click()
+  assert.include(element('research-name').textContent, 'Belt speed')
+  element('research-buy').click()
+  assert.deepEqual(buy.mock.calls, [['beltSpeed']])
+  element('node-expand').click()
+  assert.equal(element('research-buy').textContent, 'Expand')
+  element('research-buy').click()
+  assert.lengthOf(expand.mock.calls, 1)
+  key(dialog, 'u')
+  assert.isFalse(dialog.hasAttribute('open'))
+  element('open-workshop').click()
+  element('show-vault').click()
+  key(dialog, 'Escape')
+  assert.isFalse(dialog.hasAttribute('open'))
+  element('quick-upgrade').click()
+  assert.isTrue(dialog.hasAttribute('open'))
+  assert.isFalse(element('upgrade-panel').hidden)
+  dialog.click()
+  assert.isFalse(dialog.hasAttribute('open'))
+})
