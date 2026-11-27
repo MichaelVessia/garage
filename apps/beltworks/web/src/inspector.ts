@@ -53,9 +53,13 @@ export function inspectCell({
       const result =
         a === undefined || b === undefined
           ? ''
-          : ' → ' + Math.min(Number.MAX_SAFE_INTEGER, { add: a + b, sub: Math.max(0, a - b), mul: a * b }[state.op])
+          : ' → ' +
+            Math.min(
+              Number.MAX_SAFE_INTEGER,
+              { add: a + b, sub: Math.max(0, a - b), div: b > 0 ? Math.floor(a / b) : 0, mul: a * b }[state.op]
+            )
       return (
-        { mul: 'Multiplier (×)', sub: 'Subtractor (−)', add: 'Adder (+)' }[state.op] +
+        { div: 'Divider (÷)', mul: 'Multiplier (×)', sub: 'Subtractor (−)', add: 'Adder (+)' }[state.op] +
         ' · A: ' +
         (a ?? '–') +
         ' · B: ' +
@@ -63,6 +67,10 @@ export function inspectCell({
         result
       )
     }
+    case 'filter':
+      return 'Filter · ' + state.targetValue + ' straight · Other values to the side'
+    case 'beacon':
+      return 'Beacon · ' + (state.fuelTicks > 0 ? Math.ceil(state.fuelTicks / 60) + ' s of fuel' : 'Needs fuel ≥ 2')
     case 'splitter':
       return 'Splitter · Next output: ' + (state.nextPort === 0 ? 'Left' : 'Right')
     case 'tunnelIn':

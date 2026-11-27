@@ -1,4 +1,5 @@
 import {
+  toolUnlock,
   CommandRejected,
   Game,
   findTunnelPartner,
@@ -19,15 +20,17 @@ import {
   simulation,
   step,
 } from '@garage/beltworks-domain'
-import type { Cell, Command, Direction } from '@garage/beltworks-domain'
+import type { BlueprintEntry, Cell, Command, Direction } from '@garage/beltworks-domain'
 import { FixedLoop, Result } from '@typeonce/ritmo'
 import { BrowserTickSource } from '@typeonce/ritmo-browser'
 import * as Arr from 'effect/Array'
 import * as Cause from 'effect/Cause'
 import * as Option from 'effect/Option'
+import * as Rec from 'effect/Record'
 import * as Str from 'effect/String'
 import { Application, Graphics, Point } from 'pixi.js'
 
+import { area, captureBlueprint, rotateBlueprint } from './blueprint.ts'
 import { Burst, draw, createBoard, stats } from './board.ts'
 import { cloud } from './cloud.ts'
 import { editHistory } from './history.ts'
@@ -72,12 +75,40 @@ const ghost = board.preview.addChild(new Machine())
 const border = board.preview.addChild(new Graphics())
 let eraseStart = Option.none<Cell>()
 const dimensions = board.preview.addChild(label({ text: '', size: 16, fill: 0xff_ff_ff }))
-function area(start: Cell, end: Cell) {
-  return {
-    minX: Math.min(start.gx, end.gx),
-    maxX: Math.max(start.gx, end.gx),
-    minY: Math.min(start.gy, end.gy),
-    maxY: Math.max(start.gy, end.gy),
+let clipboard: Array<BlueprintEntry> = []
+let stamping = false
+let copyStart = Option.none<Cell>()
+let selectedBeacon = Option.none<Cell>()
+const stampGhosts: Array<Machine> = []
+function primaryTarget() {
+  return milestone(view.p.milestoneIndex).requirements[0]?.value ?? 1
+}
+function stampPreview(origin: Cell) {
+  for (const [i, entry] of clipboard.entries()) {
+    const cell = { gx: origin.gx + entry.dx, gy: origin.gy + entry.dy }
+    const kind = entry.kind === 'combiner' ? entry.op : entry.kind
+    const state = ghostState({ tool: kind, targetValue: entry.kind === 'filter' ? (entry.targetValue ?? 1) : 1 })
+    if (Option.isNone(state)) {
+      continue
+    }
+    const valid =
+      toolUnlock[kind] <= view.p.milestoneIndex &&
+      inBounds(cell, view.p.boardTier) &&
+      machineAt(cell) === undefined &&
+      (kind !== 'extractor' || view.index.veins[key(cell)] !== undefined)
+    const color = valid ? 0x7c_e3_b6 : 0xf1_7a_75
+    const node = stampGhosts[i] ?? board.preview.addChild(new Machine())
+    stampGhosts[i] = node
+    node.update(state.value, entry.dir)
+    node.position.set((cell.gx + 0.5) * tile, (cell.gy + 0.5) * tile)
+    node.tint = color
+    node.alpha = 0.65
+    node.visible = true
+    border
+      .rect(cell.gx * tile, cell.gy * tile, tile, tile)
+      .setFillStyle({ color, alpha: 0.18 })
+      .fill()
+      .stroke({ color, width: 2 })
   }
 }
 const tunnelAt = (cell: Cell) => tunnelPreview({ cell, facing, at: board.buildingAt(view.index.buildings) })
@@ -104,9 +135,16 @@ function inspectHover() {
 }
 function preview() {
   inspectHover()
+  board.setBeaconFocus(Option.getOrUndefined(hovered), Option.getOrUndefined(selectedBeacon))
+  for (const node of stampGhosts) {
+    node.visible = false
+  }
   const direction = element('direction')
-  direction.hidden = tool === 'select' || tool === 'erase' || tool === 'trash'
+  direction.hidden = tool === 'select' || tool === 'erase' || tool === 'trash' || tool === 'beacon'
   direction.textContent = 'Facing ' + facing + ' · R to rotate'
+  if (tool === 'blueprint') {
+    direction.textContent = stamping ? 'Click to stamp · R to rotate · Esc to cancel' : 'Drag to copy'
+  }
   ghost.visible = false
   border.clear()
   dimensions.visible = false
@@ -124,21 +162,32 @@ function preview() {
       link(cell, partner)
     }
   }
-  if (Option.isNone(hovered) || tool === 'select') {
+  if (Option.isNone(hovered)) {
     return
   }
-  if (Option.isSome(eraseStart)) {
-    const { minX, maxX, minY, maxY } = area(eraseStart.value, hovered.value)
+  const start = Option.isSome(copyStart) ? copyStart : eraseStart
+  if (Option.isSome(start)) {
+    const copying = Option.isSome(copyStart)
+    const { minX, maxX, minY, maxY } = area({ start: start.value, end: hovered.value })
     const w = maxX - minX + 1,
       h = maxY - minY + 1
     border
       .rect(minX * tile, minY * tile, w * tile, h * tile)
-      .setFillStyle({ color: 0xe5_4a_48, alpha: 0.3 })
+      .setFillStyle({ color: copying ? 0x47_df_f0 : 0xe5_4a_48, alpha: 0.3 })
       .fill()
-      .stroke({ width: 3, color: 0xff_79_75 })
+      .stroke({ width: 3, color: copying ? 0x61_e7_ef : 0xff_79_75 })
     dimensions.text = w + '×' + h
     dimensions.position.set((minX + w / 2) * tile, (minY + h / 2) * tile)
     dimensions.visible = true
+    return
+  }
+  if (tool === 'blueprint') {
+    if (stamping) {
+      stampPreview(hovered.value)
+    }
+    return
+  }
+  if (tool === 'select') {
     return
   }
   const k = key(hovered.value),
@@ -163,7 +212,10 @@ function preview() {
   if (valid && tunnel?.partner !== undefined) {
     link(hovered.value, tunnel.partner)
   }
-  const state = ghostState(tool === 'tunnel' ? (tunnel?.kind ?? 'tunnelIn') : tool)
+  const state = ghostState({
+    tool: tool === 'tunnel' ? (tunnel?.kind ?? 'tunnelIn') : tool,
+    targetValue: primaryTarget(),
+  })
   if (Option.isSome(state)) {
     ghost.update(state.value, facing)
     ghost.animate(view.tick, view.p)
@@ -173,7 +225,11 @@ function preview() {
     ghost.visible = true
   }
 }
-function choose(t: Tool) {
+function choose(t: Tool, paste = false) {
+  copyStart = Option.none()
+  selectedBeacon = Option.none()
+  stamping = paste
+  element('filter-picker').hidden = true
   eraseStart = Option.none()
   tool = t
   updateHud(view.p, t)
@@ -192,6 +248,54 @@ function notify(message: string) {
     element('notice').textContent = ''
   }, 2600)
 }
+const filterForm = element('filter-picker')
+const filterInput = document.querySelector<HTMLInputElement>('input#filter-value')
+if (filterInput === null) {
+  throw new Error('Missing filter input')
+}
+const valueInput = filterInput
+let filterCell = Option.none<Cell>()
+function applyFilter(value: number) {
+  if (Option.isNone(filterCell) || !Number.isInteger(value) || value < 1 || value > 999) {
+    return
+  }
+  edit({ type: 'setFilter', ...filterCell.value, targetValue: value })
+  filterForm.hidden = true
+  valueInput.blur()
+}
+filterForm.onsubmit = (e) => {
+  e.preventDefault()
+  applyFilter(valueInput.valueAsNumber)
+}
+function openFilter(cell: Cell, value: number) {
+  filterCell = Option.some(cell)
+  const targets = Arr.map(milestone(view.p.milestoneIndex).requirements, (r) => r.value)
+  const values = Arr.dedupe([...targets, ...Arr.map(Rec.keys(view.p.vault), Number)])
+  element('filter-values').replaceChildren(
+    ...Arr.map(
+      Arr.filter(values, (n) => n >= 1 && n <= 999),
+      (n) => {
+        const chip = document.createElement('button')
+        chip.type = 'button'
+        chip.textContent = String(n)
+        chip.onclick = () => applyFilter(n)
+        return chip
+      }
+    )
+  )
+  valueInput.value = String(value)
+  filterForm.hidden = false
+  valueInput.focus()
+  valueInput.select()
+}
+let flowLens = false
+function toggleLens() {
+  flowLens = !flowLens
+  board.setFlowLens(flowLens)
+  element('lens').setAttribute('aria-pressed', String(flowLens))
+  animateBoard()
+}
+element('lens').onclick = toggleLens
 let audio = Option.none<AudioContext>()
 let sound = false
 element('sound').onclick = () => {
@@ -487,19 +591,49 @@ canvas.onpointerdown = (e) => {
   if (e.button === 2 || e.button === 1) {
     pan = Option.some({ start: pointer(e), origin: board.world.position.clone(), moved: false })
   } else if (e.button === 0 && Option.isSome(hovered)) {
+    filterForm.hidden = true
+    if (tool === 'select' && e.shiftKey) {
+      choose('blueprint')
+    }
+    if (tool === 'blueprint') {
+      if (stamping) {
+        edit({ type: 'stampBlueprint', originX: hovered.value.gx, originY: hovered.value.gy, entries: clipboard })
+      } else {
+        copyStart = hovered
+      }
+      preview()
+      return
+    }
     if (tool === 'erase') {
       eraseStart = hovered
       preview()
       return
     }
     const machine = machineAt(hovered.value)
+    if (tool === 'select') {
+      selectedBeacon = machine?.state.kind === 'beacon' ? hovered : Option.none()
+      preview()
+      if (machine?.state.kind === 'filter') {
+        openFilter(hovered.value, machine.state.targetValue)
+        return
+      }
+      if (Option.isSome(selectedBeacon)) {
+        return
+      }
+    }
     existingBeltStart = tool === 'belt' && machine?.state.kind === 'belt'
     if (existingBeltStart && machine !== undefined) {
       brush = Option.some({ cell: hovered.value, dir: machine.facing })
       return
     }
     const empty = view.index.buildings[key(hovered.value)] === undefined
-    edit(placement(tool === 'tunnel' ? tunnelAt(hovered.value).kind : tool)({ cell: hovered.value, dir: facing }))
+    edit(
+      placement(tool === 'tunnel' ? tunnelAt(hovered.value).kind : tool)({
+        cell: hovered.value,
+        dir: facing,
+        targetValue: primaryTarget(),
+      })
+    )
     if (tool === 'belt' && empty && inBounds(hovered.value, view.p.boardTier)) {
       brush = Option.some({ cell: hovered.value, dir: facing })
     }
@@ -553,8 +687,22 @@ canvas.onpointerup = (e) => {
     return
   }
   hover(e)
+  if (e.button === 0 && Option.isSome(copyStart) && Option.isSome(hovered)) {
+    const entries = captureBlueprint({
+      start: copyStart.value,
+      end: hovered.value,
+      machineAt: (cell) => Option.fromUndefinedOr(machineAt(cell)),
+    })
+    if (entries.length > 0) {
+      clipboard = entries
+      choose('blueprint', true)
+    } else {
+      notify('No machines in selection')
+    }
+  }
+  copyStart = Option.none()
   if (e.button === 0 && Option.isSome(eraseStart) && Option.isSome(hovered)) {
-    edit({ type: 'removeArea', ...area(eraseStart.value, hovered.value) })
+    edit({ type: 'removeArea', ...area({ start: eraseStart.value, end: hovered.value }) })
   }
   eraseStart = Option.none()
   preview()
@@ -565,6 +713,7 @@ canvas.onpointerup = (e) => {
   pan = Option.none()
 }
 canvas.onlostpointercapture = () => {
+  copyStart = Option.none()
   eraseStart = Option.none()
   preview()
   pan = Option.none()
@@ -575,6 +724,26 @@ canvas.onpointerleave = () => {
   preview()
 }
 window.addEventListener('keydown', (e) => {
+  const k = Str.toLowerCase(e.key)
+  if (filterForm.hidden === false && k === 'escape') {
+    filterForm.hidden = true
+    valueInput.blur()
+    return
+  }
+  if (e.target === valueInput) {
+    return
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (k === 'c' || k === 'v')) {
+    e.preventDefault()
+    if (k === 'c') {
+      choose('blueprint')
+    } else if (clipboard.length > 0) {
+      choose('blueprint', true)
+    } else {
+      notify('Drag to copy a blueprint first')
+    }
+    return
+  }
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && Str.toLowerCase(e.key) === 'z') {
     e.preventDefault()
     if (!e.repeat) {
@@ -585,8 +754,12 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) {
     return
   }
-  const k = Str.toLowerCase(e.key)
-  if (k === ' ') {
+  const hoveredState = Option.isSome(hovered) ? machineAt(hovered.value)?.state : undefined
+  if (k === 'v') {
+    toggleLens()
+  } else if (k === 'f' && Option.isSome(hovered) && hoveredState?.kind === 'filter') {
+    openFilter(hovered.value, hoveredState.targetValue)
+  } else if (k === ' ') {
     e.preventDefault()
     pause()
   } else if (k === 'q' && Option.isSome(hovered)) {
@@ -601,7 +774,9 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'h') {
     center()
   } else if (k === 'r') {
-    if (tool === 'select' && Option.isSome(hovered)) {
+    if (tool === 'blueprint' && stamping) {
+      clipboard = rotateBlueprint(clipboard)
+    } else if (tool === 'select' && Option.isSome(hovered)) {
       edit({ ...hovered.value, type: 'rotateBuilding' })
     } else {
       facing = clockwise[facing]

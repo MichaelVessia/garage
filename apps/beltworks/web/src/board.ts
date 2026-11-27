@@ -1,4 +1,4 @@
-import type { initial, BoardTier, BuildingAt } from '@garage/beltworks-domain'
+import type { initial, BoardTier, BuildingAt, Cell } from '@garage/beltworks-domain'
 import {
   Building,
   Facing,
@@ -10,6 +10,7 @@ import {
   Progression,
   ResourceVein,
   Time,
+  TILE_PROGRESS_MAX,
   WorldPosition,
   columns,
   boardBounds,
@@ -30,7 +31,37 @@ import { ink, label, Machine, oreColor, tile } from './machines.ts'
 const Workshop = Descriptor.Service<(tier: BoardTier) => void>()('Beltworks/Workshop')
 const Veins = Descriptor.Service<NodeRegistry.NodeRegistry<Container>>()('Beltworks/Veins')
 const Machines = Descriptor.Service<NodeRegistry.NodeRegistry<Machine>>()('Beltworks/Machines')
-const Items = Descriptor.Service<NodeRegistry.NodeRegistry<Container>>()('Beltworks/Items')
+const Items = Descriptor.Service<NodeRegistry.NodeRegistry<Cargo>>()('Beltworks/Items')
+
+class Cargo extends Container {
+  stalled = false
+  readonly pulse = this.addChild(new Graphics().circle(0, 0, 16).stroke({ color: 0xff_b8_51, width: 3 }))
+
+  constructor() {
+    super()
+    this.pulse.visible = false
+  }
+}
+
+function beaconAura(g: Graphics, node: Machine, fueled: boolean) {
+  const size = tile * 5
+  const left = node.x - size / 2
+  const top = node.y - size / 2
+  if (fueled) {
+    g.rect(left, top, size, size)
+      .setFillStyle({ color: 0x62_e6_e9, alpha: 0.05 })
+      .fill()
+      .stroke({ color: 0x62_e6_e9, width: 2, alpha: 0.7 })
+  } else {
+    for (let d = 0; d < size; d += 12) {
+      g.moveTo(left + d, top).lineTo(left + d + 7, top)
+      g.moveTo(left + d, top + size).lineTo(left + d + 7, top + size)
+      g.moveTo(left, top + d).lineTo(left, top + d + 7)
+      g.moveTo(left + size, top + d).lineTo(left + size, top + d + 7)
+    }
+    g.stroke({ color: 0xff_b8_51, width: 2, alpha: 0.65 })
+  }
+}
 
 export class Burst extends Graphics {
   readonly born = performance.now()
@@ -80,8 +111,9 @@ export function createBoard() {
   let drawnTier = Option.none<BoardTier>()
   const veins = world.addChild(new Container())
   const starterRing = world.addChild(new Graphics().circle(0, 0, 22).stroke({ color: 0x87_e3_ce, width: 2 }))
+  const auras = world.addChild(new Graphics({ label: 'Beacon coverage' }))
   const buildings = world.addChild(new Container<Machine>())
-  const items = world.addChild(new Container())
+  const items = world.addChild(new Container<Cargo>())
   const preview = world.addChild(new Container())
   const fx = world.addChild(new Container<Burst>())
   const machines = PixiNodeRegistry.make<Machine>(buildings)
@@ -146,7 +178,7 @@ export function createBoard() {
     }),
     Game.Runtime.service(Veins, ore),
     Game.Runtime.service(Machines, machines),
-    Game.Runtime.service(Items, PixiNodeRegistry.make<Container>(items))
+    Game.Runtime.service(Items, PixiNodeRegistry.make<Cargo>(items))
   )
   const buildingAt =
     (buildings: Readonly<Record<string, number>>): BuildingAt =>
@@ -155,7 +187,34 @@ export function createBoard() {
       const node = id === undefined ? undefined : machines.get(id)
       return node === undefined ? Option.none() : Option.some({ kind: node.state.kind, dir: node.facing })
     }
+  let flowLens = false
+  let hoveredKey = Option.none<string>()
+  let selectedKey = Option.none<string>()
+  function drawAuras() {
+    auras.clear()
+    if (!flowLens && Option.isNone(hoveredKey) && Option.isNone(selectedKey)) {
+      return
+    }
+    for (const [, node] of machines.entries()) {
+      const cellKey = key({ gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) })
+      if (
+        node.state.kind === 'beacon' &&
+        (flowLens || Option.contains(hoveredKey, cellKey) || Option.contains(selectedKey, cellKey))
+      ) {
+        beaconAura(auras, node, node.state.fuelTicks > 0)
+      }
+    }
+  }
   return {
+    setFlowLens(enabled: boolean) {
+      flowLens = enabled
+      drawAuras()
+    },
+    setBeaconFocus(hovered?: Cell, selected?: Cell) {
+      hoveredKey = Option.map(Option.fromUndefinedOr(hovered), key)
+      selectedKey = Option.map(Option.fromUndefinedOr(selected), key)
+      drawAuras()
+    },
     world,
     veins,
     buildings,
@@ -177,6 +236,13 @@ export function createBoard() {
       }
     },
     animate: (tick: number, p: typeof initial, guideVein = false) => {
+      drawAuras()
+      for (const cargo of items.children) {
+        cargo.pulse.visible = flowLens && cargo.stalled
+        if (cargo.pulse.visible) {
+          cargo.pulse.alpha = 0.55 + 0.25 * Math.sin(tick * 0.12)
+        }
+      }
       starterRing.visible = false
       for (const vein of veins.children) {
         if (vein.visible) {
@@ -192,7 +258,7 @@ export function createBoard() {
       }
       for (const [, node] of machines.entries()) {
         if (node.visible) {
-          node.animate(tick, p)
+          node.animate(tick, p, flowLens)
         }
       }
     },
@@ -281,8 +347,9 @@ export const draw = Game.Schedule(
     select: { tile: Game.Query.read(OnTile) },
     renderable: Item,
     transform: WorldPosition,
+    redrawOn: [OnTile],
     create: ({ renderable: { value } }) => {
-      const n = new Container()
+      const n = new Cargo()
       const c = oreColor(value)
       n.addChild(
         new Graphics()
@@ -304,6 +371,7 @@ export const draw = Game.Schedule(
     },
     apply: (n, { transform: t, data, resources, services }) => {
       const cell = data.tile.get()
+      n.stalled = cell.progress === TILE_PROGRESS_MAX
       const id = resources.index.get().buildings[key(cell)]
       const kind = id === undefined ? undefined : services.machines.get(id)?.state.kind
       let surface = 1

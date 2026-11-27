@@ -9,29 +9,29 @@ type Requirement = { readonly value: number; readonly quota: number; readonly mi
 type Mission = { readonly requirements: ReadonlyArray<Requirement>; readonly reward: string }
 const missions: ReadonlyArray<Mission> = [
   { requirements: [{ value: 1, quota: 15 }], reward: 'Adder & speed upgrades' },
-  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Hub amplifier, contracts & Ring 1' },
-  { requirements: [{ value: 7, quota: 75 }], reward: 'Tunnel & extractor surge' },
+  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Hub amplifier & Ring 1' },
+  { requirements: [{ value: 7, quota: 75 }], reward: 'Tunnel, contracts & extractor surge' },
   { requirements: [{ value: 12, quota: 140, minRatePerMin: 25 }], reward: 'Multiplier & Ring 2' },
-  { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], reward: 'Subtractor' },
-  { requirements: [{ value: 37, quota: 420, minRatePerMin: 60 }], reward: 'Trash & Full Foundry' },
+  { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], reward: 'Filter' },
+  { requirements: [{ value: 37, quota: 420, minRatePerMin: 60 }], reward: 'Subtractor, Trash & Full Foundry' },
   {
     requirements: [
-      { value: 48, quota: 500 },
-      { value: 12, quota: 300 },
+      { value: 48, quota: 500, minRatePerMin: 30 },
+      { value: 12, quota: 300, minRatePerMin: 35 },
     ],
-    reward: '+25% foundry efficiency',
+    reward: 'Beacon & +25% foundry efficiency',
   },
   {
     requirements: [
       { value: 72, quota: 700, minRatePerMin: 90 },
-      { value: 24, quota: 400 },
+      { value: 24, quota: 400, minRatePerMin: 45 },
     ],
-    reward: '+25% foundry efficiency',
+    reward: 'Divider & +25% foundry efficiency',
   },
   {
     requirements: [
       { value: 96, quota: 1000, minRatePerMin: 120 },
-      { value: 37, quota: 500 },
+      { value: 37, quota: 500, minRatePerMin: 60 },
     ],
     reward: '+30% foundry efficiency',
   },
@@ -45,7 +45,7 @@ export function milestone(index: number): Mission {
   return {
     requirements: [
       { value: [128, 144][n] ?? 180 + 36 * (n - 2), quota: 1300 + 350 * n, minRatePerMin: Math.min(900, 150 + 15 * n) },
-      { value: [48, 72, 96][n % 3] ?? 48, quota: 600 + 100 * n, minRatePerMin: Math.min(400, 40 + 5 * n) },
+      { value: [48, 72, 96][n % 3] ?? 48, quota: 600 + 100 * n, minRatePerMin: Math.min(400, 75 + 10 * n) },
     ],
     reward: '+15% Sparks & speed',
   }
@@ -110,12 +110,25 @@ export function expireDeliveries({ p, tick }: { p: State; tick: number }): State
   return { ...p, rateByValue, deliveryWindow: p.deliveryWindow.slice(expired) }
 }
 const landmarks = [1, 3, 7, 12, 24, 37, 48, 72, 96, 128]
+export function missionRate({ p, value }: { p: State; value: number }) {
+  const start = p.missionRateStart ?? 0
+  if (start <= (p.deliveryWindow[0]?.tick ?? Infinity)) {
+    return p.rateByValue[value] ?? 0
+  }
+  let count = 0
+  for (const delivery of p.deliveryWindow) {
+    if (delivery.value === value && delivery.tick >= start) {
+      count++
+    }
+  }
+  return count
+}
 export function deliver({ previous, value, tick }: { previous: State; value: number; tick: number }) {
   const p = expireDeliveries({ p: previous, tick })
   const mission = milestone(p.milestoneIndex)
   const matchedTarget = Arr.some(mission.requirements, (r) => r.value === value)
   const contract = sideContract(p.seed, p.contractIndex)
-  const side = p.milestoneIndex >= 2 && value === contract.value
+  const side = p.milestoneIndex >= 3 && value === contract.value
   const tracked = matchedTarget || side || Arr.contains(landmarks, value)
   const rateByValue = tracked ? { ...p.rateByValue, [value]: (p.rateByValue[value] ?? 0) + 1 } : p.rateByValue
   const delivered = matchedTarget ? { ...p.delivered, [value]: (p.delivered[value] ?? 0) + 1 } : p.delivered
@@ -123,7 +136,9 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
     matchedTarget &&
     Arr.every(
       mission.requirements,
-      (r) => (delivered[r.value] ?? 0) >= r.quota && (rateByValue[r.value] ?? 0) >= (r.minRatePerMin ?? 0)
+      (r) =>
+        (delivered[r.value] ?? 0) >= r.quota &&
+        missionRate({ p, value: r.value }) + Number(r.value === value) >= (r.minRatePerMin ?? 0)
     )
   const paid = side && p.contractDelivered + 1 >= contract.quota
   const base = matchedTarget ? value * amplifier(p.upgrades.hubValue) : Number(tracked)

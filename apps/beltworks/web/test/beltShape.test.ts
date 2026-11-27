@@ -5,7 +5,9 @@ import * as Option from 'effect/Option'
 
 import { beltShape } from '../src/beltShape.ts'
 
-function shape(neighbors: Record<string, { dir: Direction; kind: 'belt' | 'splitter' | 'combiner' }>) {
+function shape(
+  neighbors: Record<string, { dir: Direction; kind: 'belt' | 'splitter' | 'combiner' | 'filter' | 'beacon' }>
+) {
   const at: BuildingAt = (c) => Option.fromUndefinedOr(neighbors[key(c)])
   return beltShape({ cell: { gx: 1, gy: 1 }, dir: 'N', at })
 }
@@ -24,4 +26,11 @@ it('bends from either side and opens both channels at a merge', () => {
   assert.equal(shape({ '0,1': left }).kind, 'turnLeft')
   assert.equal(shape({ '2,1': right }).kind, 'turnRight')
   assert.deepEqual(shape({ '0,1': left, '2,1': right }), { kind: 'merge', inDirs: ['W', 'E'], connected: false })
+})
+
+it('connects all beacon intakes and only the rear filter intake', () => {
+  assert.isTrue(shape({ '1,0': { kind: 'beacon', dir: 'S' } }).connected)
+  assert.isTrue(shape({ '1,0': { kind: 'filter', dir: 'N' } }).connected)
+  assert.isFalse(shape({ '1,0': { kind: 'filter', dir: 'E' } }).connected)
+  assert.deepEqual(shape({ '0,1': { kind: 'filter', dir: 'N' } }).inDirs, ['W'])
 })

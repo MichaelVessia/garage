@@ -144,6 +144,39 @@ export class Machine extends Container {
           .stroke({ color: oreColor(Number(ore)), width: 2 })
         this.symbol.text = ore
         break
+      case 'filter':
+        housing(g, 20, 5, 0x2b_42_48, 0x79_ab_a3)
+        for (const angle of [0, Math.PI, Math.PI / 2, -Math.PI / 2]) {
+          collar(g, angle)
+        }
+        g.moveTo(0, 19).lineTo(0, -17).stroke({ color: aqua, width: 3 })
+        arrow(g, 0, -19, aqua)
+        g.moveTo(0, 8).quadraticCurveTo(4, 1, 18, 1).stroke({ color: gold, width: 3 })
+        g.save()
+          .translateTransform(18, 1)
+          .rotateTransform(Math.PI / 2)
+        arrow(g, 0, 0, gold)
+        g.restore()
+          .save()
+          .rotateTransform(-g.rotation)
+          .roundRect(-14, -8, 28, 16, 4)
+          .fill(ink)
+          .stroke({ color: aqua, width: 1 })
+          .restore()
+        this.symbol.text = String(state.targetValue)
+        this.symbol.style.fontSize = 13
+        break
+      case 'beacon':
+        g.rotation = 0
+        this.detail.rotation = 0
+        housing(g, 19, 7, 0x37_32_2b, 0xa2_83_55)
+        g.ellipse(0, 9, 14, 6).fill(ink).stroke({ color: 0xb4_90_58, width: 2 })
+        g.poly([-8, 9, -3, -18, 3, -18, 8, 9]).fill(0xc5_9a_60)
+        for (const y of [-10, -4, 2, 8]) {
+          g.ellipse(0, y, 7 + y / 4, 2.5).stroke({ color: state.fuelTicks > 0 ? aqua : 0x4c_67_67, width: 2 })
+        }
+        g.circle(0, -15, 3).fill(state.fuelTicks > 0 ? 0xb5_ff_f5 : 0x70_83_80)
+        break
       case 'splitter':
         housing(g, 18, 8, 0x35_44_4f, 0x60_78_88)
         for (const angle of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
@@ -157,8 +190,8 @@ export class Machine extends Container {
         }
         break
       case 'combiner': {
-        const trim = { add: aqua, sub: 0xfb_71_85, mul: gold }[state.op]
-        housing(g, 20, 6, 0x28_3b_46, trim)
+        const trim = { add: aqua, sub: 0xfb_71_85, mul: gold, div: 0xb3_91_e9 }[state.op]
+        housing(g, 20, 6, state.op === 'div' ? 0x21_52_58 : 0x28_3b_46, trim)
         for (const angle of [0, Math.PI / 2, -Math.PI / 2]) {
           collar(g, angle)
         }
@@ -168,7 +201,7 @@ export class Machine extends Container {
             .fill(0x09_10_18)
             .stroke({ width: 1, color: x < 0 ? aqua : gold, alpha: 0.65 })
         }
-        this.symbol.text = { add: '+', sub: '−', mul: '×' }[state.op]
+        this.symbol.text = { add: '+', sub: '−', mul: '×', div: '÷' }[state.op]
         this.a.text = Option.match(state.slotA, { onNone: () => 'A', onSome: String })
         this.b.text = Option.match(state.slotB, { onNone: () => 'B', onSome: String })
         break
@@ -263,12 +296,13 @@ export class Machine extends Container {
       }
     }
   }
-  animate(tick: number, p: typeof initial) {
+  animate(tick: number, p: typeof initial, flowLens = false) {
     const g = this.detail.clear()
     const state = this.state
     switch (state.kind) {
       case 'tunnelIn':
       case 'tunnelOut':
+      case 'filter':
         break
       case 'trash':
         for (const side of [-1, 1]) {
@@ -316,7 +350,20 @@ export class Machine extends Container {
           .stroke({ color: aqua, width: 1.5 })
         break
       }
+      case 'beacon':
+        if (state.fuelTicks > 0) {
+          const angle = tick * 0.055
+          g.save().translateTransform(0, -8).scaleTransform(1, 0.48)
+          g.circle(0, 0, 15).stroke({ color: aqua, width: 3, alpha: 0.38 })
+          g.arc(0, 0, 15, angle, angle + Math.PI * 0.7).stroke({ color: 0xcd_ff_f9, width: 3 })
+          g.restore()
+        }
+        break
       case 'combiner':
+        if (flowLens && Option.isSome(state.slotA) !== Option.isSome(state.slotB)) {
+          g.circle(0, 0, 21).stroke({ color: 0xff_83_78, width: 5, alpha: 0.3 })
+          g.circle(0, 0, 21).stroke({ color: 0xff_83_78, width: 1.5 })
+        }
         if (state.remainingTicks > 0) {
           const start = -Math.PI / 2
           const end =

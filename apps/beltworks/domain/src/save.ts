@@ -61,7 +61,13 @@ export const savedBoard = Game.Inspector(
       }) &&
       Arr.every(cargo, (e) => {
         const carrier = carriers[key(items.data.cell.get(e))]
-        return carrier === 'belt' || carrier === 'splitter' || carrier === 'tunnelIn' || carrier === 'tunnelOut'
+        return (
+          carrier === 'belt' ||
+          carrier === 'filter' ||
+          carrier === 'splitter' ||
+          carrier === 'tunnelIn' ||
+          carrier === 'tunnelOut'
+        )
       })
     return { valid, count: structures.length + deposits.length + cargo.length }
   }

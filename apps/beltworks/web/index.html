@@ -70,6 +70,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
             <path d="m8 11 8-5M8 13l8 5"/><circle cx="5" cy="12" r="3"/><circle cx="19" cy="4" r="3"/><circle cx="19" cy="20" r="3"/>
           </svg><span>Share</span></button
+        ><button id="lens" title="Flow Lens (V)" aria-pressed="false"><svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="m13 14 6 6M4 10h3l2-4 2 5h4"/></svg><span>Flow Lens</span></button
         ><button id="sound" title="Toggle sound" aria-pressed="false">
           <svg
             viewBox="0 0 22 22"
@@ -173,7 +174,8 @@
           <dd>Box erase</dd>
           <dt><kbd>Ctrl+Z</kbd></dt>
           <dd>Undo</dd>
-          <dt><kbd>Q</kbd></dt><dd>Eyedropper</dd>
+          <dt><kbd>B / Ctrl+C</kbd></dt><dd>Drag to copy</dd>
+          <dt><kbd>Ctrl+V</kbd></dt><dd>Stamp last blueprint</dd>
           <dt><kbd>Right-drag</kbd></dt>
           <dd>Pan</dd>
         </dl>
@@ -182,6 +184,12 @@
     <div id="starter-hint"></div>
     <div id="inspector"></div>
     <footer id="toolbar">
+      <form id="filter-picker" hidden>
+        <label for="filter-value">Filter value</label>
+        <div id="filter-values"></div>
+        <input id="filter-value" type="number" min="1" max="999" step="1" required />
+        <button>Apply</button>
+      </form>
       <div id="dock" aria-label="Building tools"></div>
       <span id="direction"></span>
     </footer>

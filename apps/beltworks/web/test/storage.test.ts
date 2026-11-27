@@ -22,14 +22,14 @@ it('restores the saved factory including production time and buildings', () => {
     },
   })
   assert.isTrue(saveBoard(store)(source))
-  assert.isTrue(data.has('beltworks:save:v4'))
+  assert.isTrue(data.has('beltworks:save:v5'))
   const dest = blank()
   loadBoard(store)(dest)
   assert.deepEqual(exportSave(dest), exportSave(source))
-  const legacy = data.get('beltworks:save:v4')
+  const legacy = data.get('beltworks:save:v5')
   data.clear()
   if (legacy !== undefined) {
-    data.set('beltworks:save:v3', legacy)
+    data.set('beltworks:save:v4', legacy)
   }
   const fresh = blank()
   loadBoard(store)(fresh)

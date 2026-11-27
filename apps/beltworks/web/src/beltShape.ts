@@ -13,6 +13,9 @@ export function beltShape({ cell, dir, at }: { cell: Cell; dir: Direction; at: B
       return false
     }
     const { kind, dir: facing } = source.value
+    if (kind === 'filter') {
+      return facing !== side
+    }
     if (kind === 'splitter') {
       return facing === clockwise[side] || facing === counterClockwise[side]
     }
@@ -23,6 +26,12 @@ export function beltShape({ cell, dir, at }: { cell: Cell; dir: Direction; at: B
   })
   const output = at(neighbor(dir)(cell))
   const connected = Option.exists(output, ({ kind, dir: facing }) => {
+    if (kind === 'beacon') {
+      return true
+    }
+    if (kind === 'filter') {
+      return dir === facing
+    }
     if (kind === 'combiner') {
       return facing === left || facing === right
     }

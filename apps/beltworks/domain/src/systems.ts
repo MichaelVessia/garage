@@ -17,6 +17,7 @@ import {
   expireDeliveries,
   deliver,
   efficiency,
+  milestone,
   surgeInterval,
 } from './economy.ts'
 import {
@@ -126,7 +127,8 @@ export const setup = (seed: number) =>
       resources.index.set({ buildings, veins: deposits, items: {} })
     }
   )
-const newBuilding = (cmd: Extract<Command, { type: 'placeBuilding' }>): BuildingState => {
+type Placement = Extract<Command, { type: 'placeBuilding' }>
+const newBuilding = (cmd: Placement, milestoneIndex: number): BuildingState => {
   switch (cmd.kind) {
     case 'combiner':
       return {
@@ -136,6 +138,10 @@ const newBuilding = (cmd: Extract<Command, { type: 'placeBuilding' }>): Building
         slotB: Option.none<number>(),
         remainingTicks: 0,
       }
+    case 'beacon':
+      return { kind: cmd.kind, fuelTicks: 0 }
+    case 'filter':
+      return { kind: cmd.kind, targetValue: cmd.targetValue ?? milestone(milestoneIndex).requirements[0]?.value ?? 1 }
     case 'splitter':
       return { kind: cmd.kind, nextPort: 0 }
     case 'extractor':
@@ -169,9 +175,11 @@ export const processCommands = System(
     const held = Rec.fromEntries(Arr.map(queries.cargo.each(), (e) => [key(queries.cargo.data.tile.get(e)), e]))
     const pending: Record<string, { cell: Cell; dir: Direction; state: BuildingState }> = {}
     const reject = (reason: string) => events.reject.emit({ reason })
+    let demolished = false
     const remove = (k: string) => {
       const e = existing[k]
       if (e !== undefined) {
+        demolished = true
         commands.despawn(e)
       }
       delete existing[k]
@@ -183,6 +191,31 @@ export const processCommands = System(
       }
       delete held[k]
       delete items[k]
+    }
+    const place = (cmd: Placement) => {
+      const p = resources.progress.get()
+      const k = key(cmd)
+      if (!inBounds(cmd, p.boardTier)) {
+        return 'Expand workshop to build here'
+      }
+      if (
+        pending[k] !== undefined ||
+        existing[k] !== undefined ||
+        !Number.isInteger(cmd.gx) ||
+        !Number.isInteger(cmd.gy)
+      ) {
+        return 'Cell unavailable'
+      }
+      if (cmd.kind === 'extractor' && current.veins[k] === undefined) {
+        return 'Extractor requires a vein'
+      }
+      const unlock = toolUnlock[cmd.kind === 'combiner' ? cmd.op : cmd.kind]
+      if (p.milestoneIndex < unlock) {
+        return 'Building locked'
+      }
+      pending[k] = { cell: cmd, dir: cmd.dir, state: newBuilding(cmd, p.milestoneIndex) }
+
+      return undefined
     }
     for (const cmd of queue) {
       const p = resources.progress.get()
@@ -226,33 +259,34 @@ export const processCommands = System(
         }
         continue
       }
+      if (cmd.type === 'stampBlueprint') {
+        for (const entry of cmd.entries) {
+          place({ ...entry, type: 'placeBuilding', gx: cmd.originX + entry.dx, gy: cmd.originY + entry.dy })
+        }
+        continue
+      }
       const k = key(cmd)
       const e = existing[k]
       const staged = pending[k]
       if (cmd.type === 'placeBuilding') {
-        if (!inBounds(cmd, p.boardTier)) {
-          reject('Expand workshop to build here')
-          continue
+        const reason = place(cmd)
+        if (reason !== undefined) {
+          reject(reason)
         }
-        if (staged !== undefined || e !== undefined || !Number.isInteger(cmd.gx) || !Number.isInteger(cmd.gy)) {
-          reject('Cell unavailable')
-          continue
-        }
-        if (cmd.kind === 'extractor' && current.veins[k] === undefined) {
-          reject('Extractor requires a vein')
-          continue
-        }
-        const unlock = toolUnlock[cmd.kind === 'combiner' ? cmd.op : cmd.kind]
-        if (p.milestoneIndex < unlock) {
-          reject('Building locked')
-          continue
-        }
-        pending[k] = { cell: cmd, dir: cmd.dir, state: newBuilding(cmd) }
       } else if (
         (e === undefined && staged === undefined) ||
         (e !== undefined && data.building.get(e).kind === 'hub')
       ) {
         reject('Building unavailable')
+      } else if (cmd.type === 'setFilter') {
+        const state = staged?.state ?? (e === undefined ? undefined : data.building.get(e))
+        if (state?.kind !== 'filter') {
+          reject('Filter unavailable')
+        } else if (staged !== undefined) {
+          staged.state = { ...state, targetValue: cmd.targetValue }
+        } else if (e !== undefined) {
+          data.building.set(e, { ...state, targetValue: cmd.targetValue })
+        }
       } else if (cmd.type === 'removeBuilding') {
         remove(k)
       } else if (staged !== undefined) {
@@ -263,6 +297,16 @@ export const processCommands = System(
     }
     for (const [k, v] of Rec.toEntries(pending)) {
       buildings[k] = commands.spawn(buildingDraft(v.cell, v.dir, v.state))
+    }
+    const progress = resources.progress.get()
+    const lastDelivery = progress.deliveryWindow.at(-1)
+    if (
+      demolished &&
+      progress.milestoneIndex >= 6 &&
+      lastDelivery !== undefined &&
+      Arr.some(milestone(progress.milestoneIndex).requirements, (r) => (progress.rateByValue[r.value] ?? 0) > 0)
+    ) {
+      resources.progress.set({ ...progress, missionRateStart: lastDelivery.tick + 1 })
     }
     resources.index.set({ ...current, buildings, items })
     resources.queue.set([])
@@ -310,6 +354,12 @@ function destinations({ queries, resources, events }: Pick<TransportContext, 'qu
         }
         return true
       }
+      case 'beacon':
+        if (value < 2) {
+          return false
+        }
+        data.building.set(target, { ...b, fuelTicks: Math.min(1800, b.fuelTicks + value * 45) })
+        return true
       case 'trash':
         return true
       case 'combiner': {
@@ -322,7 +372,11 @@ function destinations({ queries, resources, events }: Pick<TransportContext, 'qu
         return true
       }
       default:
-        if (travel === opposite[facing] || resources.index.get().items[k] !== undefined) {
+        if (
+          (b.kind === 'filter' && travel !== facing) ||
+          travel === opposite[facing] ||
+          resources.index.get().items[k] !== undefined
+        ) {
           return false
         }
         move(cell, opposite[travel])
@@ -354,9 +408,13 @@ function output(ctx: TransportContext) {
       resources.index.set({ ...index, items: { ...index.items, [key(tile)]: id } })
     })
 }
-export const runExtractors = System(
-  'Beltworks/RunExtractors',
-  { ...production, queries: { structures, veins } },
+export const runProduction = System(
+  'Beltworks/RunProduction',
+  {
+    ...production,
+    queries: { structures, veins },
+    events: { ...production.events, craft: System.writeEvent(ItemCrafted) },
+  },
   (ctx) => {
     const { queries, resources } = ctx
     const emit = output(ctx)
@@ -364,6 +422,21 @@ export const runExtractors = System(
     const values = Rec.fromEntries(
       Arr.map(queries.veins.each(), (e) => [key(queries.veins.data.cell.get(e)), queries.veins.data.vein.get(e).value])
     )
+    const coverage: Record<string, number> = {}
+    for (const e of queries.structures.each()) {
+      const b = data.building.get(e)
+      if (b.kind !== 'beacon' || b.fuelTicks === 0) {
+        continue
+      }
+      data.building.set(e, { ...b, fuelTicks: b.fuelTicks - 1 })
+      const cell = data.cell.get(e)
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dy = -2; dy <= 2; dy++) {
+          const k = key({ gx: cell.gx + dx, gy: cell.gy + dy })
+          coverage[k] = Math.min(2, (coverage[k] ?? 0) + 1)
+        }
+      }
+    }
     for (const e of queries.structures.each()) {
       const b = data.building.get(e)
       if (b.kind !== 'extractor') {
@@ -372,7 +445,7 @@ export const runExtractors = System(
       const cell = data.cell.get(e)
       const value = values[key(cell)]
       const p = resources.progress.get()
-      const remainingTicks = Math.max(-0.999999, b.remainingTicks - 1)
+      const remainingTicks = b.remainingTicks - (1 + 0.5 * (coverage[key(cell)] ?? 0))
       const send = () => value !== undefined && emit(cell, data.facing.get(e).dir, value)
       if (b.bonusPending) {
         data.building.set(e, { ...b, remainingTicks: Math.max(0, remainingTicks), bonusPending: !send() })
@@ -391,14 +464,6 @@ export const runExtractors = System(
         data.building.set(e, { ...b, remainingTicks: Math.max(0, remainingTicks) })
       }
     }
-  }
-)
-export const runCombiners = System(
-  'Beltworks/RunCombiners',
-  { ...production, events: { ...production.events, craft: System.writeEvent(ItemCrafted) } },
-  (ctx) => {
-    const emit = output(ctx)
-    const { data } = ctx.queries.structures
     for (const e of ctx.queries.structures.each()) {
       const b = data.building.get(e)
       if (b.kind !== 'combiner' || Option.isNone(b.slotA) || Option.isNone(b.slotB)) {
@@ -406,7 +471,9 @@ export const runCombiners = System(
       }
       const p = ctx.resources.progress.get()
       const period = Math.max(1, craftPeriod(p.upgrades.combinerSpeed) / efficiency(p.milestoneIndex))
-      const remainingTicks = (b.remainingTicks <= 0 ? period + b.remainingTicks : b.remainingTicks) - 1
+      const cell = data.cell.get(e)
+      const remainingTicks =
+        (b.remainingTicks <= 0 ? period + b.remainingTicks : b.remainingTicks) - (1 + 0.5 * (coverage[key(cell)] ?? 0))
       if (remainingTicks > 0) {
         data.building.set(e, { ...b, remainingTicks })
         continue
@@ -415,9 +482,13 @@ export const runCombiners = System(
       const second = b.slotB.value
       const result = Math.min(
         Number.MAX_SAFE_INTEGER,
-        { add: a + second, sub: Math.max(0, a - second), mul: a * second }[b.op]
+        {
+          add: a + second,
+          sub: Math.max(0, a - second),
+          mul: a * second,
+          div: second === 0 ? 0 : Math.floor(a / second),
+        }[b.op]
       )
-      const cell = data.cell.get(e)
       if (emit(cell, data.facing.get(e).dir, result)) {
         data.building.set(e, { ...b, slotA: Option.none<number>(), slotB: Option.none<number>(), remainingTicks })
         ctx.events.craft.emit({ ...cell, op: b.op, a, b: second, result })
@@ -427,6 +498,19 @@ export const runCombiners = System(
     }
   }
 )
+function outputDirections(
+  state: BuildingState,
+  dir: Direction,
+  value: number
+): readonly [Direction, ...Array<Direction>] {
+  if (state.kind === 'splitter' && state.nextPort === 0) {
+    return [counterClockwise[dir], clockwise[dir]]
+  }
+  if (state.kind === 'splitter' || (state.kind === 'filter' && state.targetValue !== value)) {
+    return [clockwise[dir], counterClockwise[dir]]
+  }
+  return [dir]
+}
 export const advanceBelts = System(
   'Beltworks/AdvanceBelts',
   { ...production, queries: { structures, cargo }, commands: System.commands(System.despawns(Item)) },
@@ -459,13 +543,8 @@ export const advanceBelts = System(
       }
       const state = queries.structures.data.building.get(machine)
       const dir = queries.structures.data.facing.get(machine).dir
-      const directions =
-        state.kind === 'splitter'
-          ? state.nextPort === 0
-            ? [counterClockwise[dir], clockwise[dir]]
-            : [clockwise[dir], counterClockwise[dir]]
-          : [dir]
-      for (const output of directions) {
+      const value = data.item.get(e).value
+      for (const output of outputDirections(state, dir, value)) {
         const underground = state.kind === 'tunnelIn'
         const dest = underground ? findTunnelPartner({ cell: tile, facing: output, at }) : neighbor(output)(tile)
         if (dest === undefined) {
@@ -479,7 +558,7 @@ export const advanceBelts = System(
         const accepted = accept(
           dest,
           output,
-          data.item.get(e).value,
+          value,
           (cell, fromDir) => {
             moved = true
             data.tile.set(e, { ...cell, fromDir, prevProgress: 0, progress: overflow })
@@ -525,8 +604,7 @@ export const positions = System(
         const { data } = queries.structures
         const dir = data.facing.get(e).dir
         const state = data.building.get(e)
-        const output = state.kind === 'splitter' ? (state.nextPort === 0 ? counterClockwise[dir] : clockwise[dir]) : dir
-        return [key(data.cell.get(e)), output] as const
+        return [key(data.cell.get(e)), { state, dir }] as const
       })
     )
     const { data } = queries.cargo
@@ -534,7 +612,9 @@ export const positions = System(
       const tile = data.tile.get(e)
       const f = tile.progress / TILE_PROGRESS_MAX
       const entry = offsets[tile.fromDir]
-      const exit = offsets[dirs[key(tile)] ?? 'N']
+      const machine = dirs[key(tile)]
+      const exit =
+        offsets[machine === undefined ? 'N' : outputDirections(machine.state, machine.dir, data.item.get(e).value)[0]]
       const start = 0.5 * (1 - f) ** 2
       const end = 0.5 * f ** 2
       data.position.set(e, {

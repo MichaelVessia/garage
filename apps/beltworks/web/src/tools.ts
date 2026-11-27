@@ -42,6 +42,28 @@ export const tools = [
     path: 'M5 3h12l3 3v11l-3 3H5l-3-3V6z M8 8l6 6m0-6-6 6',
     unlock: toolUnlock.mul,
   },
+  {
+    id: 'filter',
+    name: 'Filter',
+    key: 'F',
+    path: 'M3 4h16v9l-6 5H9l-6-5z M11 15V6m-3 3 3-3 3 3m-3 4h6',
+    unlock: toolUnlock.filter,
+  },
+  {
+    id: 'beacon',
+    name: 'Beacon',
+    key: 'K',
+    path: 'M4 19h14M8 17l3-13 3 13M5 8q6 4 12 0M3 5q8 5 16 0',
+    unlock: toolUnlock.beacon,
+  },
+  {
+    id: 'div',
+    name: 'Divider',
+    key: '8',
+    path: 'M5 3h12l3 3v11l-3 3H5l-3-3V6z M6 11h10m-5-5v2m0 6v2',
+    unlock: toolUnlock.div,
+  },
+  { id: 'blueprint', name: 'Blueprint', key: 'B', path: 'M3 4h16v14H3z M6 7h5v5H6z M12 12h4v3h-4z', unlock: 0 },
   { id: 'erase', name: 'Erase', key: 'X', path: 'M3 13l10-10 7 7-10 10H8z M7 9l7 7', unlock: 0 },
 ] as const
 export type Tool = (typeof tools)[number]['id']
@@ -74,15 +96,18 @@ export function tunnelPreview({ cell, facing, at }: { cell: Cell; facing: Direct
       : undefined
   return { kind: 'tunnelIn', partner } as const
 }
-type PlacementTool = Exclude<Tool, 'tunnel'> | 'tunnelIn' | 'tunnelOut'
+type PlacementTool = Exclude<Tool, 'blueprint' | 'tunnel'> | 'tunnelIn' | 'tunnelOut'
 export const placement =
   (tool: PlacementTool) =>
-  ({ cell, dir }: { cell: Cell; dir: Direction }): Command => {
+  ({ cell, dir, targetValue = 1 }: { cell: Cell; dir: Direction; targetValue?: number }): Command => {
     switch (tool) {
       case 'select':
         return { ...cell, type: 'rotateBuilding' }
       case 'erase':
         return { ...cell, type: 'removeBuilding' }
+      case 'filter':
+        return { ...cell, type: 'placeBuilding', kind: tool, targetValue, dir }
+      case 'div':
       case 'add':
       case 'sub':
       case 'mul':
@@ -91,17 +116,28 @@ export const placement =
         return { ...cell, type: 'placeBuilding', kind: tool, dir }
     }
   }
-export function ghostState(tool: PlacementTool): Option.Option<BuildingState> {
+export function ghostState({
+  tool,
+  targetValue = 1,
+}: {
+  tool: PlacementTool
+  targetValue?: number
+}): Option.Option<BuildingState> {
   switch (tool) {
     case 'select':
     case 'erase':
       return Option.none()
+    case 'filter':
+      return Option.some({ kind: tool, targetValue })
+    case 'beacon':
+      return Option.some({ kind: tool, fuelTicks: 0 })
     case 'extractor':
       return Option.some({ kind: tool, remainingTicks: 0, surgeCount: 0, bonusPending: false })
     case 'splitter':
       return Option.some({ kind: tool, nextPort: 0 })
     case 'add':
     case 'sub':
+    case 'div':
     case 'mul':
       return Option.some({ kind: 'combiner', op: tool, slotA: Option.none(), slotB: Option.none(), remainingTicks: 0 })
     default:

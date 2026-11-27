@@ -1,6 +1,7 @@
 import { assert, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as Order from 'effect/Order'
+import * as Rec from 'effect/Record'
 import * as ER from 'effect/Result'
 import * as S from 'effect/Schema'
 
@@ -155,10 +156,12 @@ const recipes: ReadonlyArray<readonly [CombinerOp, number, number, number]> = [
   ['sub', 5, 2, 3],
   ['sub', 2, 5, 0],
   ['mul', 3, 4, 12],
+  ['div', 7, 2, 3],
+  ['div', 7, 0, 0],
 ]
 it.each(recipes)('crafts %s with %i and %i to make %i', (op, a, b, result) => {
   const r = createRuntime(0)
-  grant(r)
+  grant(r, 8)
   place(
     r,
     { type: 'placeBuilding', kind: 'combiner', op, gx: 16, gy: 12, dir: 'E' },
@@ -385,22 +388,38 @@ it('carries cargo under a crossing and blocks surface traffic and a full exit', 
 })
 
 it('opens one building tool at each milestone and gates all expansion purchases', () => {
-  for (let index = 0; index <= 6; index++) {
+  for (let index = 0; index <= 8; index++) {
     const r = createRuntime(0)
     grant(r, index)
-    const kinds = ['add', 'splitter', 'tunnelIn', 'mul', 'sub', 'trash', 'tunnelOut'] as const
+    const kinds = [
+      'add',
+      'splitter',
+      'tunnelIn',
+      'mul',
+      'filter',
+      'trash',
+      'tunnelOut',
+      'sub',
+      'beacon',
+      'div',
+    ] as const
     for (const [i, kind] of kinds.entries()) {
       const cell = { gx: 12 + i, gy: 9, dir: 'E', type: 'placeBuilding' } as const
       place(
         r,
-        kind === 'add' || kind === 'mul' || kind === 'sub' ? { ...cell, kind: 'combiner', op: kind } : { ...cell, kind }
+        kind === 'add' || kind === 'mul' || kind === 'sub' || kind === 'div'
+          ? { ...cell, kind: 'combiner', op: kind }
+          : { ...cell, kind }
       )
     }
     place(r, { type: 'expandBoard' }, { type: 'expandBoard' }, { type: 'expandBoard' })
     advance(r, 1)
     const { index: board, p } = r.inspect(state)
     for (const i of kinds.keys()) {
-      assert.equal(board.buildings[12 + i + ',9'] !== undefined, index >= (i === 6 ? 3 : i + 1))
+      assert.equal(
+        board.buildings[12 + i + ',9'] !== undefined,
+        index >= ([1, 2, 3, 4, 5, 6, 3, 6, 7, 8][i] ?? Infinity)
+      )
     }
     assert.equal(p.boardTier, index < 2 ? 0 : index < 4 ? 1 : index < 6 ? 2 : 3)
   }
@@ -424,4 +443,116 @@ it('clears a box and then the floor without changing deposits or progression', (
   assert.deepEqual(after.p, before.p)
   assert.deepEqual(after.index.veins, before.index.veins)
   assert.isTrue(createRuntimeFromSave(exportSave(r)).ok)
+})
+
+it('stamps available cells and starts new machines with empty buffers', () => {
+  const r = createRuntime(0)
+  grant(r, 5)
+  place(r, {
+    type: 'stampBlueprint',
+    originX: 13,
+    originY: 12,
+    entries: [
+      { dx: -2, dy: 0, kind: 'belt', dir: 'E' },
+      { dx: 4, dy: 0, kind: 'belt', dir: 'E' },
+      { dx: 1, dy: 0, kind: 'extractor', dir: 'E' },
+      { dx: 2, dy: 0, kind: 'beacon', dir: 'E' },
+      { dx: 0, dy: 0, kind: 'extractor', dir: 'E' },
+      { dx: 0, dy: 0, kind: 'belt', dir: 'W' },
+      { dx: 0, dy: 1, kind: 'combiner', dir: 'S', op: 'mul' },
+      { dx: 1, dy: 1, kind: 'filter', dir: 'W', targetValue: 0 },
+    ],
+  })
+  r.tick(applyEdits)
+  const { buildings, index } = r.inspect(state)
+  assert.lengthOf(buildings, 7)
+  assert.containsAllKeys(index.buildings, ['13,12', '13,13', '14,13'])
+  assert.deepInclude(buildings, { kind: 'filter', targetValue: 0 })
+  assert.deepInclude(buildings, { kind: 'extractor', remainingTicks: 0, surgeCount: 0, bonusPending: false })
+  assert.isTrue(Arr.some(buildings, (b) => b.kind === 'combiner' && b.op === 'mul'))
+})
+
+it('routes filter cargo from the rear and keeps blocked cargo on the filter', () => {
+  const r = createRuntime(0)
+  grant(r, 5)
+  place(
+    r,
+    belt(13),
+    { type: 'placeBuilding', kind: 'filter', gx: 14, gy: 12, dir: 'E' },
+    belt(15),
+    belt(14, 13),
+    belt(14, 11)
+  )
+  r.tick(applyEdits)
+  assert.deepInclude(r.inspect(state).buildings, { kind: 'filter', targetValue: 37 })
+  place(r, { type: 'setFilter', gx: 14, gy: 12, targetValue: 0 })
+  r.tick(applyEdits)
+  for (const [value, destination] of [
+    [0, '15,12'],
+    [1, '14,13'],
+    [2, '14,11'],
+    [3, '14,12'],
+  ] as const) {
+    feed(r, [{ gx: 13, gy: 12, value }])
+    advance(r, 42)
+    assert.isDefined(r.inspect(state).index.items[destination])
+  }
+  assert.isTrue(createRuntimeFromSave(exportSave(r)).ok)
+  place(r, { type: 'removeBuilding', gx: 14, gy: 12 })
+  r.tick(applyEdits)
+  assert.isUndefined(r.inspect(state).index.items['14,12'])
+})
+
+it('rejects side input on the filter and holds a match until its straight output opens', () => {
+  const r = createRuntime(0)
+  grant(r, 5)
+  place(r, belt(13), { type: 'placeBuilding', kind: 'filter', gx: 14, gy: 12, dir: 'E' }, belt(14, 11), {
+    type: 'placeBuilding',
+    kind: 'belt',
+    gx: 14,
+    gy: 13,
+    dir: 'N',
+  })
+  r.tick(applyEdits)
+  feed(r, [
+    { gx: 14, gy: 13, value: 1 },
+    { gx: 13, gy: 12, value: 37 },
+  ])
+  advance(r, 60)
+  assert.sameMembers(Rec.keys(r.inspect(state).index.items), ['14,12', '14,13'])
+  place(r, belt(15))
+  advance(r, 1)
+  assert.sameMembers(Rec.keys(r.inspect(state).index.items), ['15,12', '14,13'])
+})
+
+it('accepts beacon fuel from four sides, caps it, and burns one unit per tick', () => {
+  const r = createRuntime(0)
+  grant(r, 7)
+  place(
+    r,
+    { type: 'placeBuilding', kind: 'beacon', gx: 15, gy: 12, dir: 'N' },
+    belt(14),
+    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 12, dir: 'W' },
+    { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 11, dir: 'S' },
+    { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 13, dir: 'N' }
+  )
+  r.tick(applyEdits)
+  feed(r, [
+    { gx: 14, gy: 12, value: 1 },
+    { gx: 16, gy: 12, value: 2 },
+    { gx: 15, gy: 11, value: 2 },
+    { gx: 15, gy: 13, value: 2 },
+  ])
+  advance(r, 1)
+  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 270 })
+  assert.sameMembers(Rec.keys(r.inspect(state).index.items), ['14,12'])
+  place(r, { type: 'removeBuilding', gx: 14, gy: 12 }, belt(14))
+  r.tick(applyEdits)
+  feed(r, [{ gx: 14, gy: 12, value: 100 }])
+  advance(r, 1)
+  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 1800 })
+  advance(r, 1799)
+  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 1 })
+  advance(r, 2)
+  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 0 })
 })

@@ -5,7 +5,7 @@ import * as S from 'effect/Schema'
 import { CommandRequested, CommandQueue, Game, initial, step, Time } from './model.ts'
 import type { Command } from './model.ts'
 import { savedBoard } from './save.ts'
-import { advanceBelts, positions, processCommands, runCombiners, runExtractors, setup } from './systems.ts'
+import { advanceBelts, positions, processCommands, runProduction, setup } from './systems.ts'
 
 export * from './model.ts'
 export * from './economy.ts'
@@ -14,8 +14,7 @@ export const simulation = Game.Schedule(
   Clock.system(Game, { name: 'Beltworks/AdvanceTime', resource: Time }),
   processCommands,
   Game.Schedule.applyDeferred(),
-  runExtractors,
-  runCombiners,
+  runProduction,
   advanceBelts,
   positions,
   Game.Schedule.applyDeferred()

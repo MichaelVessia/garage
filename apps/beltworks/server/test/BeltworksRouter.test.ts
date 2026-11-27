@@ -1,5 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import {
+  Building,
   Game,
   Progression,
   applyEdits,
@@ -9,6 +10,7 @@ import {
   exportSave,
   sideContract,
 } from '@garage/beltworks-domain'
+import * as Arr from 'effect/Array'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
@@ -58,7 +60,7 @@ it.effect('saves, advances and shares a factory without credentials', () =>
         Game.System('Test/Contract', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) =>
           resources.p.set({
             ...resources.p.get(),
-            milestoneIndex: 2,
+            milestoneIndex: 3,
             contractIndex: 7,
             contractDelivered: contract.quota - 1,
           })
@@ -119,5 +121,54 @@ it.effect('saves, advances and shares a factory without credentials', () =>
     assert.deepEqual(after.save, again.save)
     const original = yield* request('/api/shares/' + shared.shareId).pipe(Effect.flatMap(json))
     assert.deepEqual(original, { save })
+  }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
+)
+
+it.effect('restores a stamped filter, beacon and divider before offline production', () =>
+  Effect.gen(function* () {
+    const board = createRuntime(0)
+    board.tick(
+      Game.Schedule(
+        Game.System(
+          'Test/UnlockDivider',
+          { resources: { p: Game.System.writeResource(Progression) } },
+          ({ resources }) => resources.p.set({ ...resources.p.get(), milestoneIndex: 8 })
+        )
+      )
+    )
+    enqueue({
+      type: 'stampBlueprint',
+      originX: 18,
+      originY: 14,
+      entries: [
+        { dx: 0, dy: 0, kind: 'combiner', op: 'div', dir: 'N' },
+        { dx: 1, dy: 0, kind: 'beacon', dir: 'W' },
+        { dx: 2, dy: 0, kind: 'filter', targetValue: 2, dir: 'W' },
+        { dx: 3, dy: 0, kind: 'belt', dir: 'W' },
+      ],
+    })(board)
+    enqueue({ type: 'placeBuilding', kind: 'extractor', dir: 'S', gx: 21, gy: 13 })(board)
+    board.tick(applyEdits)
+    const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(exportSave(board))
+    const path = '/api/saves/strategy-1234'
+    assert.equal((yield* request(path, 'PUT', body)).status, 200)
+    yield* TestClock.adjust(Duration.seconds(5))
+    const actual = yield* request(path).pipe(
+      Effect.flatMap(json),
+      Effect.flatMap(S.decodeUnknownEffect(S.Struct({ save: S.Unknown, offlineTicks: S.Int })))
+    )
+    const expected = catchUp({ runtime: board, elapsedMs: 5000 })
+    assert.equal(actual.offlineTicks, 300)
+    assert.deepEqual(actual.save, expected.save)
+    const states = board.inspect(
+      Game.Inspector(
+        'Test/RestoredMachines',
+        { queries: { machines: Game.Query({ selection: { building: Game.Query.read(Building) } }) } },
+        ({ queries }) => Array.from(queries.machines.each(), (e) => queries.machines.data.building.get(e))
+      )
+    )
+    assert.includeDeepMembers(states, [{ kind: 'filter', targetValue: 2 }])
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'combiner' && s.op === 'div'))
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'beacon' && s.fuelTicks > 0))
   }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
 )

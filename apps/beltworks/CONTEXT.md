@@ -13,11 +13,15 @@ The 2 × 2 Hub occupies columns 17 and 18 and rows 12 and 13. Buildings and belt
 | Ring 2 | 26 × 20 | 4 | 180 Sparks and 60 sevens | 5, 6 and 7 clusters, extra low numbers |
 | Full Foundry | 36 × 26 | 6 | 650 Sparks, 120 twelves and 80 twenty-fours | 4, 5, 7, 8 and 9 clusters |
 
-Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v4`.
+Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v5`.
 
 ## Transport and production
 
 A belt moves one item at a time. A splitter alternates left and right and uses an open port if the preferred port is blocked. A tunnel sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. The exit accepts cargo only through the tunnel. Combiners take A from the left and B from the right, relative to their output.
+
+The divider returns the integer part of A divided by B. A zero divisor produces zero. A filter accepts cargo from the rear. A matching number goes straight. Other numbers turn right, or left if the right port cannot accept the item. A new filter uses the primary mission target. Select a filter or press F over it to set a value from 1 to 999.
+
+A beacon accepts fuel from all four sides. Each item worth at least two adds 45 ticks of fuel per unit, up to 1,800 ticks. The beacon uses one tick of fuel per simulation tick. A fueled beacon increases extractor and combiner speed by 50% within two cells, including diagonals. The combined bonus stops at 100%.
 
 Speed upgrades open after M1. Across levels 1 to 15, the base belt speed increases from 1.5 to 12 cells/s, extraction from 1 to 8 items/s, and crafting from 1.3 to 10 recipes/s. Blocked output can reduce actual throughput. M2 opens the ten-level Hub amplifier (1× to 13× active delivery value). M3 opens the ten-level extractor surge. At level 2 each twelfth normal extraction earns one bonus item. At level 10 each third extraction does. The extractor retains that bonus until the output opens.
 
@@ -30,15 +34,21 @@ The Vault keeps delivered 1, 3, 7, 12, 24, 37, 48, 72, 96 and 128. It also keeps
 | Mission | Quota | Minimum items/min | Reward |
 | --- | --- | --- | --- |
 | M1 | 15 × 1 | | Adder and speed upgrades |
-| M2 | 35 × 3 | | Splitter, amplifier, Ring 1 and side contracts |
-| M3 | 75 × 7 | | Tunnel and extractor surge |
+| M2 | 35 × 3 | | Splitter, amplifier and Ring 1 |
+| M3 | 75 × 7 | | Tunnel, extractor surge and side contracts |
 | M4 | 140 × 12 | 25 | Multiplier and Ring 2 |
-| M5 | 260 × 24 | 45 | Subtractor |
-| M6 | 420 × 37 | 60 | Trash and Full Foundry |
-| M7 | 500 × 48 and 300 × 12 | | +25% efficiency |
-| M8 | 700 × 72 and 400 × 24 | 90 for 72 | +25% efficiency |
-| M9 | 1,000 × 96 and 500 × 37 | 120 for 96 | +30% efficiency |
+| M5 | 260 × 24 | 45 | Smart number filter |
+| M6 | 420 × 37 | 60 | Subtractor, trash and Full Foundry |
+| M7 | 500 × 48 and 300 × 12 | 30 and 35 | Overclock beacon and +25% efficiency |
+| M8 | 700 × 72 and 400 × 24 | 90 and 45 | Divider and +25% efficiency |
+| M9 | 1,000 × 96 and 500 × 37 | 120 and 60 | +30% efficiency |
 
-Each quota counts deliveries since the mission began. At completion, every quota and every rate gate must hold at the same time. From M10 the Hub asks for two values with rising quotas and rate gates. Each completion adds 15 percentage points to foundry efficiency.
+Each quota counts deliveries since the mission began. At completion, every quota and every rate gate must hold at the same time. Removing a building restarts both mission rate counts. Quotas and Vault income retain their delivery history. From M10 the Hub asks for two values with rising quotas and rate gates. Each completion adds 15 percentage points to foundry efficiency.
 
-One side contract is active when M3 starts. The seed and contract index select a value from 6, 9, 15, 18, 28, 3, 7 and 12. The quota ranges from 40 to 180. Completion awards eight Sparks per requested unit and adds one quarter of the quota to the Vault. The next delivery counts toward the new contract.
+One side contract is active after M3. The seed and contract index select a value from 6, 9, 15, 18, 28, 3, 7 and 12. The quota ranges from 40 to 180. Completion awards eight Sparks per requested unit and adds one quarter of the quota to the Vault. The next delivery counts toward the new contract.
+
+## Factory controls
+
+In Select mode, hold Shift and drag to copy a rectangle. The Blueprint tool (B) and Ctrl+C also start a copy. Release to preview the stamp. R rotates the layout and its buildings clockwise. Click to stamp, or press Esc to cancel. Ctrl+V recalls the last copy. Each stamp uses one undo step. Occupied cells, locked cells and extractors without veins are skipped.
+
+The Flow Lens (V) shows beacon range, combiners with one empty input, and cargo blocked at the end of a belt. A fueled beacon has a cyan outline. A dormant beacon has a dashed amber outline.

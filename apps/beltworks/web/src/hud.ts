@@ -13,6 +13,7 @@ import {
   craftPeriod,
   extractorPeriod,
   milestone,
+  missionRate,
   upgradeCost,
 } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
@@ -93,7 +94,7 @@ function requirementRow({ value, quota, minRatePerMin }: ReturnType<typeof miles
   element('requirements').append(row)
   return (p: Progress) => {
     const delivered = p.delivered[value] ?? 0
-    const currentRate = p.rateByValue[value] ?? 0
+    const currentRate = missionRate({ p, value })
     count.textContent = (delivered >= quota ? '✓ ' : '') + delivered + ' / ' + quota
     meter.value = Math.min(quota, delivered)
     rate.textContent =
@@ -224,8 +225,8 @@ export function hud({
           )
         : ['Vault empty'])
     )
-    element('contract-card').hidden = p.milestoneIndex < 2
-    if (p.milestoneIndex >= 2) {
+    element('contract-card').hidden = p.milestoneIndex < 3
+    if (p.milestoneIndex >= 3) {
       const c = sideContract(p.seed, p.contractIndex)
       element('contract').textContent = 'Deliver ' + c.value + ' · ' + p.contractDelivered + ' / ' + c.quota
       contractMeter.setAttribute('max', String(c.quota))

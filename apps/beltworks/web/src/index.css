@@ -481,3 +481,28 @@ summary {
   nav { justify-content: space-between; }
   nav button span { display: none; }
 }
+
+#filter-picker {
+  pointer-events: auto;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid #53686a;
+  border-radius: 9px;
+  background: #152127;
+}
+#filter-values { display: flex; flex-wrap: wrap; gap: 3px; }
+#filter-value { width: 5em; }
+#filter-picker[hidden], #dock button[hidden] { display: none; }
+#lens[aria-pressed="true"] { color: var(--mint); }
+#filter-picker input, #filter-picker button {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #22313a;
+}

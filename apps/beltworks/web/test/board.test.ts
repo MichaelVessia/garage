@@ -6,6 +6,7 @@ import {
   applyEdits,
   generate,
   initialResources,
+  initial,
   simulation,
   enqueue,
   exportSave,
@@ -15,6 +16,7 @@ import * as Option from 'effect/Option'
 
 import { draw, createBoard, stats } from '../src/board.ts'
 import { inspectCell } from '../src/inspector.ts'
+import { Machine, tile } from '../src/machines.ts'
 import { pickToolForBuilding, tunnelPreview } from '../src/tools.ts'
 
 it('syncs ore, factory edits and moving cargo to Pixi containers', () => {
@@ -76,6 +78,20 @@ it('syncs ore, factory edits and moving cargo to Pixi containers', () => {
   const x = cargo.x
   runtime.tick(simulation, draw)
   assert.isAbove(cargo.x, x)
+  board.setFlowLens(true)
+  board.animate(0, initial)
+  assert.isFalse(cargo.pulse.visible)
+  for (let step = 0; step < 60; step++) {
+    runtime.tick(simulation, draw)
+  }
+  board.animate(60, initial)
+  assert.isTrue(cargo.pulse.visible)
+  const alpha = cargo.pulse.alpha
+  board.animate(70, initial)
+  assert.notEqual(cargo.pulse.alpha, alpha)
+  board.setFlowLens(false)
+  board.animate(70, initial)
+  assert.isFalse(cargo.pulse.visible)
   const belt = board.buildings.getChildByLabel('belt')
   if (belt === null) {
     throw new Error('Missing belt node')
@@ -123,4 +139,55 @@ it('picks unlocked building tools by operation and tunnel end', () => {
     Option.some('extractor')
   )
   assert.isTrue(Option.isNone(pickToolForBuilding({ state: { kind: 'hub' }, milestoneIndex: 4 })))
+})
+
+it('shows the filter target and divider operation on their housings', () => {
+  const machine = new Machine()
+  machine.update({ kind: 'filter', targetValue: 128 }, 'W')
+  assert.equal(machine.symbol.text, '128')
+  assert.equal(machine.symbol.rotation, 0)
+  const combiner = {
+    kind: 'combiner',
+    op: 'div',
+    slotA: Option.some(12),
+    slotB: Option.none<number>(),
+    remainingTicks: 0,
+  } as const
+  machine.update(combiner, 'N')
+  assert.equal(machine.symbol.text, '÷')
+  machine.animate(0, initial)
+  assert.equal(machine.detail.width, 0)
+  machine.animate(0, initial, true)
+  assert.isAbove(machine.detail.width, 40)
+  machine.update({ ...combiner, slotB: Option.some(3) }, 'N')
+  machine.animate(0, initial, true)
+  assert.equal(machine.detail.width, 0)
+})
+
+it('shows five cells of beacon coverage on focus or with the lens', () => {
+  const board = createBoard()
+  const beacon = board.machines.ensure(1, () => new Machine())
+  beacon.position.set(3.5 * tile, 2.5 * tile)
+  beacon.update({ kind: 'beacon', fuelTicks: 0 }, 'E')
+  const coverage = board.world.getChildByLabel('Beacon coverage')
+  if (coverage === null) {
+    throw new Error('Missing beacon coverage layer')
+  }
+  const cell = { gx: 3, gy: 2 }
+  board.animate(0, initial)
+  assert.equal(coverage.width, 0)
+  assert.equal(beacon.detail.width, 0)
+  board.setBeaconFocus(cell, undefined)
+  assert.closeTo(coverage.width, 5 * tile, 2)
+  board.setBeaconFocus(undefined, cell)
+  assert.closeTo(coverage.height, 5 * tile, 2)
+  board.setBeaconFocus(undefined, undefined)
+  assert.equal(coverage.width, 0)
+  beacon.update({ kind: 'beacon', fuelTicks: 45 }, 'E')
+  board.setFlowLens(true)
+  board.animate(0, initial)
+  assert.closeTo(coverage.width, 5 * tile, 2)
+  assert.isAbove(beacon.detail.width, 20)
+  board.setFlowLens(false)
+  assert.equal(coverage.width, 0)
 })
