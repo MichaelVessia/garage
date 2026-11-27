@@ -16,6 +16,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
   assert.deepStrictEqual(fallowConfig, {
     $schema: 'https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json',
     entry: [
+      'apps/beltworks/web/index.html',
       'apps/subq/alchemy.run.ts',
       'apps/subq/web/index.html',
       'apps/subq/web/src/worker.ts',

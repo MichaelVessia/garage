@@ -1,0 +1,23 @@
+{
+  "name": "@garage/beltworks-domain",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "effect": "4.1.5",
+    "@typeonce/ritmo": "0.27.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.1.5",
+    "vitest": "5.1.0"
+  },
+  "scripts": {
+    "typecheck": "effect-tsgo tsrs --noEmit",
+    "format": "oxfmt --config ../../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json vitest.config.ts",
+    "format:fix": "oxfmt --config ../../../oxfmt.config.mjs src/ test/ package.json tsconfig.json vitest.config.ts",
+    "test": "bun --bun vitest run"
+  }
+}

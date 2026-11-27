@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0e151b" />
+    <title>Beltworks</title>
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <main><section id="field" aria-label="Factory board"></section></main>
+    <header id="bar">
+      <h1>
+        <svg
+          viewBox="0 0 22 22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M2 3h6l7 8-7 8H2l7-8z M12 3h4l6 8-6 8h-4l7-8z" /></svg
+        >Beltworks
+      </h1>
+      <section class="mission">
+        <small id="milestone"></small><strong id="target">Target <b id="target-value"></b></strong><span id="count"></span>
+        <div id="meter" role="progressbar" aria-label="Milestone progress"><i></i></div>
+        <small id="reward"></small>
+      </section>
+      <strong class="sparks"
+        ><svg
+          viewBox="0 0 22 22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 2l1 6 7 1-6 4-2 7-2-7-7-3 7-2z" /></svg
+        ><span id="sparks">0</span> Sparks</strong
+      >
+      <nav aria-label="Simulation">
+        <button id="pause" title="Pause or play">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M7 5v12m8-12v12" /></svg
+          ><span>Pause</span></button
+        ><button id="speed" title="Simulation speed">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 6l6 5-6 5m8-10 6 5-6 5" /></svg
+          ><span>1×</span></button
+        ><button id="sound" title="Toggle sound" aria-pressed="false">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 9h4l5-4v12l-5-4H3z M15 9l4 4m0-4-4 4" /></svg
+          ><span>Sound off</span></button
+        ><button id="center" title="Center (H)">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 8V3h5m6 0h5v5m0 6v5h-5m-6 0H3v-5 M9 11h4m-2-2v4" /></svg
+          ><span>Center</span></button
+        ><button id="undo" disabled title="Undo (Ctrl+Z)">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 4L3 9l5 5M4 9h9q6 0 6 8" /></svg
+          ><span>Undo</span></button
+        ><button id="clear" title="Clear floor">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 16l9-12 5 4-9 12zM11 18h8" /></svg
+          ><span>Clear floor</span></button
+        ><button id="reset" title="Reset">
+          <svg
+            viewBox="0 0 22 22"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 10a7 7 0 1 1 1 6M3 4v6h6" /></svg
+          ><span>Reset</span>
+        </button>
+      </nav>
+    </header>
+    <output id="notice" role="status"></output>
+    <details id="workshop" open hidden>
+      <summary>
+        Workshop upgrades<svg
+          viewBox="0 0 22 22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 9l5 5 5-5" />
+        </svg>
+      </summary>
+      <div id="upgrades"></div>
+      <section class="upgrade" id="expand-card">
+        <strong>Workshop expansion</strong><span id="expansion"></span>
+      </section>
+      <details class="help">
+        <summary>Controls</summary>
+        <dl>
+          <dt><kbd>Drag</kbd></dt>
+          <dd>Lay belts</dd>
+          <dt><kbd>Q</kbd></dt><dd>Eyedropper</dd>
+          <dt><kbd>R</kbd></dt>
+          <dd>Rotate</dd>
+          <dt><kbd>X + drag</kbd></dt>
+          <dd>Box erase</dd>
+          <dt><kbd>Ctrl+Z</kbd></dt>
+          <dd>Undo</dd>
+          <dt><kbd>Q</kbd></dt><dd>Eyedropper</dd>
+          <dt><kbd>Right-drag</kbd></dt>
+          <dd>Pan</dd>
+        </dl>
+      </details>
+    </details>
+    <div id="starter-hint"></div>
+    <div id="inspector"></div>
+    <footer id="toolbar">
+      <div id="dock" aria-label="Building tools"></div>
+      <span id="direction"></span>
+    </footer>
+    <script type="module" src="/src/entry.ts"></script>
+  </body>
+</html>

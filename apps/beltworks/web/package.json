@@ -1,0 +1,30 @@
+{
+  "name": "@garage/beltworks-web",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "dependencies": {
+    "effect": "4.1.5",
+    "@typeonce/ritmo": "0.27.0",
+    "@garage/beltworks-domain": "workspace:*",
+    "@typeonce/ritmo-render": "0.27.0",
+    "@typeonce/ritmo-pixi": "0.27.0",
+    "@typeonce/ritmo-browser": "0.27.0",
+    "pixi.js": "8.23.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.1.5",
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2",
+    "vitest": "5.1.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "effect-tsgo tsrs --noEmit",
+    "format": "oxfmt --config ../../../oxfmt.config.mjs --check src/ test/ index.html package.json tsconfig.json vite.config.ts vitest.config.ts",
+    "format:fix": "oxfmt --config ../../../oxfmt.config.mjs src/ test/ index.html package.json tsconfig.json vite.config.ts vitest.config.ts",
+    "test": "bun --bun vitest run"
+  }
+}

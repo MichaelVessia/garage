@@ -7,6 +7,7 @@ This is the authoritative router for bounded contexts in `garage`. Match every c
 | Context | Owned paths | Instructions | Domain context | Context ADRs | Relevant policy | Responsibility |
 | --- | --- | --- | --- | --- | --- | --- |
 | Subq | `apps/subq/**` | `apps/subq/AGENTS.md` | `apps/subq/CONTEXT.md` | None currently; system-wide `docs/adr/` | `apps/subq/README.md`, `docs/guardrails/effect-services-and-layers.md`, `docs/reference/conventions.md` | Track personal weight, injections, schedules, goals, and statistics in one deployed web application. |
+| Beltworks | `apps/beltworks/**` | `apps/beltworks/AGENTS.md` | `apps/beltworks/CONTEXT.md` | None | `docs/reference/conventions.md` | Simulate a number factory and display its board. |
 | Logbook | `apps/logbook/**` | `apps/logbook/AGENTS.md` | `apps/logbook/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/reference/conventions.md` | Record the household’s assets, maintenance schedules, service, and warranties. |
 | Repository Engineering | Root repository/tooling files, `.claude/**`, `.github/**`, `.vscode/**`, `.zed/**`, `docs/**`, `rules/**`, `rule-tests/**`, `scripts/**` | `docs/repository-engineering/AGENTS.md` | `docs/repository-engineering/CONTEXT.md` | System-wide `docs/adr/` | `CONTRIBUTING.md`, `docs/reference/conventions.md`, `docs/guardrails/` | Own the shared harness: validation, static policy, builds, Nix, CI, releases, contributor and agent documentation. |
 
