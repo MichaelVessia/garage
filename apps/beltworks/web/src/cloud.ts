@@ -10,7 +10,7 @@ import * as ManagedRuntime from 'effect/ManagedRuntime'
 import * as S from 'effect/Schema'
 
 const client = ManagedRuntime.make(FetchHttpClient.layer)
-const playerKey = 'beltworks:player-id:v1'
+const playerKey = 'beltworks:player-id:v4'
 function playerId() {
   try {
     const existing = localStorage.getItem(playerKey)

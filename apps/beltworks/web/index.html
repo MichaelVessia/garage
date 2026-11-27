@@ -24,8 +24,8 @@
         >Beltworks
       </h1>
       <section class="mission">
-        <small id="milestone"></small><strong id="target">Target <b id="target-value"></b></strong><span id="count"></span>
-        <div id="meter" role="progressbar" aria-label="Milestone progress"><i></i></div>
+        <small id="milestone"></small>
+        <div id="requirements"></div>
         <small id="reward"></small>
       </section>
       <strong class="sparks"
@@ -136,7 +136,7 @@
     <output id="notice" role="status"></output>
     <details id="workshop" open hidden>
       <summary>
-        Workshop upgrades<svg
+        Workshop<svg
           viewBox="0 0 22 22"
           fill="none"
           stroke="currentColor"
@@ -148,10 +148,19 @@
           <path d="M6 9l5 5 5-5" />
         </svg>
       </summary>
-      <div id="upgrades"></div>
+      <div class="drawer-tabs" role="group" aria-label="Workshop view">
+        <button id="show-upgrades" aria-controls="upgrade-panel" aria-pressed="true">Upgrades</button>
+        <button id="show-vault" aria-controls="vault-panel" aria-pressed="false">Vault &amp; Contract</button>
+      </div>
+      <div id="upgrade-panel"><div id="upgrades"></div>
       <section class="upgrade" id="expand-card">
         <strong>Workshop expansion</strong><span id="expansion"></span>
       </section>
+      </div>
+      <div id="vault-panel" hidden>
+        <section class="upgrade"><strong>Vault</strong><span id="vault-income"></span><div id="stock"></div></section>
+        <section class="upgrade" id="contract-card"><strong>Side contract</strong><span id="contract"></span><progress id="contract-meter" aria-label="Side contract quota"></progress><div id="contract-reward"></div></section>
+      </div>
       <details class="help">
         <summary>Controls</summary>
         <dl>

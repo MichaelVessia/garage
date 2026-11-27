@@ -4,6 +4,22 @@ import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 
 import {
+  beltRate,
+  expansionCost,
+  expansionUnlock,
+  craftPeriod,
+  extractorPeriod,
+  upgradeCost,
+  canAfford,
+  pay,
+  upgradeLimit,
+  upgradeUnlock,
+  expireDeliveries,
+  deliver,
+  efficiency,
+  surgeInterval,
+} from './economy.ts'
+import {
   Building,
   CommandQueue,
   CommandRejected,
@@ -21,23 +37,16 @@ import {
   TILE_PROGRESS_MAX,
   Time,
   WorldPosition,
-  beltRate,
   clockwise,
-  expansionCost,
-  expansionUnlock,
   toolUnlock,
   inBounds,
   findTunnelPartner,
   counterClockwise,
-  craftPeriod,
-  extractorPeriod,
   initial,
   key,
-  milestone,
   neighbor,
   offsets,
   opposite,
-  upgradeCost,
 } from './model.ts'
 import type { BuildingAt, BuildingState, Cell, Command, Direction } from './model.ts'
 
@@ -70,39 +79,48 @@ export const setup = (seed: number) =>
     'Beltworks/Generate',
     {
       commands: System.commands(System.spawns(GridCell, Facing, Building, ResourceVein)),
-      resources: { index: System.writeResource(GridIndex) },
+      resources: { index: System.writeResource(GridIndex), progress: System.writeResource(Progression) },
     },
     ({ commands, resources }) => {
+      resources.progress.set({ ...initial, seed })
       const buildings: Record<string, number> = {}
       const deposits: Record<string, number> = {}
-      for (const gx of [11, 12]) {
-        for (const gy of [8, 9]) {
+      for (const gx of [17, 18]) {
+        for (const gy of [12, 13]) {
           buildings[key({ gx, gy })] = commands.spawn(buildingDraft({ gx, gy }, 'N', { kind: 'hub' }))
         }
       }
       const sites = [
-        { gx: 8, gy: 8, value: 1, length: 1, axis: 'x' },
-        { gx: 15, gy: 9, value: 2, length: 1, axis: 'x' },
-        { gx: 11, gy: 2, value: 3, length: 2, axis: 'x' },
-        { gx: 4, gy: 8, value: 4, length: 2, axis: 'y' },
-        { gx: 19, gy: 6, value: 2, length: 1, axis: 'x' },
-        { gx: 10, gy: 16, value: 5, length: 3, axis: 'x' },
-        { gx: 22, gy: 8, value: 7, length: 3, axis: 'y' },
-        { gx: 1, gy: 15, value: 6, length: 2, axis: 'y' },
-        { gx: 1, gy: 2, value: 1, length: 2, axis: 'y' },
+        { gx: 14, gy: 12, value: 1, width: 1, height: 1, axis: 'x' },
+        { gx: 21, gy: 13, value: 2, width: 1, height: 1, axis: 'x' },
+        { gx: 17, gy: 6, value: 3, width: 2, height: 1, axis: 'x' },
+        { gx: 10, gy: 12, value: 4, width: 1, height: 2, axis: 'y' },
+        { gx: 25, gy: 10, value: 2, width: 1, height: 1, axis: 'x' },
+        { gx: 16, gy: 20, value: 5, width: 3, height: 1, axis: 'x' },
+        { gx: 28, gy: 12, value: 7, width: 1, height: 3, axis: 'y' },
+        { gx: 7, gy: 19, value: 6, width: 1, height: 2, axis: 'y' },
+        { gx: 7, gy: 6, value: 1, width: 1, height: 2, axis: 'y' },
+        { gx: 20, gy: 19, value: 1, width: 1, height: 1, axis: 'x' },
+        { gx: 22, gy: 4, value: 2, width: 3, height: 1, axis: 'x' },
+        { gx: 30, gy: 6, value: 3, width: 1, height: 2, axis: 'y' },
+        { gx: 2, gy: 5, value: 4, width: 2, height: 2, axis: 'y' },
+        { gx: 15, gy: 1, value: 5, width: 3, height: 1, axis: 'x' },
+        { gx: 32, gy: 15, value: 7, width: 2, height: 2, axis: 'y' },
+        { gx: 9, gy: 24, value: 8, width: 3, height: 1, axis: 'x' },
+        { gx: 25, gy: 23, value: 9, width: 2, height: 2, axis: 'x' },
       ]
       for (const [i, site] of sites.entries()) {
         const hash = Math.imul(seed + i, 0x4_5d_9f_3b) >>> 0
         const jitter = ((hash >>> 19) % 3) - 1
-        for (let n = 0; n < site.length; n++) {
-          const offset = jitter + n
-          const cell = {
-            gx: site.gx + (site.axis === 'x' ? offset : 0),
-            gy: site.gy + (site.axis === 'y' ? offset : 0),
+        const left = site.gx + (site.axis === 'x' ? jitter : 0)
+        const top = site.gy + (site.axis === 'y' ? jitter : 0)
+        for (let y = 0; y < site.height; y++) {
+          for (let x = 0; x < site.width; x++) {
+            const cell = { gx: left + x, gy: top + y }
+            deposits[key(cell)] = commands.spawn(
+              Game.Command.spawn([GridCell, cell], [ResourceVein, { value: site.value }])
+            )
           }
-          deposits[key(cell)] = commands.spawn(
-            Game.Command.spawn([GridCell, cell], [ResourceVein, { value: site.value }])
-          )
         }
       }
       resources.index.set({ buildings, veins: deposits, items: {} })
@@ -121,7 +139,7 @@ const newBuilding = (cmd: Extract<Command, { type: 'placeBuilding' }>): Building
     case 'splitter':
       return { kind: cmd.kind, nextPort: 0 }
     case 'extractor':
-      return { kind: cmd.kind, remainingTicks: 0 }
+      return { kind: cmd.kind, remainingTicks: 0, surgeCount: 0, bonusPending: false }
     default:
       return { kind: cmd.kind }
   }
@@ -170,22 +188,21 @@ export const processCommands = System(
       const p = resources.progress.get()
       if (cmd.type === 'expandBoard') {
         const cost = expansionCost(p.boardTier)
-        if (p.milestoneIndex < expansionUnlock(p.boardTier) || p.sparks < cost) {
+        if (p.milestoneIndex < expansionUnlock(p.boardTier) || !canAfford(p, cost)) {
           reject('Expansion unavailable')
         } else {
-          resources.progress.set({ ...p, boardTier: p.boardTier === 0 ? 1 : 2, sparks: p.sparks - cost })
+          resources.progress.set({ ...pay({ p, cost }), boardTier: ([1, 2, 3, 3] as const)[p.boardTier] })
         }
         continue
       }
       if (cmd.type === 'buyUpgrade') {
         const tier = p.upgrades[cmd.upgrade]
         const cost = upgradeCost(tier)
-        if (p.milestoneIndex < 1 || tier >= 5 || p.sparks < cost) {
+        if (p.milestoneIndex < upgradeUnlock(cmd.upgrade) || tier >= upgradeLimit(cmd.upgrade) || !canAfford(p, cost)) {
           reject('Upgrade unavailable')
         } else {
           resources.progress.set({
-            ...p,
-            sparks: p.sparks - cost,
+            ...pay({ p, cost }),
             upgrades: { ...p.upgrades, [cmd.upgrade]: tier + 1 },
           })
         }
@@ -205,7 +222,7 @@ export const processCommands = System(
           }
         }
         if (cmd.type === 'resetBoard') {
-          resources.progress.set(initial)
+          resources.progress.set({ ...initial, seed: p.seed })
         }
         continue
       }
@@ -281,26 +298,15 @@ function destinations({ queries, resources, events }: Pick<TransportContext, 'qu
       case 'extractor':
         return false
       case 'hub': {
-        const { targetValue, quota } = milestone(p.milestoneIndex)
-        const matchedTarget = value === targetValue
-        const sparksEarned = matchedTarget ? Math.max(1, value) : 0
-        const count = p.deliveredInMilestone + Number(matchedTarget)
-        const complete = count >= quota
-        resources.progress.set({
-          ...p,
-          sparks: p.sparks + sparksEarned,
-          totalDelivered: p.totalDelivered + 1,
-          deliveredInMilestone: complete ? 0 : count,
-          milestoneIndex: p.milestoneIndex + Number(complete),
-          deliveryTicks: complete
-            ? []
-            : matchedTarget
-              ? [...p.deliveryTicks, resources.time.get().step]
-              : p.deliveryTicks,
+        const { next, matchedTarget, sparksEarned, complete } = deliver({
+          previous: p,
+          value,
+          tick: resources.time.get().step,
         })
+        resources.progress.set(next)
         events.delivery.emit({ ...cell, value, matchedTarget, sparksEarned })
         if (complete) {
-          events.complete.emit({ milestoneIndex: p.milestoneIndex, targetValue })
+          events.complete.emit({ milestoneIndex: p.milestoneIndex, targetValue: value })
         }
         return true
       }
@@ -365,12 +371,25 @@ export const runExtractors = System(
       }
       const cell = data.cell.get(e)
       const value = values[key(cell)]
-      const remainingTicks = Math.max(0, b.remainingTicks - 1)
-      const spawned = remainingTicks === 0 && value !== undefined && emit(cell, data.facing.get(e).dir, value)
-      data.building.set(e, {
-        ...b,
-        remainingTicks: spawned ? extractorPeriod(resources.progress.get().upgrades.extractorSpeed) : remainingTicks,
-      })
+      const p = resources.progress.get()
+      const remainingTicks = Math.max(-0.999999, b.remainingTicks - 1)
+      const send = () => value !== undefined && emit(cell, data.facing.get(e).dir, value)
+      if (b.bonusPending) {
+        data.building.set(e, { ...b, remainingTicks: Math.max(0, remainingTicks), bonusPending: !send() })
+      } else if (remainingTicks <= 0 && send()) {
+        const surgeCount = p.upgrades.surge > 1 ? b.surgeCount + 1 : 0
+        const bonusPending = surgeCount >= surgeInterval(p.upgrades.surge)
+        data.building.set(e, {
+          ...b,
+          surgeCount: bonusPending ? 0 : surgeCount,
+          bonusPending,
+          remainingTicks:
+            extractorPeriod(p.upgrades.extractorSpeed) / efficiency(p.milestoneIndex) +
+            (b.remainingTicks > 0 ? remainingTicks : 0),
+        })
+      } else {
+        data.building.set(e, { ...b, remainingTicks: Math.max(0, remainingTicks) })
+      }
     }
   }
 )
@@ -385,8 +404,9 @@ export const runCombiners = System(
       if (b.kind !== 'combiner' || Option.isNone(b.slotA) || Option.isNone(b.slotB)) {
         continue
       }
-      const period = craftPeriod(ctx.resources.progress.get().upgrades.combinerSpeed)
-      const remainingTicks = (b.remainingTicks === 0 ? period : b.remainingTicks) - 1
+      const p = ctx.resources.progress.get()
+      const period = Math.max(1, craftPeriod(p.upgrades.combinerSpeed) / efficiency(p.milestoneIndex))
+      const remainingTicks = (b.remainingTicks <= 0 ? period + b.remainingTicks : b.remainingTicks) - 1
       if (remainingTicks > 0) {
         data.building.set(e, { ...b, remainingTicks })
         continue
@@ -399,7 +419,7 @@ export const runCombiners = System(
       )
       const cell = data.cell.get(e)
       if (emit(cell, data.facing.get(e).dir, result)) {
-        data.building.set(e, { ...b, slotA: Option.none<number>(), slotB: Option.none<number>(), remainingTicks: 0 })
+        data.building.set(e, { ...b, slotA: Option.none<number>(), slotB: Option.none<number>(), remainingTicks })
         ctx.events.craft.emit({ ...cell, op: b.op, a, b: second, result })
       } else {
         data.building.set(e, { ...b, remainingTicks: 1 })
@@ -415,6 +435,8 @@ export const advanceBelts = System(
     const { accept, byCell, at } = destinations(ctx)
     const { data } = queries.cargo
     const occupants = Rec.fromEntries(Arr.map(queries.cargo.each(), (e) => [key(data.tile.get(e)), e]))
+    const p = resources.progress.get()
+    const speed = Math.min(TILE_PROGRESS_MAX, beltRate(p.upgrades.beltSpeed) * efficiency(p.milestoneIndex))
     type Cargo = ReturnType<typeof queries.cargo.each>[number]
     const visited = Visited.empty<number>()
     // Free the downstream cell first. Each item gets one turn, including in a cycle.
@@ -429,10 +451,8 @@ export const advanceBelts = System(
       if (machine === undefined) {
         return
       }
-      const progress = Math.min(
-        TILE_PROGRESS_MAX,
-        tile.progress + beltRate(resources.progress.get().upgrades.beltSpeed)
-      )
+      const progress = Math.min(TILE_PROGRESS_MAX, tile.progress + speed)
+      const overflow = tile.progress === TILE_PROGRESS_MAX ? 0 : Math.max(0, tile.progress + speed - TILE_PROGRESS_MAX)
       data.tile.set(e, { ...tile, prevProgress: tile.progress, progress })
       if (progress < TILE_PROGRESS_MAX) {
         return
@@ -462,7 +482,7 @@ export const advanceBelts = System(
           data.item.get(e).value,
           (cell, fromDir) => {
             moved = true
-            data.tile.set(e, { ...cell, fromDir, prevProgress: 0, progress: 0 })
+            data.tile.set(e, { ...cell, fromDir, prevProgress: 0, progress: overflow })
           },
           underground
         )
@@ -523,9 +543,9 @@ export const positions = System(
       })
     }
     const p = resources.progress.get()
-    const cutoff = resources.time.get().step - 3600
-    if ((p.deliveryTicks[0] ?? Infinity) <= cutoff) {
-      resources.progress.set({ ...p, deliveryTicks: Arr.filter(p.deliveryTicks, (t) => t > cutoff) })
+    const current = expireDeliveries({ p, tick: resources.time.get().step })
+    if (current !== p) {
+      resources.progress.set(current)
     }
   }
 )

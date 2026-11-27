@@ -8,6 +8,7 @@ import { savedBoard } from './save.ts'
 import { advanceBelts, positions, processCommands, runCombiners, runExtractors, setup } from './systems.ts'
 
 export * from './model.ts'
+export * from './economy.ts'
 
 export const simulation = Game.Schedule(
   Clock.system(Game, { name: 'Beltworks/AdvanceTime', resource: Time }),

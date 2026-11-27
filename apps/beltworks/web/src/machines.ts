@@ -1,4 +1,5 @@
 import {
+  efficiency,
   clockwise,
   counterClockwise,
   beltRate,
@@ -7,6 +8,7 @@ import {
   milestone,
 } from '@garage/beltworks-domain'
 import type { BuildingState, Direction, initial } from '@garage/beltworks-domain'
+import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 import { Container, Graphics, Text } from 'pixi.js'
 
@@ -20,7 +22,8 @@ const colors = [
   0xcb_d5_e1, 0x5e_ea_d4, 0xfb_bf_24, 0xc0_84_fc, 0x60_a5_fa, 0xfb_71_85, 0xa3_e6_35, 0xfb_92_3c, 0x38_bd_f8,
   0xf4_72_b6,
 ]
-export const oreColor = (value: number) => colors[value] ?? 0xff_da_86
+export const oreColor = (value: number) =>
+  colors[value % colors.length] ?? colors[1 + ((value + Math.floor(value / 9)) % 9)] ?? 0xff_da_86
 
 function housing(g: Graphics, r: number, cut: number, face: number, rim: number) {
   const corners = [
@@ -279,7 +282,7 @@ export class Machine extends Container {
         }
         break
       case 'belt': {
-        const distance = (tick * beltRate(p.upgrades.beltSpeed)) / 1000
+        const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * efficiency(p.milestoneIndex))) / 1000
         for (const side of this.lanes) {
           const count = side === 0 ? 3 : 2
           for (let i = 0; i < count; i++) {
@@ -300,8 +303,9 @@ export class Machine extends Container {
         break
       }
       case 'extractor': {
-        const fraction = 1 - state.remainingTicks / extractorPeriod(p.upgrades.extractorSpeed)
-        g.save().rotateTransform((tick / extractorPeriod(p.upgrades.extractorSpeed)) * Math.PI)
+        const period = extractorPeriod(p.upgrades.extractorSpeed) / efficiency(p.milestoneIndex)
+        const fraction = 1 - state.remainingTicks / period
+        g.save().rotateTransform((tick / period) * Math.PI)
         for (let i = 0; i < 8; i++) {
           g.rotateTransform(Math.PI / 4)
             .rect(-2, -16, 4, 4)
@@ -316,7 +320,13 @@ export class Machine extends Container {
         if (state.remainingTicks > 0) {
           const start = -Math.PI / 2
           const end =
-            start + 2 * Math.PI * Math.max(0.01, 1 - state.remainingTicks / craftPeriod(p.upgrades.combinerSpeed))
+            start +
+            2 *
+              Math.PI *
+              Math.max(
+                0.01,
+                1 - (state.remainingTicks * efficiency(p.milestoneIndex)) / craftPeriod(p.upgrades.combinerSpeed)
+              )
           g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 4, alpha: 0.25 })
           g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 1.6 })
         }
@@ -325,17 +335,24 @@ export class Machine extends Container {
         g.circle(state.nextPort === 0 ? -10 : 10, 0, 3).fill(gold)
         break
       case 'hub': {
-        const { targetValue, quota } = milestone(p.milestoneIndex)
-        this.symbol.text = String(targetValue)
+        const { requirements } = milestone(p.milestoneIndex)
+        this.symbol.text = Arr.join(
+          Arr.map(requirements, ({ value }) => String(value)),
+          '·'
+        )
+        this.symbol.style.fontSize = Math.min(26, 78 / this.symbol.text.length)
+        const progress =
+          Arr.reduce(requirements, 0, (sum, { value, quota }) => sum + Math.min(1, (p.delivered[value] ?? 0) / quota)) /
+          requirements.length
         const start = -Math.PI / 2
-        const end = start + (Math.PI * 2 * p.deliveredInMilestone) / quota
+        const end = start + Math.PI * 2 * progress
         if (end > start) {
           g.arc(0, 0, 30, start, end).stroke({ width: 7, color: aqua, alpha: 0.22 })
           g.arc(0, 0, 30, start, end).stroke({ width: 3.5, color: aqua })
           g.circle(30 * Math.cos(end), 30 * Math.sin(end), 2).fill(gold)
         }
         g.roundRect(-25, 20, 50, 4, 2).fill(ink)
-        g.rect(-25, 20, (50 * p.deliveredInMilestone) / quota, 4).fill(gold)
+        g.rect(-25, 20, 50 * progress, 4).fill(gold)
         break
       }
     }

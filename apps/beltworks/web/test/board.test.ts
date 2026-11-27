@@ -1,6 +1,7 @@
 import { assert, it } from '@effect/vitest'
 import {
   Game,
+  expansionCost,
   Progression,
   applyEdits,
   generate,
@@ -30,30 +31,41 @@ it('syncs ore, factory edits and moving cargo to Pixi containers', () => {
   runtime.tick(
     Game.Schedule(
       Game.System('Test/Unlock', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) =>
-        resources.p.set({ ...resources.p.get(), milestoneIndex: 2, sparks: 40 })
+        resources.p.set({
+          ...resources.p.get(),
+          milestoneIndex: 6,
+          delivered: { 48: 10, 12: 4 },
+          sparks: expansionCost(0).sparks,
+          vault: expansionCost(0).stock,
+        })
       )
     )
   )
   enqueue({ type: 'expandBoard' })(runtime)
   runtime.tick(applyEdits, draw)
-  assert.lengthOf(visible(), 7)
+  assert.lengthOf(visible(), 8)
   const hub = Arr.findFirst(board.buildings.children, (n) => n.label === 'hub')
   if (Option.isNone(hub)) {
     throw new Error('Hub missing')
   }
   const inspect = (gx: number, gy: number) => inspectCell({ board, cell: { gx, gy }, ...runtime.inspect(stats) })
-  assert.equal(inspect(7, 8), 'Vein 1 · Place Extractor')
-  assert.equal(inspect(11, 8), 'Central Hub · Target 7 (0 / 35)')
-  assert.equal(inspect(12, 9), 'Central Hub · Target 7 (0 / 35)')
+  assert.equal(inspect(13, 12), 'Vein 1 · Place Extractor')
+  const hubInfo = 'Central Hub · Target 48 (10 / 500) · Target 12 (4 / 300)'
+  assert.equal(inspect(17, 12), hubInfo)
+  assert.equal(inspect(18, 13), hubInfo)
+  assert.lengthOf(
+    Arr.filter(board.buildings.children, (n) => n.label === 'hub' && n.visible),
+    1
+  )
   const count = hub.value.children.length
   hub.value.update({ kind: 'hub' }, 'N')
   assert.lengthOf(hub.value.children, count)
-  enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 7, gy: 8, dir: 'E' })(runtime)
-  enqueue({ type: 'placeBuilding', kind: 'belt', gx: 8, gy: 8, dir: 'E' })(runtime)
+  enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 13, gy: 12, dir: 'E' })(runtime)
+  enqueue({ type: 'placeBuilding', kind: 'belt', gx: 14, gy: 12, dir: 'E' })(runtime)
   runtime.tick(simulation, draw)
   assert.lengthOf(board.buildings.children, 6)
-  assert.equal(inspect(7, 8), 'Extractor · Mines 1 · 1.0/s')
-  assert.equal(inspect(8, 8), 'Belt · Facing E')
+  assert.equal(inspect(13, 12), 'Extractor · Mines 1 · 1.0/s')
+  assert.equal(inspect(14, 12), 'Belt · Facing E')
   const miner = Arr.findFirst(board.buildings.children, (n) => n.label === 'extractor')
   assert.equal(Option.isSome(miner) && miner.value.symbol.text, '1')
   const cargo = board.items.children[0]
@@ -70,10 +82,10 @@ it('syncs ore, factory edits and moving cargo to Pixi containers', () => {
   }
   const plate = belt.getChildAt(0)
   const angle = plate.rotation
-  enqueue({ type: 'rotateBuilding', gx: 8, gy: 8 })(runtime)
+  enqueue({ type: 'rotateBuilding', gx: 14, gy: 12 })(runtime)
   runtime.tick(applyEdits, draw)
   assert.closeTo(plate.rotation - angle, Math.PI / 2, 0.001)
-  enqueue({ type: 'removeBuilding', gx: 8, gy: 8 })(runtime)
+  enqueue({ type: 'removeBuilding', gx: 14, gy: 12 })(runtime)
   runtime.tick(simulation, draw)
   assert.isTrue(cargo.destroyed)
   assert.lengthOf(board.buildings.children, 5)
@@ -104,7 +116,10 @@ it('picks unlocked building tools by operation and tunnel end', () => {
   assert.isTrue(Option.isNone(pickToolForBuilding({ state: multiplier, milestoneIndex: 0 })))
   assert.deepEqual(pickToolForBuilding({ state: { kind: 'tunnelOut' }, milestoneIndex: 4 }), Option.some('tunnel'))
   assert.deepEqual(
-    pickToolForBuilding({ state: { kind: 'extractor', remainingTicks: 0 }, milestoneIndex: 0 }),
+    pickToolForBuilding({
+      state: { kind: 'extractor', remainingTicks: 0, surgeCount: 0, bonusPending: false },
+      milestoneIndex: 0,
+    }),
     Option.some('extractor')
   )
   assert.isTrue(Option.isNone(pickToolForBuilding({ state: { kind: 'hub' }, milestoneIndex: 4 })))

@@ -3,7 +3,7 @@ import type { Runtime } from '@garage/beltworks-domain'
 import * as Result from 'effect/Result'
 import * as S from 'effect/Schema'
 
-const saveKey = 'beltworks:save:v3'
+const saveKey = 'beltworks:save:v4'
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 
 const localRecord = S.Struct({ save: S.Unknown, revision: S.Finite })

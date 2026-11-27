@@ -12,7 +12,7 @@ const blank = () => {
 }
 it('restores the saved factory including production time and buildings', () => {
   const source = createRuntime(0)
-  enqueue({ type: 'placeBuilding', kind: 'belt', gx: 8, gy: 6, dir: 'S' })(source)
+  enqueue({ type: 'placeBuilding', kind: 'belt', gx: 14, gy: 10, dir: 'S' })(source)
   source.tick(simulation)
   const data = new Map<string, string>()
   const store = () => ({
@@ -22,14 +22,14 @@ it('restores the saved factory including production time and buildings', () => {
     },
   })
   assert.isTrue(saveBoard(store)(source))
-  assert.isTrue(data.has('beltworks:save:v3'))
+  assert.isTrue(data.has('beltworks:save:v4'))
   const dest = blank()
   loadBoard(store)(dest)
   assert.deepEqual(exportSave(dest), exportSave(source))
-  const legacy = data.get('beltworks:save:v3')
+  const legacy = data.get('beltworks:save:v4')
   data.clear()
   if (legacy !== undefined) {
-    data.set('beltworks:save:v2', legacy)
+    data.set('beltworks:save:v3', legacy)
   }
   const fresh = blank()
   loadBoard(store)(fresh)
@@ -50,7 +50,7 @@ it('undoes the most recent 25 edits and restores the complete prior snapshot', (
   }
   const before = exportSave(r)
   history.record(before)
-  enqueue({ type: 'placeBuilding', gx: 8, gy: 6, dir: 'S', kind: 'belt' })(r)
+  enqueue({ type: 'placeBuilding', gx: 14, gy: 10, dir: 'S', kind: 'belt' })(r)
   r.tick(simulation)
   assert.isTrue(history.undo())
   assert.deepEqual(exportSave(r), before)

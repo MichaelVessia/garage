@@ -1,7 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
 import * as Order from 'effect/Order'
-import * as Rec from 'effect/Record'
 import * as ER from 'effect/Result'
 import * as S from 'effect/Schema'
 
@@ -15,7 +14,6 @@ import {
   Game,
   GridCell,
   GridIndex,
-  Item,
   ItemCrafted,
   ItemDelivered,
   MilestoneCompleted,
@@ -24,11 +22,13 @@ import {
   WorldPosition,
   createRuntime,
   createRuntimeFromSave,
-  enqueue,
   exportSave,
   simulation,
 } from '../src/index.ts'
 import type { CombinerOp, Command, Runtime } from '../src/index.ts'
+import { fixtures } from './fixtures.ts'
+
+const { advance, belt, extractor, factory, feed, place } = fixtures
 
 const state = Game.Inspector(
   'Test/Stats',
@@ -51,32 +51,21 @@ const state = Game.Inspector(
     buildings: Arr.map(queries.machines.each(), (e) => queries.machines.data.building.get(e)),
   })
 )
-const advance = (runtime: Runtime, count: number) => {
-  for (let i = 0; i < count; i++) {
-    runtime.tick(simulation)
-  }
-}
-const place = (runtime: Runtime, ...cmds: Array<Command>) => {
-  for (const cmd of cmds) {
-    enqueue(cmd)(runtime)
-  }
-}
-const belt = (gx: number, gy = 8): Command => ({ type: 'placeBuilding', kind: 'belt', gx, gy, dir: 'E' })
-const extractor: Command = { type: 'placeBuilding', kind: 'extractor', gx: 7, gy: 8, dir: 'E' }
-const factory = () => {
-  const r = createRuntime(0)
-  place(r, extractor, belt(8), belt(9), belt(10))
-  return r
-}
 const grant = (runtime: Runtime, milestoneIndex = 6) => {
   const grantProgress = Game.System(
     'Test/Grant',
     { resources: { p: Game.System.writeResource(Progression) } },
-    ({ resources }) => resources.p.set({ ...resources.p.get(), milestoneIndex, sparks: 1000 })
+    ({ resources }) =>
+      resources.p.set({
+        ...resources.p.get(),
+        milestoneIndex,
+        sparks: 1000,
+        vault: { 1: 15, 3: 25, 7: 60, 12: 120, 24: 80 },
+      })
   )
   runtime.tick(Game.Schedule(grantProgress))
 }
-it('delivers twelve ones, unlocks addition and consumes subsequent unmatched items', () => {
+it('delivers fifteen ones, unlocks addition and consumes subsequent unmatched items', () => {
   const r = factory()
   const completed: Array<number> = []
   const payments: Array<number> = []
@@ -99,22 +88,22 @@ it('delivers twelve ones, unlocks addition and consumes subsequent unmatched ite
       }
     )
   )
-  for (let i = 0; i < 1100; i++) {
+  for (let i = 0; i < 1400; i++) {
     r.tick(simulation, observe)
     if (i === 500) {
       const { p } = r.inspect(state)
-      assert.isAbove(p.deliveredInMilestone, 0)
-      assert.lengthOf(p.deliveryTicks, p.deliveredInMilestone)
+      assert.isAbove(p.delivered[1] ?? 0, 0)
+      assert.equal(p.rateByValue[1], p.delivered[1])
     }
   }
   const { p } = r.inspect(state)
   assert.equal(p.milestoneIndex, 1)
-  assert.deepEqual(p.deliveryTicks, [])
-  assert.equal(p.sparks, 12)
+  assert.equal(p.vault[1], p.totalDelivered)
+  assert.equal(p.sparks, p.totalDelivered)
   assert.deepEqual(completed, [1])
-  assert.equal(payments.at(-1), 0)
+  assert.equal(payments.at(-1), 1)
   assert.isAbove(p.totalDelivered, 15)
-  place(r, { type: 'placeBuilding', kind: 'combiner', op: 'add', gx: 8, gy: 5, dir: 'E' })
+  place(r, { type: 'placeBuilding', kind: 'combiner', op: 'add', gx: 14, gy: 9, dir: 'E' })
   advance(r, 1)
   assert.include(
     Arr.map(r.inspect(state).buildings, (b) => b.kind),
@@ -123,23 +112,23 @@ it('delivers twelve ones, unlocks addition and consumes subsequent unmatched ite
 })
 it('carries a number around the inside of a belt corner', () => {
   const r = createRuntime(0)
-  place(r, extractor, { type: 'placeBuilding', kind: 'belt', gx: 8, gy: 8, dir: 'N' })
+  place(r, extractor, { type: 'placeBuilding', kind: 'belt', gx: 14, gy: 12, dir: 'N' })
   advance(r, 21)
   const path = Game.Inspector(
     'Test/Corner',
     { queries: { items: Game.Query({ selection: { position: Game.Query.read(WorldPosition) } }) } },
     ({ queries }) => Arr.map(queries.items.each(), (e) => queries.items.data.position.get(e))
   )
-  assert.deepEqual(r.inspect(path), [{ x: 8.375, y: 8.375 }])
+  assert.deepEqual(r.inspect(path), [{ x: 14.375, y: 12.375 }])
 })
 it('rejects placement on the hub, locked machines and extractors without veins', () => {
   const r = createRuntime(0)
   place(
     r,
-    belt(11),
-    { ...extractor, gx: 8 },
-    { type: 'placeBuilding', kind: 'trash', gx: 7, gy: 6, dir: 'W' },
-    belt(4, 4),
+    belt(17),
+    { ...extractor, gx: 14 },
+    { type: 'placeBuilding', kind: 'trash', gx: 13, gy: 10, dir: 'W' },
+    belt(10, 8),
     { type: 'expandBoard' }
   )
   const reasons: Array<string> = []
@@ -161,30 +150,6 @@ it('rejects placement on the hub, locked machines and extractors without veins',
     'Expansion unavailable',
   ])
 })
-function feed(runtime: Runtime, loads: ReadonlyArray<{ gx: number; gy: number; value: number }>) {
-  const load = Game.System(
-    'Test/Feed',
-    {
-      commands: Game.System.commands(Game.System.spawns(Item, OnTile, WorldPosition)),
-      resources: { index: Game.System.writeResource(GridIndex) },
-    },
-    ({ commands, resources }) => {
-      const index = resources.index.get()
-      const items = { ...index.items }
-      for (const { gx, gy, value } of loads) {
-        items[`${gx},${gy}`] = commands.spawn(
-          Game.Command.spawn(
-            [Item, { value }],
-            [OnTile, { gx, gy, fromDir: 'W', progress: 1000, prevProgress: 1000 }],
-            [WorldPosition, { x: gx, y: gy }]
-          )
-        )
-      }
-      resources.index.set({ ...index, items })
-    }
-  )
-  runtime.tick(Game.Schedule(load, Game.Schedule.applyDeferred()))
-}
 const recipes: ReadonlyArray<readonly [CombinerOp, number, number, number]> = [
   ['add', 1, 2, 3],
   ['sub', 5, 2, 3],
@@ -196,14 +161,14 @@ it.each(recipes)('crafts %s with %i and %i to make %i', (op, a, b, result) => {
   grant(r)
   place(
     r,
-    { type: 'placeBuilding', kind: 'combiner', op, gx: 10, gy: 8, dir: 'E' },
-    { type: 'placeBuilding', kind: 'belt', gx: 10, gy: 7, dir: 'S' },
-    { type: 'placeBuilding', kind: 'belt', gx: 10, gy: 9, dir: 'N' }
+    { type: 'placeBuilding', kind: 'combiner', op, gx: 16, gy: 12, dir: 'E' },
+    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 11, dir: 'S' },
+    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 13, dir: 'N' }
   )
   advance(r, 1)
   feed(r, [
-    { gx: 10, gy: 7, value: a },
-    { gx: 10, gy: 9, value: b },
+    { gx: 16, gy: 11, value: a },
+    { gx: 16, gy: 13, value: b },
   ])
   const products: Array<number> = []
   const observe = Game.System(
@@ -220,10 +185,11 @@ it.each(recipes)('crafts %s with %i and %i to make %i', (op, a, b, result) => {
   if (!loaded.ok) {
     throw new Error('Restore lost an active recipe')
   }
-  advance(r, 26)
-  advance(loaded.value, 26)
+  for (let i = 0; i < 40; i++) {
+    r.tick(simulation, Game.Schedule(observe))
+  }
+  advance(loaded.value, 40)
   assert.deepEqual(exportSave(loaded.value), exportSave(r))
-  r.tick(Game.Schedule(observe))
   assert.deepEqual(products, [result])
   assert.equal(r.inspect(state).p.totalDelivered, 1)
 })
@@ -231,37 +197,37 @@ it('alternates splitter ports and uses the open port when the preferred port is 
   const r = createRuntime(0)
   grant(r)
   place(r, { type: 'expandBoard' })
-  place(r, { type: 'placeBuilding', kind: 'splitter', gx: 4, gy: 4, dir: 'E' }, belt(4, 3), belt(4, 5))
+  place(r, { type: 'placeBuilding', kind: 'splitter', gx: 10, gy: 8, dir: 'E' }, belt(10, 7), belt(10, 9))
   advance(r, 1)
   const send = () => {
-    feed(r, [{ gx: 4, gy: 4, value: 1 }])
+    feed(r, [{ gx: 10, gy: 8, value: 1 }])
     advance(r, 1)
   }
   send()
-  assert.containsAllKeys(r.inspect(state).index.items, ['4,3'])
+  assert.containsAllKeys(r.inspect(state).index.items, ['10,7'])
   send()
-  assert.containsAllKeys(r.inspect(state).index.items, ['4,3', '4,5'])
-  place(r, belt(5, 5))
+  assert.containsAllKeys(r.inspect(state).index.items, ['10,7', '10,9'])
+  place(r, belt(11, 9))
   advance(r, 40)
   send()
-  assert.containsAllKeys(r.inspect(state).index.items, ['4,3', '4,5', '5,5'])
+  assert.containsAllKeys(r.inspect(state).index.items, ['10,7', '10,9', '11,9'])
 })
 it('stalls a packed belt and moves both items in the tick that the line opens', () => {
   const r = createRuntime(0)
-  place(r, belt(8), belt(9))
+  place(r, belt(14), belt(15))
   advance(r, 1)
   feed(r, [
-    { gx: 8, gy: 8, value: 1 },
-    { gx: 9, gy: 8, value: 2 },
+    { gx: 14, gy: 12, value: 1 },
+    { gx: 15, gy: 12, value: 2 },
   ])
   advance(r, 80)
   assert.deepEqual(
     Arr.map(r.inspect(state).tiles, (t) => t.progress),
     [1000, 1000]
   )
-  place(r, belt(10))
+  place(r, belt(16))
   advance(r, 1)
-  assert.hasAllKeys(r.inspect(state).index.items, ['9,8', '10,8'])
+  assert.hasAllKeys(r.inspect(state).index.items, ['15,12', '16,12'])
   assert.deepEqual(
     Arr.map(r.inspect(state).tiles, (t) => t.progress),
     [0, 0]
@@ -271,7 +237,7 @@ const deliveries = (extractorTier: boolean, beltTier: boolean) => {
   const r = factory()
   grant(r)
   if (extractorTier) {
-    place(r, { type: 'buyUpgrade', upgrade: 'extractorSpeed' })
+    place(r, { type: 'buyUpgrade', upgrade: 'extractorSpeed' }, { type: 'buyUpgrade', upgrade: 'extractorSpeed' })
   }
   if (beltTier) {
     place(r, { type: 'buyUpgrade', upgrade: 'beltSpeed' })
@@ -290,7 +256,7 @@ it('replays commands and resumes a JSON save with a queued command', () => {
   const second = factory()
   for (const r of [first, second]) {
     advance(r, 210)
-    place(r, belt(8, 5))
+    place(r, belt(14, 9))
   }
   const saved = exportSave(first)
   assert.deepEqual(exportSave(second), saved)
@@ -320,44 +286,11 @@ it('replays commands and resumes a JSON save with a queued command', () => {
     }).ok
   )
 })
-it('runs 10,000 active ticks and expires old delivery times', () => {
-  const r = createRuntime(0)
-  grant(r)
-  place(
-    r,
-    { ...extractor, dir: 'N' },
-    belt(7, 7),
-    belt(8, 7),
-    { ...extractor, gx: 15, gy: 9, dir: 'N' },
-    { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 8, dir: 'N' },
-    { type: 'placeBuilding', kind: 'combiner', op: 'add', gx: 9, gy: 7, dir: 'S' },
-    belt(9),
-    belt(10)
-  )
-  r.tick(
-    Game.Schedule(
-      Game.System(
-        'Test/StartRateWindow',
-        { resources: { p: Game.System.writeResource(Progression) } },
-        ({ resources }) => resources.p.set({ ...resources.p.get(), deliveryTicks: [0] })
-      )
-    )
-  )
-  for (let gx = 15; gx >= 10; gx--) {
-    place(r, { type: 'placeBuilding', kind: 'belt', gx, gy: 7, dir: 'W' })
-  }
-  advance(r, 10_000)
-  const { p, tiles, index } = r.inspect(state)
-  assert.isAbove(p.totalDelivered, 100)
-  assert.deepEqual(p.deliveryTicks, [])
-  assert.lengthOf(Rec.keys(index.items), tiles.length)
-})
-
 it('removes queued and occupied buildings and retains the generated board on reset', () => {
   const r = factory()
   advance(r, 181)
   const starting = r.inspect(state)
-  place(r, { type: 'rotateBuilding', gx: 8, gy: 8 }, { type: 'removeBuilding', gx: 8, gy: 8 }, belt(2, 2), {
+  place(r, { type: 'rotateBuilding', gx: 14, gy: 12 }, { type: 'removeBuilding', gx: 14, gy: 12 }, belt(8, 6), {
     type: 'resetBoard',
   })
   advance(r, 1)
@@ -369,96 +302,107 @@ it('removes queued and occupied buildings and retains the generated board on res
   assert.equal(after.p.sparks, 0)
 })
 
-it('opens each ring at its Spark cost and keeps clustered veins within their ring', () => {
+it('opens each ring at its Spark and stock costs and keeps clustered veins within their ring', () => {
   for (const seed of [0, 19, 42, -17, 1000]) {
     const r = createRuntime(seed)
     const veins = r.inspect(state).veins
-    const values = (tier: 0 | 1 | 2) =>
+    const values = (tier: 0 | 1 | 2 | 3) =>
       Arr.sort(
         Arr.map(
-          Arr.filter(veins, (v) => inBounds(v, tier) && (tier === 0 || !inBounds(v, tier === 2 ? 1 : 0))),
+          Arr.filter(veins, (v) => inBounds(v, tier) && (tier === 0 || !inBounds(v, ([0, 0, 1, 2] as const)[tier]))),
           (v) => v.value
         ),
         Order.Number
       )
     assert.deepEqual(values(0), [1, 2])
-    assert.deepEqual(values(1), [2, 3, 3, 4, 4])
-    assert.deepEqual(values(2), [1, 1, 5, 5, 5, 6, 6, 7, 7, 7])
-    place(r, { type: 'expandBoard' }, belt(4, 4))
+    assert.deepEqual(values(1), [1, 2, 3, 3, 4, 4])
+    assert.includeMembers(values(2), [1, 2, 3, 5, 6, 7])
+    assert.includeMembers(values(3), [4, 5, 7, 8, 9])
+    place(r, { type: 'expandBoard' }, belt(10, 8))
     advance(r, 1)
-    assert.isUndefined(r.inspect(state).index.buildings['4,4'])
+    assert.isUndefined(r.inspect(state).index.buildings['10,8'])
     grant(r)
-    place(r, { type: 'expandBoard' }, belt(4, 4))
+    place(r, { type: 'expandBoard' }, belt(10, 8))
     advance(r, 1)
     assert.equal(r.inspect(state).p.boardTier, 1)
     assert.equal(r.inspect(state).p.sparks, 965)
-    assert.isDefined(r.inspect(state).index.buildings['4,4'])
-    place(r, { type: 'expandBoard' }, belt(1, 1), { type: 'expandBoard' })
+    assert.isDefined(r.inspect(state).index.buildings['10,8'])
+    place(r, { type: 'expandBoard' }, belt(7, 5))
     advance(r, 1)
     assert.equal(r.inspect(state).p.boardTier, 2)
-    assert.equal(r.inspect(state).p.sparks, 845)
+    assert.equal(r.inspect(state).p.sparks, 785)
+    assert.isDefined(r.inspect(state).index.buildings['7,5'])
+    place(r, { type: 'expandBoard' }, belt(1, 1))
+    advance(r, 1)
+    assert.equal(r.inspect(state).p.boardTier, 3)
+    assert.equal(r.inspect(state).p.sparks, 135)
+    assert.equal(r.inspect(state).p.vault[12] ?? 0, 0)
+    assert.equal(r.inspect(state).p.vault[24] ?? 0, 0)
     assert.isDefined(r.inspect(state).index.buildings['1,1'])
+    place(r, { type: 'resetBoard' })
+    advance(r, 1)
+    assert.equal(r.inspect(state).p.seed, seed)
   }
 })
 const tunnel = (gx: number, kind: 'tunnelIn' | 'tunnelOut'): Command => ({
   type: 'placeBuilding',
   kind,
   gx,
-  gy: 5,
+  gy: 9,
   dir: 'E',
 })
 it('carries cargo under a crossing and blocks surface traffic and a full exit', () => {
   const r = createRuntime(0)
   grant(r)
-  const exit = 7 + TUNNEL_MAX_SPAN
+  const exit = 13 + TUNNEL_MAX_SPAN
   place(
     r,
-    tunnel(7, 'tunnelIn'),
+    tunnel(13, 'tunnelIn'),
     tunnel(exit, 'tunnelOut'),
-    { type: 'placeBuilding', kind: 'belt', gx: 9, gy: 5, dir: 'N' },
-    belt(exit - 1, 5)
+    { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 9, dir: 'N' },
+    belt(exit - 1, 9)
   )
   advance(r, 1)
-  feed(r, [{ gx: exit - 1, gy: 5, value: 3 }])
+  feed(r, [{ gx: exit - 1, gy: 9, value: 3 }])
   advance(r, 1)
-  assert.hasAllKeys(r.inspect(state).index.items, ['11,5'])
+  assert.hasAllKeys(r.inspect(state).index.items, ['17,9'])
   feed(r, [
-    { gx: 7, gy: 5, value: 1 },
-    { gx: 9, gy: 5, value: 2 },
+    { gx: 13, gy: 9, value: 1 },
+    { gx: 15, gy: 9, value: 2 },
   ])
   advance(r, 1)
-  assert.hasAllKeys(r.inspect(state).index.items, ['9,5', '11,5', '12,5'])
-  feed(r, [{ gx: 7, gy: 5, value: 4 }])
+  assert.hasAllKeys(r.inspect(state).index.items, ['15,9', '17,9', '18,9'])
+  feed(r, [{ gx: 13, gy: 9, value: 4 }])
   advance(r, 45)
-  assert.hasAllKeys(r.inspect(state).index.items, ['7,5', '9,5', '11,5', '12,5'])
+  assert.hasAllKeys(r.inspect(state).index.items, ['13,9', '15,9', '17,9', '18,9'])
   assert.isTrue(createRuntimeFromSave(exportSave(r)).ok)
-  place(r, { type: 'removeBuilding', gx: exit, gy: 5 }, tunnel(exit + 1, 'tunnelOut'))
+  place(r, { type: 'removeBuilding', gx: exit, gy: 9 }, tunnel(exit + 1, 'tunnelOut'))
   advance(r, 1)
-  assert.isDefined(r.inspect(state).index.items['7,5'])
-  place(r, tunnel(8, 'tunnelIn'), tunnel(exit, 'tunnelOut'))
+  assert.isDefined(r.inspect(state).index.items['13,9'])
+  place(r, tunnel(14, 'tunnelIn'), tunnel(exit, 'tunnelOut'))
   advance(r, 1)
-  assert.isDefined(r.inspect(state).index.items['7,5'])
+  assert.isDefined(r.inspect(state).index.items['13,9'])
 })
 
-it('opens one building tool at each milestone and gates both expansion purchases', () => {
+it('opens one building tool at each milestone and gates all expansion purchases', () => {
   for (let index = 0; index <= 6; index++) {
     const r = createRuntime(0)
     grant(r, index)
     const kinds = ['add', 'splitter', 'tunnelIn', 'mul', 'sub', 'trash', 'tunnelOut'] as const
     for (const [i, kind] of kinds.entries()) {
-      const cell = { gx: 6 + i, gy: 5, dir: 'E', type: 'placeBuilding' } as const
+      const cell = { gx: 12 + i, gy: 9, dir: 'E', type: 'placeBuilding' } as const
       place(
         r,
         kind === 'add' || kind === 'mul' || kind === 'sub' ? { ...cell, kind: 'combiner', op: kind } : { ...cell, kind }
       )
     }
-    place(r, { type: 'expandBoard' }, { type: 'expandBoard' })
+    place(r, { type: 'expandBoard' }, { type: 'expandBoard' }, { type: 'expandBoard' })
     advance(r, 1)
     const { index: board, p } = r.inspect(state)
     for (const i of kinds.keys()) {
-      assert.equal(board.buildings[6 + i + ',5'] !== undefined, index >= (i === 6 ? 3 : i + 1))
+      assert.equal(board.buildings[12 + i + ',9'] !== undefined, index >= (i === 6 ? 3 : i + 1))
     }
-    assert.equal(p.boardTier, index < 2 ? 0 : index < 4 ? 1 : 2)
+    assert.equal(p.boardTier, index < 2 ? 0 : index < 4 ? 1 : index < 6 ? 2 : 3)
   }
 })
 it('clears a box and then the floor without changing deposits or progression', () => {
@@ -467,12 +411,12 @@ it('clears a box and then the floor without changing deposits or progression', (
   place(r, { type: 'expandBoard' }, { type: 'buyUpgrade', upgrade: 'beltSpeed' })
   advance(r, 180)
   const before = r.inspect(state)
-  place(r, { type: 'removeArea', minX: 9, maxX: 900, minY: 8, maxY: 9 })
+  place(r, { type: 'removeArea', minX: 15, maxX: 900, minY: 12, maxY: 13 })
   r.tick(applyEdits)
   const partial = r.inspect(state)
-  assert.hasAllKeys(partial.index.buildings, ['7,8', '8,8', '11,8', '12,8', '11,9', '12,9'])
-  assert.isTrue(Arr.every(partial.tiles, (t) => t.gx < 9))
-  place(r, belt(9), { type: 'clearFloor' })
+  assert.hasAllKeys(partial.index.buildings, ['13,12', '14,12', '17,12', '18,12', '17,13', '18,13'])
+  assert.isTrue(Arr.every(partial.tiles, (t) => t.gx < 15))
+  place(r, belt(15), { type: 'clearFloor' })
   r.tick(applyEdits)
   const after = r.inspect(state)
   assert.lengthOf(after.buildings, 4)

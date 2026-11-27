@@ -145,8 +145,7 @@ function preview() {
     occupied = view.index.buildings[k] !== undefined
   const valid =
     tool === 'erase'
-      ? occupied &&
-        !(hovered.value.gx >= 11 && hovered.value.gx <= 12 && hovered.value.gy >= 8 && hovered.value.gy <= 9)
+      ? occupied && machineAt(hovered.value)?.state.kind !== 'hub'
       : Arr.some(tools, (item) => item.id === tool && item.unlock <= view.p.milestoneIndex) &&
         inBounds(hovered.value, view.p.boardTier) &&
         (!occupied || (tool === 'belt' && machineAt(hovered.value)?.state.kind === 'belt')) &&
@@ -268,7 +267,7 @@ const observe = Game.Schedule(
     ({ events }) => {
       for (const delivery of events.delivery.all()) {
         if (delivery.matchedTarget) {
-          burst(12 * tile, 9 * tile, 8, 0xff_d2_85, true)
+          burst((columns / 2) * tile, (rows / 2) * tile, 8, 0xff_d2_85, true)
           chime([440, 494, 554.37, 659.25, 739.99][delivery.value % 5] ?? 440)
         }
       }
@@ -446,7 +445,6 @@ for (const panel of [field, element('bar'), element('toolbar')]) {
   layout.observe(panel)
 }
 element('center').onclick = center
-center()
 const pointer = (e: MouseEvent) => {
   const rect = canvas.getBoundingClientRect()
   return new Point(e.clientX - rect.left, e.clientY - rect.top)
@@ -620,7 +618,7 @@ window.addEventListener('keydown', (e) => {
 board.tracks(view.index.buildings)
 animateBoard()
 updateHud(view.p, tool)
-preview()
+center()
 window.setInterval(save, 5000)
 window.addEventListener('pagehide', () => save(true))
 element('share').onclick = () => {

@@ -1,38 +1,44 @@
 # Beltworks
 
-The domain runs the factory at 60 ticks per second. It owns commands, events, progression, and saved state. The browser draws the board and controls frame timing.
+The domain simulates 60 ticks per second. The browser draws the factory. Cloud catch-up uses the same simulation for up to one minute per absence.
 
 ## Workshop
 
-Buildings and belts are free. An extractor must stand on a vein. The seed determines vein positions. Each cell of a cluster can support its own extractor.
+The 2 × 2 Hub occupies columns 17 and 18 and rows 12 and 13. Buildings and belts are free. Each vein cell supports one extractor. The seed fixes the deposit locations. A locked ring hides its veins and rejects construction.
 
-| Workshop | Size | Cost | New veins |
-| --- | --- | --- | --- |
-| Starter | 12 × 10 | Free | One cell each of 1 and 2 |
-| Ring 1 | 18 × 14 | 35 Sparks | Two cells each of 3 and 4, one cell of 2 |
-| Full floor | 24 × 18 | 120 Sparks | Three cells each of 5 and 7, two cells each of 6 and 1 |
+| Workshop | Size | Completed milestone | Expansion cost | New supply |
+| --- | --- | --- | --- | --- |
+| Starter | 12 × 10 | None | Free | One cell each of 1 and 2 |
+| Ring 1 | 18 × 14 | 2 | 35 Sparks and 25 threes | 3 and 4 pairs, extra 1 and 2 |
+| Ring 2 | 26 × 20 | 4 | 180 Sparks and 60 sevens | 5, 6 and 7 clusters, extra low numbers |
+| Full Foundry | 36 × 26 | 6 | 650 Sparks, 120 twelves and 80 twenty-fours | 4, 5, 7, 8 and 9 clusters |
 
-Speed upgrades open after milestone 1. Ring 1 opens after milestone 2. Ring 2 opens after milestone 4. Locked rings hide their veins and reject placement. Reset removes player buildings and cargo and restores starter progression. Clear floor removes buildings and cargo and keeps progression. Drag Erase to clear a rectangle. The Hub and vein positions stay fixed. Undo (Ctrl+Z or Cmd+Z) restores the factory before an edit, including its cargo and progression. One belt drag counts as one edit. The browser keeps the last 25 edits until reset or reload.
+Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v4`.
 
 ## Transport and production
 
-- A belt advances an item by 25 times the belt speed level each tick. One cell takes 1,000 units. Cargo waits when the next cell cannot accept it.
-- A splitter alternates between left and right. It uses the open port when the preferred port is blocked.
-- A tunnel entry sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. Cargo waits for an open exit. The exit accepts cargo only through the tunnel and sends it forward on the surface.
-- An extractor takes 60 ticks divided by its speed level per item. A combiner takes 45 ticks divided by its speed level per recipe. Round both periods up. A combiner takes A from its left and B from its right, relative to its output.
-- Rotation turns a building clockwise. Each speed starts at level 1 and can reach level 5. A level costs 10 times the square of the current level in Sparks.
+A belt moves one item at a time. A splitter alternates left and right and uses an open port if the preferred port is blocked. A tunnel sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. The exit accepts cargo only through the tunnel. Combiners take A from the left and B from the right, relative to their output.
 
-## Milestones
+Speed upgrades open after M1. Across levels 1 to 15, the base belt speed increases from 1.5 to 12 cells/s, extraction from 1 to 8 items/s, and crafting from 1.3 to 10 recipes/s. Blocked output can reduce actual throughput. M2 opens the ten-level Hub amplifier (1× to 13× active delivery value). M3 opens the ten-level extractor surge. At level 2 each twelfth normal extraction earns one bonus item. At level 10 each third extraction does. The extractor retains that bonus until the output opens.
 
-The Hub consumes every delivery. A matching number counts toward the quota and earns its value in Sparks. The rate counts only matching deliveries in the last 3,600 ticks of the current milestone. Completing a milestone clears that history.
+A purchase from level L costs 10 × L³ Sparks and 5 × L² units of the required stock. The stock values for levels 2 through 15 are 1, 3, 7, 7, 12, 12, 24, 24, 37, 37, 48, 48, 72 and 72. From level 5 the purchase also costs 10 × L ones. Purchases debit all costs together.
 
-| Milestone | Target | Quota | Reward |
+## Hub and Vault
+
+The Vault keeps delivered 1, 3, 7, 12, 24, 37, 48, 72, 96 and 128. It also keeps any current mission or side contract target. Each tracked delivery earns one base Spark, or its amplified value for an active mission target. Foundry efficiency multiplies both production speed and delivery income. Fractional Sparks accumulate. The Vault shows each value's income during the last 3,600 ticks. Spending stock leaves the delivery counts intact.
+
+| Mission | Quota | Minimum items/min | Reward |
 | --- | --- | --- | --- |
-| 1 | 1 | 12 | Adder (+) & Speed Upgrades |
-| 2 | 3 | 20 | Splitter & Ring 1 Expansion |
-| 3 | 7 | 35 | Underground Tunnel |
-| 4 | 12 | 50 | Multiplier (×) & Full Floor |
-| 5 | 24 | 75 | Subtractor (−) |
-| 6 | 37 | 100 | Trash |
+| M1 | 15 × 1 | | Adder and speed upgrades |
+| M2 | 35 × 3 | | Splitter, amplifier, Ring 1 and side contracts |
+| M3 | 75 × 7 | | Tunnel and extractor surge |
+| M4 | 140 × 12 | 25 | Multiplier and Ring 2 |
+| M5 | 260 × 24 | 45 | Subtractor |
+| M6 | 420 × 37 | 60 | Trash and Full Foundry |
+| M7 | 500 × 48 and 300 × 12 | | +25% efficiency |
+| M8 | 700 × 72 and 400 × 24 | 90 for 72 | +25% efficiency |
+| M9 | 1,000 × 96 and 500 × 37 | 120 for 96 | +30% efficiency |
 
-Later targets are 48, 64, 99, and 128, then increase by 32. Quotas start at 120 for milestone 7 and increase by 20 per milestone.
+Each quota counts deliveries since the mission began. At completion, every quota and every rate gate must hold at the same time. From M10 the Hub asks for two values with rising quotas and rate gates. Each completion adds 15 percentage points to foundry efficiency.
+
+One side contract is active when M3 starts. The seed and contract index select a value from 6, 9, 15, 18, 28, 3, 7 and 12. The quota ranges from 40 to 180. Completion awards eight Sparks per requested unit and adds one quarter of the quota to the Vault. The next delivery counts toward the new contract.

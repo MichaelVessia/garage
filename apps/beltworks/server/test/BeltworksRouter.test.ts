@@ -1,5 +1,14 @@
 import { assert, it } from '@effect/vitest'
-import { applyEdits, createRuntime, enqueue, exportSave } from '@garage/beltworks-domain'
+import {
+  Game,
+  Progression,
+  applyEdits,
+  createRuntime,
+  createRuntimeFromSave,
+  enqueue,
+  exportSave,
+  sideContract,
+} from '@garage/beltworks-domain'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
@@ -41,7 +50,34 @@ it.effect('saves, advances and shares a factory without credentials', () =>
     const path = '/api/saves/player-1234'
     const board = createRuntime(0)
     assert.equal(catchUp({ runtime: board, elapsedMs: 3_600_000 }).offlineTicks, 0)
-    enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 7, gy: 8, dir: 'E' })(board)
+    // Seed zero has an active contract for threes at index seven.
+    const contract = sideContract(0, 7)
+    assert.equal(contract.value, 3)
+    board.tick(
+      Game.Schedule(
+        Game.System('Test/Contract', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) =>
+          resources.p.set({
+            ...resources.p.get(),
+            milestoneIndex: 2,
+            contractIndex: 7,
+            contractDelivered: contract.quota - 1,
+          })
+        )
+      )
+    )
+    enqueue({ type: 'placeBuilding', kind: 'combiner', op: 'add', gx: 15, gy: 11, dir: 'S' })(board)
+    enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 13, gy: 12, dir: 'N' })(board)
+    enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 21, gy: 13, dir: 'N' })(board)
+    enqueue({ type: 'placeBuilding', kind: 'belt', gx: 21, gy: 12, dir: 'N' })(board)
+    for (const gx of [13, 14]) {
+      enqueue({ type: 'placeBuilding', kind: 'belt', gx, gy: 11, dir: 'E' })(board)
+    }
+    for (let gx = 21; gx >= 16; gx--) {
+      enqueue({ type: 'placeBuilding', kind: 'belt', gx, gy: 11, dir: 'W' })(board)
+    }
+    for (const gx of [15, 16]) {
+      enqueue({ type: 'placeBuilding', kind: 'belt', gx, gy: 12, dir: 'E' })(board)
+    }
     board.tick(applyEdits)
     const save = exportSave(board)
     const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(save)
@@ -57,9 +93,27 @@ it.effect('saves, advances and shares a factory without credentials', () =>
     const created = yield* request('/api/shares', 'POST', body)
     const shared = yield* json(created).pipe(Effect.flatMap(S.decodeUnknownEffect(S.Struct({ shareId: S.String }))))
     yield* TestClock.adjust(Duration.minutes(2))
-    const progress = S.decodeUnknownEffect(S.Struct({ offlineTicks: S.Int, save: S.Unknown }))
+    const progress = S.decodeUnknownEffect(
+      S.Struct({ offlineTicks: S.Int, deliveredDelta: S.Int, sparksEarned: S.Int, save: S.Unknown })
+    )
     const after = yield* request(path).pipe(Effect.flatMap(json), Effect.flatMap(progress))
     assert.equal(after.offlineTicks, 3600)
+    const restored = createRuntimeFromSave(after.save)
+    if (!restored.ok) {
+      throw new Error('Invalid offline save')
+    }
+    const p = restored.value.inspect(
+      Game.Inspector(
+        'Test/OfflineBalance',
+        { resources: { p: Game.System.readResource(Progression) } },
+        ({ resources }) => resources.p.get()
+      )
+    )
+    assert.isAbove(after.deliveredDelta, 0)
+    assert.equal(p.contractIndex, 8)
+    assert.equal(p.contractDelivered, 0)
+    assert.equal(after.sparksEarned, after.deliveredDelta + contract.sparks)
+    assert.equal(p.vault[3], after.deliveredDelta + contract.stock)
     const again = yield* request(path).pipe(Effect.flatMap(json), Effect.flatMap(progress))
     assert.equal(again.offlineTicks, 0)
     assert.deepEqual(after.save, again.save)

@@ -97,7 +97,7 @@ export function ghostState(tool: PlacementTool): Option.Option<BuildingState> {
     case 'erase':
       return Option.none()
     case 'extractor':
-      return Option.some({ kind: tool, remainingTicks: 0 })
+      return Option.some({ kind: tool, remainingTicks: 0, surgeCount: 0, bonusPending: false })
     case 'splitter':
       return Option.some({ kind: tool, nextPort: 0 })
     case 'add':

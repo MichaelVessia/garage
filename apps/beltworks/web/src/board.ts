@@ -95,7 +95,7 @@ export function createBoard() {
           width = (maxX - minX + 1) * tile,
           height = (maxY - minY + 1) * tile
         fog.clear()
-        if (tier < 2) {
+        if (width < w || height < h) {
           fog
             .rect(0, 0, w, y)
             .rect(0, y + height, w, h - y - height)
@@ -262,7 +262,7 @@ export const draw = Game.Schedule(
     apply: (n, { renderable: c, transform: f, data, resources, services }) => {
       const state = data.building.get(),
         hub = state.kind === 'hub'
-      n.visible = !hub || (c.gx === 11 && c.gy === 8)
+      n.visible = !hub || (c.gx === columns / 2 - 1 && c.gy === rows / 2 - 1)
       n.position.set((c.gx + (hub ? 1 : 0.5)) * tile, (c.gy + (hub ? 1 : 0.5)) * tile)
       const vein = resources.index.get().veins[key(c)]
       n.update(state, f.dir, vein === undefined ? undefined : services.ore.get(vein)?.label)

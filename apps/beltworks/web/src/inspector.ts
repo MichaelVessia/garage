@@ -1,6 +1,7 @@
-import { extractorPeriod, findTunnelPartner, key, milestone, inBounds } from '@garage/beltworks-domain'
+import { efficiency, extractorPeriod, findTunnelPartner, key, milestone, inBounds } from '@garage/beltworks-domain'
 import type { Cell } from '@garage/beltworks-domain'
 import type { initial } from '@garage/beltworks-domain'
+import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
 
 import type { createBoard } from './board.ts'
@@ -30,10 +31,22 @@ export function inspectCell({
   switch (state.kind) {
     case 'hub': {
       const m = milestone(p.milestoneIndex)
-      return 'Central Hub · Target ' + m.targetValue + ' (' + p.deliveredInMilestone + ' / ' + m.quota + ')'
+      return (
+        'Central Hub · ' +
+        Arr.join(
+          Arr.map(m.requirements, ({ value, quota }) => `Target ${value} (${p.delivered[value] ?? 0} / ${quota})`),
+          ' · '
+        )
+      )
     }
     case 'extractor':
-      return 'Extractor · Mines ' + value + ' · ' + (60 / extractorPeriod(p.upgrades.extractorSpeed)).toFixed(1) + '/s'
+      return (
+        'Extractor · Mines ' +
+        value +
+        ' · ' +
+        ((60 * efficiency(p.milestoneIndex)) / extractorPeriod(p.upgrades.extractorSpeed)).toFixed(1) +
+        '/s'
+      )
     case 'combiner': {
       const a = Option.getOrUndefined(state.slotA),
         b = Option.getOrUndefined(state.slotB)

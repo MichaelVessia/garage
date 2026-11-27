@@ -3,8 +3,8 @@ import * as Fn from 'effect/Function'
 import * as Option from 'effect/Option'
 import * as S from 'effect/Schema'
 
-export const columns = 24
-export const rows = 18
+export const columns = 36
+export const rows = 26
 export const TILE_PROGRESS_MAX = 1000
 export const step = Clock.hz(60)
 const natural = S.Int.check(S.isGreaterThanOrEqualTo(0))
@@ -21,11 +21,12 @@ export const key = ({ gx, gy }: Cell) => `${gx},${gy}`
 export const neighbor =
   (dir: Direction) =>
   ({ gx, gy }: Cell) => ({ gx: gx + offsets[dir].gx, gy: gy + offsets[dir].gy })
-const tier = S.Literals([0, 1, 2])
+const tier = S.Literals([0, 1, 2, 3])
 export type BoardTier = typeof tier.Type
 const bounds = [
-  { minX: 6, maxX: 17, minY: 4, maxY: 13 },
-  { minX: 3, maxX: 20, minY: 2, maxY: 15 },
+  { minX: 12, maxX: 23, minY: 8, maxY: 17 },
+  { minX: 9, maxX: 26, minY: 6, maxY: 19 },
+  { minX: 5, maxX: 30, minY: 3, maxY: 22 },
   { minX: 0, maxX: columns - 1, minY: 0, maxY: rows - 1 },
 ] as const
 export const boardBounds = (level: BoardTier) => bounds[level]
@@ -34,8 +35,6 @@ export const inBounds: { (cell: Cell, level: BoardTier): boolean; (level: BoardT
     const { minX, maxX, minY, maxY } = boardBounds(level)
     return gx >= minX && gx <= maxX && gy >= minY && gy <= maxY
   })
-export const expansionCost = (level: BoardTier) => ([35, 120, Infinity] as const)[level]
-export const expansionUnlock = (level: BoardTier) => ([2, 4, Infinity] as const)[level]
 export const toolUnlock = {
   belt: 0,
   extractor: 0,
@@ -80,7 +79,7 @@ export type CombinerOp = typeof op.Type
 const port = S.Literals([0, 1])
 const building = S.Union([
   S.Struct({ kind: S.Literal('hub') }),
-  S.Struct({ kind: S.Literal('extractor'), remainingTicks: natural }),
+  S.Struct({ kind: S.Literal('extractor'), remainingTicks: S.Finite, surgeCount: natural, bonusPending: S.Boolean }),
   S.Struct({ kind: S.Literals(['belt', 'tunnelIn', 'tunnelOut']) }),
   S.Struct({ kind: S.Literal('splitter'), nextPort: port }),
   S.Struct({
@@ -88,30 +87,51 @@ const building = S.Union([
     op,
     slotA: S.Option(natural),
     slotB: S.Option(natural),
-    remainingTicks: natural,
+    remainingTicks: S.Finite,
   }),
   S.Struct({ kind: S.Literal('trash') }),
 ])
 export type BuildingState = typeof building.Type
-const upgrade = S.Literals(['beltSpeed', 'extractorSpeed', 'combinerSpeed'])
-const level = S.Int.check(S.isBetween({ minimum: 1, maximum: 5 }))
+const upgrade = S.Literals(['beltSpeed', 'extractorSpeed', 'combinerSpeed', 'hubValue', 'surge'])
+const level = S.Int.check(S.isBetween({ minimum: 1, maximum: 15 }))
+const specialLevel = S.Int.check(S.isBetween({ minimum: 1, maximum: 10 }))
+const counts = S.Record(S.String, natural)
+export type Upgrade = typeof upgrade.Type
 const progression = S.Struct({
   boardTier: tier,
   milestoneIndex: natural,
-  deliveredInMilestone: natural,
+  delivered: counts,
+  vault: counts,
+  rateByValue: counts,
+  seed: S.Int,
+  contractIndex: natural,
+  contractDelivered: natural,
   totalDelivered: natural,
   sparks: natural,
-  upgrades: S.Struct({ beltSpeed: level, extractorSpeed: level, combinerSpeed: level }),
-  deliveryTicks: S.Array(natural),
+  sparkCents: natural.check(S.isLessThan(100)),
+  upgrades: S.Struct({
+    beltSpeed: level,
+    extractorSpeed: level,
+    combinerSpeed: level,
+    hubValue: specialLevel,
+    surge: specialLevel,
+  }),
+  deliveryWindow: S.Array(S.Struct({ tick: natural, value: natural })),
 })
 export const initial: typeof progression.Type = {
   boardTier: 0,
   milestoneIndex: 0,
-  deliveredInMilestone: 0,
+  delivered: {},
+  vault: {},
+  rateByValue: {},
+  seed: 0,
+  contractIndex: 0,
+  contractDelivered: 0,
   totalDelivered: 0,
   sparks: 0,
-  upgrades: { beltSpeed: 1, extractorSpeed: 1, combinerSpeed: 1 },
-  deliveryTicks: [],
+  sparkCents: 0,
+  upgrades: { beltSpeed: 1, extractorSpeed: 1, combinerSpeed: 1, hubValue: 1, surge: 1 },
+  deliveryWindow: [],
 }
 const commandCell = { gx: S.Finite, gy: S.Finite }
 const command = S.Union([
@@ -141,7 +161,7 @@ const value = S.Struct({ value: natural })
 export const ResourceVein = Descriptor.ConstructedComponent(codec(value))('Beltworks/ResourceVein')
 export const Building = Descriptor.ConstructedComponent(codec(building))('Beltworks/Building')
 export const Item = Descriptor.ConstructedComponent(codec(value))('Beltworks/Item')
-const progress = natural.check(S.isLessThanOrEqualTo(TILE_PROGRESS_MAX))
+const progress = S.Finite.check(S.isBetween({ minimum: 0, maximum: TILE_PROGRESS_MAX }))
 export const OnTile = Descriptor.ConstructedComponent(
   codec(S.Struct({ ...cellFields, progress, prevProgress: progress, fromDir: direction }))
 )('Beltworks/OnTile')
@@ -174,21 +194,3 @@ export const Game = Ritmo.bind(
   }),
   Ritmo.defineRoot('Beltworks')
 )
-const targets = [1, 3, 7, 12, 24, 37, 48, 64, 99, 128]
-export const milestone = (index: number) => ({
-  targetValue: targets[index] ?? 128 + (index - 9) * 32,
-  quota: [12, 20, 35, 50, 75, 100][index] ?? 120 + (index - 6) * 20,
-  reward:
-    [
-      'Adder (+) & Speed Upgrades',
-      'Splitter & Ring 1 Expansion',
-      'Underground Tunnel',
-      'Multiplier (×) & Full Floor',
-      'Subtractor (−)',
-      'Trash',
-    ][index] ?? '',
-})
-export const beltRate = (tier: number) => 25 * tier
-export const extractorPeriod = (tier: number) => Math.ceil(60 / tier)
-export const craftPeriod = (tier: number) => Math.ceil(45 / tier)
-export const upgradeCost = (tier: number) => 10 * tier * tier

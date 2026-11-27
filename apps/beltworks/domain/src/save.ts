@@ -41,7 +41,7 @@ export const savedBoard = Game.Inspector(
     const structures = buildings.each()
     const deposits = veins.each()
     const cargo = items.each()
-    const hubs = ['11,8', '12,8', '11,9', '12,9']
+    const hubs = ['17,12', '18,12', '17,13', '18,13']
     const carriers = Rec.fromEntries(
       Arr.map(structures, (e) => [key(buildings.data.cell.get(e)), buildings.data.state.get(e).kind])
     )
