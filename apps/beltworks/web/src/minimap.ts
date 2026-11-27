@@ -98,7 +98,7 @@ export function minimap({ board, viewport }: { board: ReturnType<typeof createBo
           ctx.fillRect(Math.floor(vein.x / tile) * size, Math.floor(vein.y / tile) * size, size, size)
         }
       }
-      for (const node of board.buildings.children) {
+      for (const [, node] of board.machines.entries()) {
         if (node.visible) {
           const hub = node.state.kind === 'hub'
           const width = hub ? size * 2 : size - 1

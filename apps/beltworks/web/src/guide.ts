@@ -37,7 +37,7 @@ export function createGuide({ board, state, inspection }: Factory) {
       combiners,
       dismissed: Option.contains(dismissedMilestone, state.view.p.milestoneIndex),
       at: board.buildingAt(state.view.index.buildings),
-      hasThree: state.view.p.milestoneIndex === 1 && Arr.some(board.items.children, (item) => item.label === '3'),
+      hasThree: state.view.p.milestoneIndex === 1 && Arr.some(board.items.children, (item) => item.value === 3),
     })
   }
   let guide = currentGuide()
@@ -49,6 +49,10 @@ export function createGuide({ board, state, inspection }: Factory) {
     state.boardChanged = true
     if (updateGuide) {
       guide = currentGuide()
+    }
+    if (guide.step === 'hidden' && hint.hidden === true) {
+      board.animate(state.view.tick, state.view.p)
+      return
     }
     const message = {
       extract: '1. ' + (touch.matches ? 'Tap' : 'Click') + ' vein 1 to place Extractor',

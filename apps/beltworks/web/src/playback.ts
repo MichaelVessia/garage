@@ -46,38 +46,46 @@ export function startPlayback({
     control({ id: 'speed', title: speed + '×' })
     element('speed').classList.toggle('active', speed > 1)
   }
+  const frames = BrowserTickSource.make(window)
+  const maxFrameSeconds = 5 * step.dt
   const loop = FixedLoop.start({
-    source: BrowserTickSource.make(window),
+    source: FixedLoop.source((onTick) =>
+      frames.subscribe(({ deltaMS }) => {
+        const rate = inspection.visiting ? 1 : speed
+        const elapsed =
+          document.hidden || (paused && !inspection.visiting) ? 0 : Math.min(deltaMS, 1000 * maxFrameSeconds)
+        onTick({ deltaMS: elapsed * rate })
+      })
+    ),
     step,
-    maxStepsPerFrame: 5,
-    maxFrameSeconds: 0.25,
+    maxStepsPerFrame: 20,
+    maxFrameSeconds: 4 * maxFrameSeconds,
     update: (_, frame) => {
-      if (!document.hidden && (!paused || inspection.visiting)) {
-        const milestoneBefore = state.view.p.milestoneIndex
-        for (let i = 0; i < (inspection.visiting ? 1 : speed); i++) {
-          const result = runtime.tick(simulation, observe)
-          if (!result.ok) {
-            return result
-          }
-        }
-        if (!frame.last) {
-          return Result.success(undefined)
-        }
-        runtime.tick(draw)
-        refresh()
-        if (!inspection.visiting && state.view.p.milestoneIndex > milestoneBefore) {
-          syncScore()
-        }
+      const milestoneBefore = state.view.p.milestoneIndex
+      const result = runtime.tick(simulation, observe)
+      if (!result.ok || !frame.last) {
+        return result
+      }
+      const drawn = runtime.tick(draw)
+      if (!drawn.ok) {
+        return drawn
+      }
+      refresh()
+      if (!inspection.visiting && state.view.p.milestoneIndex > milestoneBefore) {
+        syncScore()
       }
       return Result.success(undefined)
     },
-    render: () => {
+    render: ({ alpha }) => {
       if (document.hidden) {
         return
       }
       const cameraMoved = map.draw(state.view.p.boardTier)
       if (paused && !inspection.visiting && !state.boardChanged && !cameraMoved) {
         return
+      }
+      if (!paused || inspection.visiting) {
+        factory.board.interpolate(state.view.tick, state.view.p, alpha)
       }
       const now = performance.now()
       animateReveal(now)

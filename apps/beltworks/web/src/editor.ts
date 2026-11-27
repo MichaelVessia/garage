@@ -76,7 +76,7 @@ export function createEditor({
     if (edited) {
       map.invalidate()
       editedSinceStart = true
-      board.tracks(state.view.index.buildings)
+      board.tracks(state.view)
     }
     if (
       edited ||
@@ -104,7 +104,9 @@ export function createEditor({
         previous.p.craftedTargets !== state.view.p.craftedTargets ||
         ((previous.p.delivered[1] ?? 0) === 0) !== ((state.view.p.delivered[1] ?? 0) === 0)
     )
-    inspectHover()
+    if (Option.isSome(state.hovered)) {
+      inspectHover()
+    }
     revision++
   }
   function edit(command: Command) {
@@ -200,7 +202,7 @@ export function createEditor({
   confirmAction('clear', 'Clear floor', 'Confirm clear', () => edit({ type: 'clearFloor' }))
 
   function showBoard() {
-    board.tracks(state.view.index.buildings)
+    board.tracks(state.view)
     animateBoard()
     updateHud(state.view.p, state.tool)
     viewport.center()

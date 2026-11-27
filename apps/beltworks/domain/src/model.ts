@@ -107,6 +107,30 @@ const building = S.Union([
   S.Struct({ kind: S.Literal('beacon'), fuelTicks: natural.check(S.isLessThanOrEqualTo(1800)) }),
 ])
 export type BuildingState = typeof building.Type
+const ports = (dir: Direction) =>
+  ({
+    straight: [dir],
+    left: [counterClockwise[dir], clockwise[dir]],
+    right: [clockwise[dir], counterClockwise[dir]],
+  }) as const
+const outputPorts = { N: ports('N'), E: ports('E'), S: ports('S'), W: ports('W') }
+export function outputDirections({
+  state,
+  dir,
+  value,
+}: {
+  state: BuildingState
+  dir: Direction
+  value: number
+}): readonly [Direction, ...Array<Direction>] {
+  if (state.kind === 'splitter' && state.nextPort === 0) {
+    return outputPorts[dir].left
+  }
+  if (state.kind === 'splitter' || (state.kind === 'filter' && state.targetValue !== value)) {
+    return outputPorts[dir].right
+  }
+  return outputPorts[dir].straight
+}
 const upgrade = S.Literals(['beltSpeed', 'extractorSpeed', 'combinerSpeed', 'hubValue', 'surge'])
 const level = S.Int.check(S.isBetween({ minimum: 1, maximum: 15 }))
 const specialLevel = S.Int.check(S.isBetween({ minimum: 1, maximum: 10 }))

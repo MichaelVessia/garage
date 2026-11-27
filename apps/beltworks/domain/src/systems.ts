@@ -1,5 +1,4 @@
 import * as Arr from 'effect/Array'
-import * as Visited from 'effect/MutableHashSet'
 import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 
@@ -43,6 +42,8 @@ import {
   TILE_PROGRESS_MAX,
   Time,
   WorldPosition,
+  columns,
+  rows,
   clockwise,
   toolUnlock,
   inBounds,
@@ -54,6 +55,7 @@ import {
   neighbor,
   offsets,
   opposite,
+  outputDirections,
 } from './model.ts'
 import type { BuildingAt, BuildingState, Cell, Command, Direction, MedalId } from './model.ts'
 
@@ -418,19 +420,75 @@ export const processCommands = System(
   }
 )
 
+const cellCount = rows * columns
+const cellIndex = ({ gx, gy }: Cell) => (gx < 0 || gx >= columns ? -1 : gy * columns + gx)
+const cellKeys = Arr.makeBy(cellCount, (i) => key({ gx: i % columns, gy: Math.floor(i / columns) }))
+type MachineEntity = ReturnType<TransportContext['queries']['structures']['each']>[number]
+
+type Layout = {
+  buildings: Readonly<Record<string, number>>
+  occupants: Uint16Array
+  order: Uint16Array
+  occupied: Uint8Array
+  visited: Uint8Array
+  processed: Uint8Array
+  coverage: Uint8Array
+  byCell: Array<MachineEntity>
+  producers: Array<MachineEntity>
+  combiners: Array<MachineEntity>
+  beacons: Array<MachineEntity>
+}
+// A query returns a new member list after a structural change. Edits also replace the saved building index.
+const layouts = new WeakMap<ReadonlyArray<MachineEntity>, Layout>()
+function layout(structuresQuery: TransportContext['queries']['structures'], buildings: Layout['buildings']) {
+  const members = structuresQuery.each()
+  const cached = layouts.get(members)
+  if (cached?.buildings === buildings) {
+    return cached
+  }
+  const byCell: Array<MachineEntity> = []
+  const producers: Array<MachineEntity> = []
+  const combiners: Array<MachineEntity> = []
+  const beacons: Array<MachineEntity> = []
+  const machines = structuresQuery.data
+  for (const e of members) {
+    byCell[cellIndex(machines.cell.get(e))] = e
+    const kind = machines.building.get(e).kind
+    if (kind === 'extractor' || kind === 'buffer') {
+      producers.push(e)
+    } else if (kind === 'combiner') {
+      combiners.push(e)
+    } else if (kind === 'beacon') {
+      beacons.push(e)
+    }
+  }
+  const next = {
+    buildings,
+    byCell,
+    producers,
+    combiners,
+    beacons,
+    occupants: new Uint16Array(cellCount),
+    order: new Uint16Array(cellCount),
+    occupied: new Uint8Array(cellCount),
+    visited: new Uint8Array(cellCount),
+    processed: new Uint8Array(cellCount),
+    coverage: new Uint8Array(cellCount),
+  }
+  layouts.set(members, next)
+  return next
+}
+
 const nextInput = [1, 2, 0] as const
 function destinations(
   { queries, resources, events }: TransportContext,
-  occupied: (key: string) => boolean,
+  byCell: Array<MachineEntity>,
+  occupied: (cell: Cell) => boolean,
   clearTile: (cell: Cell) => void,
   tryInput: (cell: Cell, travel: Direction) => void
 ) {
   const { structures: machines } = queries
   const { data } = machines
-  const byCell: Record<string, ReturnType<typeof machines.each>[number]> = {}
-  for (const e of machines.each()) {
-    byCell[key(data.cell.get(e))] = e
-  }
   const accept = (
     cell: Cell,
     travel: Direction,
@@ -438,17 +496,15 @@ function destinations(
     move: (cell: Cell, from: Direction) => void,
     underground = false
   ) => {
-    const k = key(cell)
-    const target = byCell[k]
+    const target = byCell[cellIndex(cell)]
     if (target === undefined) {
       return false
     }
     const b = data.building.get(target)
     const facing = data.facing.get(target).dir
-    const p = resources.progress.get()
     switch (b.kind) {
       case 'tunnelOut':
-        if (underground && !occupied(k)) {
+        if (underground && !occupied(cell)) {
           unlock({ resources, events }, 'underground')
           move(cell, opposite[facing])
           return true
@@ -457,6 +513,7 @@ function destinations(
       case 'extractor':
         return false
       case 'hub': {
+        const p = resources.progress.get()
         const { next, matchedTarget, sparksEarned, complete, bonusSparks } = deliver({
           previous: p,
           value,
@@ -500,7 +557,7 @@ function destinations(
         return true
       case 'belt': {
         clearTile(cell)
-        if (travel === opposite[facing] || occupied(k)) {
+        if (travel === opposite[facing] || occupied(cell)) {
           return false
         }
         const inputs = [counterClockwise[facing], opposite[facing], clockwise[facing]] as const
@@ -508,7 +565,7 @@ function destinations(
         while (inputs[port] !== opposite[travel]) {
           const side = inputs[port]
           tryInput(neighbor(side)(cell), opposite[side])
-          if (occupied(k)) {
+          if (occupied(cell)) {
             return false
           }
           port = nextInput[port]
@@ -525,7 +582,10 @@ function destinations(
         }
         data.building.set(target, {
           ...b,
-          fuelTicks: Math.min(1800, b.fuelTicks + value * (p.meta.metaUpgrades.beaconResonance >= 3 ? 90 : 45)),
+          fuelTicks: Math.min(
+            1800,
+            b.fuelTicks + value * (resources.progress.get().meta.metaUpgrades.beaconResonance >= 3 ? 90 : 45)
+          ),
         })
         return true
       case 'trash':
@@ -540,7 +600,7 @@ function destinations(
         return true
       }
       default:
-        if ((b.kind === 'filter' && travel !== facing) || travel === opposite[facing] || occupied(k)) {
+        if ((b.kind === 'filter' && travel !== facing) || travel === opposite[facing] || occupied(cell)) {
           return false
         }
         move(cell, opposite[travel])
@@ -548,17 +608,17 @@ function destinations(
     }
   }
   const at: BuildingAt = (cell) => {
-    const machine = byCell[key(cell)]
+    const machine = byCell[cellIndex(cell)]
     return machine === undefined
       ? Option.none()
       : Option.some({ kind: data.building.get(machine).kind, dir: data.facing.get(machine).dir })
   }
-  return { accept, byCell, at }
+  return { accept, at }
 }
 function output(
   ctx: TransportContext,
   accept: ReturnType<typeof destinations>['accept'],
-  editItems: () => Record<string, number>
+  setOccupant: (cell: Cell, id: number) => void
 ) {
   const { commands } = ctx
   return (cell: Cell, dir: Direction, value: number) =>
@@ -571,26 +631,39 @@ function output(
           [WorldPosition, { x: tile.gx + 0.5 + delta.gx / 2, y: tile.gy + 0.5 + delta.gy / 2 }]
         )
       )
-      editItems()[key(tile)] = id
+      setOccupant(tile, id)
     })
+}
+const veinValues = new WeakMap<ReturnType<TransportContext['queries']['veins']['each']>, Array<number>>()
+function depositsByCell(query: TransportContext['queries']['veins']) {
+  const members = query.each()
+  const cached = veinValues.get(members)
+  if (cached !== undefined) {
+    return cached
+  }
+  const values: Array<number> = []
+  for (const e of members) {
+    values[cellIndex(query.data.cell.get(e))] = query.data.vein.get(e).value
+  }
+  veinValues.set(members, values)
+  return values
 }
 function productionTurns(
   ctx: TransportContext,
   accept: ReturnType<typeof destinations>['accept'],
-  editItems: () => Record<string, number>,
+  setOccupant: (cell: Cell, id: number) => void,
   clearTile: (cell: Cell) => void,
+  grid: Layout,
   bufferInterval: number
 ) {
   const { queries, resources } = ctx
-  const emit = output(ctx, accept, editItems)
+  const emit = output(ctx, accept, setOccupant)
   const { data } = queries.structures
-  const values = Rec.fromEntries(
-    Arr.map(queries.veins.each(), (e) => [key(queries.veins.data.cell.get(e)), queries.veins.data.vein.get(e).value])
-  )
+  const values = depositsByCell(queries.veins)
   const resonance = resources.progress.get().meta.metaUpgrades.beaconResonance
   const radius = resonance >= 2 ? 3 : 2
-  const coverage: Record<string, number> = {}
-  for (const e of queries.structures.each()) {
+  const coverage = grid.coverage.fill(0)
+  for (const e of grid.beacons) {
     const b = data.building.get(e)
     if (b.kind !== 'beacon' || b.fuelTicks === 0) {
       continue
@@ -599,19 +672,20 @@ function productionTurns(
     const cell = data.cell.get(e)
     for (let dx = -radius; dx <= radius; dx++) {
       for (let dy = -radius; dy <= radius; dy++) {
-        const k = key({ gx: cell.gx + dx, gy: cell.gy + dy })
+        const k = cellIndex({ gx: cell.gx + dx, gy: cell.gy + dy })
         coverage[k] = Math.min(resonance >= 1 ? 3 : 2, (coverage[k] ?? 0) + 1)
       }
     }
   }
-  type Machine = ReturnType<typeof queries.structures.each>[number]
-  const processed = Visited.empty<number>()
-  return (e: Machine) => {
-    if (Visited.has(processed, e.id)) {
+  const processed = grid.processed.fill(0)
+  return (e: MachineEntity) => {
+    const b = data.building.get(e)
+    const cell = data.cell.get(e)
+    const slot = cellIndex(cell)
+    if (processed[slot] === 1) {
       return
     }
-    Visited.add(processed, e.id)
-    const b = data.building.get(e)
+    processed[slot] = 1
     if (b.kind === 'buffer') {
       const previousDelay = b.cooldownTicks ?? 0
       const delay = previousDelay - 1
@@ -621,7 +695,6 @@ function productionTurns(
       if (delay > 0 || Option.isNone(b.storedValue)) {
         return
       }
-      const cell = data.cell.get(e)
       const dir = data.facing.get(e).dir
       clearTile(neighbor(dir)(cell))
       if (emit(cell, dir, b.storedValue.value)) {
@@ -638,15 +711,14 @@ function productionTurns(
       return
     }
     if (b.kind === 'extractor') {
-      const cell = data.cell.get(e)
-      const value = values[key(cell)]
+      const value = values[slot]
       const p = resources.progress.get()
-      const remainingTicks = b.remainingTicks - (1 + 0.5 * (coverage[key(cell)] ?? 0))
+      const remainingTicks = b.remainingTicks - (1 + 0.5 * (coverage[slot] ?? 0))
       const send = () => {
         if (value === undefined || !emit(cell, data.facing.get(e).dir, value)) {
           return false
         }
-        if ((coverage[key(cell)] ?? 0) >= 2) {
+        if ((coverage[slot] ?? 0) >= 2) {
           unlock(ctx, 'overclocked')
         }
         return true
@@ -674,9 +746,8 @@ function productionTurns(
     }
     const p = ctx.resources.progress.get()
     const period = Math.max(1, craftPeriod(p.upgrades.combinerSpeed) / productionSpeed(p))
-    const cell = data.cell.get(e)
     const remainingTicks =
-      (b.remainingTicks <= 0 ? period + b.remainingTicks : b.remainingTicks) - (1 + 0.5 * (coverage[key(cell)] ?? 0))
+      (b.remainingTicks <= 0 ? period + b.remainingTicks : b.remainingTicks) - (1 + 0.5 * (coverage[slot] ?? 0))
     if (remainingTicks > 0) {
       data.building.set(e, { ...b, remainingTicks })
       return
@@ -694,7 +765,7 @@ function productionTurns(
     )
     if (emit(cell, data.facing.get(e).dir, result)) {
       data.building.set(e, { ...b, slotA: Option.none<number>(), slotB: Option.none<number>(), remainingTicks })
-      if ((coverage[key(cell)] ?? 0) >= 2) {
+      if ((coverage[slot] ?? 0) >= 2) {
         unlock(ctx, 'overclocked')
       }
       const firstTarget =
@@ -711,19 +782,6 @@ function productionTurns(
     }
   }
 }
-function outputDirections(
-  state: BuildingState,
-  dir: Direction,
-  value: number
-): readonly [Direction, ...Array<Direction>] {
-  if (state.kind === 'splitter' && state.nextPort === 0) {
-    return [counterClockwise[dir], clockwise[dir]]
-  }
-  if (state.kind === 'splitter' || (state.kind === 'filter' && state.targetValue !== value)) {
-    return [clockwise[dir], counterClockwise[dir]]
-  }
-  return [dir]
-}
 export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
   const { resources, queries, commands } = ctx
   const index = resources.index.get()
@@ -732,77 +790,111 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
     if (Option.isSome(changes)) {
       return changes.value
     }
-    const items = { ...index.items }
+    const items: Record<string, number> = {}
+    for (const k of Rec.keys(index.items)) {
+      const id = index.items[k]
+      if (id !== undefined) {
+        items[k] = id
+      }
+    }
     changes = Option.some(items)
     return items
   }
-  const occupied = (k: string) => (Option.isSome(changes) ? changes.value : index.items)[k] !== undefined
+  const grid = layout(queries.structures, index.buildings)
+  const { byCell, producers, combiners } = grid
+  const occupied = grid.occupied.fill(0)
+  const visited = grid.visited.fill(0)
+  const setOccupant = (cell: Cell, id: number) => {
+    const slot = cellIndex(cell)
+    occupied[slot] = 1
+    const k = cellKeys[slot]
+    if (k !== undefined) {
+      editItems()[k] = id
+    }
+  }
+  const machines = queries.structures.data
   const before = resources.progress.get()
   resources.progress.set({ ...before, runTicks: before.runTicks + 1 })
   const { data } = queries.cargo
-  type Cargo = ReturnType<typeof queries.cargo.each>[number]
-  const occupants: Record<string, Cargo> = {}
-  for (const e of queries.cargo.each()) {
-    occupants[key(data.tile.get(e))] = e
+  const cargo = queries.cargo.each()
+  const occupants = grid.occupants.fill(0)
+  const { order } = grid
+  for (let i = 0; i < cargo.length; i++) {
+    const e = cargo[i]
+    if (e !== undefined) {
+      const k = cellIndex(data.tile.get(e))
+      occupied[k] = 1
+      occupants[k] = i + 1
+      order[i] = k
+    }
   }
   const clearTile = (cell: Cell) => {
-    const item = occupants[key(cell)]
-    if (item !== undefined) {
-      advance(item)
+    const k = cellIndex(cell)
+    const item = cargo[(occupants[k] ?? 0) - 1]
+    if (item !== undefined && visited[k] !== 1) {
+      advance(item, k)
     }
   }
-  const { accept, byCell, at } = destinations(ctx, occupied, clearTile, (cell, travel) => {
-    const k = key(cell)
-    const machine = byCell[k]
-    if (machine === undefined) {
-      return
+  const { accept, at } = destinations(
+    ctx,
+    byCell,
+    (cell) => occupied[cellIndex(cell)] === 1,
+    clearTile,
+    (cell, travel) => {
+      const k = cellIndex(cell)
+      const machine = byCell[k]
+      if (machine === undefined) {
+        return
+      }
+      const dir = machines.facing.get(machine).dir
+      if (dir === travel) {
+        produce(machine)
+      }
+      const item = cargo[(occupants[k] ?? 0) - 1]
+      const source = machines.building.get(machine)
+      if (
+        item !== undefined &&
+        visited[k] !== 1 &&
+        source.kind !== 'tunnelIn' &&
+        Arr.contains(outputDirections({ state: source, dir, value: data.item.get(item).value }), travel)
+      ) {
+        advance(item, k)
+      }
     }
-    const dir = queries.structures.data.facing.get(machine).dir
-    if (dir === travel) {
-      produce(machine)
-    }
-    const item = occupants[k]
-    const source = queries.structures.data.building.get(machine)
-    if (
-      item !== undefined &&
-      source.kind !== 'tunnelIn' &&
-      Arr.contains(outputDirections(source, dir, data.item.get(item).value), travel)
-    ) {
-      advance(item)
-    }
-  })
+  )
   const p = resources.progress.get()
   const speed = Math.min(TILE_PROGRESS_MAX, beltRate(p.upgrades.beltSpeed) * productionSpeed(p))
   const produce = productionTurns(
     ctx,
     accept,
-    editItems,
+    setOccupant,
     clearTile,
+    grid,
     Math.max(1, Math.ceil(TILE_PROGRESS_MAX / beltRate(p.upgrades.beltSpeed)))
   )
-  const visited = Visited.empty<number>()
   // Free the downstream cell first. Each item gets one turn, including in a cycle.
-  const advance = (e: Cargo) => {
-    if (Visited.has(visited, e.id)) {
+  const advance = (e: (typeof cargo)[number], k: number) => {
+    if (visited[k] === 1) {
       return
     }
-    Visited.add(visited, e.id)
+    visited[k] = 1
     const tile = data.tile.get(e)
-    const k = key(tile)
     const machine = byCell[k]
     if (machine === undefined) {
       return
     }
     const progress = Math.min(TILE_PROGRESS_MAX, tile.progress + speed)
     const overflow = tile.progress === TILE_PROGRESS_MAX ? 0 : Math.max(0, tile.progress + speed - TILE_PROGRESS_MAX)
-    data.tile.set(e, { ...tile, prevProgress: tile.progress, progress })
+    if (progress !== tile.progress || progress !== tile.prevProgress) {
+      data.tile.set(e, { gx: tile.gx, gy: tile.gy, fromDir: tile.fromDir, progress, prevProgress: tile.progress })
+    }
     if (progress < TILE_PROGRESS_MAX) {
       return
     }
-    const state = queries.structures.data.building.get(machine)
-    const dir = queries.structures.data.facing.get(machine).dir
+    const state = machines.building.get(machine)
+    const dir = machines.facing.get(machine).dir
     const value = data.item.get(e).value
-    for (const output of outputDirections(state, dir, value)) {
+    for (const output of outputDirections({ state, dir, value })) {
       const underground = state.kind === 'tunnelIn'
       const dest = underground ? findTunnelPartner({ cell: tile, facing: output, at }) : neighbor(output)(tile)
       if (dest === undefined) {
@@ -816,7 +908,7 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
         value,
         (cell, fromDir) => {
           moved = true
-          data.tile.set(e, { ...cell, fromDir, prevProgress: 0, progress: overflow })
+          data.tile.set(e, { gx: cell.gx, gy: cell.gy, fromDir, prevProgress: 0, progress: overflow })
         },
         underground
       )
@@ -824,15 +916,19 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
         continue
       }
       const updated = editItems()
-      delete updated[k]
+      const oldKey = cellKeys[k]
+      if (oldKey !== undefined) {
+        delete updated[oldKey]
+      }
+      occupied[k] = 0
       if (moved) {
-        updated[key(dest)] = e.id
+        setOccupant(dest, e.id)
       } else {
         commands.despawn(e)
       }
-      delete occupants[k]
+
       if (state.kind === 'splitter') {
-        queries.structures.data.building.set(machine, {
+        machines.building.set(machine, {
           ...state,
           nextPort: output === counterClockwise[dir] ? 1 : 0,
         })
@@ -840,19 +936,17 @@ export const transport = System('Beltworks/AdvanceBelts', production, (ctx) => {
       break
     }
   }
-  for (const e of queries.structures.each()) {
-    const kind = queries.structures.data.building.get(e).kind
-    if (kind === 'buffer' || kind === 'extractor') {
-      produce(e)
-    }
+  for (const e of producers) {
+    produce(e)
   }
-  for (const e of queries.structures.each()) {
-    if (queries.structures.data.building.get(e).kind === 'combiner') {
-      produce(e)
-    }
+  for (const e of combiners) {
+    produce(e)
   }
-  for (const e of queries.cargo.each()) {
-    advance(e)
+  for (const [i, e] of cargo.entries()) {
+    const k = order[i]
+    if (k !== undefined) {
+      advance(e, k)
+    }
   }
   if (Option.isSome(changes)) {
     resources.index.set({ ...index, items: changes.value })
@@ -862,28 +956,42 @@ export const positions = System(
   'Beltworks/UpdateWorldPositions',
   {
     queries: { structures, cargo },
-    resources: { progress: System.writeResource(Progression), time: System.readResource(Time) },
+    resources: {
+      index: System.readResource(GridIndex),
+      progress: System.writeResource(Progression),
+      time: System.readResource(Time),
+    },
   },
   ({ queries, resources }) => {
-    const dirs: Record<string, { state: BuildingState; dir: Direction }> = {}
+    const { byCell } = layout(queries.structures, resources.index.get().buildings)
     const machines = queries.structures.data
-    for (const e of queries.structures.each()) {
-      dirs[key(machines.cell.get(e))] = { state: machines.building.get(e), dir: machines.facing.get(e).dir }
-    }
     const { data } = queries.cargo
     for (const e of queries.cargo.each()) {
       const tile = data.tile.get(e)
       const f = tile.progress / TILE_PROGRESS_MAX
       const entry = offsets[tile.fromDir]
-      const machine = dirs[key(tile)]
+      const machine = byCell[cellIndex(tile)]
       const exit =
-        offsets[machine === undefined ? 'N' : outputDirections(machine.state, machine.dir, data.item.get(e).value)[0]]
+        offsets[
+          machine === undefined
+            ? 'N'
+            : outputDirections({
+                state: machines.building.get(machine),
+                dir: machines.facing.get(machine).dir,
+                value: data.item.get(e).value,
+              })[0]
+        ]
       const start = 0.5 * (1 - f) ** 2
       const end = 0.5 * f ** 2
-      data.position.set(e, {
-        x: tile.gx + 0.5 + entry.gx * start + exit.gx * end,
-        y: tile.gy + 0.5 + entry.gy * start + exit.gy * end,
-      })
+      const x = tile.gx + 0.5 + entry.gx * start + exit.gx * end
+      const y = tile.gy + 0.5 + entry.gy * start + exit.gy * end
+      if (tile.progress === TILE_PROGRESS_MAX && tile.prevProgress === TILE_PROGRESS_MAX) {
+        const previous = data.position.get(e)
+        if (previous.x === x && previous.y === y) {
+          continue
+        }
+      }
+      data.position.set(e, { x, y })
     }
     const p = resources.progress.get()
     const current = expireDeliveries({ p, tick: resources.time.get().step })

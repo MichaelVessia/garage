@@ -12,6 +12,9 @@ import {
   Time,
   TILE_PROGRESS_MAX,
   WorldPosition,
+  outputDirections,
+  beltRate,
+  productionSpeed,
   columns,
   boardBounds,
   inBounds,
@@ -24,48 +27,30 @@ import { RenderSync } from '@typeonce/ritmo-render'
 import type { NodeRegistry } from '@typeonce/ritmo-render'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
-import { Container, Graphics, GraphicsContext } from 'pixi.js'
+import type { Renderer } from 'pixi.js'
+import { Container, Graphics } from 'pixi.js'
 
+import { beltMeshes } from './beltMesh.ts'
 import { beltShape } from './beltShape.ts'
-import { ink, label, Machine, oreColor, tile } from './machines.ts'
+import { cargoLayer } from './cargo.ts'
+import type { Cargo } from './cargo.ts'
+import { machineTextures, Machine, tile } from './machines.ts'
+import { veinLayer } from './veins.ts'
+import type { Vein } from './veins.ts'
 
 const Workshop = Descriptor.Service<(tier: BoardTier) => void>()('Beltworks/Workshop')
-const Veins = Descriptor.Service<NodeRegistry.NodeRegistry<Container>>()('Beltworks/Veins')
+const Veins = Descriptor.Service<NodeRegistry.NodeRegistry<Vein>>()('Beltworks/Veins')
 const Machines = Descriptor.Service<NodeRegistry.NodeRegistry<Machine>>()('Beltworks/Machines')
-const Items = Descriptor.Service<NodeRegistry.NodeRegistry<Cargo>>()('Beltworks/Items')
+const Items = Descriptor.Service<{
+  registry: NodeRegistry.NodeRegistry<Cargo>
+  members?: ReadonlyArray<{ readonly id: number }>
+  nodes: Array<Cargo>
+}>()('Beltworks/Items')
 
-const cargoBodies: Record<number, GraphicsContext> = {}
-function cargoBody(c: number) {
-  const existing = cargoBodies[c]
-  if (existing !== undefined) {
-    return existing
-  }
-  const body = new GraphicsContext()
-    .roundRect(-13, -10.5, 26, 26, 8)
-    .setFillStyle({ color: 0x05_09_0d, alpha: 0.65 })
-    .fill()
-    .roundRect(-13, -13, 26, 26, 8)
-    .fill(c)
-    .stroke({ width: 1, color: ink })
-    .roundRect(-10, -10, 20, 20, 6)
-    .setFillStyle({ color: 0x10_18_20, alpha: 0.78 })
-    .fill()
-    .moveTo(-7, -10)
-    .quadraticCurveTo(0, -12, 7, -10)
-    .stroke({ width: 1, color: 0xff_ff_ff, alpha: 0.75 })
-  body.batchMode = 'batch'
-  cargoBodies[c] = body
-  return body
-}
-class Cargo extends Container {
-  stalled = false
-  readonly pulse = this.addChild(new Graphics().circle(0, 0, 16).stroke({ color: 0xff_b8_51, width: 3 }))
-
-  constructor(options: { label: string }) {
-    super(options)
-    this.pulse.visible = false
-  }
-}
+const MakeVein = Descriptor.Service<(value: number) => Vein>()('Beltworks/MakeVein')
+const cellKeys = Arr.makeBy(columns * rows, (i) => key({ gx: i % columns, gy: Math.floor(i / columns) }))
+const MakeMachine = Descriptor.Service<() => Machine>()('Beltworks/MakeMachine')
+const MakeCargo = Descriptor.Service<(value: number) => Cargo>()('Beltworks/MakeCargo')
 
 export function beaconRadius(resonance: number) {
   return resonance >= 2 ? 3 : 2
@@ -90,22 +75,10 @@ function beaconAura(g: Graphics, node: { x: number; y: number }, fueled: boolean
   }
 }
 
-export class Burst extends Container {
-  readonly born = performance.now()
-  readonly dx: number
-  readonly dy: number
-  readonly ring: boolean
-  readonly duration: number
-  constructor(dx: number, dy: number, ring: boolean, duration = 420) {
-    super()
-    this.dx = dx
-    this.dy = dy
-    this.duration = duration
-    this.ring = ring
-  }
-}
-export function createBoard() {
-  const world = new Container()
+export type Burst = Container & { born: number; dx: number; dy: number; ring: boolean; duration: number }
+export function createBoard(renderer?: Renderer) {
+  const textures = renderer && machineTextures(renderer)
+  const world = new Container({ eventMode: 'none' })
   const deck = world.addChild(new Graphics())
   const w = columns * tile,
     h = rows * tile
@@ -136,9 +109,13 @@ export function createBoard() {
     }
   }
   deck.stroke({ width: 1, color: 0x2b_3f_4e })
+  if (renderer !== undefined) {
+    deck.cacheAsTexture({ resolution: 2, antialias: true })
+  }
   const fog = world.addChild(new Graphics())
   let drawnTier = Option.none<BoardTier>()
-  const veins = world.addChild(new Container())
+  const veins = veinLayer(renderer)
+  world.addChild(veins.layer)
   const starterRing = world.addChild(
     new Graphics().circle(0, 0, 22).circle(0, 0, 28).stroke({ color: 0x87_ff_d6, width: 2.5 })
   )
@@ -146,13 +123,18 @@ export function createBoard() {
   const beaconPreview = world.addChild(new Graphics())
   beaconAura(beaconPreview, { x: 0, y: 0 }, true, 2)
   beaconPreview.visible = false
-  const buildings = world.addChild(new Container<Machine>())
-  const items = world.addChild(new Container<Cargo>())
+  const tracks = beltMeshes()
+  world.addChild(tracks.layer)
+  const buildings = world.addChild(new Container<Machine>({ isRenderGroup: true }))
+  const items = cargoLayer(renderer)
+  world.addChild(items.pulses, items.layer)
   const preview = world.addChild(new Container())
-  const fx = world.addChild(new Container<Burst>())
+  const fx = world.addChild(new Container<Burst>({ isRenderGroup: true }))
+  const mounting: Array<Machine> = []
   const machines = PixiNodeRegistry.make<Machine>(buildings)
-  const ore = PixiNodeRegistry.make<Container>(veins)
+  const ore = veins.registry
   const services = Game.Runtime.services(
+    Game.Runtime.service(MakeVein, veins.create),
     Game.Runtime.service(Workshop, (tier) => {
       if (!Option.contains(drawnTier, tier)) {
         const { minX, minY, maxX, maxY } = boardBounds(tier)
@@ -204,15 +186,21 @@ export function createBoard() {
           }
         }
         fog.stroke({ width: 3, color: 0xe8_b8_6d })
+        for (const n of veins.children) {
+          n.show(inBounds({ gx: Math.floor(n.x / tile), gy: Math.floor(n.y / tile) }, tier))
+        }
         drawnTier = Option.some(tier)
       }
-      for (const [, n] of ore.entries()) {
-        n.visible = inBounds({ gx: Math.floor(n.x / tile), gy: Math.floor(n.y / tile) }, tier)
-      }
     }),
+    Game.Runtime.service(MakeMachine, () => {
+      const node = new Machine(textures)
+      mounting.push(node)
+      return node
+    }),
+    Game.Runtime.service(MakeCargo, items.token),
     Game.Runtime.service(Veins, ore),
     Game.Runtime.service(Machines, machines),
-    Game.Runtime.service(Items, PixiNodeRegistry.make<Cargo>(items))
+    Game.Runtime.service(Items, { registry: items.registry, nodes: [] })
   )
   const buildingAt =
     (buildings: Readonly<Record<string, number>>): BuildingAt =>
@@ -257,6 +245,11 @@ export function createBoard() {
   }
   return {
     setFlowLens(enabled: boolean) {
+      if (!enabled && flowLens) {
+        for (const pulse of items.pulses.children) {
+          pulse.visible = false
+        }
+      }
       flowLens = enabled
       drawAuras()
     },
@@ -275,25 +268,58 @@ export function createBoard() {
     services,
     buildingAt,
     machines,
+    mounting,
+    resizeBelt: tracks.resize,
     ore,
-    tracks: (index: Readonly<Record<string, number>>) => {
-      const at = buildingAt(index)
+    tracks: ({ index, tick, p }: BoardStats) => {
+      const at = buildingAt(index.buildings)
+      const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * productionSpeed(p))) / TILE_PROGRESS_MAX
+      const belts: Array<Machine> = []
       for (const [, node] of machines.entries()) {
         if (node.state.kind === 'belt') {
           node.track(
             beltShape({ cell: { gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) }, dir: node.facing, at })
           )
+          if (renderer === undefined) {
+            node.scroll(distance)
+          } else {
+            node.removeFromParent()
+            belts.push(node)
+          }
+        } else if (node.parent !== buildings) {
+          buildings.addChild(node)
         }
+      }
+      if (renderer !== undefined) {
+        tracks.rebuild(belts)
+        tracks.scroll(distance)
+      }
+    },
+    interpolate: (tick: number, p: typeof initial, alpha: number) => {
+      const distance =
+        ((tick - 1 + alpha) * Math.round(beltRate(p.upgrades.beltSpeed) * productionSpeed(p))) / TILE_PROGRESS_MAX
+      tracks.scroll(distance)
+      for (const node of items.children) {
+        node.interpolate(alpha)
       }
     },
     animate: (tick: number, p: typeof initial, guideVein = false) => {
       auraRadius = beaconRadius(p.meta.metaUpgrades.beaconResonance)
       beaconPreview.scale.set((2 * auraRadius + 1) / 5)
       drawAuras()
-      for (const cargo of items.children) {
-        cargo.pulse.visible = flowLens && cargo.stalled
-        if (cargo.pulse.visible) {
-          cargo.pulse.alpha = 0.55 + 0.25 * Math.sin(tick * 0.12)
+      if (flowLens) {
+        const pulseAlpha = 0.55 + 0.25 * Math.sin(tick * 0.12)
+        for (const cargo of items.children) {
+          const pulse = cargo.pulse
+          pulse.visible = cargo.stalled
+          if (cargo.stalled) {
+            if (pulse.parent === null) {
+              items.pulses.addChild(pulse)
+            }
+            pulse.position.set(cargo.x, cargo.y)
+            pulse.scale.set(cargo.scaleX)
+            pulse.alpha = cargo.alpha * pulseAlpha
+          }
         }
       }
       starterRing.visible = false
@@ -302,15 +328,15 @@ export function createBoard() {
           const pulse = Math.sin(tick * 0.05 + vein.x + vein.y)
           vein.alpha = 0.94 + 0.06 * pulse
           if (guideVein && vein.label === '1') {
-            starterRing.position.copyFrom(vein.position)
+            starterRing.position.set(vein.x, vein.y)
             starterRing.scale.set(1.05 + 0.05 * pulse)
             starterRing.alpha = 0.77 + 0.22 * pulse
             starterRing.visible = true
           }
         }
       }
-      for (const [, node] of machines.entries()) {
-        if (node.visible) {
+      for (const node of buildings.children) {
+        if (node.visible && node.state.kind !== 'belt') {
           node.animate(tick, p, flowLens)
         }
       }
@@ -333,52 +359,26 @@ export const draw = Game.Schedule(
   RenderSync.system(Game, {
     name: 'Beltworks/DrawVeins',
     registry: Veins,
+    services: { createVein: MakeVein },
+    resources: { progress: Progression },
     renderable: ResourceVein,
     transform: GridCell,
-    create: ({ renderable: { value } }) => {
-      const n = new Container(),
-        c = oreColor(value)
-      const g = n.addChild(new Graphics())
-      for (const radius of [23, 19]) {
-        g.circle(0, 0, radius).setFillStyle({ color: c, alpha: 0.06 }).fill()
-      }
-      for (const [x, y, scale, angle] of [
-        [-9, 2, 0.73, -0.55],
-        [9, 4, 0.8, 0.55],
-        [0, -2, 1, 0.1],
-      ] as const) {
-        g.save()
-          .translateTransform(x, y)
-          .rotateTransform(angle)
-          .scaleTransform(scale, scale)
-          .poly([0, -20, 9, -9, 8, 10, 1, 18, -8, 9, -9, -9])
-          .fill(c)
-          .poly([0, -20, 2, -7, 1, 18, -8, 9, -9, -9])
-          .setFillStyle({ color: ink, alpha: 0.48 })
-          .fill()
-          .moveTo(0, -20)
-          .lineTo(2, -7)
-          .lineTo(8, 10)
-          .stroke({ color: 0xff_ff_ff, alpha: 0.65, width: 1 })
-          .restore()
-      }
-      g.circle(0, 4, 9).fill(0x12_21_2a).stroke({ color: c, width: 1 })
-      n.label = String(value)
-      n.addChild(label({ text: String(value), size: 14, fill: 0xf5_f9_f5, y: 4 }))
-      return n
+    create: ({ renderable: { value }, services }) => services.createVein(value),
+    apply: (n, { transform: t, resources }) => {
+      n.place((t.gx + 0.5) * tile, (t.gy + 0.5) * tile)
+      n.show(inBounds(t, resources.progress.get().boardTier))
     },
-    apply: (n, { transform: t }) => n.position.set((t.gx + 0.5) * tile, (t.gy + 0.5) * tile),
   }),
   RenderSync.system(Game, {
     name: 'Beltworks/DrawBuildings',
     registry: Machines,
     resources: { index: GridIndex },
-    services: { ore: Veins },
+    services: { ore: Veins, makeMachine: MakeMachine },
     renderable: GridCell,
     transform: Facing,
     select: { building: Game.Query.read(Building) },
     redrawOn: [Building],
-    create: () => new Machine(),
+    create: ({ services }) => services.makeMachine(),
     apply: (n, { renderable: c, transform: f, data, resources, services }) => {
       const state = data.building.get(),
         hub = state.kind === 'hub'
@@ -393,37 +393,72 @@ export const draw = Game.Schedule(
     { resources: { p: Game.System.readResource(Progression) }, services: { update: Game.System.service(Workshop) } },
     ({ resources, services }) => services.update(resources.p.get().boardTier)
   ),
-  RenderSync.system(Game, {
-    name: 'Beltworks/DrawItems',
-    registry: Items,
-    resources: { index: GridIndex },
-    services: { machines: Machines },
-    select: { tile: Game.Query.read(OnTile) },
-    renderable: Item,
-    transform: WorldPosition,
-    redrawOn: [OnTile],
-    create: ({ renderable: { value } }) => {
-      const n = new Cargo({ label: String(value) })
-      const c = oreColor(value)
-      n.addChild(new Graphics(cargoBody(c)))
-      n.addChild(label({ text: String(value), size: Math.min(16, 34 / String(value).length), fill: 0xff_ff_ff }))
-      return n
+  Game.System(
+    'Beltworks/DrawItems',
+    {
+      queries: {
+        cargo: Game.Query({
+          selection: {
+            item: Game.Query.read(Item),
+            tile: Game.Query.read(OnTile),
+            position: Game.Query.read(WorldPosition),
+          },
+        }),
+      },
+      services: {
+        items: Game.System.service(Items),
+        machines: Game.System.service(Machines),
+        makeCargo: Game.System.service(MakeCargo),
+      },
+      resources: { time: Game.System.readResource(Time), index: Game.System.readResource(GridIndex) },
     },
-    apply: (n, { transform: t, data, resources, services }) => {
-      const cell = data.tile.get()
-      n.stalled = cell.progress === TILE_PROGRESS_MAX
-      const id = resources.index.get().buildings[key(cell)]
-      const kind = id === undefined ? undefined : services.machines.get(id)?.state.kind
-      let surface = 1
-      if (kind === 'tunnelIn') {
-        surface -= cell.progress / 1000
-      } else if (kind === 'tunnelOut') {
-        surface = cell.progress / 1000
+    ({ queries, services, resources }) => {
+      const { items, machines } = services
+      const buildings = resources.index.get().buildings
+      const tick = resources.time.get().step
+      const { data } = queries.cargo
+      const members = queries.cargo.each()
+      const { nodes, registry } = items
+      if (members !== items.members) {
+        nodes.length = 0
+        for (const e of members) {
+          const value = data.item.get(e).value
+          let node = registry.get(e.id)
+          if (node !== undefined && node.value !== value) {
+            registry.remove(e.id)
+            node = undefined
+          }
+          node ??= registry.ensure(e.id, () => services.makeCargo(value))
+          node.present = true
+          nodes.push(node)
+        }
+        for (const [id, node] of registry.entries()) {
+          if (!node.present) {
+            registry.remove(id)
+          }
+          node.present = false
+        }
+        items.members = members
       }
-      const exposure = Math.min(1, Math.max(0, (surface - 0.45) * 4))
-      n.alpha = exposure
-      n.scale.set(0.7 + 0.3 * exposure)
-      n.position.set(t.x * tile, t.y * tile)
-    },
-  })
+      for (let i = 0; i < members.length; i++) {
+        const e = members[i]
+        const node = nodes[i]
+        if (e === undefined || node === undefined) {
+          continue
+        }
+        const cell = data.tile.get(e)
+        const k = cellKeys[cell.gy * columns + cell.gx]
+        const id = k === undefined ? undefined : buildings[k]
+        const machine = id === undefined ? undefined : machines.get(id)
+        const exit =
+          machine === undefined
+            ? 'N'
+            : outputDirections({ state: machine.state, dir: machine.facing, value: node.value })[0]
+        node.move(cell, exit, tick, machine?.state.kind)
+        const position = data.position.get(e)
+        node.x = position.x * tile
+        node.y = position.y * tile
+      }
+    }
+  )
 )

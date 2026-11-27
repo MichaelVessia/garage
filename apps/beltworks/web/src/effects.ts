@@ -7,14 +7,15 @@ import {
   MilestoneCompleted,
   columns,
   milestone,
+  key,
   offsets,
   rows,
 } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
-import { Graphics } from 'pixi.js'
+import { Graphics, GraphicsContext } from 'pixi.js'
+import type { Container } from 'pixi.js'
 
 import type { createAudio } from './audio.ts'
-import { Burst } from './board.ts'
 import type { Factory } from './factory.ts'
 import { element } from './hud.ts'
 import { label, tile, oreColor } from './machines.ts'
@@ -47,29 +48,30 @@ export function createEffects({
   factory: Factory
   audio: ReturnType<typeof createAudio>
 }) {
+  const hubCell = key({ gx: columns / 2 - 1, gy: rows / 2 - 1 })
   const hubX = (columns / 2) * tile
   const hubY = (rows / 2) * tile
   let lastDeliveryChime = -Infinity
   let deliveryNote = 0
   let lastIntake = -Infinity
+  const spark = new GraphicsContext().poly([0, -5, 2.3, 0, 0, 5, -2.3, 0]).fill(0xff_ff_ff)
+  const intakeRing = new GraphicsContext().circle(0, 0, 16).stroke({ color: 0xff_ff_ff, width: 2 })
+  const milestoneRing = new GraphicsContext().circle(0, 0, 54).stroke({ color: 0xff_ff_ff, width: 5 })
+  function emit(node: Container, dx: number, dy: number, ring: boolean, duration: number) {
+    return board.fx.addChild(Object.assign(node, { born: performance.now(), dx, dy, ring, duration }))
+  }
   function burst(x: number, y: number, count: number, color: number, ripple: 'none' | 'intake' | 'milestone') {
     const milestoneBurst = ripple === 'milestone'
     const reach = milestoneBurst ? 106 : 32
     const duration = milestoneBurst ? 820 : 420
     for (let i = 0; i < count; i++) {
       const angle = (i * Math.PI * 2) / count + (performance.now() % 1000) / 1000
-      const spark = new Burst(Math.cos(angle) * reach, Math.sin(angle) * reach, false, duration)
-      spark.addChild(new Graphics()).poly([0, -5, 2.3, 0, 0, 5, -2.3, 0]).fill(color)
-      spark.rotation = angle
-      board.fx.addChild(spark).position.set(x, y)
+      const node = new Graphics({ context: spark, rotation: angle, tint: color })
+      emit(node, Math.cos(angle) * reach, Math.sin(angle) * reach, false, duration).position.set(x, y)
     }
     if (ripple !== 'none') {
-      const ring = new Burst(0, 0, true, duration)
-      ring
-        .addChild(new Graphics())
-        .circle(0, 0, milestoneBurst ? 54 : 16)
-        .stroke({ color, width: milestoneBurst ? 5 : 2 })
-      board.fx.addChild(ring).position.set(x, y)
+      const ring = new Graphics({ context: milestoneBurst ? milestoneRing : intakeRing, tint: color })
+      emit(ring, 0, 0, true, duration).position.set(x, y)
     }
   }
   let rejected = false
@@ -95,9 +97,8 @@ export function createEffects({
           const edgeY = y + (side.gy * tile) / 2
           burst(edgeX, edgeY, 4, oreColor(delivery.value), 'intake')
           if (delivery.sparksEarned > 0) {
-            const gain = new Burst(0, -38, false, 720)
-            gain.addChild(label({ text: '+' + delivery.sparksEarned + ' ✦', size: 18, fill: 0xff_df_88 }))
-            board.fx.addChild(gain).position.set(x, y - 12)
+            const gain = label({ text: '+' + delivery.sparksEarned + ' ✦', size: 18, fill: 0xff_df_88 })
+            emit(gain, 0, -38, false, 720).position.set(x, y - 12)
           }
           if (delivery.matchedTarget && lastIntake - lastDeliveryChime >= 110) {
             if (lastIntake - lastDeliveryChime >= 4000) {
@@ -145,21 +146,35 @@ export function createEffects({
     )
   )
   function animateEffects(now: number) {
-    for (const node of board.buildings.children) {
+    for (let i = board.mounting.length - 1; i >= 0; i--) {
+      const node = board.mounting[i]
+      if (node === undefined) {
+        continue
+      }
       const t = (now - node.mounted) / 140
-      const intake = (now - lastIntake) / 230
-      if (node.visible && node.state.kind === 'hub' && intake < 1) {
-        const pulse = Math.sin(Math.PI * intake) * (1 - intake)
-        state.boardChanged = true
-        node.scale.set(1 + pulse * 0.12)
-      } else if (t < 1) {
+      if (node.destroyed || t >= 1) {
+        board.mounting.splice(i, 1)
+        if (!node.destroyed) {
+          node.scale.set(1)
+        }
+      } else {
         state.boardChanged = true
         node.scale.set(
           t < 0.68 ? 0.78 + 0.27 * Math.sin(((t / 0.68) * Math.PI) / 2) : 1.05 - (0.05 * (t - 0.68)) / 0.32
         )
-      } else if (node.scale.x !== 1) {
-        node.scale.set(1)
       }
+      if (node.state.kind === 'belt' && !node.destroyed) {
+        board.resizeBelt(node)
+      }
+    }
+    const intake = (now - lastIntake) / 230
+    const hubId = state.view.index.buildings[hubCell]
+    const hub = hubId === undefined ? undefined : board.machines.get(hubId)
+    if (hub !== undefined && intake < 1) {
+      state.boardChanged = true
+      hub.scale.set(1 + 0.12 * Math.sin(Math.PI * intake) * (1 - intake))
+    } else if (hub !== undefined && now - hub.mounted >= 140 && hub.scale.x !== 1) {
+      hub.scale.set(1)
     }
     for (let i = board.fx.children.length - 1; i >= 0; i--) {
       state.boardChanged = true

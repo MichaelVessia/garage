@@ -46,7 +46,6 @@ type State = {
   effect: string
   fraction: number
   lock: number
-  ready: boolean
   action: string
   cost: Option.Option<Cost>
 }
@@ -63,7 +62,6 @@ function nodeState(id: NodeId, p: Progress): State {
       effect: rings[tier] ?? 'All rings unlocked',
       fraction: tier / 3,
       lock: tier < 3 ? lock : 0,
-      ready: tier < 3 && p.milestoneIndex >= lock && canAfford(p, cost),
       cost: tier < 3 ? Option.some(cost) : Option.none(),
       action: 'Expand',
     }
@@ -80,10 +78,12 @@ function nodeState(id: NodeId, p: Progress): State {
     effect: rate(lv) + (lv < limit ? ' → ' + rate(lv + 1) : ''),
     fraction: lv / limit,
     lock,
-    ready: lv < limit && p.milestoneIndex >= lock && canAfford(p, cost),
     cost: lv < limit ? Option.some(cost) : Option.none(),
     action: 'Upgrade',
   }
+}
+function available(state: State, p: Progress) {
+  return p.milestoneIndex >= state.lock && Option.isSome(state.cost) && canAfford(p, state.cost.value)
 }
 export function upgradeGrid({
   element,
@@ -119,14 +119,24 @@ export function upgradeGrid({
         selected = id
         update(latest)
       }
-      return { id, button, level }
+      return { id, button, level, state: nodeState(id, latest) }
     }
   )
   function update(p: Progress) {
+    const changed =
+      latest.upgrades !== p.upgrades ||
+      latest.boardTier !== p.boardTier ||
+      latest.milestoneIndex !== p.milestoneIndex ||
+      latest.meta.mutator !== p.meta.mutator
     latest = p
     let affordable = false
-    for (const { id, button, level } of nodes) {
-      const state = nodeState(id, p)
+    for (const node of nodes) {
+      const { id, button, level } = node
+      if (changed) {
+        node.state = nodeState(id, p)
+      }
+      const state = node.state
+      const ready = available(state, p)
       const locked = state.lock > p.milestoneIndex
       const badge = locked ? 'M' + state.lock : state.level
       if (level.textContent !== badge) {
@@ -136,12 +146,12 @@ export function upgradeGrid({
       if (button.style.getPropertyValue('--fill') !== fill) {
         button.style.setProperty('--fill', fill)
       }
-      button.classList.toggle('available', state.ready)
+      button.classList.toggle('available', ready)
       button.classList.toggle('locked', locked)
       if (button.getAttribute('aria-pressed') !== String(id === selected)) {
         button.setAttribute('aria-pressed', String(id === selected))
       }
-      affordable ||= state.ready
+      affordable ||= ready
       if (id !== selected) {
         continue
       }
@@ -156,7 +166,7 @@ export function upgradeGrid({
           el.textContent = text
         }
       }
-      action.toggleAttribute('disabled', state.ready === false)
+      action.toggleAttribute('disabled', ready === false)
       const cost = Option.getOrUndefined(state.cost)
       const key =
         cost === undefined
@@ -182,12 +192,12 @@ export function upgradeGrid({
   return {
     update,
     selectDefault(p: Progress) {
-      if (nodeState(selected, p).ready) {
+      if (available(nodeState(selected, p), p)) {
         update(p)
         return
       }
       for (const { id } of nodes) {
-        if (nodeState(id, p).ready) {
+        if (available(nodeState(id, p), p)) {
           selected = id
           break
         }

@@ -11,7 +11,8 @@ import {
 import type { BuildingState, Direction, initial } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
 import * as Option from 'effect/Option'
-import { Container, Graphics, GraphicsContext, Text } from 'pixi.js'
+import { BitmapFont, BitmapText, Container, Graphics, GraphicsContext, Rectangle, Sprite, Texture } from 'pixi.js'
+import type { Renderer } from 'pixi.js'
 
 import type { beltShape } from './beltShape.ts'
 
@@ -87,6 +88,15 @@ function collar(g: Graphics, rotation: number, edge = 24) {
     .fill(0x39_4a_52)
     .restore()
 }
+const fontFamily = 'Beltworks labels'
+export function installLabels() {
+  BitmapFont.install({
+    name: fontFamily,
+    style: { fontFamily: 'monospace', fontSize: 26, fontWeight: 'bold', fill: 0xff_ff_ff },
+    resolution: 2,
+    chars: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ·÷×−–✦↑→↓←≠=+ /',
+  })
+}
 export function label({
   text,
   size,
@@ -100,10 +110,9 @@ export function label({
   x?: number
   y?: number
 }) {
-  const node = new Text({
+  const node = new BitmapText({
     text,
-    resolution: 2,
-    style: { fontFamily: 'monospace', fontSize: size, fontWeight: 'bold', fill },
+    style: { fontFamily, fontSize: size, fill },
   })
   node.anchor.set(0.5)
   node.position.set(x, y)
@@ -126,24 +135,190 @@ function frame(group: string, phase: number, paint: (g: GraphicsContext) => void
     return existing
   }
   const context = new GraphicsContext()
+  context.batchMode = 'batch'
   paint(context)
   frames[phase] = context
   return context
 }
+const angles = { N: 0, E: Math.PI / 2, S: Math.PI, W: -Math.PI / 2 }
+const spacing = tile / 3
+function placeChevrons(
+  marks: Container<Graphics>,
+  lanes: Array<number>,
+  inletCapped: boolean,
+  capped: boolean,
+  offset: number
+) {
+  let index = 0
+  for (const side of lanes) {
+    const radius = tile / 2
+    const length = side === 0 ? tile : (Math.PI * radius) / 2
+    const count = Math.floor(length / spacing)
+    const margin = (length - count * spacing) / 2
+    for (let i = 0; i < count; i++) {
+      const along = margin + i * spacing + offset
+      const mark = marks.getChildAt(index++)
+      mark.visible = !((inletCapped && along < 12) || (capped && along > length - 8))
+      if (side === 0) {
+        mark.position.set(0, radius - along)
+        mark.rotation = 0
+      } else {
+        const angle = along / radius
+        mark.position.set(side * radius * (1 - Math.sin(angle)), radius * (Math.cos(angle) - 1))
+        mark.rotation = side * (angle - Math.PI / 2)
+      }
+    }
+  }
+}
+
+function spriteSheet(
+  renderer: Renderer,
+  stride: number,
+  count: number,
+  paint: (cell: Container, phase: number) => void
+) {
+  const sheet = new Container()
+  const columns = Math.ceil(Math.sqrt(count))
+  for (let i = 0; i < count; i++) {
+    const cell = sheet.addChild(new Container())
+    cell.position.set(((i % columns) + 0.5) * stride, (Math.floor(i / columns) + 0.5) * stride)
+    paint(cell, i)
+  }
+  const atlas = renderer.generateTexture({
+    target: sheet,
+    frame: new Rectangle(0, 0, columns * stride, Math.ceil(count / columns) * stride),
+    resolution: 2,
+    antialias: true,
+  })
+  sheet.destroy({ children: true })
+  return Arr.makeBy(
+    count,
+    (i) =>
+      new Texture({
+        source: atlas.source,
+        frame: new Rectangle((i % columns) * stride, Math.floor(i / columns) * stride, stride, stride),
+      })
+  )
+}
+
+function extractionArc(phase: number) {
+  return frame('extraction', phase, (g) => {
+    g.arc(0, 0, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, phase / 128)).stroke({
+      color: aqua,
+      width: 1.5,
+    })
+  })
+}
+
+function beltFrames(renderer: Renderer) {
+  const atlases: Record<string, Array<Texture>> = {}
+  return (drawPlate: () => Graphics, lanes: Array<number>, inletCapped: boolean, capped: boolean) => {
+    const key = Arr.join(Arr.map(lanes, String), ',') + '/' + inletCapped + '/' + capped
+    const existing = atlases[key]
+    if (existing !== undefined) {
+      return existing
+    }
+    const plate = drawPlate()
+    return (atlases[key] = spriteSheet(renderer, tile + 4, 64, (cell, phase) => {
+      cell.addChild(new Graphics(plate.context))
+      const marks = cell.addChild(new Container<Graphics>())
+      for (const side of lanes) {
+        for (let j = 0; j < (side === 0 ? 3 : 2); j++) {
+          marks.addChild(new Graphics(chevron))
+        }
+      }
+      placeChevrons(marks, lanes, inletCapped, capped, (spacing * phase) / 64)
+    }))
+  }
+}
+function plateKey(state: BuildingState, dir: Direction, ore: string) {
+  switch (state.kind) {
+    case 'buffer':
+      return state.kind + dir + state.count
+    case 'filter':
+      return state.kind + dir
+    case 'extractor':
+      return state.kind + oreColor(Number(ore))
+    case 'beacon':
+      return state.kind + (state.fuelTicks > 0)
+    case 'combiner':
+      return state.kind + state.op
+    default:
+      return state.kind
+  }
+}
+
+export function machineTextures(renderer: Renderer) {
+  const textures: Record<string, Texture> = {}
+  let arcs: Array<Texture> = []
+  return {
+    belts: beltFrames(renderer),
+    extraction(phase: number) {
+      if (arcs.length === 0) {
+        arcs = spriteSheet(renderer, 26, 129, (cell, i) => cell.addChild(new Graphics(extractionArc(i))))
+      }
+      return arcs[phase]
+    },
+    plate(graphics: Graphics, state: BuildingState, dir: Direction, ore: string) {
+      const key = plateKey(state, dir, ore)
+      const existing = textures[key]
+      if (existing !== undefined) {
+        return existing
+      }
+      const radius = state.kind === 'hub' ? 50 : 26
+      const art = new Graphics(graphics.context)
+      const texture = renderer.generateTexture({
+        target: art,
+        frame: new Rectangle(-radius, -radius, radius * 2, radius * 2),
+        resolution: 3,
+        antialias: true,
+      })
+      art.destroy()
+      textures[key] = texture
+      return texture
+    },
+  }
+}
 export class Machine extends Container {
+  frames?: Array<Texture>
+  private bodySprite?: Sprite
+  private readonly textures?: ReturnType<typeof machineTextures>
+  constructor(textures?: ReturnType<typeof machineTextures>) {
+    super()
+    if (textures !== undefined) {
+      this.textures = textures
+    }
+  }
   readonly mounted = performance.now()
   readonly plate = this.addChild(new Graphics())
   readonly detail = this.addChild(new Graphics(emptyDetail))
+  private arc?: Sprite
   private rotor?: Graphics
   private hubProgress = -1
   private hubDetail?: GraphicsContext
   private readonly chevrons = this.addChild(new Container<Graphics>())
-  readonly symbol = this.addChild(label({ text: '', size: 18, fill: 0xee_f5_ef }))
-  readonly a = this.addChild(label({ text: '', size: 10, fill: aqua }))
-  readonly b = this.addChild(label({ text: '', size: 10, fill: gold }))
+  private glyph?: BitmapText
+  private inputA?: BitmapText
+  private inputB?: BitmapText
+  get symbol() {
+    return (this.glyph ??= this.addChild(label({ text: '', size: 18, fill: 0xee_f5_ef })))
+  }
+  get a() {
+    return (this.inputA ??= this.addChild(label({ text: '', size: 10, fill: aqua })))
+  }
+  get b() {
+    return (this.inputB ??= this.addChild(label({ text: '', size: 10, fill: gold })))
+  }
   state: BuildingState = { kind: 'belt' }
   facing: Direction = 'N'
   update(state: BuildingState, dir: Direction, ore = '') {
+    if (this.textures !== undefined && state.kind === 'belt') {
+      this.facing = dir
+      this.label = state.kind
+      this.state = state
+      this.plate.rotation = angles[dir]
+      return
+    }
     const previous = this.state
     if (this.label === state.kind && this.facing === dir) {
       this.state = state
@@ -183,8 +358,15 @@ export class Machine extends Container {
           return
       }
     }
+    this.plate.visible = true
+    if (this.bodySprite !== undefined) {
+      this.bodySprite.visible = false
+    }
     this.chevrons.visible = state.kind === 'belt'
     this.detail.context = emptyDetail
+    if (this.arc !== undefined) {
+      this.arc.visible = false
+    }
     this.hubProgress = -1
     if (this.rotor !== undefined) {
       this.rotor.visible = state.kind === 'extractor'
@@ -197,10 +379,11 @@ export class Machine extends Container {
     this.b.rotation = 0
     this.a.alpha = 1
     this.b.alpha = 1
-    this.plate.rotation = { N: 0, E: Math.PI / 2, S: Math.PI, W: -Math.PI / 2 }[dir]
+    this.plate.rotation = angles[dir]
     this.detail.rotation = this.plate.rotation
     this.chevrons.rotation = this.plate.rotation
     const g = this.plate.clear()
+    g.context.batchMode = 'batch'
     this.symbol.text = ''
     this.symbol.style.fontSize = 18
     this.a.text = ''
@@ -380,6 +563,14 @@ export class Machine extends Container {
         this.a.text = 'HUB'
         break
     }
+    if (this.textures !== undefined && state.kind !== 'belt') {
+      const sprite = (this.bodySprite ??= this.addChildAt(new Sprite(), 0))
+      sprite.anchor.set(0.5)
+      sprite.rotation = g.rotation
+      sprite.texture = this.textures.plate(g, state, dir, ore)
+      sprite.visible = true
+      g.visible = false
+    }
     this.symbol.visible = this.symbol.text !== '' || state.kind === 'hub'
     this.a.visible = this.a.text !== ''
     this.b.visible = this.b.text !== ''
@@ -398,7 +589,6 @@ export class Machine extends Container {
   private inletCapped = true
   private capped = true
   track(shape: ReturnType<typeof beltShape>) {
-    const g = this.plate.clear()
     this.lanes = []
     for (const dir of shape.inDirs) {
       this.lanes.push(dir === counterClockwise[this.facing] ? -1 : dir === clockwise[this.facing] ? 1 : 0)
@@ -408,6 +598,11 @@ export class Machine extends Container {
     }
     this.capped = !shape.connected
     this.inletCapped = shape.inDirs.length === 0
+    if (this.textures !== undefined) {
+      this.frames = this.textures.belts(() => this.drawRails(), this.lanes, this.inletCapped, this.capped)
+      return
+    }
+    this.drawRails()
     const count = Arr.reduce(this.lanes, 0, (sum, side) => sum + (side === 0 ? 3 : 2))
     while (this.chevrons.children.length < count) {
       this.chevrons.addChild(new Graphics(chevron))
@@ -415,6 +610,9 @@ export class Machine extends Container {
     while (this.chevrons.children.length > count) {
       this.chevrons.removeChildAt(count).destroy()
     }
+  }
+  private drawRails() {
+    const g = this.plate.clear()
     const entry = this.inletCapped ? 19 : 24
     const exit = this.capped ? 19 : 24
     for (const [width, color] of [
@@ -447,6 +645,11 @@ export class Machine extends Container {
         g.roundRect(-15, y - 2, 30, 4, 2).fill(0x64_7c_88)
       }
     }
+    return g
+  }
+  scroll(distance: number) {
+    const phase = ((distance * tile) / spacing) % 1
+    placeChevrons(this.chevrons, this.lanes, this.inletCapped, this.capped, phase * spacing)
   }
   animate(tick: number, p: typeof initial, flowLens = false) {
     const state = this.state
@@ -471,28 +674,7 @@ export class Machine extends Container {
         break
       case 'belt': {
         const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * productionSpeed(p))) / 1000
-        const spacing = tile / 3
-        const offset = (distance * tile) % spacing
-        let index = 0
-        for (const side of this.lanes) {
-          const radius = tile / 2
-          const length = side === 0 ? tile : (Math.PI * radius) / 2
-          const count = Math.floor(length / spacing)
-          const margin = (length - count * spacing) / 2
-          for (let i = 0; i < count; i++) {
-            const along = margin + i * spacing + offset
-            const mark = this.chevrons.getChildAt(index++)
-            mark.visible = !((this.inletCapped && along < 12) || (this.capped && along > length - 8))
-            if (side === 0) {
-              mark.position.set(0, radius - along)
-              mark.rotation = 0
-            } else {
-              const angle = along / radius
-              mark.position.set(side * radius * (1 - Math.sin(angle)), radius * (Math.cos(angle) - 1))
-              mark.rotation = side * (angle - Math.PI / 2)
-            }
-          }
-        }
+        this.scroll(distance)
         break
       }
       case 'extractor': {
@@ -514,12 +696,16 @@ export class Machine extends Container {
         }
         this.rotor.rotation = this.plate.rotation + (tick / period) * Math.PI
         const phase = Math.round(128 * Math.max(0, Math.min(1, fraction)))
-        this.detail.context = frame('extraction', phase, (g) => {
-          g.arc(0, 0, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, phase / 128)).stroke({
-            color: aqua,
-            width: 1.5,
-          })
-        })
+        const texture = this.textures?.extraction(phase)
+        if (texture === undefined) {
+          this.detail.context = extractionArc(phase)
+        } else {
+          const sprite = (this.arc ??= this.addChildAt(new Sprite(), this.getChildIndex(this.detail)))
+          sprite.anchor.set(0.5)
+          sprite.rotation = this.plate.rotation
+          sprite.texture = texture
+          sprite.visible = true
+        }
         break
       }
       case 'beacon':

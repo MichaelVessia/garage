@@ -316,11 +316,13 @@ export function hud({
   let previousSparks = 0
   let previousMutator = initial.meta.mutator
   let previousTier = -1
+  let previousTool = Option.none<Tool>()
   let previousMission = -1
   let rows: ReadonlyArray<(p: Progress) => void> = []
   return (p: Progress, tool: Tool) => {
     const previous = latest
     const first = previousMission < 0
+    const dockChanged = previousMission !== p.milestoneIndex || !Option.contains(previousTool, tool)
     latest = p
     setText(
       element('run-time'),
@@ -370,10 +372,13 @@ export function hud({
       )
     }
     previousSparks = p.sparks
-    element('sparks').textContent = mobile.matches ? compactNumber.format(p.sparks) : p.sparks.toLocaleString('en-US')
-    for (const { t, button } of dock) {
-      button.hidden = p.milestoneIndex < t.unlock
-      button.setAttribute('aria-pressed', String(t.id === tool))
+    setText(element('sparks'), mobile.matches ? compactNumber.format(p.sparks) : p.sparks.toLocaleString('en-US'))
+    if (dockChanged) {
+      previousTool = Option.some(tool)
+      for (const { t, button } of dock) {
+        button.hidden = p.milestoneIndex < t.unlock
+        button.setAttribute('aria-pressed', String(t.id === tool))
+      }
     }
     const showAscend = p.milestoneIndex >= 7 || p.meta.ascensions > 0
     const locked = p.milestoneIndex === 0 && p.meta.ascensions === 0
@@ -397,12 +402,14 @@ export function hud({
     trigger.classList.toggle('affordable', affordable)
     header.classList.toggle('affordable', affordable)
     trigger.setAttribute('aria-label', affordable ? 'Workshop, purchase available' : 'Workshop')
-    element('vault-income').textContent =
-      'Income efficiency · ' +
-      Math.round(
-        100 * efficiency(p.milestoneIndex) * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy) * medalSparkMultiplier(p)
-      ) +
-      '%'
+    if (first || previous.meta !== p.meta || previous.milestoneIndex !== p.milestoneIndex) {
+      element('vault-income').textContent =
+        'Income efficiency · ' +
+        Math.round(
+          100 * efficiency(p.milestoneIndex) * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy) * medalSparkMultiplier(p)
+        ) +
+        '%'
+    }
     if (
       sheet.open &&
       content.hidden === false &&

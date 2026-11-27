@@ -9,6 +9,7 @@ import { cloud } from './cloud.ts'
 import { editHistory } from './history.ts'
 import { element } from './hud.ts'
 import { factoryInspection } from './inspection.ts'
+import { installLabels } from './machines.ts'
 import { loadBoard } from './storage.ts'
 import { tunnelPreview } from './tools.ts'
 import type { Tool } from './tools.ts'
@@ -34,7 +35,8 @@ type Board = ReturnType<typeof createBoard>
 const storage = () => window.localStorage
 
 export function createFactory({ app, field }: { app: Application; field: HTMLElement }): Factory {
-  const board: Board = createBoard()
+  installLabels()
+  const board: Board = createBoard(app.renderer)
   app.stage.addChild(board.world)
   const runtime = boardRuntime(board.services)
   const history = editHistory(runtime)
