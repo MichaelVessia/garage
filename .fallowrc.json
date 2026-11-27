@@ -1,7 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
   "entry": [
+    "apps/beltworks/alchemy.run.ts",
     "apps/beltworks/web/index.html",
+    "apps/beltworks/web/src/worker.ts",
     "apps/subq/alchemy.run.ts",
     "apps/subq/web/index.html",
     "apps/subq/web/src/worker.ts",
@@ -18,6 +20,10 @@
   "ignoreExports": [
     {
       "file": "**/*.config.{js,mjs,ts}",
+      "exports": ["default"]
+    },
+    {
+      "file": "apps/beltworks/alchemy.run.ts",
       "exports": ["default"]
     },
     {

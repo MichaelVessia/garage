@@ -29,6 +29,7 @@ import * as Str from 'effect/String'
 import { Application, Graphics, Point } from 'pixi.js'
 
 import { Burst, draw, createBoard, stats } from './board.ts'
+import { cloud } from './cloud.ts'
 import { editHistory } from './history.ts'
 import { element, hud } from './hud.ts'
 import { inspectCell } from './inspector.ts'
@@ -59,7 +60,9 @@ const runtime = made.value
 const history = editHistory(runtime)
 const undoButton = element('undo')
 const storage = () => window.localStorage
-loadBoard(storage)(runtime)
+const localRevision = loadBoard(storage)(runtime)
+const sync = cloud(runtime)
+let editedSinceStart = false
 runtime.tick(draw)
 let view = runtime.inspect(stats)
 let tool: Tool = 'extractor'
@@ -305,6 +308,7 @@ function refresh(edited = false) {
   const previous = view
   view = runtime.inspect(stats)
   if (edited) {
+    editedSinceStart = true
     board.tracks(view.index.buildings)
   }
   if (previous.p !== view.p) {
@@ -344,9 +348,11 @@ function edit(command: Command) {
   }
   undoButton.toggleAttribute('disabled', !history.available)
 }
-function save() {
+function save(keepalive = false) {
   if (dirty) {
-    if (saveBoard(storage)(runtime)) {
+    const revision = Math.floor(performance.timeOrigin + performance.now())
+    sync.upload(revision, keepalive)
+    if (saveBoard(storage)(runtime, revision)) {
       dirty = false
     } else {
       notify('Local save unavailable')
@@ -616,7 +622,13 @@ animateBoard()
 updateHud(view.p, tool)
 preview()
 window.setInterval(save, 5000)
-window.addEventListener('pagehide', save)
+window.addEventListener('pagehide', () => save(true))
+element('share').onclick = () => {
+  void sync
+    .shareLink()
+    .then(notify)
+    .catch(() => notify('Could not share factory'))
+}
 const loop = FixedLoop.start({
   source: BrowserTickSource.make(window),
   step,
@@ -667,4 +679,18 @@ const loop = FixedLoop.start({
 })
 if (!loop.ok) {
   throw new Error('Could not start factory clock')
+}
+
+const restoredMessage = await sync.load(() => !editedSinceStart, localRevision).catch(() => undefined)
+if (restoredMessage !== undefined) {
+  history.clear()
+  undoButton.toggleAttribute('disabled', true)
+  runtime.tick(draw)
+  refresh(true)
+  if (restoredMessage === 'Loaded shared factory') {
+    save()
+  }
+  if (restoredMessage.length > 0) {
+    notify(restoredMessage)
+  }
 }

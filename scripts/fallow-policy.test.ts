@@ -16,7 +16,9 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
   assert.deepStrictEqual(fallowConfig, {
     $schema: 'https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json',
     entry: [
+      'apps/beltworks/alchemy.run.ts',
       'apps/beltworks/web/index.html',
+      'apps/beltworks/web/src/worker.ts',
       'apps/subq/alchemy.run.ts',
       'apps/subq/web/index.html',
       'apps/subq/web/src/worker.ts',
@@ -29,6 +31,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
     ignoreDependencies: ['@enfect/oxlint', '@oxlint/plugins', 'oxlint-plugin-effect'],
     ignoreExports: [
       { file: '**/*.config.{js,mjs,ts}', exports: ['default'] },
+      { file: 'apps/beltworks/alchemy.run.ts', exports: ['default'] },
       { file: 'apps/subq/alchemy.run.ts', exports: ['default'] },
       { file: 'apps/logbook/alchemy.run.ts', exports: ['default'] },
       { file: 'tools/oxlint/anti-slop/effect/index.ts', exports: ['default'] },

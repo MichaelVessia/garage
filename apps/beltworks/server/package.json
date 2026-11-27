@@ -1,0 +1,24 @@
+{
+  "name": "@garage/beltworks-server",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": { "./*": "./src/*.ts" },
+  "dependencies": {
+    "@garage/beltworks-domain": "workspace:*",
+    "@alchemy.run/cloudflare": "2.0.0-beta.87",
+    "alchemy": "2.0.0-beta.87",
+    "effect": "4.1.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260829.1",
+    "@effect/vitest": "4.1.5",
+    "vitest": "5.1.0"
+  },
+  "scripts": {
+    "typecheck": "effect-tsgo tsrs --noEmit",
+    "format": "oxfmt --config ../../../oxfmt.config.mjs --check src/ test/ package.json tsconfig.json vitest.config.ts",
+    "format:fix": "oxfmt --config ../../../oxfmt.config.mjs src/ test/ package.json tsconfig.json vitest.config.ts",
+    "test": "bun --bun vitest run"
+  }
+}

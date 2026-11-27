@@ -1,0 +1,69 @@
+import { assert, it } from '@effect/vitest'
+import { applyEdits, createRuntime, enqueue, exportSave } from '@garage/beltworks-domain'
+import * as SecureRandom from 'effect/crypto/SecureRandom'
+import * as Duration from 'effect/Duration'
+import * as Effect from 'effect/Effect'
+import * as Request from 'effect/http/HttpServerRequest'
+import * as Response from 'effect/http/HttpServerResponse'
+import * as Layer from 'effect/Layer'
+import * as S from 'effect/Schema'
+import * as TestClock from 'effect/testing/TestClock'
+
+import { FactoryStore, router } from '../src/BeltworksRouter.ts'
+import { catchUp } from '../src/catchUp.ts'
+
+const memory = Layer.sync(FactoryStore, () => {
+  const records = new Map<string, unknown>()
+  return FactoryStore.of({
+    get: (key) => Effect.sync(() => records.get(key)),
+    put: (key, value) =>
+      S.decodeEffect(S.fromJsonString(S.Unknown))(value).pipe(
+        Effect.tap((record) => Effect.sync(() => records.set(key, record))),
+        Effect.asVoid,
+        Effect.orDie
+      ),
+  })
+})
+const request = (path: string, method = 'GET', body?: string) =>
+  router.pipe(
+    Effect.provideService(
+      Request.HttpServerRequest,
+      Request.fromWeb(
+        new globalThis.Request('https://factory.test' + path, body === undefined ? { method } : { method, body })
+      )
+    ),
+    Effect.map((r) => Response.toWeb(r))
+  )
+const json = (response: globalThis.Response) =>
+  Effect.promise(() => response.text()).pipe(Effect.flatMap(S.decodeEffect(S.fromJsonString(S.Unknown))))
+it.effect('saves, advances and shares a factory without credentials', () =>
+  Effect.gen(function* () {
+    const path = '/api/saves/player-1234'
+    const board = createRuntime(0)
+    assert.equal(catchUp({ runtime: board, elapsedMs: 3_600_000 }).offlineTicks, 0)
+    enqueue({ type: 'placeBuilding', kind: 'extractor', gx: 7, gy: 8, dir: 'E' })(board)
+    board.tick(applyEdits)
+    const save = exportSave(board)
+    const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(save)
+    const health = yield* request('/health')
+    const status = yield* json(health)
+    assert.deepEqual(status, { status: 'ok' })
+    assert.equal((yield* request(path)).status, 404)
+    assert.equal((yield* request('/api/shares/missing-1234')).status, 404)
+    assert.equal((yield* request('/api/saves/x', 'PUT', body)).status, 400)
+    assert.equal((yield* request(path, 'PUT', '{')).status, 400)
+    assert.equal((yield* request('/api/shares', 'POST', '{}')).status, 400)
+    assert.equal((yield* request(path, 'PUT', body)).status, 200)
+    const created = yield* request('/api/shares', 'POST', body)
+    const shared = yield* json(created).pipe(Effect.flatMap(S.decodeUnknownEffect(S.Struct({ shareId: S.String }))))
+    yield* TestClock.adjust(Duration.minutes(2))
+    const progress = S.decodeUnknownEffect(S.Struct({ offlineTicks: S.Int, save: S.Unknown }))
+    const after = yield* request(path).pipe(Effect.flatMap(json), Effect.flatMap(progress))
+    assert.equal(after.offlineTicks, 3600)
+    const again = yield* request(path).pipe(Effect.flatMap(json), Effect.flatMap(progress))
+    assert.equal(again.offlineTicks, 0)
+    assert.deepEqual(after.save, again.save)
+    const original = yield* request('/api/shares/' + shared.shareId).pipe(Effect.flatMap(json))
+    assert.deepEqual(original, { save })
+  }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
+)
