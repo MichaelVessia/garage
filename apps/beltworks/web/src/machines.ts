@@ -313,20 +313,21 @@ export class Machine extends Container {
     ] as const) {
       for (const side of this.lanes) {
         if (side === 0) {
-          g.moveTo(0, entry).lineTo(0, -exit)
+          g.moveTo(0, entry).lineTo(0, -exit).stroke({ width, color, cap: 'butt' })
         } else {
           const radius = tile / 2
           const sweep = Math.acos(1 - exit / radius)
-          g.moveTo(side * radius, 0).arc(
-            side * radius,
-            -radius,
-            radius,
-            Math.PI / 2,
-            Math.PI / 2 + side * sweep,
-            side < 0
-          )
+          // Fill the rail between two arcs with a flat cross-section at each seam.
+          const band: Array<number> = []
+          for (const edge of [1, -1]) {
+            const r = radius + (edge * width) / 2
+            for (let i = 0; i <= 16; i++) {
+              const angle = (sweep * (edge === 1 ? i : 16 - i)) / 16
+              band.push(side * (radius - r * Math.sin(angle)), r * Math.cos(angle) - radius)
+            }
+          }
+          g.poly(band).fill(color)
         }
-        g.stroke({ width, color, cap: 'butt' })
       }
     }
     for (const y of [this.inletCapped ? 19 : undefined, this.capped ? -19 : undefined]) {

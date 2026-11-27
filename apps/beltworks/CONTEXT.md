@@ -33,7 +33,7 @@ The Vault keeps delivered 1, 3, 7, 12, 24, 37, 48, 72, 96 and 128. It also keeps
 
 | Mission | Quota | Minimum items/min | Reward |
 | --- | --- | --- | --- |
-| M1 | 15 × 1 | | Adder and speed upgrades |
+| M1 | 12 × 1 | | Adder and speed upgrades |
 | M2 | 35 × 3 | | Splitter, amplifier and Ring 1 |
 | M3 | 75 × 7 | | Tunnel, extractor surge and side contracts |
 | M4 | 140 × 12 | 25 | Multiplier and Ring 2 |
@@ -66,6 +66,8 @@ The Vault displays stock, deliveries in the last minute, and current uses for ea
 Click the milestone number to see the first ten missions and the elapsed simulation time. The fastest M8 time survives ascension. Ascension starts the run timer at zero. A full reset clears both times.
 
 ## Factory controls
+
+On a phone, tap the marked vein to place the first extractor. The game selects Belt. Drag from the extractor to the Hub. Use Rotate beside the tool dock to turn the next building. Drag with one finger in Select to pan. Use two fingers with any tool to pan and zoom. Open Workshop to buy an upgrade when the gold dot appears. Use More to mute sound or center the floor.
 
 The Flow Lens (V) shows beacon range, combiners with one empty input, and cargo blocked at the end of a belt. A fueled beacon has a cyan outline. A dormant beacon has a dashed amber outline.
 

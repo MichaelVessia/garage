@@ -15,6 +15,7 @@
 * {
   box-sizing: border-box;
 }
+html, body, #field, canvas { overscroll-behavior: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 body {
   margin: 0;
   overflow: hidden;
@@ -130,16 +131,39 @@ kbd,
 .rate.met { color: var(--mint); }
 #starter-hint {
   position: fixed;
-  bottom: 124px;
-  left: 16px;
-  max-width: min(270px, 80vw);
-  padding: 8px 11px;
-  border-left: 2px solid var(--mint);
-  background: var(--glass);
-  border-radius: 5px;
-  color: #c6dfd7;
-  font-size: 12px;
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(390px, 90vw);
+  padding: 8px 12px;
+  border: 1px solid #538c80;
+  border-radius: 8px;
+  background: #112521f5;
+  box-shadow: 0 4px 16px #0008;
+  color: #d2f6e7;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
   pointer-events: none;
+}
+#starter-hint[data-step="extract"] {
+  left: clamp(min(45vw, 140px), var(--anchor-x), calc(100vw - min(45vw, 140px)));
+  top: var(--anchor-y);
+  bottom: auto;
+  transform: translate(-50%, -100%);
+}
+#starter-hint[data-step="extract"]::after {
+  content: "";
+  position: absolute;
+  left: clamp(10px, calc(50% + var(--anchor-x) - clamp(min(45vw, 140px), var(--anchor-x), 100vw - min(45vw, 140px))), 95%);
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  background: #112521;
+  border: solid #538c80;
+  border-width: 0 1px 1px 0;
 }
 #starter-hint:empty {
   display: none;
@@ -383,38 +407,6 @@ summary {
     font-size: 19px;
   }
 }
-@media (max-width: 750px) {
-  header,
-  footer {
-    left: 6px;
-    right: 6px;
-  }
-  header {
-    align-items: stretch;
-  }
-  .mission {
-    flex: 1;
-  }
-  .sparks {
-    font-size: 11px;
-  }
-  nav {
-    margin: 0;
-    flex-wrap: wrap;
-  }
-  nav button {
-    padding: 4px;
-  }
-  #direction {
-    display: none;
-  }
-  #dock button {
-    min-width: 57px;
-  }
-  #workshop {
-    right: 6px;
-  }
-}
 
 .upgrade {
   grid-template-columns: 1fr max-content;
@@ -473,14 +465,6 @@ summary {
 .price { border-left: 2px solid var(--ore, var(--mint)); }
 #contract-meter { width: 100%; height: 5px; accent-color: var(--mint); }
 #vault-panel .upgrade > *, .upgrade > span:not(.level) { grid-column: 1/-1; }
-@media (max-width: 750px) {
-  header { display: grid; grid-template-columns: 1fr auto; }
-  h1 { grid-column: 1; font-size: 16px; padding: 4px 9px; }
-  .sparks { grid-column: 2; grid-row: 1; }
-  .mission, nav { grid-column: 1/-1; }
-  nav { justify-content: space-between; }
-  nav button span { display: none; }
-}
 
 #filter-picker {
   pointer-events: auto;
@@ -624,3 +608,139 @@ summary {
 #dock [data-tool="belt"], #dock [data-tool="add"], #dock.starter [data-tool="erase"] { margin-left: 7px; position: relative; }
 #dock [data-tool="belt"]::before, #dock [data-tool="add"]::before, #dock.starter [data-tool="erase"]::before { content: ""; position: absolute; left: -7px; height: 70%; width: 1px; background: var(--line); }
 #dock.starter [data-tool="erase"] { order: 1; }
+
+.mobile-control, .sheet-heading { display: none; }
+#more-actions { display: contents; }
+
+@media (max-width: 768px) {
+
+  button, summary { touch-action: manipulation; }
+  #filter-value { user-select: text; -webkit-user-select: text; }
+  #bar, #toolbar {
+    left: max(4px, env(safe-area-inset-left));
+    right: max(4px, env(safe-area-inset-right));
+    gap: 4px;
+  }
+  #bar {
+    top: max(4px, env(safe-area-inset-top));
+    flex-wrap: nowrap;
+    padding: 3px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  #bar > * {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  #bar h1 { padding: 0 3px; font-size: 17px; }
+  .mission { flex: 1; padding: 0; min-width: 0; }
+  #milestone, #reward, .rate, .sparks-label, #pause span, #speed svg { display: none; }
+  .requirement {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 1px 4px;
+    line-height: 1.2;
+  }
+  .target { position: relative; grid-row: span 2; padding: 2px 4px; font-weight: 700; }
+  .target .recipe-button { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; }
+  .target .recipe-answer { position: absolute; top: 100%; left: 0; width: min(230px, 70vw); background: #17232b; padding: 8px; z-index: 1; }
+  .quota, #sparks { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+  .requirement progress { grid-column: 2; height: 3px; }
+  .sparks { padding: 0 2px; gap: 1px; max-width: 18vw; }
+  .sparks svg { width: 13px; }
+  nav { margin: 0; padding: 0; }
+  nav button { min-height: 36px; padding: 3px 6px; }
+  .mobile-control { display: inline-flex; align-items: center; justify-content: center; }
+  #open-workshop { position: relative; }
+  #open-workshop.affordable::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    top: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  #more-actions { display: none; }
+  #more-actions:popover-open {
+    display: grid;
+    position: fixed;
+    inset: var(--drawer-top, 54px) max(6px, env(safe-area-inset-right)) auto auto;
+    margin: 0;
+    padding: 4px;
+    max-height: 70dvh;
+    overflow: auto;
+    background: #15212a;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    pointer-events: auto;
+  }
+  #more-actions button { justify-content: start; padding: 5px 12px; border: 0; }
+  #roadmap { top: var(--drawer-top, 54px); left: max(5px, env(safe-area-inset-left)); }
+  #workshop-sheet { background: transparent; color: inherit; border: 0; }
+  #workshop-sheet[open] { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; margin: 0; }
+  #workshop-sheet::backdrop { background: #04090dbd; }
+  #workshop {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 62dvh;
+    padding: 0 max(4px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(4px, env(safe-area-inset-left));
+    border-radius: 16px 16px 0 0;
+    background: #132029eb;
+    backdrop-filter: blur(16px);
+    overscroll-behavior: contain;
+  }
+  #workshop > summary, #workshop .help, #minimap, #direction, #dock small { display: none; }
+  .sheet-heading { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; }
+  .sheet-heading button, .drawer-tabs button { min-height: 40px; }
+  .sheet-heading button { padding: 0 8px; }
+  #toolbar { bottom: max(4px, env(safe-area-inset-bottom)); }
+  #dock { min-width: 0; max-width: 100%; padding: 3px; overscroll-behavior-x: contain; touch-action: pan-x; }
+  #dock button, #rotate {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
+    gap: 1px;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 2px 4px;
+  }
+  #dock span { grid-column: 1; font-size: 10px; }
+  #rotate { pointer-events: auto; background: #233139; color: var(--gold); border: 1px solid var(--line); border-radius: 9px; font-size: 10px; }
+  #starter-hint:not([data-step="extract"]) { bottom: calc(98px + env(safe-area-inset-bottom)); }
+  #inspector { bottom: calc(62px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 639.98px) {
+  #bar h1 span { display: none; }
+}
+
+@media (max-width: 768px) {
+  #more { font-size: 20px; line-height: 1; }
+  #close-workshop { font-size: 24px; width: 44px; }
+  #rotate svg { width: 22px; height: 22px; }
+  #dock { mask-image: linear-gradient(to right, transparent, black 3px, black calc(100% - 5px), transparent); }
+  #bar .sparks { border: 1px solid #584934; background: #2c271d; border-radius: 14px; padding: 3px 5px; }
+}
+@media (hover: none) and (pointer: coarse) {
+  #dock small, #direction { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #open-workshop.affordable::after, #workshop.affordable > summary::after {
+    animation: upgrade-pulse 1.6s ease-in-out infinite alternate;
+  }
+  #workshop-sheet[open] #workshop { animation: sheet-open 180ms ease-out; }
+  @keyframes sheet-open { from { transform: translateY(30px); opacity: 0.5; } }
+  @keyframes upgrade-pulse { to { box-shadow: 0 0 8px 2px #f9c16c; } }
+}
+#workshop.affordable > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+}

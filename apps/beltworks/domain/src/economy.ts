@@ -9,7 +9,7 @@ type State = typeof initial
 type Requirement = { readonly value: number; readonly quota: number; readonly minRatePerMin?: number }
 type Mission = { readonly requirements: ReadonlyArray<Requirement>; readonly reward: string }
 const missions: ReadonlyArray<Mission> = [
-  { requirements: [{ value: 1, quota: 15 }], reward: 'Adder & speed upgrades' },
+  { requirements: [{ value: 1, quota: 12 }], reward: 'Adder & speed upgrades' },
   { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Hub amplifier & Ring 1' },
   { requirements: [{ value: 7, quota: 75 }], reward: 'Tunnel, contracts & extractor surge' },
   { requirements: [{ value: 12, quota: 140, minRatePerMin: 25 }], reward: 'Multiplier & Ring 2' },

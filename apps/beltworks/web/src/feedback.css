@@ -1,0 +1,22 @@
+#notice.milestone-banner {
+  width: max-content;
+  max-width: calc(100vw - 28px);
+  box-sizing: border-box;
+  padding: 14px 22px;
+  text-align: center;
+  border: 2px solid #ffd77c;
+  background: linear-gradient(115deg, #44321d, #241c16 65%, #51371a);
+  color: #ffebbc;
+  box-shadow: 0 0 24px #ffbf4755;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #notice.milestone-banner {
+    animation: milestone-arrival 350ms ease-out;
+  }
+  @keyframes milestone-arrival {
+    from {
+      opacity: 0;
+      translate: 0 -8px;
+    }
+  }
+}

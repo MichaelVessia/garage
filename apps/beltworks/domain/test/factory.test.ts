@@ -71,7 +71,7 @@ const grant = (runtime: Runtime, milestoneIndex = 6) => {
   )
   runtime.tick(Game.Schedule(grantProgress))
 }
-it('delivers fifteen ones, unlocks addition and consumes subsequent unmatched items', () => {
+it('delivers twelve ones, unlocks addition and consumes subsequent unmatched items', () => {
   const r = factory()
   const medals: Array<string> = []
   const completed: Array<number> = []
@@ -95,6 +95,7 @@ it('delivers fifteen ones, unlocks addition and consumes subsequent unmatched it
         }
         for (const event of events.milestone.all()) {
           completed.push(event.targetValue)
+          assert.lengthOf(payments, 12)
         }
       }
     )

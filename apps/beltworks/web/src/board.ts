@@ -37,8 +37,8 @@ class Cargo extends Container {
   stalled = false
   readonly pulse = this.addChild(new Graphics().circle(0, 0, 16).stroke({ color: 0xff_b8_51, width: 3 }))
 
-  constructor() {
-    super()
+  constructor(options: { label: string }) {
+    super(options)
     this.pulse.visible = false
   }
 }
@@ -63,15 +63,17 @@ function beaconAura(g: Graphics, node: Machine, fueled: boolean, radius: number)
   }
 }
 
-export class Burst extends Graphics {
+export class Burst extends Container {
   readonly born = performance.now()
   readonly dx: number
   readonly dy: number
   readonly ring: boolean
-  constructor(dx: number, dy: number, ring: boolean) {
+  readonly duration: number
+  constructor(dx: number, dy: number, ring: boolean, duration = 420) {
     super()
     this.dx = dx
     this.dy = dy
+    this.duration = duration
     this.ring = ring
   }
 }
@@ -110,7 +112,9 @@ export function createBoard() {
   const fog = world.addChild(new Graphics())
   let drawnTier = Option.none<BoardTier>()
   const veins = world.addChild(new Container())
-  const starterRing = world.addChild(new Graphics().circle(0, 0, 22).stroke({ color: 0x87_e3_ce, width: 2 }))
+  const starterRing = world.addChild(
+    new Graphics().circle(0, 0, 22).circle(0, 0, 28).stroke({ color: 0x87_ff_d6, width: 2.5 })
+  )
   const auras = world.addChild(new Graphics({ label: 'Beacon coverage' }))
   const buildings = world.addChild(new Container<Machine>())
   const items = world.addChild(new Container<Cargo>())
@@ -253,7 +257,7 @@ export function createBoard() {
           if (guideVein && vein.label === '1') {
             starterRing.position.copyFrom(vein.position)
             starterRing.scale.set(1.05 + 0.05 * pulse)
-            starterRing.alpha = 0.5 + 0.2 * pulse
+            starterRing.alpha = 0.77 + 0.22 * pulse
             starterRing.visible = true
           }
         }
@@ -352,7 +356,7 @@ export const draw = Game.Schedule(
     transform: WorldPosition,
     redrawOn: [OnTile],
     create: ({ renderable: { value } }) => {
-      const n = new Cargo()
+      const n = new Cargo({ label: String(value) })
       const c = oreColor(value)
       n.addChild(
         new Graphics()

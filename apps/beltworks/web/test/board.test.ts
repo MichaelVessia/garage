@@ -199,3 +199,14 @@ it('shows silo stock after rotation', () => {
   assert.equal(machine.a.text, '12/24')
   assert.equal(machine.symbol.rotation, 0)
 })
+
+it('keeps both connected curved rails within their tile at the seams', () => {
+  const belt = new Machine()
+  for (const dir of ['W', 'E'] as const) {
+    belt.track({ kind: dir === 'W' ? 'turnLeft' : 'turnRight', inDirs: [dir], connected: true })
+    const bounds = belt.plate.getLocalBounds()
+    assert.closeTo(bounds.minY, -tile / 2, 0.001)
+    assert.closeTo(bounds.maxY, 17, 0.001)
+    assert.closeTo(dir === 'W' ? bounds.minX : bounds.maxX, dir === 'W' ? -tile / 2 : tile / 2, 0.001)
+  }
+})

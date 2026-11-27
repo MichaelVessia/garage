@@ -119,7 +119,8 @@ function requirementRow(
   const row = document.createElement('div')
   row.className = 'requirement'
   row.style.setProperty('--ore', '#' + Str.padStart(6, '0')(oreColor(value).toString(16)))
-  const target = tag('Target ' + value, 'target')
+  const target = tag('', 'target')
+  target.append(tag('Target ', 'target-label'), String(value))
   const count = tag('', 'quota')
   const rate = tag('', 'rate')
   const meter = document.createElement('progress')
@@ -249,6 +250,42 @@ export function hud({
   element('show-upgrades').onclick = () => selectPanel('upgrade')
   element('show-vault').onclick = () => selectPanel('vault')
   element('show-ascend').onclick = () => selectPanel('ascend')
+  const mobile = window.matchMedia('(max-width: 768px)')
+  const compactNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+  const workshop = element('workshop')
+  const sheet = document.querySelector<HTMLDialogElement>('dialog#workshop-sheet')
+  if (sheet === null) {
+    throw new Error('Expected a Workshop dialog')
+  }
+  const moreActions = element('more-actions')
+  const layoutWorkshop = () => {
+    if (mobile.matches) {
+      sheet.append(workshop)
+      moreActions.setAttribute('popover', 'auto')
+      workshop.hidden = false
+    } else {
+      sheet.close()
+      sheet.after(workshop)
+      moreActions.removeAttribute('popover')
+      workshop.hidden = latest.milestoneIndex === 0 && latest.meta.ascensions === 0
+    }
+  }
+  layoutWorkshop()
+  mobile.addEventListener('change', layoutWorkshop)
+  element('open-workshop').onclick = () => {
+    workshop.setAttribute('open', '')
+    if (latest.milestoneIndex === 0 && panel === 'upgrade') {
+      selectPanel('vault')
+    }
+    sheet.showModal()
+    element('close-workshop').focus()
+  }
+  element('close-workshop').onclick = () => sheet.close()
+  sheet.onclick = (event) => {
+    if (event.target === sheet) {
+      sheet.close()
+    }
+  }
   const contractMeter = element('contract-meter')
   let previousSparks = 0
   let previousMutator = initial.meta.mutator
@@ -303,13 +340,13 @@ export function hud({
       )
     }
     previousSparks = p.sparks
-    element('sparks').textContent = p.sparks.toLocaleString('en-US')
+    element('sparks').textContent = mobile.matches ? compactNumber.format(p.sparks) : p.sparks.toLocaleString('en-US')
     for (const { t, button } of dock) {
       button.hidden = p.milestoneIndex < t.unlock
       button.setAttribute('aria-pressed', String(t.id === tool))
     }
     const showAscend = p.milestoneIndex >= 7 || p.meta.ascensions > 0
-    element('workshop').hidden = p.milestoneIndex === 0 && !showAscend
+    workshop.hidden = !mobile.matches && p.milestoneIndex === 0 && !showAscend
     element('show-ascend').hidden = !showAscend
     if (!showAscend && panel === 'ascend') {
       selectPanel('upgrade')
@@ -337,6 +374,13 @@ export function hud({
       button.disabled = maxed || !canAfford(p, cost)
       button.replaceChildren(maxed ? 'Maximum' : 'Buy ', ...(maxed ? [] : [price(cost, p)]))
     }
+    const affordable =
+      (element('expand-card').hidden === false && !expandButton.disabled) ||
+      Arr.some(cards, ({ card, button }) => card.hidden === false && !button.disabled) ||
+      (showAscend && element('core-tech').querySelector('button:enabled') !== null)
+    workshop.classList.toggle('affordable', affordable)
+    element('open-workshop').classList.toggle('affordable', affordable)
+    element('open-workshop').setAttribute('aria-label', affordable ? 'Workshop, purchase available' : 'Workshop')
     element('vault-income').textContent =
       'Income efficiency · ' +
       Math.round(

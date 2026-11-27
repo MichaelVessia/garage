@@ -506,6 +506,7 @@ it.effect.each(modes)(
       for (const [index, mission] of missions.entries()) {
         const start = ticks
         if (index === 2) {
+          stock(1, 15, 'one')
           expand(1)
           upgrade(2)
         }
