@@ -1,4 +1,3 @@
-import tailwindcss from '@tailwindcss/vite'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
 import { defineConfig } from 'vite'
 
@@ -9,7 +8,6 @@ export default defineConfig(({ command }) => {
     define: { __BELTWORKS_BUILD_ID__: `"${version}"` },
     build: { assetsDir: 'static' },
     plugins: [
-      tailwindcss(),
       {
         name: 'beltworks-version',
         generateBundle() {

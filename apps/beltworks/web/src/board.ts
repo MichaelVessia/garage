@@ -317,7 +317,7 @@ export function createBoard() {
     },
   }
 }
-type BoardStats = { p: typeof initial; tick: number; index: Descriptor.Descriptor.Value<typeof GridIndex> }
+export type BoardStats = { p: typeof initial; tick: number; index: Descriptor.Descriptor.Value<typeof GridIndex> }
 export const stats = Game.Inspector(
   'Beltworks/View',
   {

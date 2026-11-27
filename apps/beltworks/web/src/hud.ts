@@ -447,3 +447,14 @@ export function hud({
     }
   }
 }
+
+export function control({ id, title, path }: { id: string; title: string; path?: string }) {
+  const button = element(id),
+    caption = button.querySelector('span')
+  if (caption !== null) {
+    caption.textContent = title
+  }
+  if (path !== undefined) {
+    button.querySelector('path')?.setAttribute('d', path)
+  }
+}
