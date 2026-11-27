@@ -18,7 +18,7 @@ import { ascendPanel } from './ascend.ts'
 import type { AscendActions } from './ascend.ts'
 import { oreColor } from './machines.ts'
 import { medalGrid } from './medals.ts'
-import { researchTree } from './research.ts'
+import { upgradeGrid } from './research.ts'
 import { tools } from './tools.ts'
 import type { Tool } from './tools.ts'
 import { vaultRows } from './vault.ts'
@@ -117,23 +117,51 @@ function requirementRow(
     rate.classList.toggle('met', minRatePerMin !== undefined && currentRate >= minRatePerMin)
   }
 }
-function updateStock(p: Progress) {
-  const rows = vaultRows(p)
-  element('stock').replaceChildren(
-    ...Arr.map(rows, ({ value, stock, rate, tags }) => {
-      const row = document.createElement('div')
-      row.className = 'stock-row'
-      const token = tag(String(value), 'stock-token')
-      token.style.setProperty('--ore', '#' + Str.padStart(6, '0')(oreColor(value).toString(16)))
-      row.append(token, tag(String(stock), 'stock-count'), tag('+' + rate + '/min', 'stock-rate'))
-      if (tags.length > 0) {
+function stockGrid(container: HTMLElement, compact: boolean) {
+  let keys = ''
+  let cells: ReadonlyArray<{ count: HTMLElement; rate: HTMLElement; demand: HTMLElement }> = []
+  return (p: Progress) => {
+    const stock = vaultRows(p)
+    const rows = compact
+      ? Arr.take(
+          Arr.filter(stock, (row) => row.stock > 0 || row.rate > 0 || row.tags.length > 0),
+          6
+        )
+      : stock
+    const nextKeys = Arr.join(
+      Arr.map(rows, (row) => String(row.value)),
+      ','
+    )
+    if (keys !== nextKeys) {
+      keys = nextKeys
+      const fragment = document.createDocumentFragment()
+      cells = Arr.map(rows, ({ value }) => {
+        const row = document.createElement('div')
+        row.className = 'stock-row'
+        const token = tag(String(value), 'stock-token')
+        token.style.setProperty('--ore', '#' + Str.padStart(6, '0')(oreColor(value).toString(16)))
+        const count = tag('', 'stock-count')
+        const rate = tag('', 'stock-rate')
         const demand = tag('•', 'stock-demand')
-        demand.title = Arr.join(tags, ' · ')
-        row.append(demand)
+        row.append(token, count, rate)
+        if (compact === false) {
+          row.append(demand)
+        }
+        fragment.append(row)
+        return { count, rate, demand }
+      })
+      container.replaceChildren(fragment)
+    }
+    for (const [row, cell] of Arr.zip(rows, cells)) {
+      setText(cell.count, String(row.stock))
+      setText(cell.rate, compact ? (row.rate > 0 ? '↑' + row.rate : '') : '+' + row.rate + '/min')
+      const demand = Arr.join(row.tags, ' · ')
+      if (compact === false && (cell.demand.title !== demand || cell.demand.hidden !== (demand === ''))) {
+        cell.demand.title = demand
+        cell.demand.hidden = demand === ''
       }
-      return row
-    })
-  )
+    }
+  }
 }
 export function hud({
   choose,
@@ -170,7 +198,9 @@ export function hud({
     element('dock').append(button)
     return { t, button }
   })
-  const tree = researchTree({ element, price, buy, expand, openAscend: () => selectPanel('ascend') })
+  const grid = upgradeGrid({ element, price, buy, expand })
+  const updateStock = stockGrid(element('stock'), false)
+  const updateMiniStock = stockGrid(element('mini-stock'), true)
   const ascension = ascendPanel({ element, ...actions })
   const panels = ['upgrade', 'vault', 'ascend'] as const
   let panel: (typeof panels)[number] = 'upgrade'
@@ -196,7 +226,8 @@ export function hud({
     element('mastery').hidden = selected === 'upgrade'
     element('run-summary').hidden = selected === 'upgrade'
     if (selected === 'upgrade') {
-      tree.selectDefault(latest)
+      grid.selectDefault(latest)
+      updateMiniStock(latest)
     }
     if (selected === 'vault') {
       updateStock(latest)
@@ -208,51 +239,77 @@ export function hud({
   const mobile = window.matchMedia('(max-width: 768px)')
   const compactNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
   const trigger = element('open-workshop')
-  const sheet = document.querySelector<HTMLDialogElement>('dialog#workshop-sheet')
+  const sheet = document.querySelector<HTMLDialogElement>('dialog#workshop')
   if (sheet === null) {
-    throw new Error('Expected a Research dialog')
+    throw new Error('Missing Workshop')
   }
-  const openResearch = () => {
-    if (trigger.hidden === true) {
+  const header = element('close-workshop')
+  const content = element('workshop-content')
+  const setExpanded = (expanded: boolean) => {
+    content.hidden = expanded === false
+    header.setAttribute('aria-expanded', String(expanded))
+    header.setAttribute('aria-label', expanded ? 'Close Workshop' : 'Open Workshop')
+    setText(element('workshop-chevron'), mobile.matches ? '×' : expanded ? '⌃' : '⌄')
+    if (expanded) {
+      selectPanel('upgrade')
+    } else {
+      ascension.cancel()
+    }
+  }
+  const resetWorkshop = () => {
+    sheet.close()
+    setExpanded(mobile.matches === false && trigger.hidden === false)
+    sheet.open = mobile.matches === false && trigger.hidden === false
+  }
+  mobile.addEventListener('change', resetWorkshop)
+  const openWorkshop = () => {
+    if (trigger.hidden === true || trigger.hasAttribute('disabled')) {
       return
     }
-    selectPanel('upgrade')
-    sheet.showModal()
-    element('close-workshop').focus()
+    setExpanded(true)
+    if (mobile.matches && sheet.open === false) {
+      sheet.showModal()
+    }
+    header.focus()
+  }
+  const toggleWorkshop = () => {
+    if (sheet.open === false || content.hidden === true) {
+      openWorkshop()
+    } else {
+      setExpanded(false)
+      if (mobile.matches) {
+        sheet.close()
+        trigger.focus()
+      }
+    }
   }
   window.addEventListener('keydown', (event) => {
     if (
-      Str.toLowerCase(event.key) !== 'u' ||
       event.repeat ||
       event.ctrlKey ||
       event.metaKey ||
       event.altKey ||
       event.target === document.querySelector('input:focus') ||
-      document.querySelector('dialog[open]') !== null
+      document.querySelector('dialog[open]:not(#workshop)') !== null
     ) {
       return
     }
-    trigger.click()
+    if (Str.toLowerCase(event.key) === 'u') {
+      toggleWorkshop()
+    } else if (event.key === 'Escape' && mobile.matches && sheet.open) {
+      event.preventDefault()
+      toggleWorkshop()
+    }
   })
-  trigger.onclick = openResearch
+  trigger.onclick = openWorkshop
+  header.onclick = toggleWorkshop
   element('quick-upgrade').onclick = () => {
     element('milestone-banner').hidden = true
-    openResearch()
+    openWorkshop()
   }
-  element('close-workshop').onclick = () => sheet.close()
-  sheet.onclose = () => ascension.cancel()
   sheet.onclick = (event) => {
-    if (event.target === sheet) {
-      sheet.close()
-    }
-  }
-  sheet.onkeydown = (event) => {
-    if (event.key === 'Escape' || Str.toLowerCase(event.key) === 'u') {
-      event.stopPropagation()
-      event.preventDefault()
-      if (event.repeat === false) {
-        sheet.close()
-      }
+    if (mobile.matches && event.target === sheet) {
+      toggleWorkshop()
     }
   }
   const contractMeter = element('contract-meter')
@@ -319,13 +376,10 @@ export function hud({
       button.setAttribute('aria-pressed', String(t.id === tool))
     }
     const showAscend = p.milestoneIndex >= 7 || p.meta.ascensions > 0
-    trigger.hidden = p.milestoneIndex === 0 && p.meta.ascensions === 0
-    if (trigger.hidden && sheet.open) {
-      sheet.close()
-    }
-    if (first === false && previous.milestoneIndex === 0 && p.milestoneIndex === 1 && p.meta.ascensions === 0) {
-      trigger.classList.add('guided')
-      window.setTimeout(() => trigger.classList.remove('guided'), 5000)
+    const locked = p.milestoneIndex === 0 && p.meta.ascensions === 0
+    if (first || trigger.hidden !== locked) {
+      trigger.hidden = locked
+      resetWorkshop()
     }
     element('show-ascend').hidden = !showAscend
     if (!showAscend && panel === 'ascend') {
@@ -339,9 +393,10 @@ export function hud({
     ) {
       ascension.update(p)
     }
-    const affordable = tree.update(p)
+    const affordable = grid.update(p)
     trigger.classList.toggle('affordable', affordable)
-    trigger.setAttribute('aria-label', affordable ? 'Research, purchase available' : 'Research')
+    header.classList.toggle('affordable', affordable)
+    trigger.setAttribute('aria-label', affordable ? 'Workshop, purchase available' : 'Workshop')
     element('vault-income').textContent =
       'Income efficiency · ' +
       Math.round(
@@ -350,7 +405,8 @@ export function hud({
       '%'
     if (
       sheet.open &&
-      panel === 'vault' &&
+      content.hidden === false &&
+      panel !== 'ascend' &&
       (p.vault !== previous.vault ||
         p.rateByValue !== previous.rateByValue ||
         p.upgrades !== previous.upgrades ||
@@ -358,7 +414,11 @@ export function hud({
         p.contractIndex !== previous.contractIndex ||
         p.milestoneIndex !== previous.milestoneIndex)
     ) {
-      updateStock(p)
+      if (panel === 'upgrade') {
+        updateMiniStock(p)
+      } else {
+        updateStock(p)
+      }
     }
     element('contract-card').hidden = p.milestoneIndex < 3
     if (p.milestoneIndex >= 3) {
@@ -368,7 +428,8 @@ export function hud({
         element('contract-hint').replaceChildren(recipeButton(() => recipe(c.value)))
         contractKey = id
       }
-      element('contract').textContent = 'Deliver ' + c.value + ' · ' + p.contractDelivered + ' / ' + c.quota
+      setText(element('contract-target'), String(c.value))
+      setText(element('contract'), p.contractDelivered + ' / ' + c.quota)
       contractMeter.setAttribute('max', String(c.quota))
       contractMeter.setAttribute('value', String(p.contractDelivered))
       const rewardKey = id + '/' + p.meta.metaUpgrades.contractMastery + '/' + medalSparkMultiplier(p)

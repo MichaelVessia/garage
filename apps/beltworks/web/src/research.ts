@@ -10,7 +10,6 @@ import {
   craftPeriod,
   extractorPeriod,
   canAfford,
-  coresEarned,
   initial,
   upgradeCost,
 } from '@garage/beltworks-domain'
@@ -39,7 +38,7 @@ const upgrades = {
 
 type Progress = typeof initial
 type Upgrade = keyof Progress['upgrades']
-type NodeId = Upgrade | 'expand' | 'ascension'
+type NodeId = Upgrade | 'expand'
 type Cost = ReturnType<typeof upgradeCost>
 type State = {
   title: string
@@ -54,27 +53,13 @@ type State = {
 const rings = ['18×14 · unlocks 3 & 4 veins', '26×20 · unlocks 5, 6 & 7 veins', '36×26 · unlocks the full foundry']
 
 function nodeState(id: NodeId, p: Progress): State {
-  if (id === 'ascension') {
-    const ready = p.milestoneIndex >= 8
-    const level = ready ? '+' + coresEarned(p.milestoneIndex, p.meta.mutator) + ' Cores' : 'M8'
-    return {
-      cost: Option.none(),
-      action: 'Open Ascend',
-      title: 'Ascension · ' + level,
-      level,
-      effect: 'Start a new factory with permanent Core tech.',
-      fraction: Math.min(1, p.milestoneIndex / 8),
-      lock: 8,
-      ready,
-    }
-  }
   if (id === 'expand') {
     const tier = p.boardTier
     const cost = expansionCost(tier)
     const lock = expansionUnlock(tier)
     return {
       title: tier < 3 ? 'Expand · Ring ' + (tier + 1) : 'Full foundry',
-      level: 'Ring ' + Math.min(3, tier + 1) + '/3',
+      level: 'R' + Math.min(3, tier + 1) + '/3',
       effect: rings[tier] ?? 'All rings unlocked',
       fraction: tier / 3,
       lock: tier < 3 ? lock : 0,
@@ -91,7 +76,7 @@ function nodeState(id: NodeId, p: Progress): State {
   const rate = (level: number) => upgrade.rate(level, productionSpeed(p))
   return {
     title: upgrade.title + ' · Lv ' + lv + (lv < limit ? ' → ' + (lv + 1) : ''),
-    level: 'Lv ' + lv + '/' + limit,
+    level: 'L' + lv,
     effect: rate(lv) + (lv < limit ? ' → ' + rate(lv + 1) : ''),
     fraction: lv / limit,
     lock,
@@ -100,34 +85,30 @@ function nodeState(id: NodeId, p: Progress): State {
     action: 'Upgrade',
   }
 }
-export function researchTree({
+export function upgradeGrid({
   element,
   price,
   buy,
   expand,
-  openAscend,
 }: {
   element: (id: string) => HTMLElement
   price: (cost: Cost, p: Progress) => DocumentFragment
   buy: (id: Upgrade) => void
   expand: () => void
-  openAscend: () => void
 }) {
   let selected: NodeId = 'beltSpeed'
   let latest = initial
   let lastCost = ''
   const action = element('research-buy')
   action.onclick = () => {
-    if (selected === 'ascension') {
-      openAscend()
-    } else if (selected === 'expand') {
+    if (selected === 'expand') {
       expand()
     } else {
       buy(selected)
     }
   }
   const nodes = Arr.map(
-    ['extractorSpeed', 'beltSpeed', 'combinerSpeed', 'hubValue', 'surge', 'expand', 'ascension'] as const,
+    ['beltSpeed', 'extractorSpeed', 'combinerSpeed', 'hubValue', 'surge', 'expand'] as const,
     (id) => {
       const button = element('node-' + id)
       const level = button.querySelector('small')
@@ -147,8 +128,9 @@ export function researchTree({
     for (const { id, button, level } of nodes) {
       const state = nodeState(id, p)
       const locked = state.lock > p.milestoneIndex
-      if (level.textContent !== state.level) {
-        level.textContent = state.level
+      const badge = locked ? 'M' + state.lock : state.level
+      if (level.textContent !== badge) {
+        level.textContent = badge
       }
       const fill = Math.round(100 * state.fraction) + '%'
       if (button.style.getPropertyValue('--fill') !== fill) {
@@ -174,10 +156,7 @@ export function researchTree({
           el.textContent = text
         }
       }
-      action.toggleAttribute(
-        'disabled',
-        id === 'ascension' ? p.milestoneIndex < 7 && p.meta.ascensions === 0 : state.ready === false
-      )
+      action.toggleAttribute('disabled', state.ready === false)
       const cost = Option.getOrUndefined(state.cost)
       const key =
         cost === undefined
@@ -203,7 +182,10 @@ export function researchTree({
   return {
     update,
     selectDefault(p: Progress) {
-      selected = 'beltSpeed'
+      if (nodeState(selected, p).ready) {
+        update(p)
+        return
+      }
       for (const { id } of nodes) {
         if (nodeState(id, p).ready) {
           selected = id

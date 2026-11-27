@@ -851,7 +851,10 @@ const canvas = app.canvas
 function boardViewport() {
   const top = element('bar').getBoundingClientRect().bottom + 12
   document.documentElement.style.setProperty('--drawer-top', Math.max(74, top) + 'px')
-  const w = Math.max(1, field.clientWidth),
+  const workshop = element('workshop')
+  const reserved =
+    window.innerWidth > 768 && workshop.hasAttribute('open') && element('workshop-content').hidden === false
+  const w = Math.max(1, reserved ? workshop.getBoundingClientRect().left - 12 : field.clientWidth),
     h = Math.max(1, element('toolbar').getBoundingClientRect().top - 12 - top)
   return { width: w, height: h, top }
 }
@@ -919,6 +922,7 @@ const layout = new ResizeObserver(() => {
 for (const panel of [field, element('bar'), element('toolbar')]) {
   layout.observe(panel)
 }
+new MutationObserver(center).observe(element('workshop-content'), { attributes: true, attributeFilter: ['hidden'] })
 element('center').onclick = center
 const pointer = (e: MouseEvent) => {
   const rect = canvas.getBoundingClientRect()
@@ -1333,6 +1337,7 @@ function redrawFactory(nextTool: Tool) {
   refresh(true)
   choose(nextTool)
   center()
+  element('workshop').inert = inspection.visiting
   undoButton.toggleAttribute('disabled', inspection.visiting || !history.available)
   for (const id of ['clear', 'reset', 'speed', 'pause', 'open-workshop']) {
     element(id).toggleAttribute('disabled', inspection.visiting)
