@@ -33,9 +33,9 @@ const leaderboard = Layer.sync(LeaderboardStore, () => {
   const players = new Map<string, PlayerEntry>()
   return LeaderboardStore.of({
     list: (viewer) => Effect.sync(() => readBoards({ entries: players.values(), viewer })),
-    submit: (incoming) =>
+    submit: (incoming, clearShare) =>
       Effect.sync(() => {
-        const { updated, result } = updateBoards({ players, incoming })
+        const { updated, result } = updateBoards({ players, incoming, clearShare })
         players.set(updated.playerId, updated)
         return result
       }),
@@ -311,6 +311,11 @@ it.effect('ranks submitted factories, keeps best scores and shares the original 
       Effect.flatMap(posted)
     )
     assert.deepEqual(second.entry, { ...first.entry, callsign: 'Mint' })
+    const unshared = yield* post({ ...input, callsign: 'Mint', shareFactory: false }).pipe(
+      Effect.flatMap(json),
+      Effect.flatMap(posted)
+    )
+    assert.isNull(unshared.entry.shareId)
     const other = yield* post({ ...input, playerId: 'player-5678', callsign: 'Idle', save: empty }).pipe(
       Effect.flatMap(json),
       Effect.flatMap(posted)

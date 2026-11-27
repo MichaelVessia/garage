@@ -11,6 +11,7 @@ import * as S from 'effect/Schema'
 import * as Str from 'effect/String'
 
 import { element } from './hud.ts'
+import { defaultCallsign, leaderboardSync } from './leaderboardSync.ts'
 
 const row = S.Struct({
   callsign: S.String,
@@ -40,16 +41,19 @@ const labels = {
   throughput: ['#', 'Callsign', 'Items/min', 'Milestone', 'Factory'],
 }
 
-function readProfile() {
+function readProfile(playerId: string): Profile {
+  const fallback = defaultCallsign(playerId)
+  let profile = { callsign: fallback, shareFactory: true }
   try {
-    const callsign = localStorage.getItem(callsignKey)
-    if (callsign !== null) {
-      return { callsign, shareFactory: localStorage.getItem(shareKey) === 'true' }
+    const saved = localStorage.getItem(callsignKey)
+    profile = { callsign: saved ?? fallback, shareFactory: localStorage.getItem(shareKey) !== 'false' }
+    if (saved === null) {
+      localStorage.setItem(callsignKey, fallback)
     }
   } catch {
-    // Storage can be unavailable in a private window.
+    // Keep the profile in memory when storage is unavailable.
   }
-  return undefined
+  return profile
 }
 
 function cell(tag: 'td' | 'th' | 'small', value: string | number) {
@@ -71,10 +75,12 @@ function m8Time(ticks: (typeof row.Type)['bestRunTicks']) {
 }
 
 export function setupLeaderboard({
+  state,
   getSave,
   playerId,
   inspect,
 }: {
+  state: Parameters<typeof leaderboardSync>[0]['state']
   getSave: () => ReturnType<typeof exportSave>
   playerId: string
   inspect: (shareId: string, callsign: string) => Promise<void>
@@ -86,15 +92,15 @@ export function setupLeaderboard({
   if (dialog === null || name === null || share === null || post === null) {
     throw new Error('Missing leaderboard controls')
   }
-  let profile = readProfile()
-  name.value = profile?.callsign ?? ''
-  share.checked = profile?.shareFactory ?? false
+  let profile = readProfile(playerId)
+  name.value = profile.callsign
+  share.checked = profile.shareFactory
   const status = element('leaderboard-status')
   const empty = element('leaderboard-empty')
   let boardData = Option.none<typeof board.Type>()
   let selected: Tab = 'foundryRank'
   let readVersion = 0
-  let pending = Promise.resolve()
+  let profileRevision = 0
 
   function render() {
     element('leaderboard-columns').replaceChildren(...Arr.map(labels[selected], (label) => cell('th', label)))
@@ -181,46 +187,23 @@ export function setupLeaderboard({
     )
   }
 
-  function submit(next: Profile, manual: boolean) {
-    const save = getSave()
-    const request = Request.post(new URL(path, location.origin)).pipe(
-      Request.bodyJsonUnsafe({ playerId, ...next, save }),
-      HttpClient.execute,
-      Effect.flatMap((response) => response.json),
-      Effect.flatMap(S.decodeUnknownEffect(posted)),
-      Effect.timeout(Duration.seconds(15))
-    )
-    pending = pending
-      .then(() => client.runPromise(request))
-      .then(
-        (result) => {
-          if (manual) {
-            profile = next
-            try {
-              localStorage.setItem(callsignKey, next.callsign)
-              localStorage.setItem(shareKey, String(next.shareFactory))
-            } catch {
-              // The successful post still enables sync for this session.
-            }
-            status.textContent = 'Posted! Verified ' + result.entry.verifiedThroughput + '/min'
-          }
-          if (dialog?.open === true) {
-            void refresh()
-          }
-        },
-        () => {
-          if (manual) {
-            status.textContent = Option.isSome(boardData) ? 'Could not post score. Try again.' : unavailable
-          }
-        }
-      )
-      .finally(() => {
-        if (manual && post !== null) {
-          post.disabled = false
-        }
-      })
-  }
-
+  const sync = leaderboardSync({
+    state: () => {
+      const current = state()
+      return { ...current, revision: current.revision + profileRevision }
+    },
+    post: () =>
+      client.runPromise(
+        Request.post(new URL(path, location.origin)).pipe(
+          Request.bodyJsonUnsafe({ playerId, ...profile, save: getSave() }),
+          HttpClient.execute,
+          Effect.flatMap((response) => response.json),
+          Effect.flatMap(S.decodeUnknownEffect(posted)),
+          Effect.timeout(Duration.seconds(15)),
+          Effect.asVoid
+        )
+      ),
+  })
   for (const tab of tabs) {
     element('board-' + tab).onclick = () => {
       selected = tab
@@ -236,7 +219,9 @@ export function setupLeaderboard({
     status.textContent = ''
     empty.textContent = 'Loading scores…'
     render()
-    void refresh()
+    void sync()
+      .catch(() => {})
+      .then(refresh)
   }
   element('leaderboard-close').onclick = () => dialog.close()
   dialog.onkeydown = (event) => event.stopPropagation()
@@ -255,15 +240,31 @@ export function setupLeaderboard({
     }
     if (!post.disabled) {
       post.disabled = true
-      status.textContent = 'Verifying score…'
-      submit({ callsign, shareFactory: share.checked }, true)
+      profile = { callsign, shareFactory: share.checked }
+      profileRevision++
+      try {
+        localStorage.setItem(callsignKey, callsign)
+        localStorage.setItem(shareKey, String(profile.shareFactory))
+      } catch {
+        // Keep the settings for this session when storage is unavailable.
+      }
+      status.textContent = 'Saving…'
+      void sync()
+        .then(
+          () => {
+            status.textContent = 'Settings saved.'
+            return refresh()
+          },
+          () => {
+            status.textContent = 'Could not update the leaderboard. Try again.'
+          }
+        )
+        .finally(() => {
+          post.disabled = false
+        })
     }
   }
   return {
-    sync() {
-      if (profile !== undefined && !post.disabled) {
-        submit(profile, false)
-      }
-    },
+    sync: (periodic = false) => void sync(periodic).catch(() => {}),
   }
 }

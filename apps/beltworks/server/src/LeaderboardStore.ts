@@ -64,9 +64,11 @@ export function readBoards({ entries, viewer }: { entries: Iterable<PlayerEntry>
 export function updateBoards({
   players,
   incoming,
+  clearShare = false,
 }: {
   players: ReadonlyMap<string, PlayerEntry>
   incoming: PlayerEntry
+  clearShare?: boolean
 }) {
   const prior = players.get(incoming.playerId)
   const priorTime = prior?.bestRunTicks ?? Option.none<number>()
@@ -80,7 +82,9 @@ export function updateBoards({
             Option.getOrElse(priorTime, () => Infinity)
           )
         ),
-    shareId: Option.orElse(incoming.shareId, () => prior?.shareId ?? Option.none<string>()),
+    shareId: clearShare
+      ? Option.none<string>()
+      : Option.orElse(incoming.shareId, () => prior?.shareId ?? Option.none<string>()),
     verifiedThroughput: Math.max(incoming.verifiedThroughput, prior?.verifiedThroughput ?? 0),
   }
   const others = Arr.filter(players.values(), (entry) => entry.playerId !== updated.playerId)
@@ -106,6 +110,9 @@ export class LeaderboardStore extends Context.Service<
   LeaderboardStore,
   {
     readonly list: (viewer: string) => Effect.Effect<ReturnType<typeof readBoards>>
-    readonly submit: (entry: PlayerEntry) => Effect.Effect<ReturnType<typeof updateBoards>['result']>
+    readonly submit: (
+      entry: PlayerEntry,
+      clearShare: boolean
+    ) => Effect.Effect<ReturnType<typeof updateBoards>['result']>
   }
 >()('@garage/beltworks-server/LeaderboardStore') {}

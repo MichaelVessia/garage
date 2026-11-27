@@ -68,7 +68,10 @@ const leaderboardRoute = Effect.fn(function* (request: Request.HttpServerRequest
     shareFactory === true
       ? yield* putShare(verified.value.snapshot, updatedAtMs).pipe(Effect.asSome)
       : Option.none<string>()
-  const result = yield* store.submit({ playerId, callsign, ...verified.value.score, shareId, updatedAtMs })
+  const result = yield* store.submit(
+    { playerId, callsign, ...verified.value.score, shareId, updatedAtMs },
+    shareFactory === false
+  )
   return Response.jsonUnsafe(result)
 })
 

@@ -535,6 +535,7 @@ const observe = Game.Schedule(
   )
 )
 let dirty = false
+let leaderboardRevision = 0
 const hint = element('starter-hint')
 const hintText = element('starter-message')
 const dismissHint = element('dismiss-starter')
@@ -723,6 +724,7 @@ function refresh(edited = false) {
       ((previous.p.delivered[1] ?? 0) === 0) !== ((view.p.delivered[1] ?? 0) === 0)
   )
   inspectHover()
+  leaderboardRevision++
   dirty = true
 }
 function edit(command: Command) {
@@ -771,6 +773,7 @@ function save(keepalive = false) {
   inspection.saveHome((home) => {
     const revision = Math.floor(performance.timeOrigin + performance.now())
     sync.upload(revision, keepalive)
+    leaderboard.sync(true)
     if (saveBoard(storage)(home, revision)) {
       dirty = false
     } else {
@@ -1331,6 +1334,13 @@ function redrawFactory(nextTool: Tool) {
 }
 const resumed = sync.load(() => !editedSinceStart, localRevision)
 const leaderboard = setupLeaderboard({
+  state: () => ({
+    visiting: inspection.visiting,
+    revision: leaderboardRevision,
+    totalDelivered: view.p.totalDelivered,
+    milestoneIndex: view.p.milestoneIndex,
+    ascensions: view.p.meta.ascensions,
+  }),
   getSave: inspection.getSave,
   playerId: leaderboardPlayerId(),
   inspect: (shareId, callsign) => {

@@ -77,10 +77,10 @@ From Ring 2, click or drag the minimap to pan the board. Dragging belts or erasi
 
 ## Global leaderboard
 
-Open **Leaderboard** beside **Share** on a desktop or from **More actions** on a phone. Enter a callsign and select **Post score** to join. After the first post, milestone completions and ascensions update the score.
+Open **Leaderboard** beside **Share** on a desktop or from **More actions** on a phone. Players join automatically after their first delivery. Milestones and ascensions update the score immediately. Other changes sync at most once every 30 seconds during periodic saves. Edit the generated callsign and select **Save & update** to rename the entry.
 
 Each board shows up to 50 players. Foundry Rank orders players by ascensions, lifetime Cores, current milestone and verified delivery rate. Fastest M8 keeps each player's shortest run to M8. Verified Rate keeps the highest measured rate. The server runs a copy of the submitted factory for 600 ticks. Each delivery of a current mission value or Vault landmark counts as six items per minute.
 
-Select **Share my factory** when posting to attach a snapshot. **Inspect** runs that snapshot on the board. Local and cloud saves pause during inspection. **Back to my factory** restores the player's factory and resumes saves.
+Each entry includes a factory snapshot by default. Clear **Share my factory** and select **Save & update** to remove the Inspect link. **Inspect** runs that snapshot on the board. Local and cloud saves pause during inspection. **Back to my factory** restores the player's factory and resumes saves.
 
 The Worker stores scores in one global Durable Object. Factory saves and shared snapshots use the existing BeltworksFactories KV namespace.

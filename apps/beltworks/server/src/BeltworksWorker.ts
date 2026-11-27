@@ -25,8 +25,10 @@ export default class BeltworksWorker extends Cloudflare.Worker<BeltworksWorker>(
         return yield* router.pipe(
           Effect.provideService(LeaderboardStore, {
             list: (viewer) => board.list(viewer).pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),
-            submit: (entry) =>
-              board.submit(encodeEntry(entry)).pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),
+            submit: (entry, clearShare) =>
+              board
+                .submit(encodeEntry(entry), clearShare)
+                .pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),
           }),
           Effect.provideService(FactoryStore, {
             get: (key) => kv.get(key, 'json').pipe(Effect.provideService(RuntimeContext, context), Effect.orDie),

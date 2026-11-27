@@ -16,7 +16,7 @@ export default class LeaderboardObject extends Cloudflare.DurableObject<Leaderbo
           Effect.map((rows) => readBoards({ entries: rows.values(), viewer })),
           Effect.orDie
         ),
-      submit: (entry: typeof PlayerEntry.Encoded) =>
+      submit: (entry: typeof PlayerEntry.Encoded, clearShare: boolean) =>
         storage
           .transaction((tx) =>
             Effect.gen(function* () {
@@ -25,6 +25,7 @@ export default class LeaderboardObject extends Cloudflare.DurableObject<Leaderbo
               const { updated, result } = updateBoards({
                 players: rows,
                 incoming,
+                clearShare,
               })
               yield* tx.put(entry.playerId, encodeEntry(updated))
               return result
