@@ -1,22 +1,28 @@
-#notice.milestone-banner {
+#milestone-banner {
+  position: fixed;
+  z-index: 4;
+  top: var(--drawer-top, 74px);
+  left: 50%;
+  transform: translateX(-50%);
   width: max-content;
   max-width: calc(100vw - 28px);
   box-sizing: border-box;
-  padding: 14px 22px;
+  padding: 10px 18px;
   text-align: center;
-  border: 2px solid #ffd77c;
+  border: 1px solid #ffd77c;
+  border-radius: 12px;
   background: linear-gradient(115deg, #44321d, #241c16 65%, #51371a);
   color: #ffebbc;
   box-shadow: 0 0 24px #ffbf4755;
+  pointer-events: none;
 }
+#milestone-banner span { display: block; font-size: 0.85rem; margin-top: 3px; }
+#quick-upgrade { pointer-events: auto; margin-top: 7px; border: 1px solid #ffd77c; border-radius: 20px; padding: 5px 12px; color: #241c16; background: #ffdf99; }
 @media (prefers-reduced-motion: no-preference) {
-  #notice.milestone-banner {
-    animation: milestone-arrival 350ms ease-out;
-  }
+  #milestone-banner:not([hidden]) { animation: milestone-arrival 5s ease-out both; }
   @keyframes milestone-arrival {
-    from {
-      opacity: 0;
-      translate: 0 -8px;
-    }
+    0% { opacity: 0; translate: 0 -8px; }
+    7%, 92% { opacity: 1; translate: 0; }
+    100% { opacity: 0; }
   }
 }

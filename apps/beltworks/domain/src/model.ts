@@ -158,6 +158,7 @@ const progression = S.Struct({
   meta,
   boardTier: tier,
   milestoneIndex: natural,
+  craftedTargets: S.Array(natural).pipe(S.withDecodingDefaultKey(Effect.succeed([]))),
   delivered: counts,
   vault: counts,
   vaultRemainders: S.Record(S.String, natural.check(S.isLessThan(100))),
@@ -191,6 +192,7 @@ export const initial: typeof progression.Type = {
   meta: { ...initialMeta, bestRunTicks: Option.none() },
   boardTier: 0,
   milestoneIndex: 0,
+  craftedTargets: [],
   delivered: {},
   vault: {},
   vaultRemainders: {},
@@ -252,14 +254,27 @@ export const GridIndex = Descriptor.ConstructedResource(codec(S.Struct({ veins: 
   'Beltworks/GridIndex'
 )
 export const ItemCrafted = Descriptor.Event<
-  Cell & { readonly op: CombinerOp; readonly a: number; readonly b: number; readonly result: number }
+  Cell & {
+    readonly op: CombinerOp
+    readonly a: number
+    readonly b: number
+    readonly result: number
+    readonly firstTarget: boolean
+  }
 >()('Beltworks/ItemCrafted')
 export const ItemDelivered = Descriptor.Event<
-  Cell & { readonly value: number; readonly matchedTarget: boolean; readonly sparksEarned: number }
+  Cell & {
+    readonly value: number
+    readonly intakeSide: Direction
+    readonly matchedTarget: boolean
+    readonly sparksEarned: number
+  }
 >()('Beltworks/ItemDelivered')
-export const MilestoneCompleted = Descriptor.Event<{ readonly milestoneIndex: number; readonly targetValue: number }>()(
-  'Beltworks/MilestoneCompleted'
-)
+export const MilestoneCompleted = Descriptor.Event<{
+  readonly milestoneIndex: number
+  readonly targetValue: number
+  readonly bonusSparks: number
+}>()('Beltworks/MilestoneCompleted')
 export const MedalUnlocked = Descriptor.Event<{ readonly medal: MedalId }>()('Beltworks/MedalUnlocked')
 export const CommandRejected = Descriptor.Event<{ readonly reason: string }>()('Beltworks/CommandRejected')
 export const CommandRequested = Descriptor.Event<Command>()('Beltworks/CommandRequested')

@@ -71,7 +71,7 @@ const grant = (runtime: Runtime, milestoneIndex = 6) => {
   )
   runtime.tick(Game.Schedule(grantProgress))
 }
-it('delivers twelve ones, unlocks addition and consumes subsequent unmatched items', () => {
+it('delivers eight ones, unlocks addition and consumes subsequent unmatched items', () => {
   const r = factory()
   const medals: Array<string> = []
   const completed: Array<number> = []
@@ -91,18 +91,20 @@ it('delivers twelve ones, unlocks addition and consumes subsequent unmatched ite
           medals.push(event.medal)
         }
         for (const event of events.delivery.all()) {
+          assert.equal(event.intakeSide, 'W')
           payments.push(event.sparksEarned)
         }
         for (const event of events.milestone.all()) {
           completed.push(event.targetValue)
-          assert.lengthOf(payments, 12)
+          assert.lengthOf(payments, 8)
+          assert.equal(event.bonusSparks, 12)
         }
       }
     )
   )
   for (let i = 0; i < 1400; i++) {
     r.tick(simulation, observe)
-    if (i === 500) {
+    if (i === 350) {
       const { p } = r.inspect(state)
       assert.isAbove(p.delivered[1] ?? 0, 0)
       assert.equal(p.rateByValue[1], p.delivered[1])
@@ -111,7 +113,7 @@ it('delivers twelve ones, unlocks addition and consumes subsequent unmatched ite
   const { p } = r.inspect(state)
   assert.equal(p.milestoneIndex, 1)
   assert.equal(p.vault[1], p.totalDelivered)
-  assert.equal(p.sparks, p.totalDelivered)
+  assert.equal(p.sparks, p.totalDelivered + 12)
   assert.deepEqual(completed, [1])
   assert.deepEqual(medals, ['firstDelivery'])
   assert.equal(payments.at(-1), 1)
@@ -207,6 +209,41 @@ it.each(recipes)('crafts %s with %i and %i to make %i', (op, a, b, result) => {
   assert.deepEqual(exportSave(loaded.value), exportSave(r))
   assert.deepEqual(products, [result])
   assert.equal(r.inspect(state).p.totalDelivered, 1)
+})
+it('marks the first crafted target once across a save and reload', () => {
+  let runtime = createRuntime(0)
+  grant(runtime, 1)
+  place(
+    runtime,
+    { type: 'placeBuilding', kind: 'combiner', op: 'add', gx: 16, gy: 12, dir: 'E' },
+    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 11, dir: 'S' },
+    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 13, dir: 'N' }
+  )
+  runtime.tick(applyEdits)
+  const first: Array<boolean> = []
+  const observe = Game.Schedule(
+    Game.System('Test/FirstCraft', { events: { craft: Game.System.readEvent(ItemCrafted) } }, ({ events }) => {
+      for (const event of events.craft.all()) {
+        first.push(event.firstTarget)
+      }
+    })
+  )
+  for (let i = 0; i < 2; i++) {
+    feed(runtime, [
+      { gx: 16, gy: 11, value: 1 },
+      { gx: 16, gy: 13, value: 2 },
+    ])
+    for (let tick = 0; tick < 80; tick++) {
+      runtime.tick(simulation, observe)
+    }
+    const restored = createRuntimeFromSave(exportSave(runtime))
+    if (!restored.ok) {
+      throw new Error('Could not restore first craft')
+    }
+    runtime = restored.value
+  }
+  assert.deepEqual(first, [true, false])
+  assert.deepEqual(runtime.inspect(state).p.craftedTargets, [3])
 })
 it('alternates splitter ports and uses the open port when the preferred port is blocked', () => {
   const r = createRuntime(0)

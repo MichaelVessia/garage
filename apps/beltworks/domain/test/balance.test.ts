@@ -10,6 +10,7 @@ import {
   Progression,
   applyEdits,
   coresEarned,
+  deliver as deliverToHub,
   milestoneFor,
   createRuntime,
   createRuntimeFromSave,
@@ -54,6 +55,25 @@ function deliver(r: Runtime, value: number, count = 1) {
     advance(r, 1)
   }
 }
+
+it('pays for a speed upgrade at M1 and Ring 1 at M2', () => {
+  const r = hubLine(0)
+  deliver(r, 1, 8)
+  assert.equal(readProgress(r).sparks, 20)
+  place(r, { type: 'buyUpgrade', upgrade: 'beltSpeed' })
+  r.tick(applyEdits)
+  assert.equal(readProgress(r).upgrades.beltSpeed, 2)
+  deliver(r, 3, 17)
+  const before = readProgress(r)
+  assert.equal(before.milestoneIndex, 1)
+  deliver(r, 3)
+  assert.equal(readProgress(r).sparks - before.sparks, 28)
+  assert.equal(readProgress(r).milestoneIndex, 2)
+  place(r, { type: 'expandBoard' })
+  r.tick(applyEdits)
+  assert.equal(readProgress(r).boardTier, 1)
+  assert.equal(readProgress(r).vault[3], 3)
+})
 
 it('holds a filled quota until the 25th recent delivery and completes on that tick', () => {
   const r = hubLine(3)
@@ -442,6 +462,31 @@ const hasFueledBeacon = Game.Inspector(
     })
 )
 const modes = ['standard', 'primeRush', 'highVelocity'] as const
+it.each(modes)('credits each milestone bonus once in %s', (mutator) => {
+  const initial = readProgress(hubLine(0))
+  const bonuses = [12, 25, 50, 100, 150, 200, 250, 300, 350, 400, 450]
+  for (const [milestoneIndex, expected] of bonuses.entries()) {
+    const p = { ...initial, milestoneIndex, meta: { ...initial.meta, mutator } }
+    const { requirements } = milestoneFor(p)
+    const target = requirements[0]
+    if (target === undefined) {
+      throw new Error('Missing primary mission target')
+    }
+    const delivered: Record<number, number> = {}
+    const rateByValue: Record<number, number> = {}
+    for (const r of requirements) {
+      delivered[r.value] = r.quota - Number(r === target)
+      rateByValue[r.value] = r.minRatePerMin ?? 0
+    }
+    const last = deliverToHub({ previous: { ...p, delivered, rateByValue }, value: target.value, tick: 1 })
+    assert.equal(last.bonusSparks, expected)
+    assert.equal(last.next.sparks, last.sparksEarned + expected)
+    const after = deliverToHub({ previous: last.next, value: target.value, tick: 2 })
+    assert.equal(after.bonusSparks, 0)
+    assert.equal(after.next.sparks - last.next.sparks, after.sparksEarned)
+  }
+})
+
 it.effect.each(modes)(
   'benchmarks a full %s run',
   (mutator) =>

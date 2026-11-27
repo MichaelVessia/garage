@@ -453,7 +453,7 @@ function destinations(
       case 'extractor':
         return false
       case 'hub': {
-        const { next, matchedTarget, sparksEarned, complete } = deliver({
+        const { next, matchedTarget, sparksEarned, complete, bonusSparks } = deliver({
           previous: p,
           value,
           tick: resources.time.get().step,
@@ -478,9 +478,9 @@ function destinations(
         ) {
           unlock({ resources, events }, 'throughputTitan')
         }
-        events.delivery.emit({ ...cell, value, matchedTarget, sparksEarned })
+        events.delivery.emit({ ...cell, value, intakeSide: opposite[travel], matchedTarget, sparksEarned })
         if (complete) {
-          events.complete.emit({ milestoneIndex: p.milestoneIndex, targetValue: value })
+          events.complete.emit({ milestoneIndex: p.milestoneIndex, targetValue: value, bonusSparks })
         }
         return true
       }
@@ -693,7 +693,15 @@ function productionTurns(
       if ((coverage[key(cell)] ?? 0) >= 2) {
         unlock(ctx, 'overclocked')
       }
-      ctx.events.craft.emit({ ...cell, op: b.op, a, b: second, result })
+      const firstTarget =
+        !p.craftedTargets.includes(result) &&
+        ((result === 3 && b.op === 'add') ||
+          Arr.some(milestoneFor(p).requirements, (requirement) => requirement.value === result))
+      if (firstTarget) {
+        const current = ctx.resources.progress.get()
+        ctx.resources.progress.set({ ...current, craftedTargets: [...current.craftedTargets, result] })
+      }
+      ctx.events.craft.emit({ ...cell, op: b.op, a, b: second, result, firstTarget })
     } else {
       data.building.set(e, { ...b, remainingTicks: 1 })
     }

@@ -17,6 +17,7 @@ import {
   key,
   milestone,
   milestoneFor,
+  offsets,
   rows,
   simulation,
   step,
@@ -33,6 +34,8 @@ import * as Str from 'effect/String'
 import { Application, Graphics, Point } from 'pixi.js'
 
 import { Burst, draw, createBoard, stats } from './board.ts'
+import { expansionCamera } from './camera.ts'
+import type { Camera } from './camera.ts'
 import { cloud } from './cloud.ts'
 import { editHistory } from './history.ts'
 import { element, hud } from './hud.ts'
@@ -40,7 +43,7 @@ import { inspectCell } from './inspector.ts'
 import { label, Machine, tile, oreColor } from './machines.ts'
 import { medalInfo } from './medals.ts'
 import { minimap } from './minimap.ts'
-import { starterGuide } from './onboarding.ts'
+import { combinerPorts, starterGuide } from './onboarding.ts'
 import { beltPath } from './path.ts'
 import { pinchCamera } from './pinch.ts'
 import { loadBoard, saveBoard } from './storage.ts'
@@ -80,6 +83,32 @@ let facing: Direction = 'E'
 let hovered = Option.none<Cell>()
 const ghost = board.preview.addChild(new Machine())
 const border = board.preview.addChild(new Graphics())
+const portColors = { a: 0x68_e4_f4, b: 0xff_c5_65, output: 0x87_ff_d6 }
+const portLabels = {
+  a: board.preview.addChild(label({ text: '', size: 15, fill: portColors.a })),
+  b: board.preview.addChild(label({ text: '', size: 15, fill: portColors.b })),
+  output: board.preview.addChild(label({ text: '', size: 19, fill: portColors.output })),
+}
+function previewPorts(cell: Cell, dir: Direction) {
+  const ports = combinerPorts({ cell, facing: dir })
+  for (const name of ['a', 'b', 'output'] as const) {
+    const port = ports[name]
+    const dx = (port.gx - cell.gx) * (name === 'output' ? 1 : -1)
+    const dy = (port.gy - cell.gy) * (name === 'output' ? 1 : -1)
+    const arrow = dx > 0 ? '→' : dx < 0 ? '←' : dy > 0 ? '↓' : '↑'
+    const x = (port.gx + 0.5) * tile
+    const y = (port.gy + 0.5) * tile
+    border
+      .roundRect(x - 20, y - 12, 40, 24, 6)
+      .setFillStyle({ color: 0x10_1a_24, alpha: 0.92 })
+      .fill()
+      .stroke({ color: portColors[name], width: 1.5 })
+    const marker = portLabels[name]
+    marker.text = { output: arrow, a: 'A ' + arrow, b: arrow + ' B' }[name]
+    marker.position.set(x, y)
+    marker.visible = true
+  }
+}
 function area({ start, end }: { start: Cell; end: Cell }) {
   return {
     minX: Math.min(start.gx, end.gx),
@@ -135,6 +164,9 @@ function preview() {
   if (rotateLabel.data !== facing) {
     rotateLabel.data = facing
     rotateButton.setAttribute('aria-label', 'Rotate clockwise. Facing ' + facing)
+  }
+  for (const marker of Rec.values(portLabels)) {
+    marker.visible = false
   }
   ghost.visible = false
   border.clear()
@@ -225,6 +257,9 @@ function preview() {
     ghost.tint = color
     ghost.position.set(x, y)
     ghost.visible = true
+    if (state.value.kind === 'combiner') {
+      previewPorts(hovered.value, facing)
+    }
   }
 }
 function choose(t: Tool) {
@@ -250,16 +285,33 @@ const updateHud = hud({
   buy: (u) => edit({ type: 'buyUpgrade', upgrade: u }),
 })
 let noticeTimer = 0
-function notify(message: string, milestoneBanner = false) {
-  element('notice').classList.toggle('milestone-banner', milestoneBanner)
+function notify(message: string) {
   element('notice').textContent = message
   window.clearTimeout(noticeTimer)
-  noticeTimer = window.setTimeout(
-    () => {
-      element('notice').textContent = ''
-    },
-    milestoneBanner ? 4000 : 2600
-  )
+  noticeTimer = window.setTimeout(() => {
+    element('notice').textContent = ''
+  }, 2600)
+}
+let bannerTimer = 0
+function milestoneBanner(index: number, bonus: number) {
+  const banner = element('milestone-banner')
+  element('milestone-title').textContent = 'Milestone ' + (index + 1) + ' Complete! · +' + bonus + ' ✦ Bonus'
+  element('milestone-reward').textContent =
+    index === 0 ? 'Unlocked Adder (+) & Speed Upgrades' : milestone(index).reward
+  element('quick-upgrade').hidden = index !== 0
+  banner.hidden = false
+  window.clearTimeout(bannerTimer)
+  bannerTimer = window.setTimeout(() => {
+    banner.hidden = true
+  }, 5000)
+}
+element('quick-upgrade').onclick = () => {
+  element('milestone-banner').hidden = true
+  element('workshop').setAttribute('open', '')
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    element('open-workshop').click()
+  }
+  element('show-upgrades').click()
 }
 const filterForm = element('filter-picker')
 const filterInput = document.querySelector<HTMLInputElement>('input#filter-value')
@@ -382,6 +434,7 @@ function celebrate(root = 440) {
 const hubX = (columns / 2) * tile
 const hubY = (rows / 2) * tile
 let lastDeliveryChime = -Infinity
+let deliveryNote = 0
 let lastIntake = -Infinity
 function burst(x: number, y: number, count: number, color: number, ripple: 'none' | 'intake' | 'milestone') {
   const milestoneBurst = ripple === 'milestone'
@@ -421,33 +474,45 @@ const observe = Game.Schedule(
         lastIntake = performance.now()
         const x = (delivery.gx + 0.5) * tile
         const y = (delivery.gy + 0.5) * tile
-        burst(x, y, 4, oreColor(delivery.value), 'intake')
+        const side = offsets[delivery.intakeSide]
+        const edgeX = x + (side.gx * tile) / 2
+        const edgeY = y + (side.gy * tile) / 2
+        burst(edgeX, edgeY, 4, oreColor(delivery.value), 'intake')
         if (delivery.sparksEarned > 0) {
           const gain = new Burst(0, -38, false, 720)
           gain.addChild(label({ text: '+' + delivery.sparksEarned + ' ✦', size: 18, fill: 0xff_df_88 }))
           board.fx.addChild(gain).position.set(x, y - 12)
         }
         if (delivery.matchedTarget && lastIntake - lastDeliveryChime >= 110) {
-          chime(scale[delivery.value % scale.length] ?? 440)
+          if (lastIntake - lastDeliveryChime >= 4000) {
+            deliveryNote = 0
+          }
+          chime((scale[deliveryNote % 5] ?? 440) * (deliveryNote < 5 ? 1 : 2))
+          deliveryNote = (deliveryNote + 1) % 8
           lastDeliveryChime = lastIntake
         }
       }
       for (const craft of events.craft.all()) {
-        burst((craft.gx + 0.5) * tile, (craft.gy + 0.5) * tile, 4, oreColor(craft.result), 'none')
-      }
-      const messages: Array<string> = []
-      for (const event of events.complete.all()) {
-        burst(hubX, hubY, 18, 0xff_cd_58, 'milestone')
-        celebrate()
-        const reward =
-          event.milestoneIndex === 0 ? 'Adder (+) & speed upgrades' : milestone(event.milestoneIndex).reward
-        messages.push(
-          'Milestone ' + (event.milestoneIndex + 1) + ' Complete!' + (reward.length > 0 ? ' · Unlocked ' + reward : '')
+        const color = oreColor(craft.result)
+        burst(
+          (craft.gx + 0.5) * tile,
+          (craft.gy + 0.5) * tile,
+          craft.firstTarget ? 10 : 4,
+          color,
+          craft.firstTarget ? 'intake' : 'none'
         )
+        if (craft.firstTarget) {
+          notify('First ' + craft.result + ' crafted!')
+        }
+      }
+      for (const event of events.complete.all()) {
+        burst(hubX, hubY, 20, 0xff_cd_58, 'milestone')
+        celebrate()
+        milestoneBanner(event.milestoneIndex, event.bonusSparks)
       }
       const medals = events.medal.all()
-      if (medals.length > 0) {
-        messages.push(
+      if (medals.length > 0 && events.complete.all().length === 0) {
+        notify(
           'Medal · ' +
             Arr.join(
               Arr.map(medals, (event) => medalInfo[event.medal][0]),
@@ -455,9 +520,6 @@ const observe = Game.Schedule(
             )
         )
         celebrate(523.25)
-      }
-      if (messages.length > 0) {
-        notify(Arr.join(messages, ' · '), events.complete.all().length > 0)
       }
       for (const event of events.reject.all()) {
         rejected = true
@@ -468,23 +530,40 @@ const observe = Game.Schedule(
 )
 let dirty = false
 const hint = element('starter-hint')
-const guideArrows = board.preview.addChild(new Graphics())
-const quota = milestone(0).requirements[0]?.quota ?? 12
+const hintText = element('starter-message')
+const dismissHint = element('dismiss-starter')
+const guideArrows = board.preview.addChildAt(new Graphics(), 0)
+let dismissedMilestone = Option.none<number>()
+const quota = milestone(0).requirements[0]?.quota ?? 8
 const touch = window.matchMedia('(pointer: coarse)')
+const cellOf = (node: { x: number; y: number }) => ({ gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) })
 function currentGuide() {
   if (view.p.milestoneIndex > 1) {
     return { step: 'hidden' } as const
   }
-  const vein = Arr.findFirst(board.veins.children, (node) => node.visible && node.label === '1')
-  const cell = Option.map(vein, (node) => ({ gx: Math.floor(node.x / tile), gy: Math.floor(node.y / tile) }))
+  const vein = (value: string) =>
+    Option.map(
+      Arr.findFirst(board.veins.children, (node) => node.visible && node.label === value),
+      cellOf
+    )
+  const combiners = Arr.flatMap(board.buildings.children, (node) =>
+    node.state.kind === 'combiner' ? [{ ...cellOf(node), dir: node.facing, op: node.state.op }] : []
+  )
   return starterGuide({
     p: view.p,
-    vein: cell,
+    vein: vein('1'),
+    two: vein('2'),
+    combiners,
+    dismissed: Option.contains(dismissedMilestone, view.p.milestoneIndex),
     at: board.buildingAt(view.index.buildings),
     hasThree: view.p.milestoneIndex === 1 && Arr.some(board.items.children, (item) => item.label === '3'),
   })
 }
 let guide = currentGuide()
+dismissHint.onclick = () => {
+  dismissedMilestone = Option.some(view.p.milestoneIndex)
+  animateBoard()
+}
 function starterExtractor(cell: Cell) {
   if (
     guide.step !== 'extract' ||
@@ -502,21 +581,78 @@ function starterExtractor(cell: Cell) {
   }
   return true
 }
-function animateBoard() {
-  guide = currentGuide()
+function animateBoard(updateGuide = true) {
+  if (updateGuide) {
+    guide = currentGuide()
+  }
   const message = {
     extract: '1. ' + (touch.matches ? 'Tap' : 'Click') + ' vein 1 to place Extractor',
     connect: '2. Drag belts right into the Hub',
     flowing: 'Flowing! Deliver ' + quota + ' to unlock Adder (+)',
-    recipe: 'Goal: 1 + 2 = 3 · Feed 1 into left (A) & 2 into right (B) of an Adder',
+    'mine-two': 'Mine vein 2 · Select Extractor',
+    'place-adder': 'Place an Adder (+) facing north. Feed 1 into A (left) and 2 into B (right).',
+    'back-belt': 'The back is blocked. Feed the Combiner from the left (A) and right (B).',
+    recipe: '1 + 2 = 3 · Feed the side inputs. Send the output to the Hub.',
     waiting: '',
     hidden: '',
   }[guide.step]
-  if (hint.textContent !== message) {
-    hint.textContent = message
+  if (hintText.textContent !== message) {
+    hintText.textContent = message
+    hint.hidden = message.length === 0
+    dismissHint.hidden = hint.hidden
     hint.dataset.step = guide.step
   }
   guideArrows.clear()
+  const showUpgrade =
+    view.p.milestoneIndex === 1 &&
+    guide.step !== 'hidden' &&
+    view.p.upgrades.beltSpeed === 1 &&
+    view.p.upgrades.extractorSpeed === 1 &&
+    view.p.upgrades.combinerSpeed === 1
+  element('workshop').classList.toggle('guided', showUpgrade)
+  element('open-workshop').classList.toggle('guided', showUpgrade)
+  if (guide.step === 'place-adder') {
+    for (const [cells, color] of [
+      [guide.a, portColors.a],
+      [guide.b, portColors.b],
+    ] as const) {
+      const first = cells[0]
+      if (first === undefined) {
+        continue
+      }
+      guideArrows.moveTo((first.gx + 0.5) * tile, (first.gy + 0.5) * tile)
+      for (const cell of cells.slice(1)) {
+        guideArrows.lineTo((cell.gx + 0.5) * tile, (cell.gy + 0.5) * tile)
+      }
+      guideArrows.stroke({ width: 6, color, alpha: 0.5 })
+    }
+    const x = (guide.cell.gx + 0.5) * tile,
+      y = (guide.cell.gy + 0.5) * tile
+    for (const offset of [-19, -4, 11]) {
+      guideArrows
+        .moveTo(x + offset, y - 19)
+        .lineTo(x + offset + 8, y - 19)
+        .moveTo(x + offset, y + 19)
+        .lineTo(x + offset + 8, y + 19)
+        .moveTo(x - 19, y + offset)
+        .lineTo(x - 19, y + offset + 8)
+        .moveTo(x + 19, y + offset)
+        .lineTo(x + 19, y + offset + 8)
+    }
+    guideArrows
+      .moveTo(x - 6, y)
+      .lineTo(x + 6, y)
+      .moveTo(x, y - 6)
+      .lineTo(x, y + 6)
+      .stroke({ color: portColors.output, width: 2, alpha: 0.8 })
+  }
+  if (guide.step === 'back-belt' || guide.step === 'mine-two') {
+    const cell = guide.step === 'mine-two' ? guide.vein : guide.cell
+    const pulse = 0.5 + 0.5 * Math.sin(view.tick * 0.07)
+    guideArrows
+      .circle((cell.gx + 0.5) * tile, (cell.gy + 0.5) * tile, 19 + 3 * pulse)
+      .stroke({ color: portColors.b, width: 3, alpha: 0.6 + 0.4 * pulse })
+  }
   if (guide.step === 'connect') {
     for (const cell of guide.cells) {
       const pulse = (view.tick % 45) / 45
@@ -536,7 +672,7 @@ function animateBoard() {
   board.animate(view.tick, view.p, guide.step === 'extract')
 }
 function positionGuide() {
-  if (guide.step === 'extract') {
+  if (guide.step === 'extract' || guide.step === 'mine-two') {
     const x = board.world.x + (guide.vein.gx + 0.5) * tile * board.world.scale.x
     const y = board.world.y + (guide.vein.gy - 0.25) * tile * board.world.scale.y
     hint.style.setProperty('--anchor-x', x + 'px')
@@ -546,6 +682,9 @@ function positionGuide() {
 function refresh(edited = false) {
   const previous = view
   view = runtime.inspect(stats)
+  if (previous.p.milestoneIndex !== view.p.milestoneIndex || view.p.runTicks < previous.p.runTicks) {
+    dismissedMilestone = Option.none()
+  }
   if (!edited && view.p.contractIndex > previous.p.contractIndex) {
     celebrate(392)
   }
@@ -566,12 +705,17 @@ function refresh(edited = false) {
     previous.p.boardTier !== view.p.boardTier ||
     (previous.p.milestoneIndex === 0) !== (view.p.milestoneIndex === 0)
   ) {
-    center()
+    fitBoard(view.p.boardTier > previous.p.boardTier)
   }
   if (previous.index !== view.index) {
     preview()
   }
-  animateBoard()
+  animateBoard(
+    edited ||
+      previous.p.milestoneIndex !== view.p.milestoneIndex ||
+      previous.p.craftedTargets !== view.p.craftedTargets ||
+      ((previous.p.delivered[1] ?? 0) === 0) !== ((view.p.delivered[1] ?? 0) === 0)
+  )
   inspectHover()
   dirty = true
 }
@@ -602,6 +746,8 @@ function edit(command: Command) {
       celebrate()
     }
     if (command.type === 'expandBoard') {
+      document.querySelector<HTMLDialogElement>('#workshop-sheet')?.close()
+      revealExpansion()
       notify('Workshop expanded · Ring ' + view.p.boardTier)
       celebrate(329.63)
     }
@@ -704,7 +850,22 @@ function positionMinimap() {
 }
 const popupLayout = new ResizeObserver(positionMinimap)
 popupLayout.observe(filterForm)
-function center() {
+type Reveal = { from: Camera; to: Camera; start: number }
+let reveal = Option.none<Reveal>()
+const perimeter = board.preview.addChild(new Graphics())
+function revealExpansion() {
+  const { minX, maxX, minY, maxY } = boardBounds(view.p.boardTier)
+  const w = (maxX - minX + 1) * tile
+  const h = (maxY - minY + 1) * tile
+  perimeter
+    .clear()
+    .roundRect(-w / 2, -h / 2, w, h, 8)
+    .stroke({ color: 0x8f_ff_dc, width: 10, alpha: 0.25 })
+    .roundRect(-w / 2, -h / 2, w, h, 8)
+    .stroke({ color: 0xff_df_96, width: 3 })
+  perimeter.position.set(hubX, hubY)
+}
+function fitBoard(animated: boolean) {
   map.cancelPan()
   viewport = boardViewport()
   map.invalidate()
@@ -713,11 +874,24 @@ function center() {
   positionMinimap()
   const { minX, maxX, minY, maxY } = boardBounds(view.p.boardTier)
   const scale = Math.min(w / ((maxX - minX + 1) * tile + 40), h / ((maxY - minY + 1) * tile + 40))
-  board.world.scale.set(scale)
-  board.world.position.set((w - columns * tile * scale) / 2, top + (h - rows * tile * scale) / 2)
+  const to = { scale, x: (w - columns * tile * scale) / 2, y: top + (h - rows * tile * scale) / 2 }
+  if (animated) {
+    reveal = Option.some({
+      from: { x: board.world.x, y: board.world.y, scale: board.world.scale.x },
+      to,
+      start: performance.now(),
+    })
+  } else {
+    reveal = Option.none()
+    board.world.scale.set(scale)
+    board.world.position.set(to.x, to.y)
+  }
   map.draw(view.p.boardTier)
   hovered = Option.none()
   preview()
+}
+function center() {
+  fitBoard(false)
 }
 if (window.matchMedia('(max-width:850px)').matches) {
   document.querySelector('details')?.removeAttribute('open')
@@ -751,6 +925,7 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault()
+    reveal = Option.none()
     map.cancelPan()
     const p = pointer(e),
       local = board.world.toLocal(p)
@@ -921,6 +1096,7 @@ canvas.onpointerdown = (e) => {
     return
   }
   map.cancelPan()
+  reveal = Option.none()
   canvas.setPointerCapture(e.pointerId)
   if (e.pointerType === 'touch') {
     const start = pointer(e)
@@ -989,7 +1165,11 @@ canvas.onpointerup = (e) => {
       return
     }
     if (Option.isSome(completed.cell)) {
-      beginEdit(completed.cell.value)
+      if (Option.isSome(hovered) && ghost.visible && ghost.state.kind === 'combiner') {
+        beginEdit(hovered.value)
+      } else {
+        beginEdit(completed.cell.value)
+      }
       for (const cell of completed.route) {
         extendBelt(cell)
       }
@@ -1120,12 +1300,24 @@ const loop = FixedLoop.start({
   },
   render: () => {
     const now = performance.now()
+    perimeter.visible = Option.isSome(reveal)
+    if (Option.isSome(reveal)) {
+      const elapsed = now - reveal.value.start
+      const camera = expansionCamera({ from: reveal.value.from, to: reveal.value.to, elapsed })
+      board.world.scale.set(camera.scale)
+      board.world.position.set(camera.x, camera.y)
+      perimeter.scale.set(0.7 + 0.3 * Math.min(1, elapsed / 450))
+      perimeter.alpha = 1 - Math.max(0, elapsed - 450) / 380
+      if (elapsed >= 830) {
+        reveal = Option.none()
+      }
+    }
     for (const node of board.buildings.children) {
       const t = (now - node.mounted) / 140
       const intake = (now - lastIntake) / 230
       if (node.visible && node.state.kind === 'hub' && intake < 1) {
         const pulse = Math.sin(Math.PI * intake) * (1 - intake)
-        node.scale.set(1 + pulse * 0.16, 1 - pulse * 0.1)
+        node.scale.set(1 + pulse * 0.12)
       } else if (t < 1) {
         node.scale.set(
           t < 0.68 ? 0.78 + 0.27 * Math.sin(((t / 0.68) * Math.PI) / 2) : 1.05 - (0.05 * (t - 0.68)) / 0.32

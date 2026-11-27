@@ -147,13 +147,13 @@ kbd,
   text-align: center;
   pointer-events: none;
 }
-#starter-hint[data-step="extract"] {
+#starter-hint:is([data-step="extract"], [data-step="mine-two"]) {
   left: clamp(min(45vw, 140px), var(--anchor-x), calc(100vw - min(45vw, 140px)));
   top: var(--anchor-y);
   bottom: auto;
   transform: translate(-50%, -100%);
 }
-#starter-hint[data-step="extract"]::after {
+#starter-hint:is([data-step="extract"], [data-step="mine-two"])::after {
   content: "";
   position: absolute;
   left: clamp(10px, calc(50% + var(--anchor-x) - clamp(min(45vw, 140px), var(--anchor-x), 100vw - min(45vw, 140px))), 95%);
@@ -165,8 +165,26 @@ kbd,
   border: solid #538c80;
   border-width: 0 1px 1px 0;
 }
-#starter-hint:empty {
+#starter-hint[hidden], .upgrade-ready {
   display: none;
+}
+.guided.affordable .upgrade-ready {
+  display: inline;
+  color: var(--gold);
+  font-size: 11px;
+}
+#open-workshop .upgrade-ready {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: max-content;
+  padding: 2px 5px;
+  background: #17232b;
+  border-radius: 4px;
+}
+#dismiss-starter {
+  margin-left: 8px;
+  pointer-events: auto;
 }
 .requirement progress {
   grid-column: 1/-1;
@@ -681,8 +699,7 @@ summary {
   #more-actions button { justify-content: start; padding: 5px 12px; border: 0; }
   #roadmap { top: var(--drawer-top, 54px); left: max(5px, env(safe-area-inset-left)); }
   #workshop-sheet { background: transparent; color: inherit; border: 0; }
-  #workshop-sheet[open] { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; margin: 0; }
-  #workshop-sheet::backdrop { background: #04090dbd; }
+  #workshop-sheet[open] { position: fixed; z-index: 5; pointer-events: none; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; margin: 0; }
   #workshop {
     inset: auto 0 0;
     width: 100%;
@@ -712,7 +729,7 @@ summary {
   }
   #dock span { grid-column: 1; font-size: 10px; }
   #rotate { pointer-events: auto; background: #233139; color: var(--gold); border: 1px solid var(--line); border-radius: 9px; font-size: 10px; }
-  #starter-hint:not([data-step="extract"]) { bottom: calc(98px + env(safe-area-inset-bottom)); }
+  #starter-hint:not([data-step="extract"], [data-step="mine-two"]) { bottom: calc(98px + env(safe-area-inset-bottom)); }
   #inspector { bottom: calc(62px + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 639.98px) {
@@ -733,6 +750,7 @@ summary {
   #open-workshop.affordable::after, #workshop.affordable > summary::after {
     animation: upgrade-pulse 1.6s ease-in-out infinite alternate;
   }
+  .guided.affordable .upgrade-ready { animation: upgrade-pulse 1.6s ease-in-out infinite alternate; }
   #workshop-sheet[open] #workshop { animation: sheet-open 180ms ease-out; }
   @keyframes sheet-open { from { transform: translateY(30px); opacity: 0.5; } }
   @keyframes upgrade-pulse { to { box-shadow: 0 0 8px 2px #f9c16c; } }

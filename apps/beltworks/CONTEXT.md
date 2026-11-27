@@ -9,7 +9,7 @@ The 2 × 2 Hub occupies columns 17 and 18 and rows 12 and 13. Buildings and belt
 | Workshop | Size | Completed milestone | Expansion cost | New supply |
 | --- | --- | --- | --- | --- |
 | Starter | 12 × 10 | None | Free | One cell each of 1 and 2 |
-| Ring 1 | 18 × 14 | 2 | 35 Sparks and 25 threes | 3 and 4 pairs, extra 1 and 2 |
+| Ring 1 | 18 × 14 | 2 | 35 Sparks and 15 threes | 3 and 4 pairs, extra 1 and 2 |
 | Ring 2 | 26 × 20 | 4 | 180 Sparks and 60 sevens | 5, 6 and 7 clusters, extra low numbers |
 | Full Foundry | 36 × 26 | 6 | 650 Sparks, 120 twelves and 80 twenty-fours | 4, 5, 7, 8 and 9 clusters |
 
@@ -33,8 +33,8 @@ The Vault keeps delivered 1, 3, 7, 12, 24, 37, 48, 72, 96 and 128. It also keeps
 
 | Mission | Quota | Minimum items/min | Reward |
 | --- | --- | --- | --- |
-| M1 | 12 × 1 | | Adder and speed upgrades |
-| M2 | 35 × 3 | | Splitter, amplifier and Ring 1 |
+| M1 | 8 × 1 | | Adder and speed upgrades |
+| M2 | 18 × 3 | | Splitter, amplifier and Ring 1 |
 | M3 | 75 × 7 | | Tunnel, extractor surge and side contracts |
 | M4 | 140 × 12 | 25 | Multiplier and Ring 2 |
 | M5 | 260 × 24 | 45 | Smart number filter and buffer silo |
@@ -42,6 +42,8 @@ The Vault keeps delivered 1, 3, 7, 12, 24, 37, 48, 72, 96 and 128. It also keeps
 | M7 | 500 × 48 and 300 × 12 | 30 and 35 | Overclock beacon and +25% efficiency |
 | M8 | 700 × 72 and 400 × 24 | 90 and 45 | Divider, ascension and +25% efficiency |
 | M9 | 1,000 × 96 and 500 × 37 | 120 and 60 | +30% efficiency |
+
+M1 through M5 award 12, 25, 50, 100 and 150 bonus Sparks. Each later milestone awards 50 more Sparks than the previous milestone. The bonus is fixed across mutators and upgrades.
 
 Each quota counts deliveries since the mission began. At completion, every quota and every rate gate must hold at the same time. Removing a building restarts both mission rate counts. Quotas and Vault income retain their delivery history. From M10 the Hub asks for two values with rising quotas and rate gates. Each completion adds 15 percentage points to foundry efficiency.
 

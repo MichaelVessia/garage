@@ -7,19 +7,32 @@ import type { BoardTier, initial, MetaUpgradeKey, Mutator, Upgrade } from './mod
 
 type State = typeof initial
 type Requirement = { readonly value: number; readonly quota: number; readonly minRatePerMin?: number }
-type Mission = { readonly requirements: ReadonlyArray<Requirement>; readonly reward: string }
+type Mission = {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly reward: string
+  readonly completionSparks: number
+}
 const missions: ReadonlyArray<Mission> = [
-  { requirements: [{ value: 1, quota: 12 }], reward: 'Adder & speed upgrades' },
-  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Hub amplifier & Ring 1' },
-  { requirements: [{ value: 7, quota: 75 }], reward: 'Tunnel, contracts & extractor surge' },
-  { requirements: [{ value: 12, quota: 140, minRatePerMin: 25 }], reward: 'Multiplier & Ring 2' },
-  { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], reward: 'Filter & Buffer' },
-  { requirements: [{ value: 37, quota: 420, minRatePerMin: 60 }], reward: 'Subtractor, Trash & Full Foundry' },
+  { requirements: [{ value: 1, quota: 8 }], completionSparks: 12, reward: 'Adder & speed upgrades' },
+  { requirements: [{ value: 3, quota: 18 }], completionSparks: 25, reward: 'Splitter, Hub amplifier & Ring 1' },
+  { requirements: [{ value: 7, quota: 75 }], completionSparks: 50, reward: 'Tunnel, contracts & extractor surge' },
+  {
+    requirements: [{ value: 12, quota: 140, minRatePerMin: 25 }],
+    completionSparks: 100,
+    reward: 'Multiplier & Ring 2',
+  },
+  { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], completionSparks: 150, reward: 'Filter & Buffer' },
+  {
+    requirements: [{ value: 37, quota: 420, minRatePerMin: 60 }],
+    completionSparks: 200,
+    reward: 'Subtractor, Trash & Full Foundry',
+  },
   {
     requirements: [
       { value: 48, quota: 500, minRatePerMin: 30 },
       { value: 12, quota: 300, minRatePerMin: 35 },
     ],
+    completionSparks: 250,
     reward: 'Beacon & +25% foundry efficiency',
   },
   {
@@ -27,6 +40,7 @@ const missions: ReadonlyArray<Mission> = [
       { value: 72, quota: 700, minRatePerMin: 90 },
       { value: 24, quota: 400, minRatePerMin: 45 },
     ],
+    completionSparks: 300,
     reward: 'Divider, ascension & +25% foundry efficiency',
   },
   {
@@ -34,6 +48,7 @@ const missions: ReadonlyArray<Mission> = [
       { value: 96, quota: 1000, minRatePerMin: 120 },
       { value: 37, quota: 500, minRatePerMin: 60 },
     ],
+    completionSparks: 350,
     reward: '+30% foundry efficiency',
   },
 ]
@@ -44,6 +59,7 @@ export function milestone(index: number): Mission {
   }
   const n = index - 9
   return {
+    completionSparks: 400 + 50 * n,
     requirements: [
       { value: [128, 144][n] ?? 180 + 36 * (n - 2), quota: 1300 + 350 * n, minRatePerMin: Math.min(900, 150 + 15 * n) },
       { value: [48, 72, 96][n % 3] ?? 48, quota: 600 + 100 * n, minRatePerMin: Math.min(400, 75 + 10 * n) },
@@ -109,7 +125,7 @@ export function upgradeCost(level: number): Cost {
 }
 export const expansionCost = (level: BoardTier): Cost =>
   [
-    { sparks: 35, stock: { 3: 25 } },
+    { sparks: 35, stock: { 3: 15 } },
     { sparks: 180, stock: { 7: 60 } },
     { sparks: 650, stock: { 12: 120, 24: 80 } },
   ][level] ?? { sparks: Infinity, stock: {} }
@@ -179,6 +195,7 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
         (delivered[r.value] ?? 0) >= r.quota &&
         missionRate({ p, value: r.value }) + Number(r.value === value) >= (r.minRatePerMin ?? 0)
     )
+  const bonusSparks = complete ? mission.completionSparks : 0
   const paid = side && p.contractDelivered + 1 >= contract.quota
   const base = matchedTarget ? value * amplifier(p.upgrades.hubValue) : Number(tracked)
   const jackpot = 1 + 0.4 * p.meta.metaUpgrades.contractMastery
@@ -202,7 +219,7 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
         : p.meta,
     sparkCents: cents % 100,
     totalDelivered: p.totalDelivered + 1,
-    sparks: p.sparks + sparksEarned,
+    sparks: p.sparks + sparksEarned + bonusSparks,
     delivered: complete ? {} : delivered,
     milestoneIndex: p.milestoneIndex + Number(complete),
     vaultRemainders:
@@ -224,5 +241,5 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
     rateByValue,
     deliveryWindow: tracked ? [...p.deliveryWindow, { tick, value }] : p.deliveryWindow,
   }
-  return { next, complete, matchedTarget, sparksEarned }
+  return { next, complete, matchedTarget, sparksEarned, bonusSparks }
 }

@@ -277,12 +277,13 @@ export function hud({
     if (latest.milestoneIndex === 0 && panel === 'upgrade') {
       selectPanel('vault')
     }
-    sheet.showModal()
+    sheet.show()
     element('close-workshop').focus()
   }
   element('close-workshop').onclick = () => sheet.close()
-  sheet.onclick = (event) => {
-    if (event.target === sheet) {
+  sheet.onkeydown = (event) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
       sheet.close()
     }
   }
