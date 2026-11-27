@@ -300,6 +300,36 @@ it('replays commands and resumes a JSON save with a queued command', () => {
     }).ok
   )
 })
+it('keeps the input turn and earned medal when loading an old junction', () => {
+  const r = createRuntime(0)
+  place(r, belt(16))
+  r.tick(applyEdits)
+  const save = exportSave(r)
+  const { p, index } = r.inspect(state)
+  const { bestRunTicks: _time, ...meta } = p.meta
+  const loaded = createRuntimeFromSave({
+    ...save,
+    entities: Arr.map(save.entities, (entity) => {
+      const components = entity.components
+      return entity.id === index.buildings['16,12']
+        ? { ...entity, components: { ...components, 'Beltworks/Building': { kind: 'merger', nextInput: 2 } } }
+        : entity
+    }),
+    resources: {
+      ...save.resources,
+      'Beltworks/Progression': {
+        ...p,
+        meta: { ...meta, medals: ['blueprintArchitect'] },
+      },
+    },
+  })
+  if (!loaded.ok) {
+    throw new Error('Legacy junction restore failed')
+  }
+  const board = loaded.value.inspect(state)
+  assert.deepInclude(board.buildings, { kind: 'belt', nextInput: 2 })
+  assert.deepEqual(board.p.meta.medals, ['contractRunner'])
+})
 it('restores a save that predates medals', () => {
   const r = createRuntime(2)
   const saved = exportSave(r)
@@ -471,33 +501,6 @@ it('clears a box and then the floor without changing deposits or progression', (
   assert.deepEqual(after.p, before.p)
   assert.deepEqual(after.index.veins, before.index.veins)
   assert.isTrue(createRuntimeFromSave(exportSave(r)).ok)
-})
-
-it('stamps available cells and starts new machines with empty buffers', () => {
-  const r = createRuntime(0)
-  grant(r, 5)
-  place(r, {
-    type: 'stampBlueprint',
-    originX: 13,
-    originY: 12,
-    entries: [
-      { dx: -2, dy: 0, kind: 'belt', dir: 'E' },
-      { dx: 4, dy: 0, kind: 'belt', dir: 'E' },
-      { dx: 1, dy: 0, kind: 'extractor', dir: 'E' },
-      { dx: 2, dy: 0, kind: 'beacon', dir: 'E' },
-      { dx: 0, dy: 0, kind: 'extractor', dir: 'E' },
-      { dx: 0, dy: 0, kind: 'belt', dir: 'W' },
-      { dx: 0, dy: 1, kind: 'combiner', dir: 'S', op: 'mul' },
-      { dx: 1, dy: 1, kind: 'filter', dir: 'W', targetValue: 0 },
-    ],
-  })
-  r.tick(applyEdits)
-  const { buildings, index } = r.inspect(state)
-  assert.lengthOf(buildings, 7)
-  assert.containsAllKeys(index.buildings, ['13,12', '13,13', '14,13'])
-  assert.deepInclude(buildings, { kind: 'filter', targetValue: 0 })
-  assert.deepInclude(buildings, { kind: 'extractor', remainingTicks: 0, surgeCount: 0, bonusPending: false })
-  assert.isTrue(Arr.some(buildings, (b) => b.kind === 'combiner' && b.op === 'mul'))
 })
 
 it('routes filter cargo from the rear and keeps blocked cargo on the filter', () => {
@@ -678,7 +681,7 @@ it('moves cargo and extracts faster in High Velocity', () => {
   }
 })
 
-it.each([false, true])('rotates saturated merger inputs with rear intake active = %s', (rearActive) => {
+it.each([false, true])('rotates saturated belt junction inputs with rear intake active = %s', (rearActive) => {
   let r = createRuntime(0)
   grant(r, 2)
   const left = { gx: 16, gy: 11, value: 1 }
@@ -686,7 +689,7 @@ it.each([false, true])('rotates saturated merger inputs with rear intake active 
   const right = { gx: 16, gy: 13, value: 3 }
   place(
     r,
-    { type: 'placeBuilding', kind: 'merger', gx: 16, gy: 12, dir: 'E' },
+    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 12, dir: 'E' },
     { type: 'placeBuilding', kind: 'belt', ...right, dir: 'N' },
     belt(back.gx),
     { type: 'placeBuilding', kind: 'belt', ...left, dir: 'S' }
@@ -760,13 +763,13 @@ it('stores 24 matching values, blocks other values and drains one item per belt 
   )
 })
 
-it('gives a direct extractor and a waiting belt alternating merger turns', () => {
+it('gives a direct extractor and a waiting belt alternating belt junction turns', () => {
   const r = createRuntime(0)
   grant(r)
   place(
     r,
     extractor,
-    { type: 'placeBuilding', kind: 'merger', gx: 14, gy: 12, dir: 'N' },
+    { type: 'placeBuilding', kind: 'belt', gx: 14, gy: 12, dir: 'N' },
     { type: 'placeBuilding', kind: 'trash', gx: 14, gy: 11, dir: 'S' },
     { type: 'placeBuilding', kind: 'belt', gx: 14, gy: 13, dir: 'N' }
   )

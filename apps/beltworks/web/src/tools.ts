@@ -4,7 +4,6 @@ import * as Option from 'effect/Option'
 
 export const tools = [
   { id: 'select', name: 'Select', key: 'Esc', path: 'M4 3l5 16 3-6 6-3z', unlock: 0 },
-  { id: 'blueprint', name: 'Blueprint', key: 'B', path: 'M3 4h16v14H3z M6 7h5v5H6z M12 12h4v3h-4z', unlock: 0 },
   { id: 'erase', name: 'Erase', key: 'X', path: 'M3 13l10-10 7 7-10 10H8z M7 9l7 7', unlock: 0 },
   { id: 'belt', name: 'Belt', key: '1', path: 'M2 5h18v12H2z M6 8l3 3-3 3m6-6 3 3-3 3', unlock: toolUnlock.belt },
   {
@@ -20,13 +19,6 @@ export const tools = [
     key: '4',
     path: 'M10 20v-6L4 8V3m8 17v-6l6-6V3M2 5l2-2 2 2m10 0 2-2 2 2',
     unlock: toolUnlock.splitter,
-  },
-  {
-    id: 'merger',
-    name: 'Merger',
-    key: 'M',
-    path: 'M2 12h4l5-5 5 5h4M11 20V3m-3 3 3-3 3 3M2 9v6m18-6v6m-12 5h6',
-    unlock: toolUnlock.merger,
   },
   {
     id: 'tunnel',
@@ -110,7 +102,7 @@ export function tunnelPreview({ cell, facing, at }: { cell: Cell; facing: Direct
       : undefined
   return { kind: 'tunnelIn', partner } as const
 }
-type PlacementTool = Exclude<Tool, 'blueprint' | 'tunnel'> | 'tunnelIn' | 'tunnelOut'
+type PlacementTool = Exclude<Tool, 'tunnel'> | 'tunnelIn' | 'tunnelOut'
 export const placement =
   (tool: PlacementTool) =>
   ({ cell, dir, targetValue = 1 }: { cell: Cell; dir: Direction; targetValue?: number }): Command => {
@@ -147,8 +139,6 @@ export function ghostState({
       return Option.some({ kind: tool, fuelTicks: 0 })
     case 'extractor':
       return Option.some({ kind: tool, remainingTicks: 0, surgeCount: 0, bonusPending: false })
-    case 'merger':
-      return Option.some({ kind: tool, nextInput: 0 })
     case 'buffer':
       return Option.some({ kind: tool, count: 0, storedValue: Option.none<number>() })
     case 'splitter':

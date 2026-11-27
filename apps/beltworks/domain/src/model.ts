@@ -41,7 +41,6 @@ export const toolUnlock = {
   extractor: 0,
   add: 1,
   splitter: 2,
-  merger: 2,
   buffer: 5,
   tunnelIn: 3,
   tunnelOut: 3,
@@ -87,8 +86,8 @@ const port = S.Literals([0, 1])
 const building = S.Union([
   S.Struct({ kind: S.Literal('hub') }),
   S.Struct({ kind: S.Literal('extractor'), remainingTicks: S.Finite, surgeCount: natural, bonusPending: S.Boolean }),
-  S.Struct({ kind: S.Literals(['belt', 'tunnelIn', 'tunnelOut']) }),
-  S.Struct({ kind: S.Literal('merger'), nextInput: S.Literals([0, 1, 2]) }),
+  S.Struct({ kind: S.Literals(['tunnelIn', 'tunnelOut']) }),
+  S.Struct({ kind: S.Literal('belt'), nextInput: S.optionalKey(S.Literals([0, 1, 2])) }),
   S.Struct({
     kind: S.Literal('buffer'),
     storedValue: S.Option(natural),
@@ -130,7 +129,7 @@ export const medalIds = [
   'multiLine',
   'underground',
   'overclocked',
-  'blueprintArchitect',
+  'contractRunner',
   'throughputTitan',
   'ascended',
   'primeEngineer',
@@ -206,25 +205,17 @@ export const initial: typeof progression.Type = {
 }
 const commandCell = { gx: S.Finite, gy: S.Finite }
 const placement = {
-  kind: S.Literals(['extractor', 'belt', 'splitter', 'merger', 'buffer', 'trash', 'tunnelIn', 'tunnelOut', 'beacon']),
+  kind: S.Literals(['extractor', 'belt', 'splitter', 'buffer', 'trash', 'tunnelIn', 'tunnelOut', 'beacon']),
   dir: direction,
 }
 const combinerPlacement = { kind: S.Literal('combiner'), op, dir: direction }
 const filterPlacement = { kind: S.Literal('filter'), targetValue: S.optionalKey(natural), dir: direction }
-const offset = { dx: S.Int, dy: S.Int }
-export const blueprintEntry = S.Union([
-  S.Struct({ ...offset, ...placement }),
-  S.Struct({ ...offset, ...combinerPlacement }),
-  S.Struct({ ...offset, ...filterPlacement }),
-])
-export type BlueprintEntry = typeof blueprintEntry.Type
 const placeCell = { type: S.Literal('placeBuilding'), ...commandCell }
 const command = S.Union([
   S.Struct({ ...placeCell, ...placement }),
   S.Struct({ ...placeCell, ...combinerPlacement }),
   S.Struct({ ...placeCell, ...filterPlacement }),
   S.Struct({ type: S.Literal('setFilter'), ...commandCell, targetValue: natural }),
-  S.Struct({ type: S.Literal('stampBlueprint'), originX: S.Int, originY: S.Int, entries: S.Array(blueprintEntry) }),
   S.Struct({ type: S.Literal('removeBuilding'), ...commandCell }),
   S.Struct({ type: S.Literal('rotateBuilding'), ...commandCell }),
   S.Struct({ type: S.Literal('buyUpgrade'), upgrade }),

@@ -83,7 +83,7 @@ it('keeps the run timer, best finish and medals when undo restores an earlier fa
         resources.p.set({
           ...p,
           runTicks: 120,
-          meta: { ...p.meta, bestRunTicks: Option.some(90), medals: ['blueprintArchitect'] },
+          meta: { ...p.meta, bestRunTicks: Option.some(90), medals: ['contractRunner'] },
         })
       })
     )
@@ -98,5 +98,5 @@ it('keeps the run timer, best finish and medals when undo restores an earlier fa
   )
   assert.equal(current.runTicks, 120)
   assert.deepEqual(current.meta.bestRunTicks, Option.some(90))
-  assert.deepEqual(current.meta.medals, ['blueprintArchitect'])
+  assert.deepEqual(current.meta.medals, ['contractRunner'])
 })

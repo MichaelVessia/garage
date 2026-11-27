@@ -7,7 +7,7 @@ export const medalInfo = {
   multiLine: ['Multi-line', 'Deliver 3 values at 10/min each.'],
   underground: ['Underground', 'Move cargo through a tunnel.'],
   overclocked: ['Overclocked', 'Produce with two fueled beacons.'],
-  blueprintArchitect: ['Architect', 'Stamp 6 buildings at once.'],
+  contractRunner: ['Contract Runner', 'Complete 3 side contracts.'],
   throughputTitan: ['Throughput titan', 'Deliver 150 mission items/min.'],
   ascended: ['Ascended', 'Ascend for the first time.'],
   primeEngineer: ['Prime engineer', 'Ascend in either bonus mode.'],

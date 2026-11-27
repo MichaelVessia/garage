@@ -10,7 +10,7 @@ type Requirement = { readonly value: number; readonly quota: number; readonly mi
 type Mission = { readonly requirements: ReadonlyArray<Requirement>; readonly reward: string }
 const missions: ReadonlyArray<Mission> = [
   { requirements: [{ value: 1, quota: 15 }], reward: 'Adder & speed upgrades' },
-  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Merger, Hub amplifier & Ring 1' },
+  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Hub amplifier & Ring 1' },
   { requirements: [{ value: 7, quota: 75 }], reward: 'Tunnel, contracts & extractor surge' },
   { requirements: [{ value: 12, quota: 140, minRatePerMin: 25 }], reward: 'Multiplier & Ring 2' },
   { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], reward: 'Filter & Buffer' },

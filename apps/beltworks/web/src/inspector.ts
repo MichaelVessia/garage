@@ -79,8 +79,6 @@ export function inspectCell({
       return 'Filter · ' + state.targetValue + ' straight · Other values to the side'
     case 'beacon':
       return 'Beacon · ' + (state.fuelTicks > 0 ? Math.ceil(state.fuelTicks / 60) + ' s of fuel' : 'Needs fuel ≥ 2')
-    case 'merger':
-      return 'Merger · Next input: ' + ['Left', 'Back', 'Right'][state.nextInput]
     case 'buffer':
       return (
         'Buffer Silo · ' +

@@ -189,8 +189,6 @@ const newBuilding = (cmd: Placement, p: typeof initial): BuildingState => {
       return { kind: cmd.kind, fuelTicks: 0 }
     case 'filter':
       return { kind: cmd.kind, targetValue: cmd.targetValue ?? milestoneFor(p).requirements[0]?.value ?? 1 }
-    case 'merger':
-      return { kind: cmd.kind, nextInput: 0 }
     case 'buffer':
       return { kind: cmd.kind, storedValue: Option.none<number>(), count: 0 }
     case 'splitter':
@@ -363,21 +361,6 @@ export const processCommands = System(
         }
         continue
       }
-      if (cmd.type === 'stampBlueprint') {
-        let placed = 0
-        for (const entry of cmd.entries) {
-          if (
-            place({ ...entry, type: 'placeBuilding', gx: cmd.originX + entry.dx, gy: cmd.originY + entry.dy }) ===
-            undefined
-          ) {
-            placed++
-          }
-        }
-        if (placed >= 6) {
-          unlock({ resources, events }, 'blueprintArchitect')
-        }
-        continue
-      }
       const k = key(cmd)
       const e = existing[k]
       const staged = pending[k]
@@ -476,6 +459,9 @@ function destinations(
           tick: resources.time.get().step,
         })
         resources.progress.set(next)
+        if (next.contractIndex >= 3) {
+          unlock({ resources, events }, 'contractRunner')
+        }
         if (complete && p.milestoneIndex === 0) {
           unlock({ resources, events }, 'firstDelivery')
         }
@@ -508,13 +494,13 @@ function destinations(
         }
         data.building.set(target, { ...b, count: b.count + 1, storedValue: Option.some(value) })
         return true
-      case 'merger': {
+      case 'belt': {
         clearTile(cell)
         if (travel === opposite[facing] || resources.index.get().items[k] !== undefined) {
           return false
         }
         const inputs = [counterClockwise[facing], opposite[facing], clockwise[facing]] as const
-        let port = b.nextInput
+        let port = b.nextInput ?? 0
         while (inputs[port] !== opposite[travel]) {
           const side = inputs[port]
           tryInput(neighbor(side)(cell), opposite[side])
@@ -524,7 +510,9 @@ function destinations(
           port = nextInput[port]
         }
         move(cell, opposite[travel])
-        data.building.set(target, { ...b, nextInput: nextInput[port] })
+        if (b.nextInput !== nextInput[port]) {
+          data.building.set(target, { ...b, nextInput: nextInput[port] })
+        }
         return true
       }
       case 'beacon':

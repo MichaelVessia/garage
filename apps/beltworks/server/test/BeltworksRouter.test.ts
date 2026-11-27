@@ -126,7 +126,9 @@ it.effect('saves, advances and shares a factory without credentials', () =>
     assert.isAbove(after.deliveredDelta, 0)
     assert.equal(p.contractIndex, 8)
     assert.equal(p.contractDelivered, 0)
-    assert.equal(after.sparksEarned, after.deliveredDelta + contract.sparks)
+    assert.include(p.meta.medals, 'contractRunner')
+    const medalBonus = Math.floor(((after.deliveredDelta - 1) * 3) / 100)
+    assert.equal(after.sparksEarned, after.deliveredDelta + contract.sparks + medalBonus)
     assert.equal(p.vault[3], after.deliveredDelta + contract.stock)
     const again = yield* request(path).pipe(Effect.flatMap(json), Effect.flatMap(progress))
     assert.equal(again.offlineTicks, 0)
@@ -158,19 +160,12 @@ it.effect('shares and advances an ascended v7 factory with a fueled beacon', () 
         )
       )
     )
-    enqueue({
-      type: 'stampBlueprint',
-      originX: 18,
-      originY: 14,
-      entries: [
-        { dx: 0, dy: 0, kind: 'combiner', op: 'div', dir: 'N' },
-        { dx: 1, dy: 0, kind: 'beacon', dir: 'W' },
-        { dx: 2, dy: 0, kind: 'filter', targetValue: 2, dir: 'W' },
-        { dx: 3, dy: 0, kind: 'belt', dir: 'W' },
-        { dx: 0, dy: 1, kind: 'merger', dir: 'W' },
-        { dx: 1, dy: 1, kind: 'buffer', dir: 'N' },
-      ],
-    })(board)
+    enqueue({ type: 'placeBuilding', gx: 18, gy: 14, kind: 'combiner', op: 'div', dir: 'N' })(board)
+    enqueue({ type: 'placeBuilding', gx: 19, gy: 14, kind: 'beacon', dir: 'W' })(board)
+    enqueue({ type: 'placeBuilding', gx: 20, gy: 14, kind: 'filter', targetValue: 2, dir: 'W' })(board)
+    enqueue({ type: 'placeBuilding', gx: 21, gy: 14, kind: 'belt', dir: 'W' })(board)
+    enqueue({ type: 'placeBuilding', gx: 18, gy: 15, kind: 'belt', dir: 'W' })(board)
+    enqueue({ type: 'placeBuilding', gx: 19, gy: 15, kind: 'buffer', dir: 'N' })(board)
     enqueue({ type: 'placeBuilding', kind: 'extractor', dir: 'S', gx: 21, gy: 13 })(board)
     board.tick(applyEdits)
     const start = catchUp({ runtime: board, elapsedMs: 5000 }).save
@@ -181,7 +176,7 @@ it.effect('shares and advances an ascended v7 factory with a fueled beacon', () 
         ({ queries }) => Array.from(queries.machines.each(), (e) => queries.machines.data.building.get(e))
       )
     )
-    assert.isTrue(Arr.some(states, (s) => s.kind === 'merger'))
+    assert.isTrue(Arr.some(states, (s) => s.kind === 'belt'))
     assert.isTrue(Arr.some(states, (s) => s.kind === 'buffer'))
     assert.includeDeepMembers(states, [{ kind: 'filter', targetValue: 2 }])
     assert.isTrue(Arr.some(states, (s) => s.kind === 'combiner' && s.op === 'div'))
@@ -208,6 +203,6 @@ it.effect('shares and advances an ascended v7 factory with a fueled beacon', () 
     )
     assert.equal(progression.runTicks, 600)
     assert.equal(progression.meta.ascensions, 1)
-    assert.includeMembers([...progression.meta.medals], ['ascended', 'blueprintArchitect'])
+    assert.includeMembers([...progression.meta.medals], ['ascended'])
   }).pipe(Effect.provide(Layer.merge(memory, SecureRandom.layerWebCrypto)))
 )

@@ -1,4 +1,6 @@
 import { Clock, Result } from '@typeonce/ritmo'
+import * as Arr from 'effect/Array'
+import * as Predicate from 'effect/Predicate'
 import * as ER from 'effect/Result'
 import * as S from 'effect/Schema'
 
@@ -87,21 +89,36 @@ export function createRuntimeFromSave(save: unknown) {
   const runtime = blank()
   const snapshot = decoded.success
   const progress = snapshot.resources['Beltworks/Progression']
-  const restored = runtime.restore(
-    'meta' in progress
-      ? snapshot
-      : {
-          ...snapshot,
-          resources: {
-            ...snapshot.resources,
-            'Beltworks/Progression': {
-              ...progress,
-              vaultRemainders: {},
-              meta: { ...initialMeta, seed: progress.seed },
-            },
+  const meta = progress.meta
+  const normalizedProgress = !('meta' in progress)
+    ? { ...progress, vaultRemainders: {}, meta: { ...initialMeta, seed: progress.seed } }
+    : Predicate.hasProperty(meta, 'medals') && Arr.isArray(meta.medals) && meta.medals.includes('blueprintArchitect')
+      ? {
+          ...progress,
+          meta: {
+            ...meta,
+            medals: Arr.map(meta.medals, (id) => (id === 'blueprintArchitect' ? 'contractRunner' : id)),
           },
         }
-  )
+      : progress
+  const restored = runtime.restore({
+    ...snapshot,
+    entities: Arr.map(snapshot.entities, (entity) => {
+      const building = entity.components['Beltworks/Building']
+      return Predicate.hasProperty(building, 'kind') && building.kind === 'merger'
+        ? { ...entity, components: { ...entity.components, 'Beltworks/Building': { ...building, kind: 'belt' } } }
+        : entity
+    }),
+    resources: {
+      ...snapshot.resources,
+      'Beltworks/Progression': normalizedProgress,
+      'Beltworks/CommandQueue': Arr.filterMap(snapshot.resources['Beltworks/CommandQueue'], (cmd) =>
+        cmd.type === 'stampBlueprint'
+          ? ER.failVoid
+          : ER.succeed(cmd.type === 'placeBuilding' && cmd.kind === 'merger' ? { ...cmd, kind: 'belt' } : cmd)
+      ),
+    },
+  })
   if (!restored.ok) {
     return restored
   }

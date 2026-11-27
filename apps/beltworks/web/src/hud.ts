@@ -305,7 +305,7 @@ export function hud({
     previousSparks = p.sparks
     element('sparks').textContent = p.sparks.toLocaleString('en-US')
     for (const { t, button } of dock) {
-      button.hidden = p.milestoneIndex < t.unlock || (t.id === 'blueprint' && p.milestoneIndex === 0)
+      button.hidden = p.milestoneIndex < t.unlock
       button.setAttribute('aria-pressed', String(t.id === tool))
     }
     const showAscend = p.milestoneIndex >= 7 || p.meta.ascensions > 0

@@ -422,16 +422,14 @@ it('awards medals at the third active line and the combined mission rate', () =>
   assert.equal(readProgress(r).sparks - before.sparks, 106)
 })
 
-it('counts only buildings placed in one blueprint stamp', () => {
-  const r = hubLine(0)
-  const entries = Arr.makeBy(6, (dx) => ({ dx, dy: 0, kind: 'belt' as const, dir: 'E' as const }))
-  const stamp = { type: 'stampBlueprint' as const, originX: 13, originY: 12, entries }
-  place(r, stamp)
-  r.tick(applyEdits)
-  assert.deepEqual(readProgress(r).meta.medals, [])
-  place(r, { ...stamp, originY: 10 })
-  r.tick(applyEdits)
-  assert.deepEqual(readProgress(r).meta.medals, ['blueprintArchitect'])
+it('awards Contract Runner on the third completed contract', () => {
+  const r = hubLine(3)
+  setProgress(r, { contractIndex: 2 })
+  const offer = sideContract(0, 2)
+  deliver(r, offer.value, offer.quota - 1)
+  assert.notInclude(readProgress(r).meta.medals, 'contractRunner')
+  deliver(r, offer.value)
+  assert.include(readProgress(r).meta.medals, 'contractRunner')
 })
 
 const hasFueledBeacon = Game.Inspector(

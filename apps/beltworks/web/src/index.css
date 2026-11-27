@@ -507,32 +507,6 @@ summary {
   background: #22313a;
 }
 
-#blueprint-bar {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #111e26;
-  pointer-events: auto;
-  font-size: 12px;
-}
-#blueprint-bar span {
-  display: inline-flex;
-  background: #23343c;
-  border-radius: 5px;
-}
-#blueprint-bar button { padding: 4px 6px; }
-#blueprint-bar button + button { color: var(--mint); border-left: 1px solid var(--line); }
 
 
 #mutators {
@@ -572,7 +546,6 @@ summary {
 #ascend-panel .upgrade #payout,
 #ascend-panel .upgrade strong:nth-of-type(2),
 #ascend-panel .upgrade span:not(.level) { grid-column: 1/-1; grid-row: auto; }
-body:has(#blueprint-bar:not([hidden])) #inspector { visibility: hidden; }
 
 .recipe-button, .upgrade .recipe-button {
   margin-left: 4px; padding: 0 4px; border-radius: 50%; font-size: 11px;

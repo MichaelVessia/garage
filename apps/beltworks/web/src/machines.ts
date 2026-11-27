@@ -97,6 +97,10 @@ export class Machine extends Container {
   state: BuildingState = { kind: 'belt' }
   facing: Direction = 'N'
   update(state: BuildingState, dir: Direction, ore = '') {
+    if (this.label === 'belt' && state.kind === 'belt' && this.facing === dir) {
+      this.state = state
+      return
+    }
     this.facing = dir
     this.label = state.kind
     this.state = state
@@ -177,15 +181,6 @@ export class Machine extends Container {
           g.ellipse(0, y, 7 + y / 4, 2.5).stroke({ color: state.fuelTicks > 0 ? aqua : 0x4c_67_67, width: 2 })
         }
         g.circle(0, -15, 3).fill(state.fuelTicks > 0 ? 0xb5_ff_f5 : 0x70_83_80)
-        break
-      case 'merger':
-        housing(g, 18, 7, 0x35_44_4f, 0x86_a1_ac)
-        for (const angle of [-Math.PI / 2, Math.PI, Math.PI / 2]) {
-          collar(g, angle)
-          g.save().rotateTransform(angle).moveTo(0, -21).lineTo(0, 0).stroke({ color: aqua, width: 4 }).restore()
-        }
-        g.moveTo(0, 2).lineTo(0, -21).stroke({ color: gold, width: 5 })
-        arrow(g, 0, -20, gold)
         break
       case 'buffer': {
         collar(g, 0)
@@ -295,6 +290,7 @@ export class Machine extends Container {
     }
   }
   private lanes = [0]
+  private inletCapped = true
   private capped = true
   track(shape: ReturnType<typeof beltShape>) {
     const g = this.plate.clear()
@@ -306,7 +302,8 @@ export class Machine extends Container {
       this.lanes.push(0)
     }
     this.capped = !shape.connected
-    const entry = shape.inDirs.length === 0 ? 19 : 24
+    this.inletCapped = shape.inDirs.length === 0
+    const entry = this.inletCapped ? 19 : 24
     const exit = this.capped ? 19 : 24
     for (const [width, color] of [
       [34, 0x06_0a_0e],
@@ -315,12 +312,24 @@ export class Machine extends Container {
       [26, 0x0b_12_18],
     ] as const) {
       for (const side of this.lanes) {
-        g.moveTo(side * 24, side === 0 ? entry : 0)
-          .quadraticCurveTo(0, 0, 0, -exit)
-          .stroke({ width, color, cap: 'butt' })
+        if (side === 0) {
+          g.moveTo(0, entry).lineTo(0, -exit)
+        } else {
+          const radius = tile / 2
+          const sweep = Math.acos(1 - exit / radius)
+          g.moveTo(side * radius, 0).arc(
+            side * radius,
+            -radius,
+            radius,
+            Math.PI / 2,
+            Math.PI / 2 + side * sweep,
+            side < 0
+          )
+        }
+        g.stroke({ width, color, cap: 'butt' })
       }
     }
-    for (const y of [shape.inDirs.length === 0 ? 19 : undefined, this.capped ? -19 : undefined]) {
+    for (const y of [this.inletCapped ? 19 : undefined, this.capped ? -19 : undefined]) {
       if (y !== undefined) {
         g.roundRect(-15, y - 2, 30, 4, 2).fill(0x64_7c_88)
       }
@@ -334,9 +343,6 @@ export class Machine extends Container {
       case 'tunnelOut':
       case 'buffer':
       case 'filter':
-        break
-      case 'merger':
-        g.circle((state.nextInput - 1) * 14, state.nextInput === 1 ? 14 : 0, 3).fill(gold)
         break
       case 'trash':
         for (const side of [-1, 1]) {
@@ -352,20 +358,27 @@ export class Machine extends Container {
       case 'belt': {
         const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * productionSpeed(p))) / 1000
         for (const side of this.lanes) {
-          const count = side === 0 ? 3 : 2
+          const radius = tile / 2
+          const length = side === 0 ? tile : (Math.PI * radius) / 2
+          const spacing = tile / 3
+          const count = Math.floor(length / spacing)
+          const margin = (length - count * spacing) / 2
           for (let i = 0; i < count; i++) {
-            const phase = i / count + (distance % (1 / count))
-            const t = side === 0 ? phase : 0.2 + 0.6 * phase,
-              u = 1 - t
-            const x = side * 24 * u * u,
-              y = (side === 0 ? 24 * u * u : 0) - (this.capped ? 19 : 24) * t * t
-            const angle = Math.atan2(-side * u, (side === 0 ? u : 0) + t)
-            if (t < 0.07 || t > (this.capped ? 0.85 : 0.94)) {
+            const along = margin + i * spacing + ((distance * tile) % spacing)
+            if ((this.inletCapped && along < 12) || (this.capped && along > length - 8)) {
               continue
             }
-            g.save().translateTransform(x, y).rotateTransform(angle)
-            arrow(g, 0, 0, 0x5f_9c_9c)
-            g.restore()
+            const angle = along / radius
+            const tx = -side * Math.cos(angle)
+            const ty = side === 0 ? -1 : -Math.sin(angle)
+            const cx = side * radius * (1 - Math.sin(angle))
+            const cy = side === 0 ? radius - along : radius * (Math.cos(angle) - 1)
+            const nx = -ty
+            const ny = tx
+            g.moveTo(cx - tx * 4 - nx * 4, cy - ty * 4 - ny * 4)
+              .lineTo(cx + tx * 2, cy + ty * 2)
+              .lineTo(cx - tx * 4 + nx * 4, cy - ty * 4 + ny * 4)
+              .stroke({ width: 2, color: 0x5f_9c_9c })
           }
         }
         break
