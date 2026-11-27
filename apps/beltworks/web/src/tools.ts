@@ -1,4 +1,11 @@
-import { toolUnlock, findTunnelPartner } from '@garage/beltworks-domain'
+import {
+  clockwise,
+  counterClockwise,
+  neighbor,
+  opposite,
+  toolUnlock,
+  findTunnelPartner,
+} from '@garage/beltworks-domain'
 import type { BuildingAt, BuildingState, Cell, Command, Direction } from '@garage/beltworks-domain'
 import * as Option from 'effect/Option'
 
@@ -151,5 +158,39 @@ export function ghostState({
       return Option.some({ kind: 'combiner', op: tool, slotA: Option.none(), slotB: Option.none(), remainingTicks: 0 })
     default:
       return Option.some({ kind: tool })
+  }
+}
+
+export const portColors = { a: 0x68_e4_f4, b: 0xf6_c0_75, output: 0x66_f0_d8 }
+export function machinePorts({ state, cell, facing }: { state: BuildingState; cell: Cell; facing: Direction }) {
+  const left = counterClockwise[facing]
+  const right = clockwise[facing]
+  const back = opposite[facing]
+  const port = (side: Direction, flow: Direction, color: number, prefix = '', suffix = '') => ({
+    cell: neighbor(side)(cell),
+    color,
+    text: prefix + { N: '↑', E: '→', S: '↓', W: '←' }[flow] + suffix,
+  })
+  const { a, b: amber, output: mint } = portColors
+  const input = 0xa7_bd_c5
+  switch (state.kind) {
+    case 'combiner':
+      return [port(left, right, a, 'A '), port(right, left, amber, '', ' B'), port(facing, facing, amber)]
+    case 'splitter':
+      return [port(back, facing, input), port(left, left, mint), port(right, right, amber)]
+    case 'filter':
+      return [
+        port(back, facing, input),
+        port(facing, facing, mint, '=' + state.targetValue + ' '),
+        port(right, right, amber, '≠ '),
+      ]
+    case 'tunnelIn':
+      return [port(back, facing, input)]
+    case 'tunnelOut':
+    case 'buffer':
+    case 'extractor':
+      return [port(facing, facing, mint)]
+    default:
+      return []
   }
 }

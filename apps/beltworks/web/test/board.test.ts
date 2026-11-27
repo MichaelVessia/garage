@@ -17,7 +17,7 @@ import * as Option from 'effect/Option'
 import { draw, createBoard, stats } from '../src/board.ts'
 import { inspectCell } from '../src/inspector.ts'
 import { Machine, tile } from '../src/machines.ts'
-import { pickToolForBuilding, tunnelPreview } from '../src/tools.ts'
+import { ghostState, machinePorts, pickToolForBuilding, tunnelPreview } from '../src/tools.ts'
 
 it('syncs ore, factory edits and moving cargo to Pixi containers', () => {
   const board = createBoard()
@@ -232,5 +232,50 @@ it('keeps both connected curved rails within their tile at the seams', () => {
     assert.closeTo(bounds.minY, -tile / 2, 0.001)
     assert.closeTo(bounds.maxY, 17, 0.001)
     assert.closeTo(dir === 'W' ? bounds.minX : bounds.maxX, dir === 'W' ? -tile / 2 : tile / 2, 0.001)
+  }
+})
+
+it('shows the adjacent flow ports for an east-facing placement or inspection', () => {
+  const cell = { gx: 7, gy: 5 }
+  const front = { gx: 8, gy: 5 }
+  const back = { gx: 6, gy: 5 }
+  const left = { gx: 7, gy: 4 }
+  const right = { gx: 7, gy: 6 }
+  for (const [tool, expected] of [
+    ['extractor', [[front, '→']]],
+    ['buffer', [[front, '→']]],
+    [
+      'splitter',
+      [
+        [back, '→'],
+        [left, '↑'],
+        [right, '↓'],
+      ],
+    ],
+    [
+      'filter',
+      [
+        [back, '→'],
+        [front, '=128 →'],
+        [right, '≠ ↓'],
+      ],
+    ],
+    [
+      'add',
+      [
+        [left, 'A ↓'],
+        [right, '↑ B'],
+        [front, '→'],
+      ],
+    ],
+    ['tunnelIn', [[back, '→']]],
+    ['tunnelOut', [[front, '→']]],
+    ['trash', []],
+  ] as const) {
+    const state = Option.getOrThrow(ghostState({ tool, targetValue: 128 }))
+    assert.deepEqual<ReadonlyArray<readonly [typeof cell, string]>>(
+      Arr.map(machinePorts({ state, cell, facing: 'E' }), (port) => [port.cell, port.text]),
+      expected
+    )
   }
 })

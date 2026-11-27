@@ -22,7 +22,7 @@ import {
   simulation,
   step,
 } from '@garage/beltworks-domain'
-import type { Cell, Command, Direction } from '@garage/beltworks-domain'
+import type { BuildingState, Cell, Command, Direction } from '@garage/beltworks-domain'
 import { FixedLoop, Result } from '@typeonce/ritmo'
 import { BrowserTickSource } from '@typeonce/ritmo-browser'
 import * as Arr from 'effect/Array'
@@ -31,7 +31,7 @@ import * as MutableHashMap from 'effect/MutableHashMap'
 import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 import * as Str from 'effect/String'
-import { Application, Graphics, Point } from 'pixi.js'
+import { Application, Container, Graphics, Point } from 'pixi.js'
 
 import { Burst, draw, createBoard, stats } from './board.ts'
 import { expansionCamera } from './camera.ts'
@@ -45,11 +45,11 @@ import { setupLeaderboard } from './leaderboard.ts'
 import { label, Machine, tile, oreColor } from './machines.ts'
 import { medalInfo } from './medals.ts'
 import { minimap } from './minimap.ts'
-import { combinerPorts, starterGuide } from './onboarding.ts'
+import { starterGuide } from './onboarding.ts'
 import { beltPath } from './path.ts'
 import { pinchCamera } from './pinch.ts'
 import { loadBoard, saveBoard } from './storage.ts'
-import { ghostState, pickToolForBuilding, placement, tools, tunnelPreview } from './tools.ts'
+import { portColors, machinePorts, ghostState, pickToolForBuilding, placement, tools, tunnelPreview } from './tools.ts'
 import type { Tool } from './tools.ts'
 import { watchUpdates, saveAndReload } from './updates.ts'
 
@@ -89,30 +89,26 @@ let facing: Direction = 'E'
 let hovered = Option.none<Cell>()
 const ghost = board.preview.addChild(new Machine())
 const border = board.preview.addChild(new Graphics())
-const portColors = { a: 0x68_e4_f4, b: 0xff_c5_65, output: 0x87_ff_d6 }
-const portLabels = {
-  a: board.preview.addChild(label({ text: '', size: 15, fill: portColors.a })),
-  b: board.preview.addChild(label({ text: '', size: 15, fill: portColors.b })),
-  output: board.preview.addChild(label({ text: '', size: 19, fill: portColors.output })),
-}
-function previewPorts(cell: Cell, dir: Direction) {
-  const ports = combinerPorts({ cell, facing: dir })
-  for (const name of ['a', 'b', 'output'] as const) {
-    const port = ports[name]
-    const dx = (port.gx - cell.gx) * (name === 'output' ? 1 : -1)
-    const dy = (port.gy - cell.gy) * (name === 'output' ? 1 : -1)
-    const arrow = dx > 0 ? '→' : dx < 0 ? '←' : dy > 0 ? '↓' : '↑'
-    const x = (port.gx + 0.5) * tile
-    const y = (port.gy + 0.5) * tile
-    border
-      .roundRect(x - 20, y - 12, 40, 24, 6)
-      .setFillStyle({ color: 0x10_1a_24, alpha: 0.92 })
-      .fill()
-      .stroke({ color: portColors[name], width: 1.5 })
-    const marker = portLabels[name]
-    marker.text = { output: arrow, a: 'A ' + arrow, b: arrow + ' B' }[name]
-    marker.position.set(x, y)
-    marker.visible = true
+const portBadges = Arr.makeBy(3, () => {
+  const badge = board.preview.addChild(new Container())
+  badge
+    .addChild(new Graphics())
+    .roundRect(-22, -11, 44, 22, 6)
+    .setFillStyle({ color: 0x10_1a_24, alpha: 0.9 })
+    .fill()
+    .stroke({ color: 0xff_ff_ff, width: 1.5 })
+  const marker = badge.addChild(label({ text: '', size: 17, fill: 0xff_ff_ff }))
+  return { badge, marker }
+})
+
+function previewPorts(state: BuildingState, cell: Cell, dir: Direction, alpha: number) {
+  for (const [{ badge, marker }, port] of Arr.zip(portBadges, machinePorts({ state, cell, facing: dir }))) {
+    badge.position.set((port.cell.gx + 0.5) * tile, (port.cell.gy + 0.5) * tile)
+    badge.tint = port.color
+    badge.alpha = alpha
+    marker.text = port.text
+    marker.style.fontSize = Math.min(19, 64 / port.text.length)
+    badge.visible = true
   }
 }
 function area({ start, end }: { start: Cell; end: Cell }) {
@@ -173,8 +169,8 @@ function preview() {
     rotateLabel.data = facing
     rotateButton.setAttribute('aria-label', 'Rotate clockwise. Facing ' + facing)
   }
-  for (const marker of Rec.values(portLabels)) {
-    marker.visible = false
+  for (const { badge } of portBadges) {
+    badge.visible = false
   }
   board.beaconPreview.visible = false
   ghost.visible = false
@@ -231,6 +227,10 @@ function preview() {
     return
   }
   if (tool === 'select') {
+    const machine = machineAt(hovered.value)
+    if (machine !== undefined) {
+      previewPorts(machine.state, hovered.value, machine.facing, 0.72)
+    }
     return
   }
   const k = key(hovered.value),
@@ -270,9 +270,7 @@ function preview() {
       board.beaconPreview.position.set(x, y)
       board.beaconPreview.visible = true
     }
-    if (state.value.kind === 'combiner') {
-      previewPorts(hovered.value, facing)
-    }
+    previewPorts(state.value, hovered.value, facing, 0.92)
   }
 }
 function choose(t: Tool) {

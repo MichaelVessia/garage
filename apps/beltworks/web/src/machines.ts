@@ -48,6 +48,34 @@ function housing(g: Graphics, r: number, cut: number, face: number, rim: number)
   g.save().translateTransform(0, 3).poly(corners).setFillStyle({ color: 0x05_09_0d, alpha: 0.45 }).fill().restore()
   g.poly(corners).fill(face).stroke({ color: rim, width: 2 })
 }
+const mint = 0x66_f0_d8
+const amber = 0xf6_c0_75
+
+function outputNozzle(g: Graphics, rotation: number, color = mint) {
+  g.save()
+    .rotateTransform(rotation)
+    .roundRect(-10, -23, 20, 10, 2)
+    .fill(ink)
+    .rect(-10, -23, 3, 8)
+    .rect(7, -23, 3, 8)
+    .fill(color)
+    .poly([-7, -15, 0, -23, 7, -15, 0, -17])
+    .fill(color)
+    .restore()
+}
+
+function intake(g: Graphics, rotation: number, color = 0x91_aa_b4) {
+  g.save()
+    .rotateTransform(rotation)
+    .roundRect(-8, -23, 16, 7, 2)
+    .fill(ink)
+    .moveTo(-4, -21)
+    .lineTo(0, -18)
+    .lineTo(4, -21)
+    .stroke({ color, width: 2 })
+    .restore()
+}
+
 function collar(g: Graphics, rotation: number, edge = 24) {
   g.save()
     .rotateTransform(rotation)
@@ -194,12 +222,17 @@ export class Machine extends Container {
             .stroke({ width: 3, color: sign === 1 ? aqua : gold })
         }
         g.restore()
-        arrow(g, 0, -10 * sign, 0xe2_f1_eb)
+        g.save()
+          .translateTransform(0, -9 * sign)
+          .poly([0, -8, 9, 1, 4, 1, 4, 6, -4, 6, -4, 1, -9, 1])
+          .fill(sign === 1 ? amber : mint)
+          .stroke({ color: ink, width: 2 })
+          .restore()
         break
       }
       case 'extractor':
         housing(g, 20, 8, 0x2d_41_4a, 0x6a_83_8a)
-        collar(g, 0)
+        outputNozzle(g, 0)
         for (const x of [-13, 13]) {
           for (const y of [-13, 13]) {
             g.circle(x, y, 1.6).fill(0x99_ab_ad)
@@ -216,14 +249,11 @@ export class Machine extends Container {
           collar(g, angle)
         }
         g.moveTo(0, 19).lineTo(0, -17).stroke({ color: aqua, width: 3 })
-        arrow(g, 0, -19, aqua)
         g.moveTo(0, 8).quadraticCurveTo(4, 1, 18, 1).stroke({ color: gold, width: 3 })
+        outputNozzle(g, 0)
+        outputNozzle(g, Math.PI / 2, amber)
+        intake(g, Math.PI)
         g.save()
-          .translateTransform(18, 1)
-          .rotateTransform(Math.PI / 2)
-        arrow(g, 0, 0, gold)
-        g.restore()
-          .save()
           .rotateTransform(-g.rotation)
           .roundRect(-14, -8, 28, 16, 4)
           .fill(ink)
@@ -250,8 +280,6 @@ export class Machine extends Container {
         g.circle(0, -15, 3).fill(state.fuelTicks > 0 ? 0xb5_ff_f5 : 0x70_83_80)
         break
       case 'buffer': {
-        collar(g, 0)
-        arrow(g, 0, -20, aqua)
         g.save().rotateTransform(-g.rotation)
         g.roundRect(-18, -15, 36, 31, 7).fill(0x25_3d_48).stroke({ color: 0x83_a5_af, width: 2 })
         g.ellipse(0, -13, 17, 5).fill(0x46_63_70).stroke({ color: 0x83_a5_af, width: 1 })
@@ -261,6 +289,10 @@ export class Machine extends Container {
           g.rect(11, 12 - level, 3, level).fill(aqua)
         }
         g.restore()
+        for (const angle of [Math.PI / 2, Math.PI, -Math.PI / 2]) {
+          intake(g, angle)
+        }
+        outputNozzle(g, 0)
         this.symbol.text = Option.match(state.storedValue, { onNone: () => '–', onSome: String })
         this.symbol.style.fontSize = Math.min(14, 40 / this.symbol.text.length)
         this.a.text = state.count + '/' + BUFFER_CAPACITY
@@ -277,13 +309,16 @@ export class Machine extends Container {
             .lineTo(side * 24, 0)
             .stroke({ color: 0x0b_12_18, width: 10 })
         }
+        intake(g, Math.PI)
+        outputNozzle(g, -Math.PI / 2)
+        outputNozzle(g, Math.PI / 2, amber)
         break
       case 'combiner': {
         const trim = { add: aqua, sub: 0xfb_71_85, mul: gold, div: 0xb3_91_e9 }[state.op]
         housing(g, 20, 6, state.op === 'div' ? 0x21_52_58 : 0x28_3b_46, trim)
-        for (const angle of [0, Math.PI / 2, -Math.PI / 2]) {
-          collar(g, angle)
-        }
+        outputNozzle(g, 0, amber)
+        intake(g, -Math.PI / 2, aqua)
+        intake(g, Math.PI / 2, gold)
         g.circle(0, 0, 10).fill(0x10_1a_22).stroke({ width: 1, color: trim })
         for (const x of [-14, 14]) {
           g.circle(x, 8, 6.5)
