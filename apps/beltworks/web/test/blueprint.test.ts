@@ -3,7 +3,7 @@ import type { BuildingState, Direction } from '@garage/beltworks-domain'
 import * as Option from 'effect/Option'
 import * as Rec from 'effect/Record'
 
-import { captureBlueprint, rotateBlueprint } from '../src/blueprint.ts'
+import { blueprintLibrary, captureBlueprint, rotateBlueprint } from '../src/blueprint.ts'
 
 it('copies machine settings from a reverse drag and leaves the hub and active cargo behind', () => {
   type Cells = Record<string, { facing: Direction; state: BuildingState }>
@@ -38,4 +38,29 @@ it('turns a rectangular blueprint clockwise, including its ports', () => {
     { dx: 0, dy: 2, dir: 'W', kind: 'filter', targetValue: 7 },
   ])
   assert.deepEqual(rotateBlueprint(rotateBlueprint(rotateBlueprint(rotateBlueprint(entries)))), [...entries])
+})
+
+it('keeps four independent slots across reloads and recovers from invalid storage', () => {
+  const data = new Map<string, string>()
+  const storage = () => ({
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      data.set(key, value)
+    },
+  })
+  const entries = [{ dx: 0, dy: 0, dir: 'N', kind: 'filter', targetValue: 37 }] as const
+  const library = blueprintLibrary(storage)
+  for (let i = 0; i < 4; i++) {
+    assert.isTrue(library.write(i, [{ ...entries[0], dx: i }]))
+  }
+  const restored = blueprintLibrary(storage)
+  for (let i = 0; i < 4; i++) {
+    assert.deepEqual(restored.read(i), [{ ...entries[0], dx: i }])
+  }
+  assert.isFalse(restored.write(4, entries))
+  for (const invalid of ['{', '[null, null, null, [{}]]']) {
+    data.set('beltworks:blueprints:v1', invalid)
+    assert.isNull(blueprintLibrary(storage).read(3))
+    assert.isTrue(blueprintLibrary(storage).write(0, entries))
+  }
 })

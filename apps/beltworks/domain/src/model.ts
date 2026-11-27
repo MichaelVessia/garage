@@ -40,6 +40,8 @@ export const toolUnlock = {
   extractor: 0,
   add: 1,
   splitter: 2,
+  merger: 2,
+  buffer: 5,
   tunnelIn: 3,
   tunnelOut: 3,
   mul: 4,
@@ -79,11 +81,18 @@ export function findTunnelPartner({
 }
 const op = S.Literals(['add', 'sub', 'mul', 'div'])
 export type CombinerOp = typeof op.Type
+export const BUFFER_CAPACITY = 24
 const port = S.Literals([0, 1])
 const building = S.Union([
   S.Struct({ kind: S.Literal('hub') }),
   S.Struct({ kind: S.Literal('extractor'), remainingTicks: S.Finite, surgeCount: natural, bonusPending: S.Boolean }),
   S.Struct({ kind: S.Literals(['belt', 'tunnelIn', 'tunnelOut']) }),
+  S.Struct({ kind: S.Literal('merger'), nextInput: S.Literals([0, 1, 2]) }),
+  S.Struct({
+    kind: S.Literal('buffer'),
+    storedValue: S.Option(natural),
+    count: natural.check(S.isLessThanOrEqualTo(BUFFER_CAPACITY)),
+  }).check(S.makeFilter((b) => Option.isNone(b.storedValue) === (b.count === 0))),
   S.Struct({ kind: S.Literal('splitter'), nextPort: port }),
   S.Struct({
     kind: S.Literal('combiner'),
@@ -102,14 +111,41 @@ const level = S.Int.check(S.isBetween({ minimum: 1, maximum: 15 }))
 const specialLevel = S.Int.check(S.isBetween({ minimum: 1, maximum: 10 }))
 const counts = S.Record(S.String, natural)
 export type Upgrade = typeof upgrade.Type
+const mutator = S.Literals(['standard', 'primeRush', 'highVelocity'])
+export type Mutator = typeof mutator.Type
+export const metaUpgradeLimits = {
+  bootstrap: 5,
+  masterySynergy: 5,
+  beaconResonance: 3,
+  veinRichness: 4,
+  contractMastery: 4,
+} as const
+export type MetaUpgradeKey = keyof typeof metaUpgradeLimits
+const metaUpgrade = S.Literals(['bootstrap', 'masterySynergy', 'beaconResonance', 'veinRichness', 'contractMastery'])
+const rank = (key: MetaUpgradeKey) => natural.check(S.isLessThanOrEqualTo(metaUpgradeLimits[key]))
+const meta = S.Struct({
+  ascensions: natural,
+  cores: natural,
+  totalCoresEarned: natural,
+  seed: S.Int,
+  mutator,
+  metaUpgrades: S.Struct({
+    bootstrap: rank('bootstrap'),
+    masterySynergy: rank('masterySynergy'),
+    beaconResonance: rank('beaconResonance'),
+    veinRichness: rank('veinRichness'),
+    contractMastery: rank('contractMastery'),
+  }),
+})
 const progression = S.Struct({
+  meta,
   boardTier: tier,
   milestoneIndex: natural,
   delivered: counts,
   vault: counts,
+  vaultRemainders: S.Record(S.String, natural.check(S.isLessThan(100))),
   rateByValue: counts,
   missionRateStart: S.optionalKey(natural),
-  seed: S.Int,
   contractIndex: natural,
   contractDelivered: natural,
   totalDelivered: natural,
@@ -125,12 +161,20 @@ const progression = S.Struct({
   deliveryWindow: S.Array(S.Struct({ tick: natural, value: natural })),
 })
 export const initial: typeof progression.Type = {
+  meta: {
+    ascensions: 0,
+    cores: 0,
+    totalCoresEarned: 0,
+    seed: 0,
+    mutator: 'standard',
+    metaUpgrades: { bootstrap: 0, masterySynergy: 0, beaconResonance: 0, veinRichness: 0, contractMastery: 0 },
+  },
   boardTier: 0,
   milestoneIndex: 0,
   delivered: {},
   vault: {},
+  vaultRemainders: {},
   rateByValue: {},
-  seed: 0,
   contractIndex: 0,
   contractDelivered: 0,
   totalDelivered: 0,
@@ -141,13 +185,13 @@ export const initial: typeof progression.Type = {
 }
 const commandCell = { gx: S.Finite, gy: S.Finite }
 const placement = {
-  kind: S.Literals(['extractor', 'belt', 'splitter', 'trash', 'tunnelIn', 'tunnelOut', 'beacon']),
+  kind: S.Literals(['extractor', 'belt', 'splitter', 'merger', 'buffer', 'trash', 'tunnelIn', 'tunnelOut', 'beacon']),
   dir: direction,
 }
 const combinerPlacement = { kind: S.Literal('combiner'), op, dir: direction }
 const filterPlacement = { kind: S.Literal('filter'), targetValue: S.optionalKey(natural), dir: direction }
 const offset = { dx: S.Int, dy: S.Int }
-const blueprintEntry = S.Union([
+export const blueprintEntry = S.Union([
   S.Struct({ ...offset, ...placement }),
   S.Struct({ ...offset, ...combinerPlacement }),
   S.Struct({ ...offset, ...filterPlacement }),
@@ -164,6 +208,8 @@ const command = S.Union([
   S.Struct({ type: S.Literal('rotateBuilding'), ...commandCell }),
   S.Struct({ type: S.Literal('buyUpgrade'), upgrade }),
   S.Struct({ type: S.Literal('expandBoard') }),
+  S.Struct({ type: S.Literal('ascendBoard'), mutator }),
+  S.Struct({ type: S.Literal('buyMetaUpgrade'), upgrade: metaUpgrade }),
   S.Struct({ type: S.Literal('resetBoard') }),
   S.Struct({ type: S.Literal('clearFloor') }),
   S.Struct({ type: S.Literal('removeArea'), minX: S.Int, maxX: S.Int, minY: S.Int, maxY: S.Int }),

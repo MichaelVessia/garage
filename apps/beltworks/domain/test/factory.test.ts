@@ -1,5 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import * as Arr from 'effect/Array'
+import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 import * as Rec from 'effect/Record'
 import * as ER from 'effect/Result'
@@ -344,7 +345,7 @@ it('opens each ring at its Spark and stock costs and keeps clustered veins withi
     assert.isDefined(r.inspect(state).index.buildings['1,1'])
     place(r, { type: 'resetBoard' })
     advance(r, 1)
-    assert.equal(r.inspect(state).p.seed, seed)
+    assert.equal(r.inspect(state).p.meta.seed, seed)
   }
 })
 const tunnel = (gx: number, kind: 'tunnelIn' | 'tunnelOut'): Command => ({
@@ -525,34 +526,220 @@ it('rejects side input on the filter and holds a match until its straight output
   assert.sameMembers(Rec.keys(r.inspect(state).index.items), ['15,12', '14,13'])
 })
 
-it('accepts beacon fuel from four sides, caps it, and burns one unit per tick', () => {
-  const r = createRuntime(0)
-  grant(r, 7)
+it.each([
+  [0, 270],
+  [3, 540],
+])(
+  'accepts beacon fuel from four sides at resonance rank %i, caps it and burns one unit per tick',
+  (rank, expected) => {
+    const r = createRuntime(0)
+    grant(r, 7)
+    r.tick(
+      Game.Schedule(
+        Game.System('Test/Resonance', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) => {
+          const p = resources.p.get()
+          resources.p.set({
+            ...p,
+            meta: { ...p.meta, metaUpgrades: { ...p.meta.metaUpgrades, beaconResonance: rank } },
+          })
+        })
+      )
+    )
+    place(
+      r,
+      { type: 'placeBuilding', kind: 'beacon', gx: 15, gy: 12, dir: 'N' },
+      belt(14),
+      { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 12, dir: 'W' },
+      { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 11, dir: 'S' },
+      { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 13, dir: 'N' }
+    )
+    r.tick(applyEdits)
+    feed(r, [
+      { gx: 14, gy: 12, value: 1 },
+      { gx: 16, gy: 12, value: 2 },
+      { gx: 15, gy: 11, value: 2 },
+      { gx: 15, gy: 13, value: 2 },
+    ])
+    advance(r, 1)
+    assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: expected })
+    assert.sameMembers(Rec.keys(r.inspect(state).index.items), ['14,12'])
+    place(r, { type: 'removeBuilding', gx: 14, gy: 12 }, belt(14))
+    r.tick(applyEdits)
+    feed(r, [{ gx: 14, gy: 12, value: 100 }])
+    advance(r, 1)
+    assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 1800 })
+    advance(r, 1799)
+    assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 1 })
+    advance(r, 2)
+    assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 0 })
+  }
+)
+
+it('advances the seed, clears the run, pays its mutator and restores the original map on full reset', () => {
+  const r = factory()
+  advance(r, 10)
+  const before = r.inspect(state)
+  place(r, { type: 'ascendBoard', mutator: 'primeRush' })
+  r.tick(applyEdits)
+  assert.deepEqual(r.inspect(state), before)
+  grant(r, 11)
   place(
     r,
-    { type: 'placeBuilding', kind: 'beacon', gx: 15, gy: 12, dir: 'N' },
-    belt(14),
-    { type: 'placeBuilding', kind: 'belt', gx: 16, gy: 12, dir: 'W' },
-    { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 11, dir: 'S' },
-    { type: 'placeBuilding', kind: 'belt', gx: 15, gy: 13, dir: 'N' }
+    { type: 'ascendBoard', mutator: 'primeRush' },
+    { type: 'buyMetaUpgrade', upgrade: 'bootstrap' },
+    { type: 'buyMetaUpgrade', upgrade: 'veinRichness' }
   )
   r.tick(applyEdits)
-  feed(r, [
-    { gx: 14, gy: 12, value: 1 },
-    { gx: 16, gy: 12, value: 2 },
-    { gx: 15, gy: 11, value: 2 },
-    { gx: 15, gy: 13, value: 2 },
-  ])
-  advance(r, 1)
-  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 270 })
-  assert.sameMembers(Rec.keys(r.inspect(state).index.items), ['14,12'])
-  place(r, { type: 'removeBuilding', gx: 14, gy: 12 }, belt(14))
+  const first = r.inspect(state)
+  assert.lengthOf(first.buildings, 4)
+  assert.isEmpty(first.tiles)
+  assert.deepEqual(first.p.vault, {})
+  assert.equal(first.p.milestoneIndex, 0)
+  assert.equal(first.p.meta.totalCoresEarned, 12)
+  assert.equal(first.p.meta.cores, 8)
+  assert.deepEqual(first.veins, createRuntime(1).inspect(state).veins)
+  grant(r, 9)
+  place(r, { type: 'ascendBoard', mutator: 'highVelocity' })
   r.tick(applyEdits)
-  feed(r, [{ gx: 14, gy: 12, value: 100 }])
-  advance(r, 1)
-  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 1800 })
-  advance(r, 1799)
-  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 1 })
+  const next = r.inspect(state)
+  assert.equal(next.p.meta.cores, 15)
+  assert.equal(next.p.meta.totalCoresEarned, 19)
+  assert.equal(next.p.meta.ascensions, 2)
+  assert.equal(next.p.meta.seed, 2)
+  assert.equal(next.p.sparks, 50)
+  assert.deepEqual(next.p.upgrades, { beltSpeed: 2, extractorSpeed: 2, combinerSpeed: 1, hubValue: 1, surge: 1 })
+  const plain = createRuntime(2).inspect(state)
+  for (const tier of [0, 1, 2, 3] as const) {
+    const count = (cells: typeof next.veins) => Arr.filter(cells, (c) => inBounds(c, tier)).length
+    assert.equal(count(next.veins) - count(plain.veins), tier)
+  }
+  const restored = createRuntimeFromSave(exportSave(r))
+  assert.isTrue(restored.ok)
+  place(r, { type: 'resetBoard' })
+  r.tick(applyEdits)
+  assert.deepEqual(r.inspect(state).p, createRuntime(0).inspect(state).p)
+  assert.deepEqual(r.inspect(state).veins, before.veins)
+})
+
+it('moves cargo and extracts faster in High Velocity', () => {
+  const standard = factory()
+  const fast = factory()
+  fast.tick(
+    Game.Schedule(
+      Game.System('Test/Velocity', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) => {
+        const p = resources.p.get()
+        resources.p.set({ ...p, meta: { ...p.meta, mutator: 'highVelocity' } })
+      })
+    )
+  )
+  advance(standard, 2)
+  advance(fast, 2)
+  const base = standard.inspect(state)
+  const boosted = fast.inspect(state)
+  assert.equal(boosted.tiles[0]?.progress, (base.tiles[0]?.progress ?? 0) * 1.35)
+  const baseExtractor = Arr.findFirst(base.buildings, (b) => b.kind === 'extractor')
+  const fastExtractor = Arr.findFirst(boosted.buildings, (b) => b.kind === 'extractor')
+  assert.isTrue(Option.isSome(baseExtractor) && Option.isSome(fastExtractor))
+  if (Option.isSome(baseExtractor) && Option.isSome(fastExtractor)) {
+    assert.approximately(
+      (fastExtractor.value.remainingTicks + 1) * 1.35,
+      baseExtractor.value.remainingTicks + 1,
+      0.00001
+    )
+  }
+})
+
+it.each([false, true])('rotates saturated merger inputs with rear intake active = %s', (rearActive) => {
+  let r = createRuntime(0)
+  grant(r, 2)
+  const left = { gx: 16, gy: 11, value: 1 }
+  const back = { gx: 15, gy: 12, value: 2 }
+  const right = { gx: 16, gy: 13, value: 3 }
+  place(
+    r,
+    { type: 'placeBuilding', kind: 'merger', gx: 16, gy: 12, dir: 'E' },
+    { type: 'placeBuilding', kind: 'belt', ...right, dir: 'N' },
+    belt(back.gx),
+    { type: 'placeBuilding', kind: 'belt', ...left, dir: 'S' }
+  )
+  r.tick(applyEdits)
+  const ports = rearActive ? [left, back, right] : [left, right]
+  feed(r, Arr.reverse(ports))
+  for (const [i, source] of [...ports, ...ports].entries()) {
+    advance(r, i === 0 ? 1 : 40)
+    const { index } = r.inspect(state)
+    assert.isUndefined(index.items[`${source.gx},${source.gy}`])
+    assert.isDefined(index.items['16,12'])
+    feed(r, [source])
+    const saved = createRuntimeFromSave(exportSave(r))
+    assert.isTrue(saved.ok)
+    if (saved.ok) {
+      r = saved.value
+    }
+  }
+})
+
+it('stores 24 matching values, blocks other values and drains one item per tick into an open hub', () => {
+  const r = createRuntime(0)
+  grant(r, 5)
+  const source = { gx: 16, gy: 11, value: 3 }
+  const other = { gx: 15, gy: 12, value: 7 }
+  place(
+    r,
+    { type: 'placeBuilding', kind: 'buffer', gx: 16, gy: 12, dir: 'S' },
+    { type: 'placeBuilding', kind: 'belt', ...source, dir: 'S' },
+    belt(other.gx)
+  )
+  r.tick(applyEdits)
+  const buffer = () => Arr.findFirst(r.inspect(state).buildings, (b) => b.kind === 'buffer')
+  for (let count = 1; count <= 24; count++) {
+    feed(r, [source])
+    advance(r, 1)
+    assert.deepEqual(buffer(), Option.some({ kind: 'buffer', storedValue: Option.some(3), count }))
+    if (count === 1) {
+      feed(r, [other])
+    }
+  }
+  feed(r, [source])
   advance(r, 2)
-  assert.deepInclude(r.inspect(state).buildings, { kind: 'beacon', fuelTicks: 0 })
+  assert.isDefined(r.inspect(state).index.items['16,11'])
+  assert.isDefined(r.inspect(state).index.items['15,12'])
+  const save = createRuntimeFromSave(exportSave(r))
+  assert.isTrue(save.ok)
+  if (save.ok) {
+    assert.deepEqual(save.value.inspect(state).buildings, r.inspect(state).buildings)
+  }
+  place(r, { type: 'removeBuilding', ...source })
+  for (let i = 0; i < 3; i++) {
+    place(r, { type: 'rotateBuilding', gx: 16, gy: 12 })
+  }
+  advance(r, 24)
+  assert.equal(r.inspect(state).p.totalDelivered, 24)
+  assert.deepEqual(buffer(), Option.some({ kind: 'buffer', storedValue: Option.some(7), count: 1 }))
+  advance(r, 1)
+  assert.deepEqual(buffer(), Option.some({ kind: 'buffer', storedValue: Option.none(), count: 0 }))
+})
+
+it('gives a direct extractor and a waiting belt alternating merger turns', () => {
+  const r = createRuntime(0)
+  grant(r)
+  place(
+    r,
+    extractor,
+    { type: 'placeBuilding', kind: 'merger', gx: 14, gy: 12, dir: 'N' },
+    { type: 'placeBuilding', kind: 'trash', gx: 14, gy: 11, dir: 'S' },
+    { type: 'placeBuilding', kind: 'belt', gx: 14, gy: 13, dir: 'N' }
+  )
+  r.tick(applyEdits)
+  const source = { gx: 14, gy: 13, value: 7 }
+  feed(r, [source])
+  advance(r, 1)
+  for (const side of ['W', 'S', 'W', 'S']) {
+    const snapshot = r.inspect(state)
+    assert.equal(Option.getOrUndefined(Arr.findFirst(snapshot.tiles, (t) => t.gx === 14 && t.gy === 12))?.fromDir, side)
+    if (side === 'S') {
+      feed(r, [source])
+    }
+    advance(r, 40)
+  }
 })

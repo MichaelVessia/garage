@@ -20,7 +20,12 @@ export function beltShape({ cell, dir, at }: { cell: Cell; dir: Direction; at: B
       return facing === clockwise[side] || facing === counterClockwise[side]
     }
     return (
-      (kind === 'extractor' || kind === 'belt' || kind === 'combiner' || kind === 'tunnelOut') &&
+      (kind === 'extractor' ||
+        kind === 'belt' ||
+        kind === 'merger' ||
+        kind === 'buffer' ||
+        kind === 'combiner' ||
+        kind === 'tunnelOut') &&
       facing === opposite[side]
     )
   })

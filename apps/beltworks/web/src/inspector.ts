@@ -1,4 +1,12 @@
-import { efficiency, extractorPeriod, findTunnelPartner, key, milestone, inBounds } from '@garage/beltworks-domain'
+import {
+  BUFFER_CAPACITY,
+  productionSpeed,
+  extractorPeriod,
+  findTunnelPartner,
+  key,
+  milestoneFor,
+  inBounds,
+} from '@garage/beltworks-domain'
 import type { Cell } from '@garage/beltworks-domain'
 import type { initial } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
@@ -30,7 +38,7 @@ export function inspectCell({
   const state = node.state
   switch (state.kind) {
     case 'hub': {
-      const m = milestone(p.milestoneIndex)
+      const m = milestoneFor(p)
       return (
         'Central Hub · ' +
         Arr.join(
@@ -44,7 +52,7 @@ export function inspectCell({
         'Extractor · Mines ' +
         value +
         ' · ' +
-        ((60 * efficiency(p.milestoneIndex)) / extractorPeriod(p.upgrades.extractorSpeed)).toFixed(1) +
+        ((60 * productionSpeed(p)) / extractorPeriod(p.upgrades.extractorSpeed)).toFixed(1) +
         '/s'
       )
     case 'combiner': {
@@ -71,6 +79,17 @@ export function inspectCell({
       return 'Filter · ' + state.targetValue + ' straight · Other values to the side'
     case 'beacon':
       return 'Beacon · ' + (state.fuelTicks > 0 ? Math.ceil(state.fuelTicks / 60) + ' s of fuel' : 'Needs fuel ≥ 2')
+    case 'merger':
+      return 'Merger · Next input: ' + ['Left', 'Back', 'Right'][state.nextInput]
+    case 'buffer':
+      return (
+        'Buffer Silo · ' +
+        Option.match(state.storedValue, { onSome: (v) => 'Value ' + v, onNone: () => 'Empty' }) +
+        ' · ' +
+        state.count +
+        '/' +
+        BUFFER_CAPACITY
+      )
     case 'splitter':
       return 'Splitter · Next output: ' + (state.nextPort === 0 ? 'Left' : 'Right')
     case 'tunnelIn':

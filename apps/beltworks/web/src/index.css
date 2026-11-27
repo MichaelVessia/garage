@@ -362,7 +362,7 @@ summary {
 }
 #inspector {
   left: 16px;
-  bottom: 62px;
+  bottom: 82px;
   transition: opacity 0.12s;
 }
 #inspector:empty {
@@ -506,3 +506,70 @@ summary {
   border-radius: 4px;
   background: #22313a;
 }
+
+#blueprint-bar {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #111e26;
+  pointer-events: auto;
+  font-size: 12px;
+}
+#blueprint-bar span {
+  display: inline-flex;
+  background: #23343c;
+  border-radius: 5px;
+}
+#blueprint-bar button { padding: 4px 6px; }
+#blueprint-bar button + button { color: var(--mint); border-left: 1px solid var(--line); }
+
+
+#mutators {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1/-1;
+  gap: 4px;
+}
+#mutators button { background: #263540; color: #cfddda; border-radius: 12px; }
+#mutators [aria-pressed="true"] { background: #28453e; color: var(--mint); outline: 1px solid var(--mint); }
+#cores { justify-self: end; color: var(--gold); }
+#run-summary { margin: 8px 12px; font-size: 11px; color: #bcd4d1; }
+.stock-row {
+  display: grid;
+  grid-template-columns: 2.4em 1fr auto;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 3px 0;
+  border-top: 1px solid var(--line);
+}
+.upgrade .stock-token {
+  grid-row: span 2;
+  text-align: center;
+  background: color-mix(in srgb, var(--ore) 18%, #17212b);
+  color: var(--ore);
+  border: 1px solid var(--ore);
+  border-radius: 5px;
+  font-weight: 700;
+}
+.stock-row progress { grid-column: 2/-1; width: 100%; height: 3px; appearance: none; border: 0; background: #384953; }
+.stock-row progress::-webkit-progress-bar { background: #384953; }
+.stock-row progress::-webkit-progress-value { background: var(--mint); }
+.stock-row progress::-moz-progress-bar { background: var(--mint); }
+.upgrade .stock-tags { grid-column: 2/-1; color: #9eafa9; font-size: 10px; }
+
+#ascend-panel strong + #cores { grid-column: 2; grid-row: 1; }
+#ascend-panel .upgrade #payout,
+#ascend-panel .upgrade strong:nth-of-type(2),
+#ascend-panel .upgrade span:not(.level) { grid-column: 1/-1; grid-row: auto; }
+body:has(#blueprint-bar:not([hidden])) #inspector { visibility: hidden; }

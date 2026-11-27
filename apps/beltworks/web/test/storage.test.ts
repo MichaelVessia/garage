@@ -22,18 +22,18 @@ it('restores the saved factory including production time and buildings', () => {
     },
   })
   assert.isTrue(saveBoard(store)(source))
-  assert.isTrue(data.has('beltworks:save:v5'))
+  assert.isTrue(data.has('beltworks:save:v6'))
   const dest = blank()
   loadBoard(store)(dest)
   assert.deepEqual(exportSave(dest), exportSave(source))
-  const legacy = data.get('beltworks:save:v5')
+  const legacy = data.get('beltworks:save:v6')
   data.clear()
   if (legacy !== undefined) {
-    data.set('beltworks:save:v4', legacy)
+    data.set('beltworks:save:v5', legacy)
   }
   const fresh = blank()
   loadBoard(store)(fresh)
-  assert.deepEqual(exportSave(fresh), exportSave(createRuntime(0)))
+  assert.deepEqual(exportSave(fresh), exportSave(source))
 })
 it.each([null, '{', '{}'])('creates a fresh board for missing or corrupt storage (%s)', (raw) => {
   const dest = blank()

@@ -13,11 +13,11 @@ The 2 × 2 Hub occupies columns 17 and 18 and rows 12 and 13. Buildings and belt
 | Ring 2 | 26 × 20 | 4 | 180 Sparks and 60 sevens | 5, 6 and 7 clusters, extra low numbers |
 | Full Foundry | 36 × 26 | 6 | 650 Sparks, 120 twelves and 80 twenty-fours | 4, 5, 7, 8 and 9 clusters |
 
-Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v5`.
+Clear floor removes buildings and cargo. The Vault, levels and milestone progress survive. Reset restores starter progression. Drag Erase to clear a rectangle. Undo restores the factory before an edit, including its cargo and progression. One belt drag is one edit. The browser keeps the last 25 edits until reset or reload. Local saves use `beltworks:save:v6`. The game can load a v5 save.
 
 ## Transport and production
 
-A belt moves one item at a time. A splitter alternates left and right and uses an open port if the preferred port is blocked. A tunnel sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. The exit accepts cargo only through the tunnel. Combiners take A from the left and B from the right, relative to their output.
+A belt moves one item at a time. A splitter alternates left and right and uses an open port if the preferred port is blocked. A merger takes one item from the left, rear or right. Each successful transfer moves priority to the next port. A buffer silo accepts up to 24 items of one value through any side except the front. It sends one item per tick when its output is open. An empty silo can accept a new value. A tunnel sends cargo to the first exit facing the same direction within five steps. Another entry facing the same direction blocks the link. The exit accepts cargo only through the tunnel. Combiners take A from the left and B from the right, relative to their output.
 
 The divider returns the integer part of A divided by B. A zero divisor produces zero. A filter accepts cargo from the rear. A matching number goes straight. Other numbers turn right, or left if the right port cannot accept the item. A new filter uses the primary mission target. Select a filter or press F over it to set a value from 1 to 999.
 
@@ -34,21 +34,37 @@ The Vault keeps delivered 1, 3, 7, 12, 24, 37, 48, 72, 96 and 128. It also keeps
 | Mission | Quota | Minimum items/min | Reward |
 | --- | --- | --- | --- |
 | M1 | 15 × 1 | | Adder and speed upgrades |
-| M2 | 35 × 3 | | Splitter, amplifier and Ring 1 |
+| M2 | 35 × 3 | | Splitter, balanced merger, amplifier and Ring 1 |
 | M3 | 75 × 7 | | Tunnel, extractor surge and side contracts |
 | M4 | 140 × 12 | 25 | Multiplier and Ring 2 |
-| M5 | 260 × 24 | 45 | Smart number filter |
+| M5 | 260 × 24 | 45 | Smart number filter and buffer silo |
 | M6 | 420 × 37 | 60 | Subtractor, trash and Full Foundry |
 | M7 | 500 × 48 and 300 × 12 | 30 and 35 | Overclock beacon and +25% efficiency |
-| M8 | 700 × 72 and 400 × 24 | 90 and 45 | Divider and +25% efficiency |
+| M8 | 700 × 72 and 400 × 24 | 90 and 45 | Divider, ascension and +25% efficiency |
 | M9 | 1,000 × 96 and 500 × 37 | 120 and 60 | +30% efficiency |
 
 Each quota counts deliveries since the mission began. At completion, every quota and every rate gate must hold at the same time. Removing a building restarts both mission rate counts. Quotas and Vault income retain their delivery history. From M10 the Hub asks for two values with rising quotas and rate gates. Each completion adds 15 percentage points to foundry efficiency.
 
 One side contract is active after M3. The seed and contract index select a value from 6, 9, 15, 18, 28, 3, 7 and 12. The quota ranges from 40 to 180. Completion awards eight Sparks per requested unit and adds one quarter of the quota to the Vault. The next delivery counts toward the new contract.
 
+## Foundry ascension
+
+The Ascend tab opens after M7. After M8, select the next run and confirm twice to start a new factory. Each ascension advances the map seed by one. Buildings, cargo, stock, Sparks, upgrades, contracts and milestones start over. Foundry Cores and permanent upgrades carry over. A full reset clears them.
+
+Standard runs pay 3, 5, 8 and 12 Cores at M8 through M11. Each additional milestone increases the gain over the previous milestone by one Core. The completed run determines the payout. Prime Rush and High Velocity pay 30% more Cores, rounded up. Prime Rush cycles the primary target through 11, 19, 29, 41, 59 and 83 from M4. High Velocity increases production speed by 35% and rate gates by 50%.
+
+| Core technology | Maximum rank | Effect |
+| --- | --- | --- |
+| Bootstrap | 5 | Each rank adds one starting belt and extractor level and 50 starting Sparks. |
+| Mastery Synergy | 5 | Each rank adds 35% to delivery income and Vault deposits. |
+| Beacon Resonance | 3 | Rank 1 raises the combined bonus to 150%. Rank 2 increases the radius to three cells. Rank 3 doubles fuel per item. |
+| Vein Richness | 4 | Each rank adds one vein cell to each outer ring on the next seeded board. |
+| Contract Mastery | 4 | Each rank adds 40% to Spark and Vault contract rewards. |
+
+The Vault displays stock, deliveries in the last minute, and current uses for each landmark value. The Vault and Ascend tabs show the run seed, mutator, completed milestones, completed contracts and ascensions.
+
 ## Factory controls
 
-In Select mode, hold Shift and drag to copy a rectangle. The Blueprint tool (B) and Ctrl+C also start a copy. Release to preview the stamp. R rotates the layout and its buildings clockwise. Click to stamp, or press Esc to cancel. Ctrl+V recalls the last copy. Each stamp uses one undo step. Occupied cells, locked cells and extractors without veins are skipped.
+In Select mode, hold Shift and drag to copy a rectangle. The Blueprint tool (B) and Ctrl+C also start a copy. Release to preview the stamp. R rotates the layout and its buildings clockwise. Click to stamp, or press Esc to cancel. Ctrl+V recalls the last copy. Select Blueprint to load one of four saved layouts. With a copy selected, use Save beside a slot to store it. Slots use `beltworks:blueprints:v1` in local browser storage and survive reloads and ascensions. Each stamp uses one undo step. Occupied cells, locked cells and extractors without veins are skipped.
 
 The Flow Lens (V) shows beacon range, combiners with one empty input, and cargo blocked at the end of a belt. A fueled beacon has a cyan outline. A dormant beacon has a dashed amber outline.

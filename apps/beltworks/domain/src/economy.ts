@@ -2,17 +2,17 @@ import * as Arr from 'effect/Array'
 import * as Fn from 'effect/Function'
 import * as Rec from 'effect/Record'
 
-import type { BoardTier, initial, Upgrade } from './model.ts'
+import type { BoardTier, initial, MetaUpgradeKey, Mutator, Upgrade } from './model.ts'
 
 type State = typeof initial
 type Requirement = { readonly value: number; readonly quota: number; readonly minRatePerMin?: number }
 type Mission = { readonly requirements: ReadonlyArray<Requirement>; readonly reward: string }
 const missions: ReadonlyArray<Mission> = [
   { requirements: [{ value: 1, quota: 15 }], reward: 'Adder & speed upgrades' },
-  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Hub amplifier & Ring 1' },
+  { requirements: [{ value: 3, quota: 35 }], reward: 'Splitter, Merger, Hub amplifier & Ring 1' },
   { requirements: [{ value: 7, quota: 75 }], reward: 'Tunnel, contracts & extractor surge' },
   { requirements: [{ value: 12, quota: 140, minRatePerMin: 25 }], reward: 'Multiplier & Ring 2' },
-  { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], reward: 'Filter' },
+  { requirements: [{ value: 24, quota: 260, minRatePerMin: 45 }], reward: 'Filter & Buffer' },
   { requirements: [{ value: 37, quota: 420, minRatePerMin: 60 }], reward: 'Subtractor, Trash & Full Foundry' },
   {
     requirements: [
@@ -26,7 +26,7 @@ const missions: ReadonlyArray<Mission> = [
       { value: 72, quota: 700, minRatePerMin: 90 },
       { value: 24, quota: 400, minRatePerMin: 45 },
     ],
-    reward: 'Divider & +25% foundry efficiency',
+    reward: 'Divider, ascension & +25% foundry efficiency',
   },
   {
     requirements: [
@@ -50,6 +50,43 @@ export function milestone(index: number): Mission {
     reward: '+15% Sparks & speed',
   }
 }
+const primes = [11, 19, 29, 41, 59, 83]
+export function milestoneFor(p: State): Mission {
+  const mission = milestone(p.milestoneIndex)
+  if (p.meta.mutator === 'standard') {
+    return mission
+  }
+  const prime = primes[(p.milestoneIndex - 3) % primes.length]
+  const requirements = Arr.map(mission.requirements, (r, i) => {
+    if (p.meta.mutator === 'highVelocity' && r.minRatePerMin !== undefined) {
+      return { ...r, minRatePerMin: Math.ceil(r.minRatePerMin * 1.5) }
+    }
+    return p.meta.mutator === 'primeRush' && p.milestoneIndex >= 3 && i === 0 && prime !== undefined
+      ? { ...r, value: prime }
+      : r
+  })
+  return { ...mission, requirements }
+}
+export const coresEarned: {
+  (index: number, mutator: Mutator): number
+  (mutator: Mutator): (index: number) => number
+} = Fn.dual(2, (index: number, mutator: Mutator) => {
+  if (index < 8) {
+    return 0
+  }
+  const n = index - 8
+  const cores = 3 + (n * (n + 3)) / 2
+  return mutator === 'standard' ? cores : Math.ceil((cores * 13) / 10)
+})
+export const metaUpgradeCost: {
+  (key: MetaUpgradeKey, rank: number): number
+  (rank: number): (key: MetaUpgradeKey) => number
+} = Fn.dual(2, (key: MetaUpgradeKey, rank: number) => {
+  const base = { bootstrap: 2, masterySynergy: 3, beaconResonance: 3, veinRichness: 2, contractMastery: 2 }[key]
+  return base * (rank + 1)
+})
+export const productionSpeed = (p: State) =>
+  efficiency(p.milestoneIndex) * (p.meta.mutator === 'highVelocity' ? 1.35 : 1)
 export const efficiency = (index: number) =>
   1 + Number(index >= 7) * 0.25 + Number(index >= 8) * 0.25 + Number(index >= 9) * 0.3 + Math.max(0, index - 9) * 0.15
 export const beltRate = (level: number) => 25 + 12.5 * (level - 1)
@@ -109,7 +146,7 @@ export function expireDeliveries({ p, tick }: { p: State; tick: number }): State
   }
   return { ...p, rateByValue, deliveryWindow: p.deliveryWindow.slice(expired) }
 }
-const landmarks = [1, 3, 7, 12, 24, 37, 48, 72, 96, 128]
+export const landmarks = [1, 3, 7, 12, 24, 37, 48, 72, 96, 128]
 export function missionRate({ p, value }: { p: State; value: number }) {
   const start = p.missionRateStart ?? 0
   if (start <= (p.deliveryWindow[0]?.tick ?? Infinity)) {
@@ -125,9 +162,9 @@ export function missionRate({ p, value }: { p: State; value: number }) {
 }
 export function deliver({ previous, value, tick }: { previous: State; value: number; tick: number }) {
   const p = expireDeliveries({ p: previous, tick })
-  const mission = milestone(p.milestoneIndex)
+  const mission = milestoneFor(p)
   const matchedTarget = Arr.some(mission.requirements, (r) => r.value === value)
-  const contract = sideContract(p.seed, p.contractIndex)
+  const contract = sideContract(p.meta.seed, p.contractIndex)
   const side = p.milestoneIndex >= 3 && value === contract.value
   const tracked = matchedTarget || side || Arr.contains(landmarks, value)
   const rateByValue = tracked ? { ...p.rateByValue, [value]: (p.rateByValue[value] ?? 0) + 1 } : p.rateByValue
@@ -142,8 +179,12 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
     )
   const paid = side && p.contractDelivered + 1 >= contract.quota
   const base = matchedTarget ? value * amplifier(p.upgrades.hubValue) : Number(tracked)
-  const cents = p.sparkCents + Math.round(100 * efficiency(p.milestoneIndex) * base)
-  const sparksEarned = Math.floor(cents / 100) + (paid ? contract.sparks : 0)
+  const cents =
+    p.sparkCents +
+    Math.round(100 * efficiency(p.milestoneIndex) * base * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy))
+  const jackpot = 1 + 0.4 * p.meta.metaUpgrades.contractMastery
+  const sparksEarned = Math.floor(cents / 100) + (paid ? Math.round(contract.sparks * jackpot) : 0)
+  const extraStockCents = (p.vaultRemainders[value] ?? 0) + 35 * p.meta.metaUpgrades.masterySynergy
   const next: State = {
     ...p,
     sparkCents: cents % 100,
@@ -151,7 +192,20 @@ export function deliver({ previous, value, tick }: { previous: State; value: num
     sparks: p.sparks + sparksEarned,
     delivered: complete ? {} : delivered,
     milestoneIndex: p.milestoneIndex + Number(complete),
-    vault: tracked ? { ...p.vault, [value]: (p.vault[value] ?? 0) + 1 + (paid ? contract.stock : 0) } : p.vault,
+    vaultRemainders:
+      tracked && p.meta.metaUpgrades.masterySynergy > 0
+        ? { ...p.vaultRemainders, [value]: extraStockCents % 100 }
+        : p.vaultRemainders,
+    vault: tracked
+      ? {
+          ...p.vault,
+          [value]:
+            (p.vault[value] ?? 0) +
+            1 +
+            Math.floor(extraStockCents / 100) +
+            (paid ? Math.round(contract.stock * jackpot) : 0),
+        }
+      : p.vault,
     contractDelivered: paid ? 0 : p.contractDelivered + Number(side),
     contractIndex: p.contractIndex + Number(paid),
     rateByValue,

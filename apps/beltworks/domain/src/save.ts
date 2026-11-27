@@ -65,6 +65,7 @@ export const savedBoard = Game.Inspector(
           carrier === 'belt' ||
           carrier === 'filter' ||
           carrier === 'splitter' ||
+          carrier === 'merger' ||
           carrier === 'tunnelIn' ||
           carrier === 'tunnelOut'
         )

@@ -21,6 +21,20 @@ export const tools = [
     unlock: toolUnlock.splitter,
   },
   {
+    id: 'merger',
+    name: 'Merger',
+    key: 'M',
+    path: 'M2 12h4l5-5 5 5h4M11 20V3m-3 3 3-3 3 3M2 9v6m18-6v6m-12 5h6',
+    unlock: toolUnlock.merger,
+  },
+  {
+    id: 'buffer',
+    name: 'Buffer Silo',
+    key: 'S',
+    path: 'M4 6a7 3 0 1 0 14 0 7 3 0 1 0-14 0v11a7 3 0 0 0 14 0V6M14 11v5m-2-1h2',
+    unlock: toolUnlock.buffer,
+  },
+  {
     id: 'trash',
     name: 'Trash',
     key: '5',
@@ -133,6 +147,10 @@ export function ghostState({
       return Option.some({ kind: tool, fuelTicks: 0 })
     case 'extractor':
       return Option.some({ kind: tool, remainingTicks: 0, surgeCount: 0, bonusPending: false })
+    case 'merger':
+      return Option.some({ kind: tool, nextInput: 0 })
+    case 'buffer':
+      return Option.some({ kind: tool, count: 0, storedValue: Option.none<number>() })
     case 'splitter':
       return Option.some({ kind: tool, nextPort: 0 })
     case 'add':

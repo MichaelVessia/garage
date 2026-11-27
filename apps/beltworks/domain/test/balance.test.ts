@@ -5,6 +5,8 @@ import {
   Game,
   Progression,
   applyEdits,
+  coresEarned,
+  milestoneFor,
   createRuntime,
   createRuntimeFromSave,
   exportSave,
@@ -196,14 +198,18 @@ it.each([
 )
 
 it.each([
-  [0, 10],
-  [1, 15],
-  [2, 20],
-  [3, 20],
-])('delivers boosted extractor output with %i nearby beacons', (count, expected) => {
+  [0, 0, 10],
+  [1, 0, 15],
+  [2, 0, 20],
+  [3, 0, 20],
+  [3, 1, 25],
+  [0, 2, 15],
+])('delivers boosted extractor output with %i nearby beacons and resonance rank %i', (count, rank, expected) => {
   const r = createRuntime(0)
   setProgress(r, { milestoneIndex: 7, upgrades: { ...readProgress(r).upgrades, beltSpeed: 15 } })
-  // The fourth beacon is outside the extractor's range.
+  const meta = readProgress(r).meta
+  setProgress(r, { meta: { ...meta, metaUpgrades: { ...meta.metaUpgrades, beaconResonance: rank } } })
+  // The last beacon is three cells from the extractor.
   const cells = [
     ...[
       { gx: 12, gy: 10 },
@@ -300,4 +306,67 @@ it('requires fresh deliveries of both targets after removing a production line',
   assert.equal(readProgress(r).milestoneIndex, 6)
   deliver(r, 48)
   assert.equal(readProgress(r).milestoneIndex, 7)
+})
+
+it('pays the stated Core awards and rejects purchases with insufficient Cores or a full rank', () => {
+  assert.deepEqual(
+    Arr.map([7, 8, 9, 10, 11], (i) => coresEarned(i, 'standard')),
+    [0, 3, 5, 8, 12]
+  )
+  assert.deepEqual(
+    Arr.map([8, 9, 10, 11], (i) => coresEarned(i, 'highVelocity')),
+    [4, 7, 11, 16]
+  )
+  const r = createRuntime(0)
+  const buy = { type: 'buyMetaUpgrade', upgrade: 'bootstrap' } as const
+  place(r, buy)
+  r.tick(applyEdits)
+  assert.equal(readProgress(r).meta.metaUpgrades.bootstrap, 0)
+  setProgress(r, { meta: { ...readProgress(r).meta, cores: 100 } })
+  for (let rank = 0; rank < 6; rank++) {
+    place(r, buy)
+  }
+  r.tick(applyEdits)
+  assert.equal(readProgress(r).meta.metaUpgrades.bootstrap, 5)
+  assert.equal(readProgress(r).meta.cores, 70)
+})
+
+it('uses prime targets for deliveries and higher rate gates in High Velocity', () => {
+  const r = hubLine(3)
+  const meta = readProgress(r).meta
+  setProgress(r, { meta: { ...meta, mutator: 'primeRush' } })
+  assert.deepEqual(
+    Arr.map(
+      [3, 4, 5, 6, 7, 8],
+      (milestoneIndex) => milestoneFor({ ...readProgress(r), milestoneIndex }).requirements[0]?.value
+    ),
+    [11, 19, 29, 41, 59, 83]
+  )
+  deliver(r, 12)
+  assert.isUndefined(readProgress(r).delivered[12])
+  deliver(r, 11, 140)
+  assert.equal(readProgress(r).milestoneIndex, 4)
+  setProgress(r, {
+    meta: { ...meta, mutator: 'highVelocity' },
+    milestoneIndex: 3,
+    delivered: { 12: 140 },
+    rateByValue: {},
+    deliveryWindow: [],
+  })
+  deliver(r, 12, 37)
+  assert.equal(readProgress(r).milestoneIndex, 3)
+  deliver(r, 12)
+  assert.equal(readProgress(r).milestoneIndex, 4)
+})
+
+it('adds fractional mastery income and scales both contract jackpots', () => {
+  const r = hubLine(3)
+  const meta = readProgress(r).meta
+  setProgress(r, { meta: { ...meta, metaUpgrades: { ...meta.metaUpgrades, masterySynergy: 1, contractMastery: 2 } } })
+  const offer = sideContract(0, 0)
+  deliver(r, offer.value, offer.quota)
+  const p = readProgress(r)
+  assert.equal(p.sparks, 54 + offer.sparks * 1.8)
+  assert.equal(p.vault[offer.value], 54 + offer.stock * 1.8)
+  assert.equal(p.rateByValue[offer.value], 40)
 })

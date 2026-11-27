@@ -191,3 +191,15 @@ it('shows five cells of beacon coverage on focus or with the lens', () => {
   board.setFlowLens(false)
   assert.equal(coverage.width, 0)
 })
+
+it('shows silo stock and the active merger inlet after rotation', () => {
+  const machine = new Machine()
+  machine.update({ kind: 'buffer', storedValue: Option.some(37), count: 12 }, 'W')
+  assert.equal(machine.symbol.text, '37')
+  assert.equal(machine.a.text, '12/24')
+  assert.equal(machine.symbol.rotation, 0)
+  machine.update({ kind: 'merger', nextInput: 0 }, 'E')
+  machine.animate(0, initial)
+  assert.isAbove(machine.detail.width, 0)
+  assert.equal(machine.detail.rotation, Math.PI / 2)
+})

@@ -5,7 +5,7 @@ import * as S from 'effect/Schema'
 import { CommandRequested, CommandQueue, Game, initial, step, Time } from './model.ts'
 import type { Command } from './model.ts'
 import { savedBoard } from './save.ts'
-import { advanceBelts, positions, processCommands, runProduction, setup } from './systems.ts'
+import { positions, processCommands, transport, setup } from './systems.ts'
 
 export * from './model.ts'
 export * from './economy.ts'
@@ -14,8 +14,7 @@ export const simulation = Game.Schedule(
   Clock.system(Game, { name: 'Beltworks/AdvanceTime', resource: Time }),
   processCommands,
   Game.Schedule.applyDeferred(),
-  runProduction,
-  advanceBelts,
+  transport,
   positions,
   Game.Schedule.applyDeferred()
 )
@@ -85,7 +84,23 @@ export function createRuntimeFromSave(save: unknown) {
     return Result.failure('Invalid Beltworks save')
   }
   const runtime = blank()
-  const restored = runtime.restore(decoded.success)
+  const snapshot = decoded.success
+  const progress = snapshot.resources['Beltworks/Progression']
+  const restored = runtime.restore(
+    'meta' in progress
+      ? snapshot
+      : {
+          ...snapshot,
+          resources: {
+            ...snapshot.resources,
+            'Beltworks/Progression': {
+              ...progress,
+              vaultRemainders: {},
+              meta: { ...initial.meta, seed: progress.seed },
+            },
+          },
+        }
+  )
   if (!restored.ok) {
     return restored
   }

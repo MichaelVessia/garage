@@ -3,14 +3,14 @@ import type { Runtime } from '@garage/beltworks-domain'
 import * as Result from 'effect/Result'
 import * as S from 'effect/Schema'
 
-const saveKey = 'beltworks:save:v5'
+const saveKey = 'beltworks:save:v6'
 type Store = Pick<Storage, 'getItem' | 'setItem'>
 
 const localRecord = S.Struct({ save: S.Unknown, revision: S.Finite })
 const json = S.fromJsonString(S.Unknown)
 export const loadBoard = (storage: () => Store) => (runtime: Runtime) => {
   try {
-    const raw = storage().getItem(saveKey)
+    const raw = storage().getItem(saveKey) ?? storage().getItem('beltworks:save:v5')
     if (raw !== null) {
       const parsed = S.decodeResult(json)(raw)
       if (Result.isSuccess(parsed)) {

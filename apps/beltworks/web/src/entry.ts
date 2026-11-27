@@ -16,6 +16,7 @@ import {
   initialResources,
   key,
   milestone,
+  milestoneFor,
   rows,
   simulation,
   step,
@@ -30,7 +31,7 @@ import * as Rec from 'effect/Record'
 import * as Str from 'effect/String'
 import { Application, Graphics, Point } from 'pixi.js'
 
-import { area, captureBlueprint, rotateBlueprint } from './blueprint.ts'
+import { area, blueprintLibrary, captureBlueprint, rotateBlueprint } from './blueprint.ts'
 import { Burst, draw, createBoard, stats } from './board.ts'
 import { cloud } from './cloud.ts'
 import { editHistory } from './history.ts'
@@ -80,8 +81,44 @@ let stamping = false
 let copyStart = Option.none<Cell>()
 let selectedBeacon = Option.none<Cell>()
 const stampGhosts: Array<Machine> = []
+const library = blueprintLibrary(storage)
+const bar = element('blueprint-bar')
+const slotControls = Arr.map([0, 1, 2, 3], (index) => {
+  const group = document.createElement('span')
+  const load = document.createElement('button')
+  const saveSlot = document.createElement('button')
+  const number = String(index + 1)
+  load.textContent = 'Slot ' + number
+  load.onclick = () => {
+    const entries = library.read(index)
+    if (entries !== null) {
+      clipboard = [...entries]
+      choose('blueprint', true)
+    }
+  }
+  saveSlot.textContent = 'Save'
+  saveSlot.setAttribute('aria-label', 'Save to #' + number)
+  saveSlot.onclick = () => {
+    const saved = library.write(index, clipboard)
+    notify(saved ? 'Saved to slot ' + number : 'Could not save blueprint')
+    updateBlueprintBar()
+  }
+  group.append(load, saveSlot)
+  bar.append(group)
+  return { load, saveSlot, index }
+})
+function updateBlueprintBar() {
+  bar.hidden = tool !== 'blueprint'
+  element('blueprint-title').textContent = stamping
+    ? 'Blueprint (' + clipboard.length + ' tiles · R to rotate · Esc to cancel)'
+    : 'Blueprint · Drag to copy or load a slot'
+  for (const { load, saveSlot, index } of slotControls) {
+    load.disabled = library.read(index) === null
+    saveSlot.disabled = !stamping
+  }
+}
 function primaryTarget() {
-  return milestone(view.p.milestoneIndex).requirements[0]?.value ?? 1
+  return milestoneFor(view.p).requirements[0]?.value ?? 1
 }
 function stampPreview(origin: Cell) {
   for (const [i, entry] of clipboard.entries()) {
@@ -140,7 +177,8 @@ function preview() {
     node.visible = false
   }
   const direction = element('direction')
-  direction.hidden = tool === 'select' || tool === 'erase' || tool === 'trash' || tool === 'beacon'
+  direction.hidden =
+    tool === 'blueprint' || tool === 'select' || tool === 'erase' || tool === 'trash' || tool === 'beacon'
   direction.textContent = 'Facing ' + facing + ' · R to rotate'
   if (tool === 'blueprint') {
     direction.textContent = stamping ? 'Click to stamp · R to rotate · Esc to cancel' : 'Drag to copy'
@@ -232,11 +270,14 @@ function choose(t: Tool, paste = false) {
   element('filter-picker').hidden = true
   eraseStart = Option.none()
   tool = t
+  updateBlueprintBar()
   updateHud(view.p, t)
   preview()
 }
 const updateHud = hud({
   choose,
+  ascend: (mutator) => edit({ type: 'ascendBoard', mutator }),
+  buyMeta: (upgrade) => edit({ type: 'buyMetaUpgrade', upgrade }),
   expand: () => edit({ type: 'expandBoard' }),
   buy: (u) => edit({ type: 'buyUpgrade', upgrade: u }),
 })
@@ -269,7 +310,7 @@ filterForm.onsubmit = (e) => {
 }
 function openFilter(cell: Cell, value: number) {
   filterCell = Option.some(cell)
-  const targets = Arr.map(milestone(view.p.milestoneIndex).requirements, (r) => r.value)
+  const targets = Arr.map(milestoneFor(view.p).requirements, (r) => r.value)
   const values = Arr.dedupe([...targets, ...Arr.map(Rec.keys(view.p.vault), Number)])
   element('filter-values').replaceChildren(
     ...Arr.map(
@@ -431,7 +472,12 @@ function refresh(edited = false) {
   dirty = true
 }
 function edit(command: Command) {
-  const tracked = command.type !== 'resetBoard' && command.type !== 'expandBoard' && command.type !== 'buyUpgrade'
+  const tracked =
+    command.type !== 'resetBoard' &&
+    command.type !== 'expandBoard' &&
+    command.type !== 'buyUpgrade' &&
+    command.type !== 'ascendBoard' &&
+    command.type !== 'buyMetaUpgrade'
   const snapshot = tracked ? exportSave(runtime) : undefined
   rejected = false
   enqueue(command)(runtime)
@@ -443,6 +489,12 @@ function edit(command: Command) {
   if (!rejected) {
     if (command.type === 'rotateBuilding' || command.type === 'placeBuilding') {
       chime(220, 0, 0.035, 'triangle')
+    }
+    if (command.type === 'ascendBoard') {
+      history.clear()
+      choose('extractor')
+      notify('Foundry ascended')
+      celebrate()
     }
     if (command.type === 'expandBoard') {
       notify('Workshop expanded · Ring ' + view.p.boardTier)

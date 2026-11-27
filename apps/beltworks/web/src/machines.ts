@@ -1,11 +1,12 @@
 import {
-  efficiency,
+  BUFFER_CAPACITY,
+  productionSpeed,
   clockwise,
   counterClockwise,
   beltRate,
   craftPeriod,
   extractorPeriod,
-  milestone,
+  milestoneFor,
 } from '@garage/beltworks-domain'
 import type { BuildingState, Direction, initial } from '@garage/beltworks-domain'
 import * as Arr from 'effect/Array'
@@ -177,6 +178,32 @@ export class Machine extends Container {
         }
         g.circle(0, -15, 3).fill(state.fuelTicks > 0 ? 0xb5_ff_f5 : 0x70_83_80)
         break
+      case 'merger':
+        housing(g, 18, 7, 0x35_44_4f, 0x86_a1_ac)
+        for (const angle of [-Math.PI / 2, Math.PI, Math.PI / 2]) {
+          collar(g, angle)
+          g.save().rotateTransform(angle).moveTo(0, -21).lineTo(0, 0).stroke({ color: aqua, width: 4 }).restore()
+        }
+        g.moveTo(0, 2).lineTo(0, -21).stroke({ color: gold, width: 5 })
+        arrow(g, 0, -20, gold)
+        break
+      case 'buffer': {
+        collar(g, 0)
+        arrow(g, 0, -20, aqua)
+        g.save().rotateTransform(-g.rotation)
+        g.roundRect(-18, -15, 36, 31, 7).fill(0x25_3d_48).stroke({ color: 0x83_a5_af, width: 2 })
+        g.ellipse(0, -13, 17, 5).fill(0x46_63_70).stroke({ color: 0x83_a5_af, width: 1 })
+        g.rect(11, -7, 3, 19).fill(ink)
+        const level = (19 * state.count) / BUFFER_CAPACITY
+        if (level > 0) {
+          g.rect(11, 12 - level, 3, level).fill(aqua)
+        }
+        g.restore()
+        this.symbol.text = Option.match(state.storedValue, { onNone: () => '–', onSome: String })
+        this.symbol.style.fontSize = Math.min(14, 40 / this.symbol.text.length)
+        this.a.text = state.count + '/' + BUFFER_CAPACITY
+        break
+      }
       case 'splitter':
         housing(g, 18, 8, 0x35_44_4f, 0x60_78_88)
         for (const angle of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
@@ -260,6 +287,9 @@ export class Machine extends Container {
       sin = Math.sin(g.rotation)
     this.a.position.set(-14 * cos - 8 * sin, -14 * sin + 8 * cos)
     this.b.position.set(14 * cos - 8 * sin, 14 * sin + 8 * cos)
+    if (state.kind === 'buffer') {
+      this.a.position.set(-2, 10)
+    }
     if (state.kind === 'hub') {
       this.a.position.set(0, -19)
     }
@@ -302,7 +332,11 @@ export class Machine extends Container {
     switch (state.kind) {
       case 'tunnelIn':
       case 'tunnelOut':
+      case 'buffer':
       case 'filter':
+        break
+      case 'merger':
+        g.circle((state.nextInput - 1) * 14, state.nextInput === 1 ? 14 : 0, 3).fill(gold)
         break
       case 'trash':
         for (const side of [-1, 1]) {
@@ -316,7 +350,7 @@ export class Machine extends Container {
         }
         break
       case 'belt': {
-        const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * efficiency(p.milestoneIndex))) / 1000
+        const distance = (tick * Math.round(beltRate(p.upgrades.beltSpeed) * productionSpeed(p))) / 1000
         for (const side of this.lanes) {
           const count = side === 0 ? 3 : 2
           for (let i = 0; i < count; i++) {
@@ -337,7 +371,7 @@ export class Machine extends Container {
         break
       }
       case 'extractor': {
-        const period = extractorPeriod(p.upgrades.extractorSpeed) / efficiency(p.milestoneIndex)
+        const period = extractorPeriod(p.upgrades.extractorSpeed) / productionSpeed(p)
         const fraction = 1 - state.remainingTicks / period
         g.save().rotateTransform((tick / period) * Math.PI)
         for (let i = 0; i < 8; i++) {
@@ -370,10 +404,7 @@ export class Machine extends Container {
             start +
             2 *
               Math.PI *
-              Math.max(
-                0.01,
-                1 - (state.remainingTicks * efficiency(p.milestoneIndex)) / craftPeriod(p.upgrades.combinerSpeed)
-              )
+              Math.max(0.01, 1 - (state.remainingTicks * productionSpeed(p)) / craftPeriod(p.upgrades.combinerSpeed))
           g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 4, alpha: 0.25 })
           g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 1.6 })
         }
@@ -382,7 +413,7 @@ export class Machine extends Container {
         g.circle(state.nextPort === 0 ? -10 : 10, 0, 3).fill(gold)
         break
       case 'hub': {
-        const { requirements } = milestone(p.milestoneIndex)
+        const { requirements } = milestoneFor(p)
         this.symbol.text = Arr.join(
           Arr.map(requirements, ({ value }) => String(value)),
           '·'

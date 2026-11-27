@@ -152,6 +152,7 @@
       <div class="drawer-tabs" role="group" aria-label="Workshop view">
         <button id="show-upgrades" aria-controls="upgrade-panel" aria-pressed="true">Upgrades</button>
         <button id="show-vault" aria-controls="vault-panel" aria-pressed="false">Vault &amp; Contract</button>
+        <button id="show-ascend" aria-controls="ascend-panel" aria-pressed="false" hidden>Ascend</button>
       </div>
       <div id="upgrade-panel"><div id="upgrades"></div>
       <section class="upgrade" id="expand-card">
@@ -162,6 +163,18 @@
         <section class="upgrade"><strong>Vault</strong><span id="vault-income"></span><div id="stock"></div></section>
         <section class="upgrade" id="contract-card"><strong>Side contract</strong><span id="contract"></span><progress id="contract-meter" aria-label="Side contract quota"></progress><div id="contract-reward"></div></section>
       </div>
+      <div id="ascend-panel" hidden>
+        <section class="upgrade">
+          <strong>Foundry Cores</strong><b id="cores"></b>
+          <span id="payout"></span>
+          <strong>Next run</strong>
+          <div id="mutators" role="group" aria-label="Next run mutator"></div>
+          <span id="mutator-effect"></span>
+          <button id="ascend" disabled>Ascend</button>
+        </section>
+        <div id="core-tech"></div>
+      </div>
+      <p id="run-summary" hidden></p>
       <details class="help">
         <summary>Controls</summary>
         <dl>
@@ -184,6 +197,7 @@
     <div id="starter-hint"></div>
     <div id="inspector"></div>
     <footer id="toolbar">
+      <section id="blueprint-bar" aria-label="Blueprint library" hidden><strong id="blueprint-title"></strong></section>
       <form id="filter-picker" hidden>
         <label for="filter-value">Filter value</label>
         <div id="filter-values"></div>

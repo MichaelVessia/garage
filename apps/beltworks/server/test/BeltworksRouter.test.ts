@@ -1,5 +1,6 @@
 import { assert, it } from '@effect/vitest'
 import {
+  BeltworksSaveSchema,
   Building,
   Game,
   Progression,
@@ -17,6 +18,7 @@ import * as Effect from 'effect/Effect'
 import * as Request from 'effect/http/HttpServerRequest'
 import * as Response from 'effect/http/HttpServerResponse'
 import * as Layer from 'effect/Layer'
+import * as Rec from 'effect/Record'
 import * as S from 'effect/Schema'
 import * as TestClock from 'effect/testing/TestClock'
 
@@ -82,7 +84,17 @@ it.effect('saves, advances and shares a factory without credentials', () =>
     }
     board.tick(applyEdits)
     const save = exportSave(board)
-    const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))(save)
+    const legacy = yield* S.decodeUnknownEffect(BeltworksSaveSchema)(save)
+    const body = yield* S.encodeEffect(S.fromJsonString(S.Unknown))({
+      ...legacy,
+      resources: {
+        ...legacy.resources,
+        'Beltworks/Progression': {
+          ...Rec.remove(Rec.remove(legacy.resources['Beltworks/Progression'], 'meta'), 'vaultRemainders'),
+          seed: 0,
+        },
+      },
+    })
     const health = yield* request('/health')
     const status = yield* json(health)
     assert.deepEqual(status, { status: 'ok' })
@@ -126,13 +138,23 @@ it.effect('saves, advances and shares a factory without credentials', () =>
 
 it.effect('restores a stamped filter, beacon and divider before offline production', () =>
   Effect.gen(function* () {
-    const board = createRuntime(0)
+    const board = createRuntime(-1)
     board.tick(
       Game.Schedule(
         Game.System(
           'Test/UnlockDivider',
           { resources: { p: Game.System.writeResource(Progression) } },
           ({ resources }) => resources.p.set({ ...resources.p.get(), milestoneIndex: 8 })
+        )
+      )
+    )
+    enqueue({ type: 'ascendBoard', mutator: 'highVelocity' })(board)
+    enqueue({ type: 'buyMetaUpgrade', upgrade: 'masterySynergy' })(board)
+    board.tick(applyEdits)
+    board.tick(
+      Game.Schedule(
+        Game.System('Test/NextRun', { resources: { p: Game.System.writeResource(Progression) } }, ({ resources }) =>
+          resources.p.set({ ...resources.p.get(), milestoneIndex: 8 })
         )
       )
     )

@@ -1,8 +1,9 @@
-import type { initial } from '@garage/beltworks-domain'
 import {
+  initial,
   amplifier,
   canAfford,
   efficiency,
+  productionSpeed,
   sideContract,
   surgeInterval,
   upgradeLimit,
@@ -12,7 +13,7 @@ import {
   beltRate,
   craftPeriod,
   extractorPeriod,
-  milestone,
+  milestoneFor,
   missionRate,
   upgradeCost,
 } from '@garage/beltworks-domain'
@@ -20,9 +21,12 @@ import * as Arr from 'effect/Array'
 import * as Rec from 'effect/Record'
 import * as Str from 'effect/String'
 
+import { ascendPanel } from './ascend.ts'
+import type { AscendActions } from './ascend.ts'
 import { oreColor } from './machines.ts'
 import { tools } from './tools.ts'
 import type { Tool } from './tools.ts'
+import { vaultRows } from './vault.ts'
 
 export function element(id: string) {
   const el = document.getElementById(id)
@@ -80,7 +84,7 @@ function price(cost: Cost, p?: Progress) {
   }
   return parts
 }
-function requirementRow({ value, quota, minRatePerMin }: ReturnType<typeof milestone>['requirements'][number]) {
+function requirementRow({ value, quota, minRatePerMin }: ReturnType<typeof milestoneFor>['requirements'][number]) {
   const row = document.createElement('div')
   row.className = 'requirement'
   row.style.setProperty('--ore', '#' + Str.padStart(6, '0')(oreColor(value).toString(16)))
@@ -105,11 +109,33 @@ function requirementRow({ value, quota, minRatePerMin }: ReturnType<typeof miles
     rate.classList.toggle('met', minRatePerMin !== undefined && currentRate >= minRatePerMin)
   }
 }
+function updateStock(p: Progress) {
+  const rows = vaultRows(p)
+  const peak = Math.max(1, ...Arr.map(rows, (row) => row.rate))
+  element('stock').replaceChildren(
+    ...Arr.map(rows, ({ value, stock, rate, tags }) => {
+      const row = document.createElement('div')
+      row.className = 'stock-row'
+      const token = tag(String(value), 'stock-token')
+      token.style.setProperty('--ore', '#' + Str.padStart(6, '0')(oreColor(value).toString(16)))
+      const meter = document.createElement('progress')
+      meter.max = peak
+      meter.value = rate
+      meter.setAttribute('aria-label', 'Delivery activity for ' + value)
+      row.append(token, tag(stock + ' stock', 'stock-count'), tag('+' + rate + '/min', 'stock-rate'), meter)
+      if (tags.length > 0) {
+        row.append(tag(Arr.join(tags, ' · '), 'stock-tags'))
+      }
+      return row
+    })
+  )
+}
 export function hud({
   choose,
   buy,
   expand,
-}: {
+  ...actions
+}: AscendActions & {
   expand: () => void
   choose: (t: Tool) => void
   buy: (u: keyof typeof initial.upgrades) => void
@@ -156,22 +182,39 @@ export function hud({
   const expandButton = document.createElement('button')
   expandButton.onclick = expand
   element('expand-card').append(expandButton)
-  function selectVault(selected: boolean) {
-    element('upgrade-panel').hidden = selected
-    element('vault-panel').hidden = !selected
-    element('show-upgrades').setAttribute('aria-pressed', String(!selected))
-    element('show-vault').setAttribute('aria-pressed', String(selected))
+  const ascension = ascendPanel({ element, ...actions })
+  const panels = ['upgrade', 'vault', 'ascend'] as const
+  let panel: (typeof panels)[number] = 'upgrade'
+  let latest = initial
+  function selectPanel(selected: typeof panel) {
+    panel = selected
+    ascension.cancel()
+    for (const name of panels) {
+      element(name + '-panel').hidden = name !== selected
+      element(name === 'upgrade' ? 'show-upgrades' : 'show-' + name).setAttribute(
+        'aria-pressed',
+        String(name === selected)
+      )
+    }
+    element('run-summary').hidden = selected === 'upgrade'
+    if (selected === 'vault') {
+      updateStock(latest)
+    }
   }
-  element('show-upgrades').onclick = () => selectVault(false)
-  element('show-vault').onclick = () => selectVault(true)
+  element('show-upgrades').onclick = () => selectPanel('upgrade')
+  element('show-vault').onclick = () => selectPanel('vault')
+  element('show-ascend').onclick = () => selectPanel('ascend')
   const contractMeter = element('contract-meter')
   let previousSparks = 0
+  let previousMutator = initial.meta.mutator
   let previousMission = -1
   let rows: ReadonlyArray<(p: Progress) => void> = []
   return (p: Progress, tool: Tool) => {
-    if (previousMission !== p.milestoneIndex) {
+    latest = p
+    if (previousMission !== p.milestoneIndex || previousMutator !== p.meta.mutator) {
       previousMission = p.milestoneIndex
-      const m = milestone(p.milestoneIndex)
+      previousMutator = p.meta.mutator
+      const m = milestoneFor(p)
       element('requirements').replaceChildren()
       rows = Arr.map(m.requirements, requirementRow)
       element('milestone').textContent = 'Milestone ' + (p.milestoneIndex + 1)
@@ -193,7 +236,13 @@ export function hud({
       button.setAttribute('aria-pressed', String(t.id === tool))
       name.textContent = t.name
     }
-    element('workshop').hidden = p.milestoneIndex === 0
+    const showAscend = p.milestoneIndex >= 7 || p.meta.ascensions > 0
+    element('workshop').hidden = p.milestoneIndex === 0 && !showAscend
+    element('show-ascend').hidden = !showAscend
+    if (!showAscend && panel === 'ascend') {
+      selectPanel('upgrade')
+    }
+    ascension.update(p)
     const full = p.boardTier === 3
     element('expand-card').hidden = !full && p.milestoneIndex < expansionUnlock(p.boardTier)
     element('expansion').textContent =
@@ -210,28 +259,30 @@ export function hud({
       for (let i = 0; i < bar.children.length; i++) {
         bar.children.item(i)?.classList.toggle('lit', i < level)
       }
-      const factor = efficiency(p.milestoneIndex)
+      const factor = productionSpeed(p)
       stat.textContent = u.rate(level, factor) + (maxed ? '' : ' → ' + u.rate(level + 1, factor))
       const cost = upgradeCost(level)
       button.disabled = maxed || !canAfford(p, cost)
       button.replaceChildren(maxed ? 'Maximum' : 'Buy ', ...(maxed ? [] : [price(cost, p)]))
     }
-    element('vault-income').textContent = 'Income efficiency · ' + Math.round(100 * efficiency(p.milestoneIndex)) + '%'
-    const stock = Arr.filter(Rec.toEntries(p.vault), ([value, count]) => count > 0 || (p.rateByValue[value] ?? 0) > 0)
-    element('stock').replaceChildren(
-      ...(stock.length > 0
-        ? Arr.map(stock, ([value, count]) =>
-            tag(count + ' × ore ' + value + ' · +' + (p.rateByValue[value] ?? 0) + '/min', 'price')
-          )
-        : ['Vault empty'])
-    )
+    element('vault-income').textContent =
+      'Income efficiency · ' +
+      Math.round(100 * efficiency(p.milestoneIndex) * (1 + 0.35 * p.meta.metaUpgrades.masterySynergy)) +
+      '%'
+    if (panel === 'vault') {
+      updateStock(p)
+    }
     element('contract-card').hidden = p.milestoneIndex < 3
     if (p.milestoneIndex >= 3) {
-      const c = sideContract(p.seed, p.contractIndex)
+      const c = sideContract(p.meta.seed, p.contractIndex)
       element('contract').textContent = 'Deliver ' + c.value + ' · ' + p.contractDelivered + ' / ' + c.quota
       contractMeter.setAttribute('max', String(c.quota))
       contractMeter.setAttribute('value', String(p.contractDelivered))
-      element('contract-reward').replaceChildren('Reward ', price({ sparks: c.sparks, stock: { [c.value]: c.stock } }))
+      const jackpot = 1 + 0.4 * p.meta.metaUpgrades.contractMastery
+      element('contract-reward').replaceChildren(
+        'Reward ',
+        price({ sparks: Math.round(c.sparks * jackpot), stock: { [c.value]: Math.round(c.stock * jackpot) } })
+      )
     }
   }
 }

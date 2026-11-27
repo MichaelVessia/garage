@@ -43,8 +43,8 @@ class Cargo extends Container {
   }
 }
 
-function beaconAura(g: Graphics, node: Machine, fueled: boolean) {
-  const size = tile * 5
+function beaconAura(g: Graphics, node: Machine, fueled: boolean, radius: number) {
+  const size = tile * (2 * radius + 1)
   const left = node.x - size / 2
   const top = node.y - size / 2
   if (fueled) {
@@ -187,6 +187,7 @@ export function createBoard() {
       const node = id === undefined ? undefined : machines.get(id)
       return node === undefined ? Option.none() : Option.some({ kind: node.state.kind, dir: node.facing })
     }
+  let auraRadius = 2
   let flowLens = false
   let hoveredKey = Option.none<string>()
   let selectedKey = Option.none<string>()
@@ -201,7 +202,7 @@ export function createBoard() {
         node.state.kind === 'beacon' &&
         (flowLens || Option.contains(hoveredKey, cellKey) || Option.contains(selectedKey, cellKey))
       ) {
-        beaconAura(auras, node, node.state.fuelTicks > 0)
+        beaconAura(auras, node, node.state.fuelTicks > 0, auraRadius)
       }
     }
   }
@@ -236,6 +237,7 @@ export function createBoard() {
       }
     },
     animate: (tick: number, p: typeof initial, guideVein = false) => {
+      auraRadius = p.meta.metaUpgrades.beaconResonance >= 2 ? 3 : 2
       drawAuras()
       for (const cargo of items.children) {
         cargo.pulse.visible = flowLens && cargo.stalled

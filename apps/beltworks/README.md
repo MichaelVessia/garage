@@ -1,5 +1,7 @@
 # Beltworks
 
+For machine unlocks, controls, and Foundry Core rewards, see the [game guide](CONTEXT.md).
+
 Run these commands from the repository root.
 
 ## Local development
