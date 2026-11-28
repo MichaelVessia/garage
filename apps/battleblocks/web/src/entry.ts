@@ -14,6 +14,7 @@ import {
   readRoomCodeFromSearch,
   opponentCardProbabilities,
   resultHeading,
+  resultStars,
   turnSeat,
   values,
 } from './arenaMath.ts'
@@ -202,6 +203,7 @@ function showResult() {
   if (result.hidden) {
     return
   }
+  element('result-stars').textContent = resultStars(view)
   const next = element('continue')
   const matchOver = DuelPhase.guards.MatchOver(phase)
   const rankedEnd = matchOver && state.snapshot?.ranked === true

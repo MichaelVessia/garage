@@ -98,7 +98,7 @@ summary{cursor:pointer;color:var(--sun);text-decoration:underline}
   .hand-row{flex-wrap:wrap;gap:.35rem;margin:.3rem 0}
   #hand{gap:.3rem}#hand button{width:2.8rem;height:2.9rem}
 }
-#result:not([data-tone=victory]) .prize{display:none}
+.prize:empty{display:none}
 #result[data-tone=defeat] .result-card{border-color:#fb7185}
 #result[data-tone=defeat] #result-title{color:#fda4af}
 #result:is([data-tone=tie],[data-tone=spectator]) .result-card{border-color:var(--border)}

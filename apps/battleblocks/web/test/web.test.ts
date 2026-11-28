@@ -11,6 +11,7 @@ import { vi } from 'vitest'
 import {
   blockColors,
   resultHeading,
+  resultStars,
   cardCanStrike,
   values,
   spaceToWorldX,
@@ -136,6 +137,26 @@ it('shows the result from the point of view of each player or spectator', () => 
     tone: 'tie',
     title: 'Round tied',
   })
+})
+it('shows only the stars the winning player has earned in the set', () => {
+  for (const seat of [0, 1] as const) {
+    for (const wins of [1, 2, 3]) {
+      const score: DuelState['score'] = seat === 0 ? [wins, 0] : [0, wins]
+      const state = {
+        ...base,
+        score,
+        phase:
+          wins === 3
+            ? phase.MatchOver.make({ winner: seat, finalScore: score })
+            : phase.RoundOver.make({ winner: Option.some(seat), reason: 'hit', nextStarter: seat }),
+      }
+      assert.equal(resultStars(projectView(state, Option.some(seat))), Str.repeat(wins)('★'))
+      assert.equal(resultStars(projectView(state, Option.some(seat === 0 ? 1 : 0))), '')
+      assert.equal(resultStars(projectView(state, Option.none())), '')
+    }
+  }
+  const tied = phase.RoundOver.make({ winner: Option.none(), reason: 'time-over-draw', nextStarter: 0 })
+  assert.equal(resultStars(projectView({ ...base, score: [1, 1], phase: tied }, Option.some(0))), '')
 })
 it('keeps result commands out of the action shortcuts', () => {
   const phases = [

@@ -63,6 +63,19 @@ export function turnSeat(phase: DuelPhase): Option.Option<Seat> {
   })
 }
 
+export function resultStars(view: PlayerView) {
+  if (Option.isNone(view.viewer)) {
+    return ''
+  }
+  const seat = view.viewer.value
+  return DuelPhase.match(view.phase, {
+    AwaitAction: () => '',
+    AwaitDefense: () => '',
+    RoundOver: ({ winner }) => (Option.contains(winner, seat) ? Str.repeat(view.score[seat])('★') : ''),
+    MatchOver: ({ winner, finalScore }) => (winner === seat ? Str.repeat(finalScore[seat])('★') : ''),
+  })
+}
+
 export function resultHeading({
   scope,
   viewer,
