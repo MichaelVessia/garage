@@ -31,6 +31,7 @@ h1 {
 .lights { color: #f8c66b; }
 ul { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
 .coral { --paper: #f9c3b1; }
+.gold { --paper: #f4dc94; }
 .mint { --paper: #c2e4ca; }
 a {
   display: flex; gap: 1.1rem; align-items: center; height: 100%;
