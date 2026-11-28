@@ -9,7 +9,10 @@
     "apps/subq/web/src/worker.ts",
     "apps/logbook/alchemy.run.ts",
     "apps/logbook/web/index.html",
-    "apps/logbook/web/src/worker.ts"
+    "apps/logbook/web/src/worker.ts",
+    "apps/battleblocks/alchemy.run.ts",
+    "apps/battleblocks/web/index.html",
+    "apps/battleblocks/web/src/worker.ts"
   ],
   "dynamicallyLoaded": ["tools/oxlint/anti-slop/effect/index.ts"],
   "rules": {
@@ -32,6 +35,10 @@
     },
     {
       "file": "apps/logbook/alchemy.run.ts",
+      "exports": ["default"]
+    },
+    {
+      "file": "apps/battleblocks/alchemy.run.ts",
       "exports": ["default"]
     },
     {

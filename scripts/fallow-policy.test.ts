@@ -25,6 +25,9 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       'apps/logbook/alchemy.run.ts',
       'apps/logbook/web/index.html',
       'apps/logbook/web/src/worker.ts',
+      'apps/battleblocks/alchemy.run.ts',
+      'apps/battleblocks/web/index.html',
+      'apps/battleblocks/web/src/worker.ts',
     ],
     dynamicallyLoaded: ['tools/oxlint/anti-slop/effect/index.ts'],
     rules: { 'boundary-violation': 'error', 'policy-violation': 'error' },
@@ -34,6 +37,7 @@ it('keeps the complete Fallow configuration narrow and reviewable', () => {
       { file: 'apps/beltworks/alchemy.run.ts', exports: ['default'] },
       { file: 'apps/subq/alchemy.run.ts', exports: ['default'] },
       { file: 'apps/logbook/alchemy.run.ts', exports: ['default'] },
+      { file: 'apps/battleblocks/alchemy.run.ts', exports: ['default'] },
       { file: 'tools/oxlint/anti-slop/effect/index.ts', exports: ['default'] },
     ],
   })

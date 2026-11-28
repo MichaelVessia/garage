@@ -1,0 +1,26 @@
+{
+  "name": "@garage/battleblocks-web",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "dependencies": {
+    "@garage/battleblocks-domain": "workspace:*",
+    "@pixi/3d": "0.1.0",
+    "effect": "4.1.5",
+    "pixi.js": "8.23.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260829.1",
+    "@effect/vitest": "4.1.5",
+    "vite": "^8.2.2",
+    "vitest": "5.1.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --mode standalone",
+    "typecheck": "effect-tsgo tsrs --noEmit",
+    "format": "oxfmt --config ../../../oxfmt.config.mjs --check src/ test/ index.html package.json tsconfig.json vite.config.ts vitest.config.ts",
+    "format:fix": "oxfmt --config ../../../oxfmt.config.mjs src/ test/ index.html package.json tsconfig.json vite.config.ts vitest.config.ts",
+    "test": "bun --bun vitest run"
+  }
+}
