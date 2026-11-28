@@ -203,10 +203,12 @@ function spriteSheet(
 
 function extractionArc(phase: number) {
   return frame('extraction', phase, (g) => {
-    g.arc(0, 0, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, phase / 128)).stroke({
-      color: aqua,
-      width: 1.5,
-    })
+    g.beginPath()
+      .arc(0, 0, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.001, phase / 128))
+      .stroke({
+        color: aqua,
+        width: 1.5,
+      })
   })
 }
 
@@ -715,7 +717,9 @@ export class Machine extends Container {
             const angle = (phase * 2 * Math.PI) / 128
             g.save().translate(0, -8).scale(1, 0.48)
             g.circle(0, 0, 15).stroke({ color: aqua, width: 3, alpha: 0.38 })
-            g.arc(0, 0, 15, angle, angle + Math.PI * 0.7).stroke({ color: 0xcd_ff_f9, width: 3 })
+            g.beginPath()
+              .arc(0, 0, 15, angle, angle + Math.PI * 0.7)
+              .stroke({ color: 0xcd_ff_f9, width: 3 })
             g.restore()
           })
         } else {
@@ -742,8 +746,8 @@ export class Machine extends Container {
           if (phase > 0) {
             const start = -Math.PI / 2
             const end = start + (2 * Math.PI * phase) / 128
-            g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 4, alpha: 0.25 })
-            g.arc(0, 0, 10, start, end).stroke({ color: gold, width: 1.6 })
+            g.beginPath().arc(0, 0, 10, start, end).stroke({ color: gold, width: 4, alpha: 0.25 })
+            g.beginPath().arc(0, 0, 10, start, end).stroke({ color: gold, width: 1.6 })
           }
         })
         break
@@ -772,8 +776,8 @@ export class Machine extends Container {
         this.detail.context = g
         const end = start + Math.PI * 2 * progress
         if (end > start) {
-          g.arc(0, 0, 30, start, end).stroke({ width: 7, color: aqua, alpha: 0.22 })
-          g.arc(0, 0, 30, start, end).stroke({ width: 3.5, color: aqua })
+          g.beginPath().arc(0, 0, 30, start, end).stroke({ width: 7, color: aqua, alpha: 0.22 })
+          g.beginPath().arc(0, 0, 30, start, end).stroke({ width: 3.5, color: aqua })
           g.circle(30 * Math.cos(end), 30 * Math.sin(end), 2).fill(gold)
         }
         g.roundRect(-25, 20, 50, 4, 2).fill(ink)
