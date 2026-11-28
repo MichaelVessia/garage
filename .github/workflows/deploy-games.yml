@@ -4,9 +4,12 @@ on:
   push:
     branches: [master]
     paths:
-      - 'apps/games/public/**'
-      - 'apps/games/wrangler.jsonc'
+      - 'apps/games/**'
+      - 'bun.lock'
+      - 'package.json'
+      - 'tsconfig.base.json'
       - '.github/workflows/deploy-games.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

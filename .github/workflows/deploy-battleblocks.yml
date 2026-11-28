@@ -1,0 +1,50 @@
+name: Deploy Battleblocks
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'apps/battleblocks/**'
+      - 'bun.lock'
+      - 'package.json'
+      - 'tsconfig.base.json'
+      - '.github/workflows/deploy-battleblocks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-battleblocks-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate
+        run: bun run validate:fast
+
+      - name: Build Battleblocks web
+        run: bun run --filter '@garage/battleblocks-web' build
+
+      - name: Deploy to production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BATTLEBLOCKS_DOMAIN: ${{ vars.BATTLEBLOCKS_DOMAIN }}
+        run: bun run --filter '@garage/battleblocks' deploy:prod
