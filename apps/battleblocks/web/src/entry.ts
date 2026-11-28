@@ -331,7 +331,8 @@ const session = createDuelSession({
         const node = document.createElement('span')
         const card = document.createElement('b')
         card.textContent = String(value)
-        node.append(card, ' · ' + pct + '%')
+        node.append(card, ' ' + pct + '%')
+        node.style.setProperty('--card-ink', blockColors[value].text)
         node.style.setProperty('--card', blockColors[value].css)
         node.dataset.distance = String(value === distance)
         node.title = 'Opponent holds 1+: ' + pct + '% · 2+: ' + pctTwo + '% (' + unseen + ' unseen)'
