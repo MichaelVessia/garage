@@ -1,0 +1,7 @@
+{
+  "name": "vessia-games",
+  "compatibility_date": "2026-01-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "games.vessia.net", "custom_domain": true }],
+  "assets": { "directory": "./public" }
+}

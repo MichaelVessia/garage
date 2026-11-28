@@ -127,6 +127,9 @@
         "vitest": "5.1.0",
       },
     },
+    "apps/games": {
+      "name": "@garage/games",
+    },
     "apps/logbook": {
       "name": "@garage/logbook",
       "dependencies": {
@@ -496,6 +499,8 @@
     "@garage/beltworks-server": ["@garage/beltworks-server@workspace:apps/beltworks/server"],
 
     "@garage/beltworks-web": ["@garage/beltworks-web@workspace:apps/beltworks/web"],
+
+    "@garage/games": ["@garage/games@workspace:apps/games"],
 
     "@garage/logbook": ["@garage/logbook@workspace:apps/logbook"],
 
