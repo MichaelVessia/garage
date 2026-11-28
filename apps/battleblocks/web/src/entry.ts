@@ -256,22 +256,19 @@ const session = createDuelSession({
     for (const [i, id] of ['ember', 'frost'].entries()) {
       const wins = view.score[i] ?? 0
       const node = element(id)
-      node.textContent = Arr.join(
-        Arr.map([1, 2, 3], (star) => (star <= wins ? '★' : '☆')),
-        ' '
-      )
       const side = i === 0 ? 'Left' : 'Right'
       const own = Option.isSome(view.viewer) && view.viewer.value === i
-      const sideLabel = document.createElement('span')
-      sideLabel.className = 'side-label'
-      sideLabel.textContent = own ? 'You · ' + side : side
-      node.prepend(sideLabel)
-      node.setAttribute('aria-label', sideLabel.textContent + ', ' + names[i] + ', ' + wins + ' rounds won')
+      const label = own ? 'You · ' + side : side
       const rating = snapshot.seatRatings?.[i]
-      node.title = (names[i] ?? '') + (typeof rating !== 'number' ? '' : ' (' + rating + ' Elo)')
-      if (typeof rating === 'number') {
-        sideLabel.after(rating + ' · ')
-      }
+      element(id + '-label').textContent = label
+      element(id + '-wins').textContent = Arr.join(
+        Arr.map([1, 2, 3], (star) => (star <= wins ? '★' : '☆')),
+        ''
+      )
+      element(id + '-wins').setAttribute('aria-label', wins + ' rounds won')
+      element(id + '-position').textContent =
+        'Space ' + view.positions[i] + (typeof rating === 'number' ? ' · ' + rating + ' Elo' : '')
+      node.title = names[i] ?? label
     }
     element('round').textContent = 'Round ' + view.round
     const seat = Option.getOrUndefined(turnSeat(view.phase))
@@ -284,18 +281,16 @@ const session = createDuelSession({
             ? 'defend'
             : 'yours'
           : 'opponent'
-    element('ember').dataset.active = String(seat === 0)
-    element('frost').dataset.active = String(seat === 1)
     element('dock').dataset.turn = urgency
     const phase = element('phase')
     phase.dataset.urgency = urgency
     const distance = Math.abs(view.positions[1] - view.positions[0])
     const color = Option.getOrUndefined(Arr.findFirst(values, (v) => v === distance))
-    phase.style.setProperty('--distance', color === undefined ? '#fff' : blockColors[color].css)
+    element('range').style.color = color === undefined ? '' : blockColors[color].css
     const waiting = (s: Seat) =>
-      Option.isNone(view.viewer) ? names[s] + '’s turn' : mode === 'Bot practice' ? "BOT'S TURN" : "OPPONENT'S TURN"
+      Option.isNone(view.viewer) ? names[s] + '’s turn' : mode === 'Bot practice' ? 'Bot’s turn' : 'Opponent’s turn'
     phase.textContent = DuelPhase.match(view.phase, {
-      AwaitAction: (p) => (yours ? 'YOUR TURN · ' + distance + (distance === 1 ? ' HOP' : ' HOPS') : waiting(p.active)),
+      AwaitAction: (p) => (yours ? 'Your turn' : waiting(p.active)),
       AwaitDefense: (p) =>
         yours
           ? (p.isDashing ? 'Dash strike' : 'Strike') +
@@ -307,13 +302,7 @@ const session = createDuelSession({
       MatchOver: () => 'Set complete',
     })
     element('defense-hint').hidden = Arr.some(view.legalCommands, DuelCommand.guards.Retreat) === false
-    element('range').textContent =
-      'Space ' +
-      view.positions[0] +
-      ' · ' +
-      Math.abs(view.positions[1] - view.positions[0]) +
-      ' apart · Space ' +
-      view.positions[1]
+    element('range').textContent = distance + (distance === 1 ? ' space apart' : ' spaces apart')
     element('deck').textContent = view.deckCount + ' in deck · ' + view.reshufflesRemaining + ' reshuffles'
     element('odds').hidden = Option.isNone(view.viewer)
     element('counts').replaceChildren(
