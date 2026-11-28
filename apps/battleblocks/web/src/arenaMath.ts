@@ -155,7 +155,7 @@ export const buildActionOptions: {
       const right = target > origin
       const label = right ? steps + ' →' : '← ' + steps
       return option(
-        retreat && steps !== card ? label + ' (card ' + card + ')' : label,
+        retreat && steps !== card ? label + '\nCard ' + card : label,
         (retreat ? 'Retreat' : 'Move') + (right ? ' right' : ' left') + ' to space ' + target + ' with card ' + card,
         [target],
         card

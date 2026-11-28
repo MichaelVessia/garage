@@ -60,7 +60,7 @@ function button(label: string, click: () => void) {
   return node
 }
 const arenaMenu = element('arena-menu')
-const compactMenu = window.matchMedia('(max-width: 650px)')
+const compactMenu = window.matchMedia('(max-width: 650px), (max-height: 500px) and (orientation: landscape)')
 function sizeMenu() {
   arenaMenu.toggleAttribute('open', compactMenu.matches === false)
 }
@@ -143,6 +143,8 @@ function drawHand() {
   const retreatCards = element('retreat-cards')
   retreatCards.replaceChildren()
   actions.replaceChildren()
+  const moves = document.createElement('div')
+  moves.className = 'moves'
   for (const opt of options) {
     const node = button(opt.label, () => session.send(opt.command))
     node.setAttribute('aria-label', opt.ariaLabel)
@@ -158,9 +160,14 @@ function drawHand() {
     node.onpointerleave = node.onblur = () => state.arena?.preview(defaultPreview)
     if (DuelCommand.guards.Retreat(opt.command)) {
       retreatCards.append(node)
+    } else if (DuelCommand.guards.Move(opt.command)) {
+      moves.append(node)
     } else {
       actions.append(node)
     }
+  }
+  if (moves.childElementCount > 0) {
+    actions.prepend(moves)
   }
   element('retreats').hidden = retreatCards.childElementCount === 0
   if (options.length === 0) {

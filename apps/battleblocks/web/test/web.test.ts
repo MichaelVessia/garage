@@ -92,7 +92,7 @@ it('shows the defense choices and clamps a retreat to the edge', () => {
       Arr.filter(opts, (opt) => DuelCommand.guards.Retreat(opt.command)),
       (opt) => opt.label
     ),
-    ['1 → (card 2)', '1 → (card 5)']
+    ['1 →\nCard 2', '1 →\nCard 5']
   )
   assert.equal(opts.at(-1)?.label, 'Take the hit and lose the round')
 })
