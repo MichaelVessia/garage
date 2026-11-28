@@ -10,6 +10,7 @@ This is the authoritative router for bounded contexts in `garage`. Match every c
 | Pocket Arcade | `apps/games/**` | `apps/games/AGENTS.md` | `apps/games/CONTEXT.md` | None | `docs/reference/conventions.md` | List Garage games and where to play them. |
 | Beltworks | `apps/beltworks/**` | `apps/beltworks/AGENTS.md` | `apps/beltworks/CONTEXT.md` | None | `docs/reference/conventions.md` | Simulate a number factory and display its board. |
 | Battleblocks | `apps/battleblocks/**` | `apps/battleblocks/AGENTS.md` | `apps/battleblocks/CONTEXT.md` | None | `docs/reference/conventions.md` | Run 1v1 tactical card duels over Durable Objects with a Pixi 3D arena. |
+| Lawnmog | `apps/lawnmog/**` | `apps/lawnmog/AGENTS.md` | `apps/lawnmog/CONTEXT.md` | None | `docs/reference/conventions.md` | Simulate and display a shared suburban lawn care game. |
 | Logbook | `apps/logbook/**` | `apps/logbook/AGENTS.md` | `apps/logbook/CONTEXT.md` | None currently; system-wide `docs/adr/` | `docs/reference/conventions.md` | Record the household’s assets, maintenance schedules, service, and warranties. |
 | Repository Engineering | Root repository/tooling files, `.claude/**`, `.github/**`, `.vscode/**`, `.zed/**`, `docs/**`, `rules/**`, `rule-tests/**`, `scripts/**` | `docs/repository-engineering/AGENTS.md` | `docs/repository-engineering/CONTEXT.md` | System-wide `docs/adr/` | `CONTRIBUTING.md`, `docs/reference/conventions.md`, `docs/guardrails/` | Own the shared harness: validation, static policy, builds, Nix, CI, releases, contributor and agent documentation. |
 

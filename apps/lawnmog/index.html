@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#172b21" />
+    <title>Lawnmog | Clover Lane</title>
+  </head>
+  <body>
+    <main aria-label="Clover Lane">
+      <div id="stage" tabindex="0" aria-label="First-person street"></div>
+      <header class="hud topbar">
+        <div class="brand"><i class="blades" aria-hidden="true"></i><h1>Lawnmog</h1></div>
+        <div class="location"><strong>Clover Lane</strong><span id="weather">Joining street…</span><small id="judging-warning" hidden></small></div>
+        <button id="neighbors" class="live" aria-haspopup="dialog" aria-controls="panel"><i></i><span><span id="online">Neighbors</span><small id="hoa-summary">HOA notice</small></span></button>
+        <aside id="update-notice" aria-label="Game update" hidden>
+          <strong role="status">Update available</strong>
+          <button id="update-reload" type="button">Reload to update</button>
+          <button id="update-later" type="button">Later</button>
+        </aside>
+      </header>
+      <div class="reticle" aria-hidden="true"></div>
+      <div id="context" class="context"><span id="focus-label"></span><button id="move-in" hidden><kbd>F</kbd> Claim lawn</button></div>
+      <div id="graphics-error" role="alert" hidden>Street graphics could not start. Enable WebGL and reload the game.</div>
+      <section id="chat" class="hud" aria-label="Block chat">
+        <ol id="chat-log" aria-label="Block chat messages" tabindex="-1"></ol>
+        <p id="chat-info" role="status"></p>
+        <button id="chat-button" aria-controls="chat-log" aria-expanded="false"><kbd>T</kbd> Block chat</button>
+        <form id="chat-form" hidden>
+          <input id="chat-text" aria-label="Block chat message" placeholder="Message the block…" autocomplete="off" enterkeyhint="send" />
+          <button type="submit">Send</button>
+        </form>
+        <button id="chat-close" aria-label="Close block chat" hidden>Close</button>
+      </section>
+      <section id="leaf-launch" class="hud" aria-label="Leaf blower" hidden>
+        <label for="leaf-target">Blower</label>
+        <select id="leaf-target"></select>
+        <small id="leaf-supply"></small>
+      </section>
+      <footer class="hud footer">
+        <p id="notice" role="status"></p>
+        <div class="toolbar">
+          <button id="hand-slot" class="equipped" type="button" disabled><small id="tool-label">On foot</small><strong id="tool-name">Explore the street</strong></button>
+          <span id="balance" hidden></span>
+          <button id="shed" hidden><kbd>B</kbd> Tool shed</button>
+          <button id="camera" aria-label="Switch camera view"><kbd>V</kbd> Camera</button>
+          <button id="help" aria-label="Show controls">?</button>
+        </div>
+        <p id="hint">Walk to a lawn sign to claim a home.</p>
+      </footer>
+      <dialog id="panel" aria-labelledby="panel-title">
+        <header><h2 id="panel-title">Tool shed</h2><button id="close" aria-label="Close panel">×</button></header>
+        <form id="claim" hidden>
+          <p id="claim-address"></p>
+          <label for="player-name">Display name</label>
+          <input id="player-name" required maxlength="20" autocomplete="nickname" />
+          <button type="submit">Claim this lawn</button>
+        </form>
+        <section id="inventory" hidden>
+          <div class="shed-ledger">
+            <div class="job-map" aria-hidden="true">
+              <span>House</span><div id="quarter-map"><i></i><i></i><i></i><i></i></div><span>Street</span>
+            </div>
+            <div class="job-detail">
+              <h3>Lawn job</h3><strong id="job-name"></strong><span id="job-count"></span>
+              <progress id="job-meter" aria-labelledby="job-name"></progress>
+            </div>
+          </div>
+          <div class="ledger-line"><h3>Next upgrade</h3><span id="progress"></span></div>
+          <strong id="next-upgrade"></strong>
+          <p id="season-note"></p>
+          <p class="supply-note">Each patch pays once until you improve 16 different patches. Paid tools use supplies even on a patch that already paid. At zero coins, use the reel mower or watering can.</p>
+          <label id="watering-setting" hidden><input type="checkbox" id="automatic-watering" /> Automatic watering <small id="watering-rate"></small></label>
+          <div id="tools"></div>
+          <label for="pattern">Mow pattern</label>
+          <select id="pattern"></select>
+          <p id="condition"></p>
+          <p id="last-leaf-delivery" hidden></p>
+        </section>
+        <section id="directory" hidden>
+          <section class="hoa-notice" aria-labelledby="hoa-title">
+            <h3 id="hoa-title">Karen’s HOA inspection</h3>
+            <p id="hoa-standard"></p>
+            <p id="hoa-deadline"></p>
+            <p id="hoa-current"></p>
+            <p id="hoa-comment"></p>
+            <p id="hoa-remedy"></p>
+            <p id="hoa-result"></p>
+            <button id="visit-karen" type="button">Visit The Standards Committee</button>
+          </section>
+          <h3>Yard of the Week</h3><p id="yard-award"></p><h3>Curb appeal rankings</h3><ol id="rankings"></ol>
+        </section>
+        <section id="controls" hidden>
+          <label><input type="checkbox" id="sound-enabled" checked /> Footsteps and tool sounds</label>
+          <dl><dt>Move</dt><dd>W A S D</dd><dt>Turn</dt><dd>Q turns left. E turns right.</dd><dt>Camera</dt><dd>V switches between first person and third person.</dd><dt>Look</dt><dd>Drag or use the arrow keys. Double-click to capture the mouse.</dd><dt>Work</dt><dd>Hold Space or the left mouse button on your lawn.</dd><dt>Leaf cleanup</dt><dd>With a blower equipped, hold Work on your lawn to sweep leaves into your bag. Choose a neighbor from the blower menu and use Work once to send a pile. Aim at a delivered pile on your lawn and press Work to send it back. Select Push forward to move leaves in the direction you face. Press G to focus the menu on desktop. Karen fines anyone who blows leaves onto her lawn.</dd><dt>Claim a lawn</dt><dd>Approach a lawn sign and press F.</dd><dt>Unequip</dt><dd>Press X or select the tool in the toolbar to walk with empty hands.</dd><dt>Tool shed</dt><dd>B</dd><dt>Block chat</dt><dd>Enter or T to type. Enter sends. Escape cancels.</dd><dt>Neighbors and HOA</dt><dd>Press N or select the online count to see inspections and rankings.</dd><dt>Controls</dt><dd>H</dd><dt>Release mouse</dt><dd>Esc</dd></dl>
+          <p>On touch screens, drag on the left to walk and on the right to look. Hold the work button to use your tool.</p>
+        </section>
+        <p id="panel-notice" role="status"></p>
+      </dialog>
+    </main>
+    <script type="module" src="/src/update-notice.ts"></script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lawnmog",
+  "routes": [{ "pattern": "lawnmog.vessia.net", "custom_domain": true }],
+  "workers_dev": false,
+  "main": "server/src/worker.ts",
+  "compatibility_date": "2026-11-27",
+  "assets": { "directory": "./dist", "run_worker_first": ["/api/*"] },
+  "durable_objects": { "bindings": [{ "name": "BLOCK", "class_name": "Block" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Block"] }],
+}
