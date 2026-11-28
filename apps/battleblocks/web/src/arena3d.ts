@@ -1,4 +1,4 @@
-import { DuelEvent, DuelPhase } from '@garage/battleblocks-domain'
+import { DuelCommand, DuelEvent, DuelPhase } from '@garage/battleblocks-domain'
 import type { PlayerView, Seat } from '@garage/battleblocks-domain'
 import {
   AmbientLight,
@@ -124,13 +124,32 @@ export function mountArena({ host, app }: { host: HTMLElement; app: Application 
     }
     return { cloud, x }
   })
-  const beads = Array.from({ length: 17 * 3 }, () => {
-    const mesh = part(root, sphere, gold, 0, 0, 0.62, 0.22, 0.22, 0.22)
-    mesh.visible = false
-    return { mesh, height: 0 }
-  })
+  const route = root.addChild(new Container3D({ y: 0.05, z: 0.57 }))
+  const mint = surface(0x5e_ea_d4, 0.25)
+  part(route, cube, ink, 0, 0, 0, 1, 0.02, 0.18)
+  part(route, cube, mint, 0, 0.02, 0, 1, 0.02, 0.09)
+  route.visible = false
+
+  const landing = root.addChild(new Container3D({ y: 0.08 }))
+  part(landing, cube, ink, 0, 0, 0, 1.1, 0.04, 1.94)
+  part(landing, cube, mint, 0, 0.03, 0, 0.94, 0.03, 1.76)
+  const arrow = landing.addChild(new Container3D())
+  for (const side of [-1, 1]) {
+    part(arrow, cube, ink, 0, 0.06, side * 0.23, 0.66, 0.025, 0.16).rotation.y = (side * Math.PI) / 4
+  }
+  landing.visible = false
 
   const textures = MutableHashMap.empty<string, Texture>()
+  const flag = landing.addChild(
+    new Sprite3D({
+      texture: Texture.EMPTY,
+      pixelSize: 1 / 128,
+      billboardMode: 'spherical',
+      alphaMode: 'blend',
+    })
+  )
+  flag.z = -0.75
+  const post = part(landing, cube, ink, 0, 0, flag.z, 0.05, 1, 0.05)
   const rails = Array.from({ length: 18 }, (_, index) => {
     const x = spaceToWorldX(index + 1)
     part(root, cube, wood, x, -0.38, 0, 1.16, 0.45, 2.16)
@@ -263,19 +282,21 @@ export function mountArena({ host, app }: { host: HTMLElement; app: Application 
   const state: ArenaState = { positions: [1, 18], shake: 0, markers: [], preview: Option.none() }
   function drawPreview() {
     const action = Option.getOrUndefined(state.preview)
-    for (const [i, bead] of beads.entries()) {
-      const step = Math.floor(i / 3)
-      const target = action?.hops[step]
-      bead.mesh.visible = target !== undefined
-      if (action === undefined || target === undefined) {
-        continue
-      }
-      const start = action.hops[step - 1] ?? action.origin
-      const t = ((i % 3) + 1) / 4
-      bead.height = 0.28 + 2.4 * t * (1 - t)
-      bead.mesh.x = spaceToWorldX(start + (target - start) * t)
-      bead.mesh.y = bead.height
-      bead.mesh.material = Option.isSome(action.accent) ? (paints[action.accent.value - 1] ?? gold) : gold
+    const destination = action?.tiles[0]
+    const moves =
+      action !== undefined &&
+      destination !== undefined &&
+      destination !== action.origin &&
+      DuelCommand.guards.Strike(action.command) === false
+    landing.visible = route.visible = moves
+    if (moves) {
+      const from = spaceToWorldX(action.origin)
+      const to = spaceToWorldX(destination)
+      flag.texture = badgeTexture(textures, String(destination), '#99f6e4')
+      landing.x = to
+      arrow.rotation.y = to > from ? 0 : Math.PI
+      route.x = (from + to) / 2
+      route.scale.x = Math.abs(to - from)
     }
     for (const marker of state.markers) {
       const rail = rails[marker.space - 1]
@@ -283,7 +304,9 @@ export function mountArena({ host, app }: { host: HTMLElement; app: Application 
         continue
       }
       const highlighted = action?.tiles.includes(marker.space) ?? false
-      rail.pad.visible = highlighted
+      const isLanding = moves && marker.space === destination
+      rail.pad.visible = highlighted && isLanding === false
+      rail.far.visible = isLanding === false
       rail.near.visible = marker.nearTone !== 'hidden'
       if (marker.nearTone === 'hidden') {
         continue
@@ -351,14 +374,16 @@ export function mountArena({ host, app }: { host: HTMLElement; app: Application 
     camera.y += (target.y - camera.y) * pan
     camera.z += (target.z - camera.z) * pan
     camera.lookAt({ x: camera.x + Math.sin(t.lastTime * 0.09) * state.shake, y: 0.65, z: 0 })
+    if (landing.visible) {
+      const size = Math.max(0.85, (25 * camera.z) / height)
+      flag.scale.set(size)
+      flag.y = size * 0.8
+      post.scale.y = flag.y
+      post.y = flag.y / 2
+    }
     state.shake *= 1 - smooth
     for (const { cloud, x } of clouds) {
       cloud.x = x + 1.1 * Math.sin(t.lastTime * 0.00015 + x)
-    }
-    for (const [i, bead] of beads.entries()) {
-      if (bead.mesh.visible) {
-        bead.mesh.y = bead.height + 0.05 * Math.sin(t.lastTime * 0.006 - i)
-      }
     }
     for (const f of fighters) {
       if (f.turnRing.visible) {
