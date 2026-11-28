@@ -48,3 +48,13 @@ summary{cursor:pointer;color:var(--sun);text-decoration:underline}
 @media(max-width:500px){nav{flex-wrap:wrap}.scores{gap:.25rem}.scores b{padding:.25em .4em}}
 
 #battle-start{text-align:center;padding:.4rem}#start-title{font-size:clamp(1.2rem,3vw,1.65rem)}.start-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:.65rem;margin:.65rem 0 .3rem}.start-actions button{min-height:44px}
+
+.scores .side-label{display:block;font-size:.8rem}.scores b::before{float:left;margin-top:.2em}
+#actions:has([data-move]){display:grid;grid-template-columns:repeat(2,minmax(4.5rem,1fr))}
+#actions [data-move=left]{grid-area:1/1}#actions [data-move=right]{grid-area:1/2}
+#actions button[data-move]{min-width:4.5rem;min-height:3rem;font-size:1.5rem;line-height:1}
+#defense-hint{font-size:.9rem;margin-bottom:.4rem}
+#result:not([data-tone=victory]) .prize{display:none}
+#result[data-tone=defeat] .result-card{border-color:#fb7185}
+#result[data-tone=defeat] #result-title{color:#fda4af}
+#result:is([data-tone=tie],[data-tone=spectator]) .result-card{border-color:var(--border)}

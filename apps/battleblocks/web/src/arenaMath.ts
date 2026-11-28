@@ -4,6 +4,7 @@ import * as Arr from 'effect/Array'
 import * as Fn from 'effect/Function'
 import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
+import * as Order from 'effect/Order'
 import * as Str from 'effect/String'
 
 export const values: ReadonlyArray<CardValue> = [1, 2, 3, 4, 5]
@@ -62,6 +63,29 @@ export function turnSeat(phase: DuelPhase): Option.Option<Seat> {
   })
 }
 
+export function resultHeading({
+  scope,
+  viewer,
+  winner,
+  names,
+}: {
+  scope: 'round' | 'match'
+  viewer: Option.Option<Seat>
+  winner: Option.Option<Seat>
+  names: readonly [string, string]
+}) {
+  if (Option.isNone(winner)) {
+    return { tone: 'tie', title: 'Round tied' }
+  }
+  if (Option.isNone(viewer)) {
+    const side = winner.value === 0 ? 'left' : 'right'
+    return { tone: 'spectator', title: names[winner.value] + ' (' + side + ') won the ' + scope }
+  }
+  return viewer.value === winner.value
+    ? { tone: 'victory', title: 'You won the ' + scope + '!' }
+    : { tone: 'defeat', title: 'You lost the ' + scope }
+}
+
 export function computeBridgeMarkers(view: PlayerView): ReadonlyArray<BridgeMarker> {
   const anchorSeat = Option.getOrElse(view.viewer, (): Seat => Option.getOrElse(turnSeat(view.phase), (): Seat => 0))
   const origin = view.positions[anchorSeat]
@@ -107,26 +131,29 @@ export const buildActionOptions: {
   const origin = view.positions[seat]
   const opponent = view.positions[seat === 0 ? 1 : 0]
   const forward = seat === 0 ? 1 : -1
-  return Arr.flatMap(view.legalCommands, (command) => {
+  const options = Arr.flatMap(view.legalCommands, (command) => {
     function option(label: string, ariaLabel: string, tiles: Array<number>, card?: CardValue, start = origin) {
       const end = tiles.at(-1) ?? start
       const hops = Array.from({ length: Math.abs(end - start) }, (_, i) => start + Math.sign(end - start) * (i + 1))
       return [{ command, label, ariaLabel, tiles, hops, origin: start, accent: Option.fromNullishOr(card) }]
     }
-    function move(card: CardValue, target: number, verb: string) {
-      return Option.contains(selection, card)
-        ? option(
-            (target > origin ? '→ ' : '← ') + card,
-            verb + ' to space ' + target + ' with card ' + card,
-            [target],
-            card
-          )
-        : []
+    function movement(card: CardValue, target: number, retreat: boolean) {
+      const steps = Math.abs(target - origin)
+      const right = target > origin
+      const label = right ? steps + ' →' : '← ' + steps
+      return option(
+        retreat ? 'Retreat ' + label + ' (card ' + card + ')' : label,
+        (retreat ? 'Retreat' : 'Move') + (right ? ' right' : ' left') + ' to space ' + target + ' with card ' + card,
+        [target],
+        card
+      )
     }
     const arrow = forward > 0 ? '→' : '←'
     return DuelCommand.match(command, {
       Move: ({ card, direction }) =>
-        move(card, origin + forward * card * (direction === 'forward' ? 1 : -1), 'Move ' + direction),
+        Option.contains(selection, card)
+          ? movement(card, origin + forward * card * (direction === 'forward' ? 1 : -1), false)
+          : [],
       Push: ({ card }) =>
         Option.contains(selection, card)
           ? option(
@@ -161,12 +188,12 @@ export const buildActionOptions: {
               dashCard
             )
           : [],
-      Retreat: ({ card }) => move(card, onTrack(origin - forward * card), 'Retreat'),
-      TakeHit: () => option('★ Oops', 'Take the hit and end the round', []),
+      Retreat: ({ card }) => movement(card, onTrack(origin - forward * card), true),
+      TakeHit: () => option('Take the hit and lose the round', 'Take the hit and lose the round', []),
       Block: () =>
         DuelPhase.guards.AwaitDefense(view.phase)
           ? option(
-              '◎ ' + view.phase.strikeValue + (view.phase.strikeCount > 1 ? '×' + view.phase.strikeCount : ''),
+              'Block ' + view.phase.strikeValue + (view.phase.strikeCount > 1 ? '×' + view.phase.strikeCount : ''),
               'Block with ' + view.phase.strikeCount + ' of value ' + view.phase.strikeValue,
               [origin],
               view.phase.strikeValue
@@ -176,6 +203,9 @@ export const buildActionOptions: {
       Rematch: () => [],
     })
   })
+  const moveOrder = (opt: ActionOption) =>
+    DuelCommand.guards.Move(opt.command) ? (opt.tiles[0] ?? origin) - origin : TRACK_MAX
+  return Arr.sort(options, Order.mapInput(Order.Number, moveOrder))
 })
 
 function choose(n: number, k: number): number {

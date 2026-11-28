@@ -13,6 +13,7 @@ import {
   buildRoomShareUrl,
   readRoomCodeFromSearch,
   opponentCardProbabilities,
+  resultHeading,
   turnSeat,
   values,
 } from './arenaMath.ts'
@@ -120,13 +121,18 @@ function drawHand() {
     })
   )
   const options = buildActionOptions(view, selection)
-  const defaultPreview = Option.isSome(selection) ? Arr.findFirst(options, (opt) => opt.hops.length > 0) : Option.none()
+  const defaultPreview = Option.isSome(selection)
+    ? Arr.findFirst(options, (opt) => opt.hops.length > 0 && Option.contains(opt.accent, selection.value))
+    : Option.none()
   state.arena?.preview(defaultPreview)
   actions.replaceChildren(
     ...Arr.map(options, (opt) => {
       const node = button(opt.label, () => session.send(opt.command))
       node.setAttribute('aria-label', opt.ariaLabel)
       node.title = opt.ariaLabel
+      if (DuelCommand.guards.Move(opt.command)) {
+        node.dataset.move = (opt.tiles[0] ?? opt.origin) < opt.origin ? 'left' : 'right'
+      }
       if (Option.isSome(opt.accent)) {
         node.style.setProperty('--card', blockColors[opt.accent.value].css)
         node.style.setProperty('--card-ink', blockColors[opt.accent.value].text)
@@ -176,7 +182,6 @@ function showResult() {
   if (result.hidden) {
     return
   }
-  const name = (seat: Seat) => (Option.contains(view.viewer, seat) ? 'You' : names[seat])
   const next = element('continue')
   const matchOver = DuelPhase.guards.MatchOver(phase)
   const rankedEnd = matchOver && state.snapshot?.ranked === true
@@ -191,34 +196,22 @@ function showResult() {
       'time-over-position': 'Time over · track lead',
       'time-over-draw': 'Time over · equal distance',
     }
-    result.dataset.tone = Option.match(phase.winner, {
-      onNone: () => 'tie',
-      onSome: (seat) => (seat === 0 ? 'ember' : 'frost'),
-    })
+    const heading = resultHeading({ scope: 'round', viewer: view.viewer, winner: phase.winner, names })
+    result.dataset.tone = heading.tone
     element('result-eyebrow').textContent = 'Round ' + view.round + ' complete'
-    element('result-title').textContent = Option.match(phase.winner, {
-      onNone: () => 'Round tied',
-      onSome: (seat) =>
-        Option.isNone(view.viewer)
-          ? name(seat) + ' wins'
-          : Option.contains(view.viewer, seat)
-            ? 'ROUND WIN!'
-            : 'NICE TRY!',
-    })
+    element('result-title').textContent = heading.title
     element('result-detail').textContent =
       reasons[phase.reason] + ' · Score: ' + view.score[0] + ' – ' + view.score[1] + ' · First to 3'
     next.textContent = 'Next Round →'
     next.hidden = Arr.some(view.legalCommands, DuelCommand.guards.StartNextRound) === false
     next.onclick = () => session.send(DuelCommand.cases.StartNextRound.make({}))
   } else if (matchOver) {
-    const winner = name(phase.winner)
-    const won = Option.contains(view.viewer, phase.winner)
-    const spectator = Option.isNone(view.viewer)
-    result.dataset.tone = spectator || won ? 'victory' : 'defeat'
+    const heading = resultHeading({ scope: 'match', viewer: view.viewer, winner: Option.some(phase.winner), names })
+    result.dataset.tone = heading.tone
     element('result-eyebrow').textContent = 'Set complete · Best of 5'
-    element('result-title').textContent = spectator ? winner + ' wins' : won ? 'YOU WIN!' : 'NICE TRY!'
+    element('result-title').textContent = heading.title
     element('result-detail').textContent =
-      winner + ' won the set ' + phase.finalScore[phase.winner] + ' – ' + phase.finalScore[phase.winner === 0 ? 1 : 0]
+      'Final score · ' + names[0] + ' ' + phase.finalScore[0] + ' – ' + phase.finalScore[1] + ' ' + names[1]
     if (rankedEnd) {
       const reason = state.snapshot?.forfeitReason
       element('result-eyebrow').textContent =
@@ -267,11 +260,17 @@ const session = createDuelSession({
         Arr.map([1, 2, 3], (star) => (star <= wins ? '★' : '☆')),
         ' '
       )
-      node.setAttribute('aria-label', (names[i] ?? '') + ' won ' + wins + ' rounds')
+      const side = i === 0 ? 'Left' : 'Right'
+      const own = Option.isSome(view.viewer) && view.viewer.value === i
+      const sideLabel = document.createElement('span')
+      sideLabel.className = 'side-label'
+      sideLabel.textContent = own ? 'You · ' + side : side
+      node.prepend(sideLabel)
+      node.setAttribute('aria-label', sideLabel.textContent + ', ' + names[i] + ', ' + wins + ' rounds won')
       const rating = snapshot.seatRatings?.[i]
       node.title = (names[i] ?? '') + (typeof rating !== 'number' ? '' : ' (' + rating + ' Elo)')
       if (typeof rating === 'number') {
-        node.prepend(rating + ' · ')
+        sideLabel.after(rating + ' · ')
       }
     }
     element('round').textContent = 'Round ' + view.round
@@ -298,10 +297,16 @@ const session = createDuelSession({
     phase.textContent = DuelPhase.match(view.phase, {
       AwaitAction: (p) => (yours ? 'YOUR TURN · ' + distance + (distance === 1 ? ' HOP' : ' HOPS') : waiting(p.active)),
       AwaitDefense: (p) =>
-        yours ? 'BLOCK NOW! · ' + p.strikeValue + (p.strikeCount > 1 ? '×' + p.strikeCount : '') : waiting(p.defender),
+        yours
+          ? (p.isDashing ? 'Dash strike' : 'Strike') +
+            ' · ' +
+            p.strikeValue +
+            (p.strikeCount > 1 ? '×' + p.strikeCount : '')
+          : waiting(p.defender),
       RoundOver: () => 'Round complete',
       MatchOver: () => 'Set complete',
     })
+    element('defense-hint').hidden = Arr.some(view.legalCommands, DuelCommand.guards.Retreat) === false
     element('range').textContent =
       'Space ' +
       view.positions[0] +

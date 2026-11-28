@@ -10,6 +10,7 @@ import { vi } from 'vitest'
 
 import {
   blockColors,
+  resultHeading,
   cardCanStrike,
   values,
   spaceToWorldX,
@@ -75,15 +76,59 @@ it('shows both dash tiles and all legal strike strengths', () => {
 })
 it('shows the defense choices and clamps a retreat to the edge', () => {
   const pending = phase.AwaitDefense.make({ attacker: 0, defender: 1, strikeValue: 2, strikeCount: 1, isDashing: true })
-  const opts = options({ positions: [15, 17], phase: pending, hands: [[], [2, 5]] }, 1, 5)
+  const opts = options({ positions: [15, 17], phase: pending, hands: [[], [2, 5]] }, 1)
   assert.deepEqual(
     Arr.map(opts, (opt) => [opt.command._tag, opt.tiles]),
     [
       ['Block', [17]],
       ['Retreat', [18]],
+      ['Retreat', [18]],
       ['TakeHit', []],
     ]
   )
+  assert.equal(opts.at(-1)?.label, 'Take the hit and lose the round')
+})
+it('puts each movement button on its screen side for both players', () => {
+  for (const seat of [0, 1] as const) {
+    const moves = options(
+      {
+        positions: [6, 13],
+        hands: [
+          [5, 2],
+          [5, 2],
+        ],
+        phase: phase.AwaitAction.make({ active: seat }),
+      },
+      seat,
+      5
+    )
+    assert.equal(moves.at(0)?.label, '← 5')
+    assert.equal(moves.at(1)?.label, '5 →')
+  }
+})
+it('shows the result from the point of view of each player or spectator', () => {
+  const names = ['Knight', 'Knight'] as const
+  for (const scope of ['round', 'match'] as const) {
+    for (const winner of [0, 1] as const) {
+      const decided = Option.some(winner)
+      assert.deepEqual(resultHeading({ scope, viewer: decided, winner: decided, names }), {
+        tone: 'victory',
+        title: 'You won the ' + scope + '!',
+      })
+      assert.deepEqual(resultHeading({ scope, viewer: Option.some(winner === 0 ? 1 : 0), winner: decided, names }), {
+        tone: 'defeat',
+        title: 'You lost the ' + scope,
+      })
+      assert.equal(
+        resultHeading({ scope, viewer: Option.none(), winner: decided, names }).title,
+        (winner === 0 ? 'Knight (left)' : 'Knight (right)') + ' won the ' + scope
+      )
+    }
+  }
+  assert.deepEqual(resultHeading({ scope: 'round', viewer: Option.some(0), winner: Option.none(), names }), {
+    tone: 'tie',
+    title: 'Round tied',
+  })
 })
 it('keeps result commands out of the action shortcuts', () => {
   const phases = [
@@ -290,11 +335,10 @@ for (const seat of [0, 1] satisfies Array<Seat>) {
     const origin = state.positions[seat]
     const sign = seat === 0 ? 1 : -1
     const arrow = seat === 0 ? '→' : '←'
-    const back = seat === 0 ? '←' : '→'
     const preview = (card: CardValue, label: string, snapshot = state) =>
       Option.getOrUndefined(Arr.findFirst(options(snapshot, seat, card), (o) => o.label === label))?.hops
-    assert.deepEqual(preview(2, arrow + ' 2'), [origin + sign, origin + 2 * sign])
-    assert.deepEqual(preview(2, back + ' 2'), [origin - sign, origin - 2 * sign])
+    assert.deepEqual(preview(2, seat === 0 ? '2 →' : '← 2'), [origin + sign, origin + 2 * sign])
+    assert.deepEqual(preview(2, seat === 0 ? '← 2' : '2 →'), [origin - sign, origin - 2 * sign])
     const all = [origin + sign, origin + 2 * sign, origin + 3 * sign, origin + 4 * sign]
     assert.deepEqual(preview(4, '★ 4'), all)
     assert.deepEqual(preview(2, arrow + '2 + ★2'), all)
@@ -305,7 +349,10 @@ for (const seat of [0, 1] satisfies Array<Seat>) {
       strikeCount: 1,
       isDashing: true,
     })
-    assert.deepEqual(preview(2, back + ' 2', { ...state, phase: defense }), [origin - sign, origin - 2 * sign])
+    assert.deepEqual(
+      preview(2, seat === 0 ? 'Retreat ← 2 (card 2)' : 'Retreat 2 → (card 2)', { ...state, phase: defense }),
+      [origin - sign, origin - 2 * sign]
+    )
   })
 }
 
