@@ -17,6 +17,7 @@ The most local applicable instructions take precedence over broader ones.
 
 - Keep changes narrow; do not mix unrelated behavior, formatting, and automation
   work.
+- When you add a game to Garage or change a Garage game’s public URL, update the [Pocket Arcade](apps/games/AGENTS.md) in the same change.
 - Do not edit generated output.
 - Use workspace package names for cross-workspace imports; never import
   production code from another app.

@@ -1,0 +1,36 @@
+name: Deploy Pocket Arcade
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/games/public/**'
+      - 'apps/games/wrangler.jsonc'
+      - '.github/workflows/deploy-games.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-games-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run validate:fast
+      - name: Publish static assets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/games
+          wranglerVersion: '4.169.0'

@@ -1,0 +1,7 @@
+{
+  "name": "@garage/games",
+  "private": true,
+  "scripts": {
+    "dev": "bunx wrangler@4.169.0 dev"
+  }
+}
