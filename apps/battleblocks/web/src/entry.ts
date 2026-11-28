@@ -249,6 +249,9 @@ lobby.addEventListener('close', () => {
 const session = createDuelSession({
   show: (snapshot) => {
     const { view, names, mode, events } = snapshot
+    element('battle-start').hidden = true
+    element('battle-hand').hidden = false
+    element('round-status').hidden = false
     state.snapshot = snapshot
     setClock(snapshot.ranked && Option.isSome(turnSeat(view.phase)) ? snapshot.turnDeadlineMs : undefined)
     if (events) {
@@ -347,7 +350,7 @@ const session = createDuelSession({
   autoRound: () => input('auto').checked,
 })
 let initialRoom = true
-element('practice').onclick = () => {
+element('start-practice').onclick = element('practice').onclick = () => {
   initialRoom = false
   launch.pending = true
   notice('')
@@ -466,6 +469,7 @@ function renderProfile() {
   if (session === undefined) {
     return
   }
+  element('start-ranked').removeAttribute('disabled')
   const p = session.profile
   element('lobby-player').textContent = p.callsign + ' · ' + p.rating + ' Elo'
   element('profile-name').textContent = p.callsign
@@ -642,9 +646,11 @@ function startQueue() {
     },
   })
 }
-element('quick-match').onclick = startQueue
+element('start-ranked').onclick = element('quick-match').onclick = startQueue
 const room = readRoomCodeFromSearch(location.search)
-lobby.showModal()
+if (room !== undefined) {
+  lobby.showModal()
+}
 function initializeLobby() {
   return profiles.init().then(({ notice: message }) => {
     renderProfile()

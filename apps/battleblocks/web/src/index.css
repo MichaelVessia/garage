@@ -46,3 +46,5 @@ summary{cursor:pointer;color:var(--sun);text-decoration:underline}
 [data-viewer=true]{background:var(--panel-hi);color:var(--sun)}
 #result-detail[data-delta=up]{color:#86efac}#result-detail[data-delta=down]{color:#fda4af}
 @media(max-width:500px){nav{flex-wrap:wrap}.scores{gap:.25rem}.scores b{padding:.25em .4em}}
+
+#battle-start{text-align:center;padding:.4rem}#start-title{font-size:clamp(1.2rem,3vw,1.65rem)}.start-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:.65rem;margin:.65rem 0 .3rem}.start-actions button{min-height:44px}
