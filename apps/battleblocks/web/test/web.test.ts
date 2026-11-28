@@ -86,6 +86,13 @@ it('shows the defense choices and clamps a retreat to the edge', () => {
       ['TakeHit', []],
     ]
   )
+  assert.deepEqual(
+    Arr.map(
+      Arr.filter(opts, (opt) => DuelCommand.guards.Retreat(opt.command)),
+      (opt) => opt.label
+    ),
+    ['1 → (card 2)', '1 → (card 5)']
+  )
   assert.equal(opts.at(-1)?.label, 'Take the hit and lose the round')
 })
 it('puts each movement button on its screen side for both players', () => {
@@ -349,10 +356,10 @@ for (const seat of [0, 1] satisfies Array<Seat>) {
       strikeCount: 1,
       isDashing: true,
     })
-    assert.deepEqual(
-      preview(2, seat === 0 ? 'Retreat ← 2 (card 2)' : 'Retreat 2 → (card 2)', { ...state, phase: defense }),
-      [origin - sign, origin - 2 * sign]
-    )
+    assert.deepEqual(preview(2, seat === 0 ? '← 2' : '2 →', { ...state, phase: defense }), [
+      origin - sign,
+      origin - 2 * sign,
+    ])
   })
 }
 

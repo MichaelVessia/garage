@@ -58,6 +58,20 @@ function button(label: string, click: () => void) {
   node.onclick = click
   return node
 }
+const arenaMenu = element('arena-menu')
+const compactMenu = window.matchMedia('(max-width: 650px)')
+function sizeMenu() {
+  arenaMenu.toggleAttribute('open', compactMenu.matches === false)
+}
+sizeMenu()
+compactMenu.addEventListener('change', sizeMenu)
+for (const control of arenaMenu.querySelectorAll('button')) {
+  control.addEventListener('click', () => {
+    if (compactMenu.matches) {
+      arenaMenu.removeAttribute('open')
+    }
+  })
+}
 const lobby = dialog('lobby')
 const profileDialog = dialog('profile-dialog')
 const rules = dialog('rules')
@@ -125,23 +139,29 @@ function drawHand() {
     ? Arr.findFirst(options, (opt) => opt.hops.length > 0 && Option.contains(opt.accent, selection.value))
     : Option.none()
   state.arena?.preview(defaultPreview)
-  actions.replaceChildren(
-    ...Arr.map(options, (opt) => {
-      const node = button(opt.label, () => session.send(opt.command))
-      node.setAttribute('aria-label', opt.ariaLabel)
-      node.title = opt.ariaLabel
-      if (DuelCommand.guards.Move(opt.command)) {
-        node.dataset.move = (opt.tiles[0] ?? opt.origin) < opt.origin ? 'left' : 'right'
-      }
-      if (Option.isSome(opt.accent)) {
-        node.style.setProperty('--card', blockColors[opt.accent.value].css)
-        node.style.setProperty('--card-ink', blockColors[opt.accent.value].text)
-      }
-      node.onpointerenter = node.onfocus = () => state.arena?.preview(Option.some(opt))
-      node.onpointerleave = node.onblur = () => state.arena?.preview(defaultPreview)
-      return node
-    })
-  )
+  const retreatCards = element('retreat-cards')
+  retreatCards.replaceChildren()
+  actions.replaceChildren()
+  for (const opt of options) {
+    const node = button(opt.label, () => session.send(opt.command))
+    node.setAttribute('aria-label', opt.ariaLabel)
+    node.title = opt.ariaLabel
+    if (DuelCommand.guards.Move(opt.command)) {
+      node.dataset.move = (opt.tiles[0] ?? opt.origin) < opt.origin ? 'left' : 'right'
+    }
+    if (Option.isSome(opt.accent)) {
+      node.style.setProperty('--card', blockColors[opt.accent.value].css)
+      node.style.setProperty('--card-ink', blockColors[opt.accent.value].text)
+    }
+    node.onpointerenter = node.onfocus = () => state.arena?.preview(Option.some(opt))
+    node.onpointerleave = node.onblur = () => state.arena?.preview(defaultPreview)
+    if (DuelCommand.guards.Retreat(opt.command)) {
+      retreatCards.append(node)
+    } else {
+      actions.append(node)
+    }
+  }
+  element('retreats').hidden = retreatCards.childElementCount === 0
   if (options.length === 0) {
     const seat = Option.getOrUndefined(turnSeat(view.phase))
     actions.textContent =
@@ -301,7 +321,6 @@ const session = createDuelSession({
       RoundOver: () => 'Round complete',
       MatchOver: () => 'Set complete',
     })
-    element('defense-hint').hidden = Arr.some(view.legalCommands, DuelCommand.guards.Retreat) === false
     element('range').textContent = distance + (distance === 1 ? ' space apart' : ' spaces apart')
     element('deck').textContent = view.deckCount + ' in deck · ' + view.reshufflesRemaining + ' reshuffles'
     element('odds').hidden = Option.isNone(view.viewer)
@@ -673,6 +692,7 @@ try {
     backgroundAlpha: 0,
     autoStart: false,
   })
+  new ResizeObserver(() => app.resize()).observe(host)
   const arena = mountArena({ host, app })
   state.arena = arena
   arena.update(state.view, false)
