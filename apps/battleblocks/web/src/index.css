@@ -42,7 +42,7 @@ h1{font-size:clamp(1.2rem,3vw,1.8rem);letter-spacing:-.04em;color:#ffffff}h1 i,.
 #hand button{position:relative;display:grid;justify-items:center;align-content:center;gap:.28rem;width:clamp(2.8rem,6.2vw,4.15rem);height:clamp(3.9rem,9vw,5.3rem);background:var(--card);color:var(--card-ink,#ffffff);border:3px solid #020617;padding:0;font-size:clamp(1.5rem,3vw,2.25rem);font-weight:900;line-height:1}
 #hand [aria-pressed=true]{transform:translateY(-6px);border-color:var(--sun);box-shadow:0 7px 0 #020617,0 0 0 3px var(--sun)}
 .steps{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;width:82%}.steps i{height:.46rem;border:1px solid color-mix(in srgb,var(--card-ink,#ffffff) 40%,transparent);border-radius:2px;background:color-mix(in srgb,var(--card-ink,#ffffff) 18%,transparent)}.steps i.on{border-color:var(--card-ink,#ffffff);background:var(--card-ink,#ffffff)}
-#hand [data-ready=true]::after{content:"★";position:absolute;top:-.45rem;right:-.28rem;background:var(--sun);border:2.5px solid #020617;border-radius:50%;color:#0f172a;padding:.08em .16em;font-size:.82rem;line-height:1;animation:score-hop .65s infinite alternate}
+#hand [data-ready=true]::after{content:"";position:absolute;top:-.45rem;right:-.28rem;width:1rem;height:1rem;background:var(--sun) url("./strike.svg") center/80% no-repeat;border:2.5px solid #020617;border-radius:50%;color:#0f172a;padding:.08em .16em;font-size:.82rem;line-height:1;animation:score-hop .65s infinite alternate}
 #actions,.result-actions{flex-wrap:wrap}#actions button,#retreat-cards button{background:var(--card,var(--panel-hi));color:var(--card-ink,var(--text));border:3px solid #020617;min-height:2.75rem;font-size:1rem;letter-spacing:.02em}#actions button:hover,#retreat-cards button:hover{filter:brightness(1.1);border-color:var(--sun)}
 #notice:not(:empty),#lobby-message:not(:empty){padding:.4rem 0;color:#fde047;font-weight:750}dialog{width:min(92vw,25rem);padding:1.4rem;background:var(--panel);color:var(--text)}dialog::backdrop{background:#02061788}dialog h2{font-size:1.9rem;margin:0 0 .8rem;color:#ffffff}dialog .close{float:right;border-radius:50%;padding:.12em .52em}dialog>button{width:100%;margin:.4rem 0}button.primary{background:var(--sun);color:var(--ink);border-color:#020617}.check{display:block;font-size:.88rem;margin:.6rem 0;color:var(--muted);cursor:pointer}#join label{display:block;margin:.7rem 0 .35rem;color:var(--muted)}#join div{display:flex;gap:.5rem}#code{min-width:0;flex:1;text-transform:uppercase;background:#020617;color:#ffffff;border-color:var(--border)}dt{font-weight:850;margin-top:.6rem;color:var(--sun)}dd{line-height:1.4;color:var(--muted)}dialog p{margin-top:.65rem;color:var(--muted)}hr{border:0;border-top:2px solid #334155;margin:.9rem 0}
 #result{position:fixed;inset:0;display:grid;place-items:center;background:#02061788;padding:1rem;backdrop-filter:blur(4px)}.result-card{text-align:center;padding:clamp(1.2rem,3vw,2.2rem);max-height:90dvh;overflow:auto;border-color:var(--sun)}.prize{font-size:2.3rem}#result-eyebrow{color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem}#result-title{font-size:clamp(1.8rem,5vw,3rem);color:#ffffff;margin:.2rem 0}#result-detail{color:#e2e8f0;font-size:1rem}.result-actions{justify-content:center;margin-top:1rem}
@@ -134,4 +134,17 @@ summary{cursor:pointer;color:var(--sun);text-decoration:underline}
   #retreat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(2.8rem,1fr));gap:.22rem}
   .dock[data-turn=defend] #actions button:last-child{max-width:12rem;line-height:1.1;padding:.2rem .45rem}
   #retreat-cards button{padding:.15rem .25rem;font-size:.8rem}
+}
+
+[data-action=Strike],.strike-icon{--action-icon:url("./strike.svg")}
+[data-action=Push],.push-icon{--action-icon:url("./push.svg")}
+[data-action=Strike]::before,[data-action=Push]::before,.strike-icon::before,.push-icon::before{
+  content:"";display:inline-block;width:1.1em;height:1.1em;vertical-align:-.15em;margin-right:.25em;
+  background:currentColor;mask:var(--action-icon) center/contain no-repeat
+}
+[data-action=Push][data-side=left]::before{transform:scaleX(-1)}
+@media(max-width:650px), (max-height:500px) and (orientation:landscape){
+  #actions:has(:is([data-action=Strike],[data-action=DashingStrike])){column-gap:.25rem}
+  #actions button[data-action=DashingStrike]{width:calc((100% - .25rem)/2);padding:.15rem .2rem;line-height:1.1}
+  #actions button:is([data-action=Push],[data-action=Strike]){width:calc((100% - .5rem)/3);padding:.15rem .2rem;line-height:1.1}
 }

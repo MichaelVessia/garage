@@ -149,6 +149,10 @@ function drawHand() {
     const node = button(opt.label, () => session.send(opt.command))
     node.setAttribute('aria-label', opt.ariaLabel)
     node.title = opt.ariaLabel
+    node.dataset.action = opt.command._tag
+    if (DuelCommand.guards.Push(opt.command)) {
+      node.dataset.side = Option.contains(view.viewer, 1) ? 'left' : 'right'
+    }
     if (DuelCommand.guards.Move(opt.command)) {
       node.dataset.move = (opt.tiles[0] ?? opt.origin) < opt.origin ? 'left' : 'right'
     }

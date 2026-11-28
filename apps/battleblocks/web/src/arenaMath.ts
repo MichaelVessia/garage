@@ -2,7 +2,6 @@ import { DuelCommand, DuelPhase, TRACK_MIN, TRACK_MAX } from '@garage/battlebloc
 import type { PlayerView, CardValue, Seat } from '@garage/battleblocks-domain'
 import * as Arr from 'effect/Array'
 import * as Fn from 'effect/Function'
-import * as Match from 'effect/Match'
 import * as Option from 'effect/Option'
 import * as Order from 'effect/Order'
 import * as Str from 'effect/String'
@@ -136,6 +135,9 @@ export type ActionOption = {
   hops: ReadonlyArray<number>
   accent: Option.Option<CardValue>
 }
+function strikeLabel(card: CardValue, count: number) {
+  return 'Strike ' + (count === 1 ? String(card) : count + '×' + card)
+}
 export const buildActionOptions: {
   (view: PlayerView, selection: Option.Option<CardValue>): Array<ActionOption>
   (selection: Option.Option<CardValue>): (view: PlayerView) => Array<ActionOption>
@@ -169,33 +171,16 @@ export const buildActionOptions: {
           : [],
       Push: ({ card }) =>
         Option.contains(selection, card)
-          ? option(
-              (forward > 0 ? '⇒ ' : '⇐ ') + card,
-              'Push with a ' + card,
-              [onTrack(opponent + forward * card)],
-              card,
-              opponent
-            )
+          ? option('Push ' + card, 'Push with a ' + card, [onTrack(opponent + forward * card)], card, opponent)
           : [],
       Strike: ({ card, count }) =>
         Option.contains(selection, card)
-          ? option(
-              Str.repeat(Math.min(3, count))('★') +
-                ' ' +
-                Match.value(count).pipe(
-                  Match.when(1, () => String(card)),
-                  Match.when(2, () => card + '+' + card),
-                  Match.orElse(() => card + '×' + count)
-                ),
-              'Strike with ' + count + ' of value ' + card,
-              [opponent],
-              card
-            )
+          ? option(strikeLabel(card, count), 'Strike with ' + count + ' of value ' + card, [opponent], card)
           : [],
       DashingStrike: ({ dashCard, strikeCard, strikeCount }) =>
         Option.contains(selection, dashCard)
           ? option(
-              arrow + dashCard + ' + ★' + strikeCard + (strikeCount > 1 ? '×' + strikeCount : ''),
+              'Dash ' + arrow + dashCard + ' · ' + strikeLabel(strikeCard, strikeCount),
               'Dash ' + dashCard + ' spaces then strike with ' + strikeCount + ' of value ' + strikeCard,
               [origin + forward * dashCard, opponent],
               dashCard

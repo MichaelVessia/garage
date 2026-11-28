@@ -57,12 +57,16 @@ it('previews only legal moves, pushes and strikes for the selected value', () =>
     Arr.map(moves, (m) => [m.label, m.tiles]),
     [
       ['← 1', [7]],
-      ['⇒ 1', [10]],
-      ['★ 1', [9]],
-      ['★★ 1+1', [9]],
+      ['Push 1', [10]],
+      ['Strike 1', [9]],
+      ['Strike 2×1', [9]],
     ]
   )
   assert.deepEqual(options({ positions: [8, 9], hands: [[1, 1], []] }, 0, 3), [])
+})
+it('labels a three-card strike with its count and card value', () => {
+  const choices = options({ positions: [6, 8], hands: [[2, 2, 2], []] }, 0, 2)
+  assert.isTrue(Arr.some(choices, (opt) => opt.label === 'Strike 3×2' && opt.ariaLabel === 'Strike with 3 of value 2'))
 })
 it('shows both dash tiles and all legal strike strengths', () => {
   const opts = options({ positions: [4, 9], hands: [[2, 3, 3], []] }, 0, 2)
@@ -368,8 +372,8 @@ for (const seat of [0, 1] satisfies Array<Seat>) {
     assert.deepEqual(preview(2, seat === 0 ? '2 →' : '← 2'), [origin + sign, origin + 2 * sign])
     assert.deepEqual(preview(2, seat === 0 ? '← 2' : '2 →'), [origin - sign, origin - 2 * sign])
     const all = [origin + sign, origin + 2 * sign, origin + 3 * sign, origin + 4 * sign]
-    assert.deepEqual(preview(4, '★ 4'), all)
-    assert.deepEqual(preview(2, arrow + '2 + ★2'), all)
+    assert.deepEqual(preview(4, 'Strike 4'), all)
+    assert.deepEqual(preview(2, 'Dash ' + arrow + '2 · Strike 2'), all)
     const defense = phase.AwaitDefense.make({
       attacker: other,
       defender: seat,
